@@ -1,17 +1,12 @@
 import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
 
-const MiniPayModule = buildModule("MiniPayModule", (m) => {
-  // Set up parameters if you want to make the contract address configurable
-  const initialOwner = m.getParameter(
-    "initialOwner",
-    "0x1724707c52de2fa65ad9c586b5d38507f52D3c06"
-  );
+const RaffleModule = buildModule("RaffleModule1", (m) => {
+  // Initial numbers array to deploy the contract with
+  const initialNumbers = [1, 2, 3, 4, 5]; // <-- you can change these
 
-  // Deploy the MiniPay contract with the specified parameters
-  const miniPayNFT = m.contract("MiniPay", [initialOwner]);
+  const raffle = m.contract("Raffle", [initialNumbers]);
 
-  return { miniPayNFT };
+  return { raffle };
 });
 
-export default MiniPayModule;
-
+export default RaffleModule;
