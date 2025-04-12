@@ -1,4 +1,5 @@
 import '@/styles/globals.css';
+import "@/styles/style.css";
 
 import { AppProvider } from '@/providers/AppProvider';
 

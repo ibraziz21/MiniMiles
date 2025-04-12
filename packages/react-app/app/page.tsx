@@ -1,9 +1,15 @@
 "use client";
 
+import { BottomNav } from "@/components/bottom-nav";
+import { GameCard } from "@/components/game-card";
+import { Hero } from "@/components/Hero";
+import { RaffleCard } from "@/components/raffle-card";
+import { SectionHeading } from "@/components/section-heading";
 /* eslint-disable react-hooks/exhaustive-deps */
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useWeb3 } from "@/contexts/useWeb3";
+import { img } from "@/lib/img";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 
@@ -84,110 +90,106 @@ export default function Home() {
 
 
     return (
-        <div className="flex flex-col justify-center items-center">
-            {!address && (
-                <div className="h1">Please install Metamask and connect.</div>
-            )}
-            {address && (
-                <div className="h1">
-                    There you go... a canvas for your next Minipay project!
-                </div>
-            )}
+        <main className="pb-24 font-poppins">
+            <Hero />
 
-            <a
-                href="https://faucet.celo.org/alfajores"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-4 mb-4 rounded-full bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
-            >
-                Get Test Tokens
-            </a>
+            <SectionHeading title="Join digital cash raffles" />
+            <div className="flex space-x-3 overflow-x-auto px-4 whitespace-nowrap scrollbar-hide">
+                <RaffleCard
+                    image={img.win}
+                    title="500 USDT weekly"
+                    endsIn="7 days"
+                    ticketCost="10 MiniMiles for 1 ticket"
+                />
+                <RaffleCard
+                    image={img.win}
+                    title="250 USDT"
+                    endsIn="7 days"
+                    ticketCost="6 points for 1 ticket"
+                />
+                <RaffleCard
+                    image={img.win}
+                    title="500 USDT weekly"
+                    endsIn="7 days"
+                    ticketCost="10 MiniMiles for 1 ticket"
+                />
+                <RaffleCard
+                    image={img.win}
+                    title="250 USDT"
+                    endsIn="7 days"
+                    ticketCost="6 points for 1 ticket"
+                />
+                <RaffleCard
+                    image={img.win}
+                    title="500 USDT weekly"
+                    endsIn="7 days"
+                    ticketCost="10 MiniMiles for 1 ticket"
+                />
+                <RaffleCard
+                    image={img.win}
+                    title="250 USDT"
+                    endsIn="7 days"
+                    ticketCost="6 points for 1 ticket"
+                />
+                <RaffleCard
+                    image={img.win}
+                    title="500 USDT weekly"
+                    endsIn="7 days"
+                    ticketCost="10 MiniMiles for 1 ticket"
+                />
+                <RaffleCard
+                    image={img.win}
+                    title="250 USDT"
+                    endsIn="7 days"
+                    ticketCost="6 points for 1 ticket"
+                />
+            </div>
 
-            {address && (
-                <>
-                    <div className="h2 text-center">
-                        Your address:{" "}
-                        <span className="font-bold text-sm">{address}</span>
-                    </div>
-                    {tx && (
-                        <p className="font-bold mt-4">
-                            Tx Completed:{" "}
-                            <a
-                                href={`https://alfajores.celoscan.io/tx/${tx.transactionHash}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 underline"
-                            >
-                                {tx.transactionHash.substring(0, 6)}...{tx.transactionHash.substring(tx.transactionHash.length - 6)}
-                            </a>
-                        </p>
-                    )}
-                    <div className="w-full px-3 mt-7">
-                        <Input
-                            type="number"
-                            value={amountToSend}
-                            onChange={(e) => setAmountToSend(e.target.value)}
-                            placeholder="Enter amount to send"
-                            className="border rounded-md px-3 py-2 w-full mb-3"
-                        ></Input>
-                        <Button
-                            loading={signingLoading}
-                            onClick={sendingCUSD}
-                            title={`Send ${amountToSend} cUSD to your own address`}
-                            widthFull
-                        />
-                    </div>
+            <SectionHeading title="Join physical goods raffles" />
+            <div className="flex space-x-3 overflow-x-auto px-4">
+                <RaffleCard
+                    image={img.win}
+                    title="Ledger hardware wallet"
+                    endsIn="5 days"
+                    ticketCost="3 MiniMiles for 1 ticket"
+                />
+                <RaffleCard
+                    image={img.win}
+                    title="Laptop"
+                    endsIn="4 days"
+                    ticketCost="50 tickets by brand"
+                />
+            </div>
 
-                    <div className="w-full px-3 mt-6">
-                        <Button
-                            loading={cUSDLoading}
-                            onClick={signMessage}
-                            title="Sign a Message"
-                            widthFull
-                        />
-                    </div>
+            <SectionHeading title="Join NFT Raffles" />
+            <div className="flex space-x-3 overflow-x-auto px-4">
+                <RaffleCard
+                    image={img.win}
+                    title="BoredApe #567"
+                    endsIn="3 days"
+                    ticketCost="10 MiniMiles for 1 ticket"
+                />
+                <RaffleCard
+                    image={img.win}
+                    title="CryptoPunk #789"
+                    endsIn="2 days"
+                    ticketCost="12 MiniMiles"
+                />
+            </div>
 
-                    {messageSigned && (
-                        <div className="mt-5 text-green-600 font-bold">
-                            Message signed successfully!
-                        </div>
-                    )}
-
-                    <div className="w-full px-3 mt-5">
-                        <Button
-                            loading={nftLoading}
-                            onClick={mintNFT}
-                            title="Mint Minipay NFT"
-                            widthFull
-                        />
-                    </div>
-
-                    {userOwnedNFTs.length > 0 ? (
-                        <div className="flex flex-col items-center justify-center w-full mt-7">
-                            <p className="font-bold">My NFTs</p>
-                            <div className="w-full grid grid-cols-2 gap-3 mt-3 px-2">
-                                {userOwnedNFTs.map((tokenURI, index) => (
-                                    <div
-                                        key={index}
-                                        className="p-2 border-[3px] border-colors-secondary rounded-xl"
-                                    >
-                                        <Image
-                                            alt="MINIPAY NFT"
-                                            src={tokenURI}
-                                            className="w-[160px] h-[200px] object-cover"
-                                            width={160}
-                                            height={200}
-                                        />
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="mt-5">You do not have any NFTs yet</div>
-                    )}
-
-                </>
-            )}
-        </div>
+            <SectionHeading title="Upcoming games" />
+            <div className="flex space-x-3 overflow-x-auto px-4">
+                <GameCard
+                    name="Dice"
+                    date="xx/xx/xx"
+                    image="/dice.jpg"
+                />
+                <GameCard
+                    name="Coin flip"
+                    date="xx/xx/xx"
+                    image="/coin.jpg"
+                />
+            </div>
+        </main>
     );
 }

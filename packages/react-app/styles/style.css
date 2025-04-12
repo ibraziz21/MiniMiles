@@ -1,0 +1,11 @@
+.app-background {
+  @apply h-screen bg-no-repeat bg-cover bg-center font-poppins flex flex-col items-center justify-around px-3;
+}
+
+.onboarding-bg {
+  @apply h-screen bg-no-repeat bg-cover bg-center font-poppins px-3;
+}
+
+.home-background {
+  @apply bg-no-repeat bg-cover bg-center font-poppins flex flex-col justify-start;
+}
