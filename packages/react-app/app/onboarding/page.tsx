@@ -14,11 +14,18 @@ import {
   CarouselItem,
 } from "@/components/ui/carousel";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 // gsap.registerPlugin(ScrollTrigger);
 
 const Onboarding = () => {
   const router = useRouter();
+
+  const completeOnboarding = () => {
+    localStorage.setItem("onboarding-complete", "true");
+    router.push("/");
+  };
+
 
   // useEffect(() => {
   //   // Check if the user is already logged in
@@ -52,12 +59,12 @@ const Onboarding = () => {
                     </h2>
                     <h4 className="text-black my-5">{element.subtitle}</h4>
                     <div className="flex flex-col justify-center">
-                      <Link
-                        href="/login"
-                        className="bg-white p-3 rounded-2xl mt-5 font-bold cursor-pointer text-center w-full sm:w-[400px]"
+                      <Button
+                        title={element.buttonText}
+                        onClick={completeOnboarding}
+                        className="bg-black text-white p-3 rounded-2xl mt-5 font-bold cursor-pointer text-center w-full sm:w-[400px]"
                       >
-                        {element.buttonText}
-                      </Link>
+                      </Button>
                     </div>
                     <article className="flex justify-center">
                       <hr className={`mx-1 rounded-full border-[4px] ${index === 0 ? 'w-0  border-black' : 'border-gray-300'}`} />

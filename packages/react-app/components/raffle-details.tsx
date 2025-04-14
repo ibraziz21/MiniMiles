@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Gift, Calendar, DollarSign } from "lucide-react";
 import { useState } from "react";
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet";
 
 type RaffleDetailsProps = {
   title: string;
@@ -26,7 +27,18 @@ export const RaffleDetails = ({
   const ticketOptions = [5, 10, 50];
 
   return (
-    <section className="p-4 max-w-md mx-auto">
+    <Sheet>
+    <SheetTrigger asChild>
+      <Button title="View" onClick={()=>{}} variant="outline">Open</Button>
+    </SheetTrigger>
+    <SheetContent>
+      <SheetHeader>
+        <SheetTitle>Edit profile</SheetTitle>
+        <SheetDescription>
+          Make changes to your profile here. Click save when you're done.
+        </SheetDescription>
+      </SheetHeader>
+      <section className="p-4 max-w-md mx-auto">
       <h2 className="text-xl font-semibold text-center mb-4">{title}</h2>
 
       <div className="relative w-full h-40 rounded-xl overflow-hidden mb-4">
@@ -67,10 +79,10 @@ export const RaffleDetails = ({
         <p className="text-right text-xs text-gray-500 mt-1">Balance: {balance} MiniMiles</p>
       </div>
 
-      <Button className="w-full text-white bg-green-600 hover:bg-green-700 text-lg">
-        Buy
-      </Button>
     </section>
+    </SheetContent>
+  </Sheet>
+    
   );
 };
 
