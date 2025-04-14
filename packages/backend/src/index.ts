@@ -1,18 +1,18 @@
 // src/index.ts
 import express from "express";
-import questRouter from "./questRoutes";
 import * as dotenv from "dotenv";
+import questRouter from "./questRoutes";
+
 dotenv.config();
 
 const app = express();
 app.use(express.json());
 
-// Use the quest router under /claim
+// Mount the quest routes at /claim
 app.use("/claim", questRouter);
 
-// Basic root route
 app.get("/", (req, res) => {
-  res.send("Welcome to the Quest Backend!");
+  res.send("Welcome to the Minimiles Daily Quests Backend!");
 });
 
 const PORT = process.env.PORT || 3000;

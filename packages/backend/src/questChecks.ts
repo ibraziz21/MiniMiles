@@ -26,6 +26,104 @@ const ERC20_ABI = [
 export const miniPoints = new ethers.Contract(MINIPOINTS_ADDRESS, MINIPOINTS_ABI, wallet);
 const usdtToken = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, provider);
 
+function getTodayDateString(): string {
+    return new Date().toISOString().split("T")[0];
+  }
+
+
+  export async function hasOpenedMinimilesToday(userAddress: string): Promise<boolean> {
+    const today = getTodayDateString();
+  
+    const { data, error } = await supabase
+      .from("user_actions")
+      .select("id")
+      .eq("user_address", userAddress)
+      .eq("action_type", "open_minimiles")
+      .gte("created_at", `${today}T00:00:00`)  // same day, from midnight
+      .lte("created_at", `${today}T23:59:59`)  // same day, until 23:59:59
+      .limit(1); // we just need to see if at least 1 row
+  
+    if (error) {
+      console.error("hasOpenedMinimilesToday error:", error);
+      return false;
+    }
+    // If we found at least one row, user did open Minimiles
+    return (data && data.length > 0);
+  }
+
+  /**
+ * Check if user received a payment above $5 today.
+ * We look for action_type = "receive_payment" with amount >= 5.
+ */
+export async function hasReceivedPaymentAbove5(userAddress: string): Promise<boolean> {
+    const today = getTodayDateString();
+  
+    const { data, error } = await supabase
+      .from("user_actions")
+      .select("amount")
+      .eq("user_address", userAddress)
+      .eq("action_type", "receive_payment")
+      .gte("created_at", `${today}T00:00:00`)
+      .lte("created_at", `${today}T23:59:59`)
+      .gte("amount", 5)   // must be >= 5
+      .limit(1);
+  
+    if (error) {
+      console.error("hasReceivedPaymentAbove5 error:", error);
+      return false;
+    }
+    return (data && data.length > 0);
+  }
+
+
+  /**
+ * Check if user sent a $5+ payment today.
+ */
+export async function hasSentPaymentAbove5(userAddress: string): Promise<boolean> {
+    const today = getTodayDateString();
+  
+    const { data, error } = await supabase
+      .from("user_actions")
+      .select("amount")
+      .eq("user_address", userAddress)
+      .eq("action_type", "send_payment")
+      .gte("created_at", `${today}T00:00:00`)
+      .lte("created_at", `${today}T23:59:59`)
+      .gte("amount", 5)
+      .limit(1);
+  
+    if (error) {
+      console.error("hasSentPaymentAbove5 error:", error);
+      return false;
+    }
+    return (data && data.length > 0);
+  }
+
+
+/**
+ * Check if user performed any minipay action today (besides open/receive/send).
+ * We'll interpret action_type = "minipay_action" and it can be anything you define.
+ */
+export async function hasDoneOneMinipayAction(userAddress: string): Promise<boolean> {
+    const today = getTodayDateString();
+  
+    const { data, error } = await supabase
+      .from("user_actions")
+      .select("id")
+      .eq("user_address", userAddress)
+      .eq("action_type", "minipay_action")
+      .gte("created_at", `${today}T00:00:00`)
+      .lte("created_at", `${today}T23:59:59`)
+      .limit(1);
+  
+    if (error) {
+      console.error("hasDoneOneMinipayAction error:", error);
+      return false;
+    }
+    return (data && data.length > 0);
+  }
+  
+  
 /**
  * Checks if user has 25 or more outgoing transactions.
  */
