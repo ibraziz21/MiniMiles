@@ -9,15 +9,14 @@ contract MiniPoints is ERC20, Ownable {
   error Unauthorized();
   
     constructor()
-        ERC20("MiniPoints", "Points")
+        ERC20("Minimiles", "Miles")
     {
      
-        //transferOwnership(0x1CdaC19722f3c3515cF27617EaBa34c008BF3f01);
     }
 
 
    function mint(address account, uint256 amount)
-        external
+        external onlyOwner
     
     {
         _mint(account,amount);
