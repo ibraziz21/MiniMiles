@@ -27,8 +27,10 @@ export default function Home() {
         mintMinipayNFT,
         getNFTs,
         signTransaction,
+        getMiniMilesBalance,
     } = useWeb3();
 
+    const [miniMilesBalance, setMiniMilesBalance] = useState("0");
     const [cUSDLoading, setCUSDLoading] = useState(false);
     const [nftLoading, setNFTLoading] = useState(false);
     const [signingLoading, setSigningLoading] = useState(false);
@@ -42,6 +44,20 @@ export default function Home() {
     useEffect(() => {
         getUserAddress();
     }, []);
+
+      // Fetch user's MiniMiles token balance
+  useEffect(() => {
+    const fetchBalance = async () => {
+      if (!address) return;
+      try {
+        const balance = await getMiniMilesBalance(address);
+        setMiniMilesBalance(balance);
+      } catch (error) {
+        console.log(error);
+      }
+    };
+    fetchBalance();
+  }, [address, getMiniMilesBalance]);
 
     useEffect(() => {
         const getData = async () => {
@@ -108,8 +124,8 @@ export default function Home() {
     return (
         <main className="pb-24 font-poppins">
             {/* <Hero /> */}
-            <DashboardHeader name="Jane" />
-            <PointsCard points={1200} />
+            <DashboardHeader name="Ibraa" />
+            <PointsCard points={Number(miniMilesBalance)} />
             <RafflesWonCard />
             <DailyChallenges />
             <JoinRafflesCarousel />
@@ -152,18 +168,7 @@ export default function Home() {
                     endsIn="7 days"
                     ticketCost="6 points for 1 ticket"
                 />
-                <RaffleCard
-                    image={img.win}
-                    title="500 USDT weekly"
-                    endsIn="7 days"
-                    ticketCost="10 MiniMiles for 1 ticket"
-                />
-                <RaffleCard
-                    image={img.win}
-                    title="250 USDT"
-                    endsIn="7 days"
-                    ticketCost="6 points for 1 ticket"
-                />
+            
             </div>
 
             <SectionHeading title="Join physical goods raffles" />
