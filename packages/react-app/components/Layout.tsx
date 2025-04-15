@@ -1,19 +1,25 @@
+'use client'
+
 import { FC, ReactNode } from "react";
 import Footer from "./Footer";
 import Header from "./Header";
+import { usePathname } from "next/navigation";
 
 interface Props {
     children: ReactNode;
 }
 const Layout: FC<Props> = ({ children }) => {
+    const pathname = usePathname();
+
+    const isOnboarding = pathname.startsWith("/onboarding");
     return (
         <>
             <div className="bg-gypsum overflow-hidden flex flex-col min-h-screen">
-                <Header />
-                <div className="py-16 max-w-7xl mx-auto space-y-8 sm:px-6 lg:px-8">
+                {!isOnboarding && <Header />}
+                <div className="">
                     {children}
                 </div>
-                <Footer />
+                {!isOnboarding && <Footer />}
             </div>
         </>
     );

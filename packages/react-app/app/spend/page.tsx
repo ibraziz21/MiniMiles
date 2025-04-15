@@ -1,118 +1,14 @@
-"use client";
+import { GameCard } from '@/components/game-card'
+import { Hero } from '@/components/Hero'
+import { RaffleCard } from '@/components/raffle-card'
+import { SectionHeading } from '@/components/section-heading'
+import { img } from '@/lib/img'
+import React from 'react'
 
-import { BottomNav } from "@/components/bottom-nav";
-import DailyChallenges from "@/components/daily-challenge";
-import DashboardHeader from "@/components/dashboard-header";
-import { GameCard } from "@/components/game-card";
-import { Hero } from "@/components/Hero";
-import JoinRafflesCarousel from "@/components/join-raffle-carousel";
-import PointsCard from "@/components/points-card";
-import { RaffleCard } from "@/components/raffle-card";
-import RafflesWonCard from "@/components/raffle-won-card";
-import { SectionHeading } from "@/components/section-heading";
-/* eslint-disable react-hooks/exhaustive-deps */
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useWeb3 } from "@/contexts/useWeb3";
-import { img } from "@/lib/img";
-import Image from "next/image";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-
-export default function Home() {
-    const {
-        address,
-        getUserAddress,
-        sendCUSD,
-        mintMinipayNFT,
-        getNFTs,
-        signTransaction,
-    } = useWeb3();
-
-    const [cUSDLoading, setCUSDLoading] = useState(false);
-    const [nftLoading, setNFTLoading] = useState(false);
-    const [signingLoading, setSigningLoading] = useState(false);
-    const [userOwnedNFTs, setUserOwnedNFTs] = useState<string[]>([]);
-    const [tx, setTx] = useState<any>(undefined);
-    const router = useRouter();
-    const [amountToSend, setAmountToSend] = useState<string>("0.1");
-    const [messageSigned, setMessageSigned] = useState<boolean>(false); // State to track if a message was signed
-
-
-    useEffect(() => {
-        getUserAddress();
-    }, []);
-
-    useEffect(() => {
-        const getData = async () => {
-            const tokenURIs = await getNFTs();
-            setUserOwnedNFTs(tokenURIs);
-        };
-        if (address) {
-            getData();
-        }
-    }, [address]);
-
-    async function sendingCUSD() {
-        if (address) {
-            setSigningLoading(true);
-            try {
-                const tx = await sendCUSD(address, amountToSend);
-                setTx(tx);
-            } catch (error) {
-                console.log(error);
-            } finally {
-                setSigningLoading(false);
-            }
-        }
-    }
-
-    async function signMessage() {
-        setCUSDLoading(true);
-        try {
-            await signTransaction();
-            setMessageSigned(true);
-        } catch (error) {
-            console.log(error);
-        } finally {
-            setCUSDLoading(false);
-        }
-    }
-
-
-    async function mintNFT() {
-        setNFTLoading(true);
-        try {
-            const tx = await mintMinipayNFT();
-            const tokenURIs = await getNFTs();
-            setUserOwnedNFTs(tokenURIs);
-            setTx(tx);
-        } catch (error) {
-            console.log(error);
-        } finally {
-            setNFTLoading(false);
-        }
-    }
-
-
-    useEffect(() => {
-        const hasOnboarded = localStorage.getItem("onboarding-complete");
-
-        if (!hasOnboarded) {
-        router.replace("/onboarding");
-        } else {
-        router.replace("/"); // Or wherever your actual home is
-        }
-    }, []);
-
+const page = () => {
     return (
         <main className="pb-24 font-poppins">
-            {/* <Hero /> */}
-            <DashboardHeader name="Jane" />
-            <PointsCard points={1200} />
-            <RafflesWonCard />
-            <DailyChallenges />
-            <JoinRafflesCarousel />
+            <Hero />
 
             <SectionHeading title="Join digital cash raffles" />
             <div className="flex space-x-3 overflow-x-auto px-4 whitespace-nowrap scrollbar-hide">
@@ -212,5 +108,7 @@ export default function Home() {
                 />
             </div>
         </main>
-    );
+    )
 }
+
+export default page

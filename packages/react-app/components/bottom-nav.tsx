@@ -1,13 +1,9 @@
-import { Activity, Home, Wallet } from "lucide-react";
+import { Home, Wallet, Activity } from "lucide-react";
+import clsx from "clsx";
 
-type Props = {
-  className?: string;
-};
-
-
-export default function Footer() {
+export const BottomNav = () => {
   return (
-    <nav className="fixed bottom-0 w-full bg-[#e6faee] border-t px-4 py-2 flex justify-between items-center p-4">
+    <nav className="fixed bottom-0 w-full bg-[#e6faee] border-t px-4 py-2 flex justify-between items-center">
       <div className="flex flex-col items-center text-gray-600 text-xs">
         <Activity className="h-5 w-5" />
         Earn
@@ -16,6 +12,7 @@ export default function Footer() {
         <div className="bg-white border-4 border-green-300 p-3 rounded-full text-green-600">
           <Home className="h-5 w-5" />
         </div>
+        <span className="text-xs mt-1">Home</span>
       </div>
       <div className="flex flex-col items-center text-gray-600 text-xs">
         <Wallet className="h-5 w-5" />
@@ -23,4 +20,4 @@ export default function Footer() {
       </div>
     </nav>
   );
-}
+};
