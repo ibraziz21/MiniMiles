@@ -10,6 +10,7 @@ import {
     http,
     parseEther,
     stringToHex,
+    formatUnits
 } from "viem";
 import { celoAlfajores } from "viem/chains";
 
@@ -102,8 +103,8 @@ export const useWeb3 = () => {
             client: publicClient,
         })
         const bal: any = await getMiniMilesBal.read.balanceOf([address])
-
-        return bal;
+        const formatedbal: any = formatUnits(bal,18);
+        return formatedbal;
 
       }
 

@@ -1,3 +1,4 @@
+import Link from "next/link";
 // components/DailyChallenges.tsx
 const challenges = [
     {
@@ -17,7 +18,9 @@ const challenges = [
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-semibold">Daily challenges</h3>
-          <span className="text-sm text-green-600">View more ›</span>
+          <Link href='/earn'>
+          <span className="text-sm text-green-600 hover:underline">View more ›</span>
+          </Link>
         </div>
         <div className="flex gap-3 overflow-x-auto mt-4">
           {challenges.map((challenge, index) => (
