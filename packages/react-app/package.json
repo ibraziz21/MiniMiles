@@ -24,6 +24,7 @@
     "@wagmi/connectors": "5.3.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "dotenv": "^16.5.0",
     "embla-carousel-react": "^8.6.0",
     "encoding": "^0.1.13",
     "eslint-config-next": "^15.0.2",
