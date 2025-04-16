@@ -3,6 +3,8 @@
 import MiniMilesHeader from "@/components/mini-miles-header";
 import QuestCard from "@/components/quest-card";
 import QuestDetailModal from "@/components/quest-details-modal";
+import QuestLoadingModal from "@/components/quest-loading-modal";
+
 import { useWeb3 } from "@/contexts/useWeb3";
 import { useState, useEffect } from "react";
 import { claimDailyQuest } from "@/helpers/claimDaily"; // <-- NEW
@@ -20,6 +22,7 @@ export default function EarnPage() {
   const [miniMilesBalance, setMiniMilesBalance] = useState("0");
   const [filter, setFilter] = useState("active");
   const [modalOpen, setModalOpen] = useState(false);
+  const [loadOpen, setLoadOpen] = useState(false)
   const [isClaimingDaily, setIsClaimingDaily] = useState(false);
 const [triggerDailyClaim, setTriggerDailyClaim] = useState(false);
 
@@ -47,12 +50,14 @@ const [triggerDailyClaim, setTriggerDailyClaim] = useState(false);
     fetchBalance();
   }, [address, getMiniMilesBalance]);
 
+
+
   const handleDailyClaim = async () => {
     console.log("Checking....", address)
     if (!address) return;
   
     setIsClaimingDaily(true);
-    setModalOpen(true);
+    setLoadOpen(true);
   
     console.log("[DailyClaim] Starting claim for:", address);
   
@@ -71,7 +76,7 @@ const [triggerDailyClaim, setTriggerDailyClaim] = useState(false);
       console.error("[DailyClaim] Error:", err);
       toast.error("Something went wrong.");
     } finally {
-      setTimeout(() => setModalOpen(false), 1500);
+      setTimeout(() => setLoadOpen(false), 1500);
       setIsClaimingDaily(false);
     }
   };
@@ -125,6 +130,7 @@ const [triggerDailyClaim, setTriggerDailyClaim] = useState(false);
       </div>
 
       <QuestDetailModal open={modalOpen} onOpenChange={setModalOpen} />
+      <QuestLoadingModal open= {loadOpen} onOpenChange={setLoadOpen} />
     </div>
   );
 }

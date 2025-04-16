@@ -9,6 +9,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { useWeb3 } from "@/contexts/useWeb3";
+import { Loader2 } from "lucide-react";
 
 export default function QuestDetailModal({
   open,
@@ -16,10 +18,13 @@ export default function QuestDetailModal({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}) {
+}) 
+
+
+{
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm rounded-3xl p-0 overflow-hidden">
+    <DialogContent className="max-w-sm rounded-3xl p-0 overflow-hidden">
         <div className="p-6">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">Swap on ReFi DEX</DialogTitle>
@@ -44,8 +49,8 @@ export default function QuestDetailModal({
             </Button>
             <p className="text-xs text-gray-500 text-center">Valid until xx/xx/xx. These terms apply.</p>
           </DialogFooter>
-        </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </DialogContent>
+  </Dialog>
   );
 }
