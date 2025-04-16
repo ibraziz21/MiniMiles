@@ -9,6 +9,8 @@ import { useWeb3 } from "@/contexts/useWeb3";
 import { useState, useEffect } from "react";
 import { claimDailyQuest } from "@/helpers/claimDaily"; // <-- NEW
 import { toast } from "sonner"; // or your preferred toast system
+import { claimDailyTransfer } from "@/helpers/claimTransfer";
+import { claimDailyReceive } from "@/helpers/claimReceive";
 
 
 export default function EarnPage() {
@@ -81,6 +83,43 @@ const [triggerDailyClaim, setTriggerDailyClaim] = useState(false);
     }
   };
 
+  const handleDailyCusd = async () => {
+    if (!address) return;
+
+    setLoadOpen(true);
+  
+    console.log("[TransferClaim] Starting claim for:", address);
+    try {
+      const { success, message } = await claimDailyTransfer(address);
+      if (!success) {
+        toast.error(message || "You haven't spent 5 cUSD within the last 24 hours.");
+      } else {
+        toast.success("You claimed the daily 5 cUSD quest!");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Something went wrong claiming daily cUSD quest.");
+    }
+  }
+
+  const handleDailyReceived = async () => {
+    if (!address) return;
+
+    setLoadOpen(true);
+  
+    console.log("[TransferClaim] Starting claim for:", address);
+    try {
+      const { success, message } = await claimDailyReceive(address);
+      if (!success) {
+        toast.error(message || "You haven't spent 5 cUSD within the last 24 hours.");
+      } else {
+        toast.success("You claimed the daily 5 cUSD quest!");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Something went wrong claiming daily cUSD quest.");
+    }
+  }
 
 
   return (
@@ -99,10 +138,17 @@ const [triggerDailyClaim, setTriggerDailyClaim] = useState(false);
     reward="5 MiniMiles"
   />
 </div>
-          <div onClick={() => setModalOpen(true)}>
+          <div onClick={handleDailyCusd}>
             <QuestCard
               title="Spend 5 USD on in stablecoins"
               description="Spend 5 USDT from your MiniPay wallet daily."
+              reward="5 MiniMiles"
+            />
+          </div>
+          <div onClick={handleDailyReceived}>
+            <QuestCard
+              title="Receive 5 cUSD on in stablecoins"
+              description="Spend 5 cUSD from your MiniPay wallet daily."
               reward="5 MiniMiles"
             />
           </div>
