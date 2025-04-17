@@ -109,15 +109,15 @@ export default function Home() {
     // }
 
 
-    useEffect(() => {
-        const hasOnboarded = localStorage.getItem("onboarding-complete");
+    // useEffect(() => {
+    //     const hasOnboarded = localStorage.getItem("onboarding-complete");
 
-        if (!hasOnboarded) {
-        router.replace("/onboarding");
-        } else {
-        router.replace("/"); // Or wherever your actual home is
-        }
-    }, []);
+    //     if (!hasOnboarded) {
+    //     router.replace("/onboarding");
+    //     } else {
+    //     router.replace("/"); // Or wherever your actual home is
+    //     }
+    // }, []);
 
     return (
         <main className="pb-24 font-poppins">

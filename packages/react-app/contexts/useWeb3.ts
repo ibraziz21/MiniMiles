@@ -19,7 +19,7 @@ const publicClient = createPublicClient({
     transport: http(),
 });
 
-const MiniMilesAddress = '0x46dE92B184776D1BebD7c95D8CC085009280E4f6'
+const MiniMilesAddress = '0xcEb2caAc90F5B71ecb9a5f3149586b76C9811a76'
 const cUSDTokenAddress = "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1"; // Testnet
 const MINIPAY_NFT_CONTRACT = "0xE8F4699baba6C86DA9729b1B0a1DA1Bd4136eFeF"; // Testnet
 
