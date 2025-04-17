@@ -70,7 +70,7 @@ export async function POST(req: Request) {
       abi: MiniPointsAbi.abi,
       functionName: "mint",
       args: [userAddress, parseUnits("5",18)],
-      account: account.address,
+      account: account,
     })
     const txHash = await walletClient.writeContract(request)
     console.log("[DAILY-CUSD] Mint Tx:", txHash)
