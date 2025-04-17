@@ -10,7 +10,7 @@ dotenv.config();
 const SUPABASE_URL = process.env.SUPABASE_URL || ""
 const SUPABASE_ANON_KEY = process.env.SUPABASE_SERVICE_KEY || ""
 const PRIVATE_KEY = process.env.PRIVATE_KEY || "" // make sure this is secure
-const CONTRACT_ADDRESS = "0x46dE92B184776D1BebD7c95D8CC085009280E4f6"
+const CONTRACT_ADDRESS = "0xcEb2caAc90F5B71ecb9a5f3149586b76C9811a76"
 
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
@@ -23,6 +23,7 @@ const publicClient = createPublicClient({
   chain,
   transport: http(),
 })
+console.log("accunt: ", account)
 
 const client = createWalletClient({
   account,
@@ -46,6 +47,7 @@ export async function POST(req: Request) {
     .maybeSingle()
 
   if (claimed) {
+    console.log("Already Claimed")
     return Response.json({ success: false, message: "Already claimed today" })
   }
 
@@ -56,6 +58,7 @@ export async function POST(req: Request) {
       abi: MiniPointsAbi.abi,
       functionName: "mint",
       args: [userAddress, 5],
+      account,
     })
 
     const txHash = await client.writeContract(request)
