@@ -2,9 +2,9 @@ import Link from "next/link";
 // components/DailyChallenges.tsx
 const challenges = [
     {
-      title: "Spend 5 USDT",
-      description: "Spend 5 USDT from your MiniPay wallet daily.",
-      reward: "2 MiniMiles",
+      title: "Spend 5 cUSD",
+      description: "Spend 5 cUSD from your MiniPay wallet daily.",
+      reward: "5 MiniMiles",
     },
     {
       title: "Refer a friend",

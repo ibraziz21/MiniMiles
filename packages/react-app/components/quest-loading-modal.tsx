@@ -28,7 +28,7 @@ export default function QuestLoadingModal({
   };
   
   const defaultMsg = {
-    loading:    "Checking on‑chain data…",
+    loading:    "Checking Status...",
     success:    "Reward minted successfully!",
     already:    "You already claimed this quest today.",
     ineligible: "Required action not found on‑chain.",
