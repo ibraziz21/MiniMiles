@@ -23,7 +23,7 @@ const publicClient = createPublicClient({
   chain,
   transport: http(),
 })
-console.log("accunt: ", account)
+
 
 const client = createWalletClient({
   account,
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
   console.log("let's go")
 
   const today = new Date().toISOString().slice(0, 10) // e.g., 2025-04-15
-
+  console.log("checking for: ", userAddress)
   // Check Supabase: already claimed?
   const { data: claimed, error } = await supabase
     .from("daily_engagements")

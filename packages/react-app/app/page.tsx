@@ -122,7 +122,7 @@ export default function Home() {
     return (
         <main className="pb-24 font-poppins">
             {/* <Hero /> */}
-            <DashboardHeader name="Ibraa" />
+            <DashboardHeader name="" />
             <PointsCard points={Number(miniMilesBalance)} />
             <RafflesWonCard />
             <DailyChallenges />
