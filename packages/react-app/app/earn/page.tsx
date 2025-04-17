@@ -4,11 +4,9 @@ import MiniMilesHeader from "@/components/mini-miles-header";
 import QuestCard from "@/components/quest-card";
 import QuestDetailModal from "@/components/quest-details-modal";
 import QuestLoadingModal,{ QuestStatus} from "@/components/quest-loading-modal";
-
 import { useWeb3 } from "@/contexts/useWeb3";
 import { useState, useEffect } from "react";
 import { claimDailyQuest } from "@/helpers/claimDaily"; // <-- NEW
-import { toast } from "sonner"; // or your preferred toast system
 import { claimDailyTransfer } from "@/helpers/claimTransfer";
 import { claimDailyReceive } from "@/helpers/claimReceive";
 

@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
-import { createWalletClient, http, createPublicClient } from "viem"
+import { createWalletClient, http, createPublicClient, parseUnits } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 import { sepolia, celoAlfajores } from "viem/chains" // change this to your chain
 import MiniPointsAbi from "@/contexts/minimiles.json" // adjust path
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
       address: CONTRACT_ADDRESS as `0x${string}`,
       abi: MiniPointsAbi.abi,
       functionName: "mint",
-      args: [userAddress, 5],
+      args: [userAddress, parseUnits("5",18)],
       account,
     })
 

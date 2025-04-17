@@ -69,7 +69,7 @@ export async function POST(req: Request) {
       address: MINIPOINTS_ADDRESS as `0x${string}`,
       abi: MiniPointsAbi.abi,
       functionName: "mint",
-      args: [userAddress, 5],
+      args: [userAddress, parseUnits("5",18)],
       account: account.address,
     })
     const txHash = await walletClient.writeContract(request)
