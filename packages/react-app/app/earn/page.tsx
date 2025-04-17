@@ -3,7 +3,7 @@
 import MiniMilesHeader from "@/components/mini-miles-header";
 import QuestCard from "@/components/quest-card";
 import QuestDetailModal from "@/components/quest-details-modal";
-import QuestLoadingModal from "@/components/quest-loading-modal";
+import QuestLoadingModal,{ QuestStatus} from "@/components/quest-loading-modal";
 
 import { useWeb3 } from "@/contexts/useWeb3";
 import { useState, useEffect } from "react";
@@ -26,7 +26,8 @@ export default function EarnPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [loadOpen, setLoadOpen] = useState(false)
   const [isClaimingDaily, setIsClaimingDaily] = useState(false);
-const [triggerDailyClaim, setTriggerDailyClaim] = useState(false);
+  const [triggerDailyClaim, setTriggerDailyClaim] = useState(false);
+  const [modalStatus, setModalStatus] = useState<QuestStatus>("loading");
 
   const partners = [
     { name: "Celo", icon: "/partners/celo.svg" },
@@ -37,7 +38,7 @@ const [triggerDailyClaim, setTriggerDailyClaim] = useState(false);
 
   useEffect(() => {
     getUserAddress();
-}, []);
+  }, []);
 
   useEffect(() => {
     const fetchBalance = async () => {
@@ -57,67 +58,74 @@ const [triggerDailyClaim, setTriggerDailyClaim] = useState(false);
   const handleDailyClaim = async () => {
     console.log("Checking....", address)
     if (!address) return;
-  
-    setIsClaimingDaily(true);
+
+    setModalStatus("loading");
+    // setIsClaimingDaily(true);
     setLoadOpen(true);
-  
+
     console.log("[DailyClaim] Starting claim for:", address);
-  
+
     try {
       const res = await claimDailyQuest(address);
-      console.log("[DailyClaim] Response:", res);
-  
+
       if (res.success) {
-        toast.success("✅ You've earned 5 MiniMiles!");
+        console.log("success")
+        setModalStatus("success");
         const updated = await getMiniMilesBalance(address);
         setMiniMilesBalance(updated);
       } else {
-        toast.error(res.message || "Already claimed today");
+        setModalStatus("already");
       }
     } catch (err) {
-      console.error("[DailyClaim] Error:", err);
-      toast.error("Something went wrong.");
+      console.error(err);
+      setModalStatus("error");
     } finally {
+      // auto‑close after 1.5 s if you like
       setTimeout(() => setLoadOpen(false), 1500);
-      setIsClaimingDaily(false);
     }
   };
 
   const handleDailyCusd = async () => {
     if (!address) return;
 
+    setModalStatus("loading");
     setLoadOpen(true);
-  
+
     console.log("[TransferClaim] Starting claim for:", address);
     try {
       const { success, message } = await claimDailyTransfer(address);
-      if (!success) {
-        toast.error(message || "You haven't spent 5 cUSD within the last 24 hours.");
+      if (success) {
+        setModalStatus("success");
+      } else if (/Already/i.test(message ?? "")) {
+        setModalStatus("already");
       } else {
-        toast.success("You claimed the daily 5 cUSD quest!");
+        // covers "No on‑chain transfer ..." and any other eligibility failure
+        setModalStatus("ineligible");
       }
     } catch (err) {
       console.error(err);
-      toast.error("Something went wrong claiming daily cUSD quest.");
-    }
+      setModalStatus("error");
+    } 
   }
 
   const handleDailyReceived = async () => {
     if (!address) return;
 
     setLoadOpen(true);
-  
+
     console.log("[TransferClaim] Starting claim for:", address);
     try {
       const { success, message } = await claimDailyReceive(address);
       if (!success) {
-        toast.error(message || "You haven't spent 5 cUSD within the last 24 hours.");
+        setModalStatus("error");
       } else {
-        toast.success("You claimed the daily 5 cUSD quest!");
+        setModalStatus("success");
+        const updated = await getMiniMilesBalance(address);
+        setMiniMilesBalance(updated);
       }
     } catch (err) {
       console.error(err);
-      toast.error("Something went wrong claiming daily cUSD quest.");
+      setModalStatus("error");
     }
   }
 
@@ -129,15 +137,15 @@ const [triggerDailyClaim, setTriggerDailyClaim] = useState(false);
       <div className="mt-4 px-4">
         <h3 className="font-semibold mb-2">Earn points</h3>
         <div className="flex gap-3 overflow-x-auto">
-        <div
-  onClick={handleDailyClaim}
->
-  <QuestCard
-    title="Daily Engagement"
-    description="Open the minimiles App Everyday to get points"
-    reward="5 MiniMiles"
-  />
-</div>
+          <div
+            onClick={handleDailyClaim}
+          >
+            <QuestCard
+              title="Daily Engagement"
+              description="Open the minimiles App Everyday to get points"
+              reward="5 MiniMiles"
+            />
+          </div>
           <div onClick={handleDailyCusd}>
             <QuestCard
               title="Spend 5 USD on in stablecoins"
@@ -176,7 +184,12 @@ const [triggerDailyClaim, setTriggerDailyClaim] = useState(false);
       </div>
 
       <QuestDetailModal open={modalOpen} onOpenChange={setModalOpen} />
-      <QuestLoadingModal open= {loadOpen} onOpenChange={setLoadOpen} />
+      <QuestLoadingModal
+        open={loadOpen}
+        onOpenChange={setLoadOpen}
+        status={modalStatus}
+      />
+
     </div>
   );
 }

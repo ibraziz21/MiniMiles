@@ -109,11 +109,13 @@ async function hasUserSpentAtLeast5CusdIn24Hrs(userAddress: string): Promise<boo
     toBlock: "latest",
     // We'll filter in code for 'from = userAddress' and 'value >= 5 * 1e18'
   })
-
-  if (!logs.length) return false
-
+  
+  if (!logs.length) {
+   console.log("No such action onchain")
+    return false
+  }
   // 2. Filter logs for transfers from user, value >= 5 cUSD
-  const FIVE_CUSD = parseUnits('5',6) // cUSD has 18 decimals
+  const FIVE_CUSD = parseUnits('5',18) // cUSD has 18 decimals
   for (let log of logs) {
     if (
       log.args[0]?.toLowerCase() === userAddress.toLowerCase() &&
