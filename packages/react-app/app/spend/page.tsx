@@ -6,9 +6,11 @@ import { Hero } from '@/components/Hero';
 import MiniPointsCard from '@/components/mini-points-card';
 import { RaffleCard } from '@/components/raffle-card';
 import { SectionHeading } from '@/components/section-heading';
+import { Button } from '@/components/ui/button';
+import { useWeb3 } from '@/contexts/useWeb3';
 import { WinImg } from '@/lib/img';
 import { MinimilesSymbol } from '@/lib/svg';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 const digitalCashRaffles = [
   { image: WinImg, title: "500 USDT weekly", endsIn: "7 days", ticketCost: "10 MiniMiles for 1 ticket" },
@@ -31,15 +33,47 @@ const upcomingGames = [
 ];
 
 const Page = () => {
+
+  const {address, getUserAddress, getMiniMilesBalance} = useWeb3();
+  const [miniMilesBalance, setMiniMilesBalance] = useState('0');
+
+
+useEffect(() => {
+  getUserAddress();
+}, []);
+
+
+
+useEffect(() => {
+  const fetchBalance = async () => {
+    if (!address) return;
+    try {
+      const balance = await getMiniMilesBalance(address);
+      setMiniMilesBalance(balance);
+    } catch (error) {
+      console.log(error);
+    }
+  };
+  fetchBalance();
+}, [address, getMiniMilesBalance]);
+
   return (
     <main className="pb-24 font-poppins">
       <div className="px-4 pt-4">
-        <h1 className="text-2xl font-bold mt-2">Earn</h1>
-        <h3>Complete challenges and quests to earn MiniMiles.</h3>
+        <h1 className="text-2xl font-bold mt-2">Spend</h1>
+        <h3>Win big by entering our Raffles</h3>
       </div>
-      <MiniPointsCard points={120} />
-
-      <DailyChallenges />
+      <MiniPointsCard points={Number(miniMilesBalance)} />
+      <Button
+        title="How to enter a raffle?"
+        variant="outline"
+        className="rounded-full border-2 border-[#a6ddb3] px-6 py-3 bg-[#d3f4e5] hover:bg-[#b2e2c5] w-full"
+        onClick={() => {
+          window.location.href = "/onboarding";
+        }}
+      >
+        How to enter a raffle?
+      </Button>
       
 
       <SectionHeading title="Join physical goods raffles" />
