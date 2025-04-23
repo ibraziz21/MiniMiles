@@ -18,7 +18,6 @@ import { useWeb3 } from "@/contexts/useWeb3";
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { toast } from "sonner";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -82,13 +81,11 @@ export default function DailyChallenges() {
   /* helper to trigger quest */
   const handleQuestClick = async (quest: QuestRow) => {
     if (!address) {
-      toast.error("Connect wallet first");
       return;
     }
 
     const mapping = ACTION_BY_ID[quest.id];
     if (!mapping) {
-      toast.error("Unsupported quest");
       return;
     }
 
