@@ -5,9 +5,10 @@ type RaffleCardProps = {
   title: string;
   endsIn: string;
   ticketCost: string;
+  icon: string
 };
 
-export const RaffleCard = ({ image, title, endsIn, ticketCost }: RaffleCardProps) => (
+export const RaffleCard = ({ image, title, endsIn, ticketCost, icon }: RaffleCardProps) => (
   <div className="rounded-xl overflow-hidden bg-white shadow-md min-w-[180px] relative">
     <div className="relative">
       <Image src={image} alt={title} width={180} height={120} className="w-full object-cover" />
@@ -16,7 +17,7 @@ export const RaffleCard = ({ image, title, endsIn, ticketCost }: RaffleCardProps
     <div className="absolute bottom-0 left-0 p-2 w-full">
       <p className="text-sm font-semibold text-white">{title}</p>
       <p className="text-xs text-gray-200">Ends in {endsIn}</p>
-      <p className="text-xs text-green-400 font-medium">{ticketCost}</p>
+      <p className="text-xs text-black font-bold bg-white rounded-full p-1 flex"><Image src={icon} alt="" className="mr-1" />{ticketCost}</p>
     </div>
   </div>
 );

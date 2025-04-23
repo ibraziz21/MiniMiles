@@ -1,5 +1,5 @@
-import win from "../public/img/win.png";
+import WinImg from "../public/img/win.png";
 
-export const img = {
-  win,
+export {
+  WinImg,
 };

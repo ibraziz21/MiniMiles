@@ -20,7 +20,7 @@ export default function WinningModal({
 }) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-sm rounded-3xl p-0 overflow-hidden">
+            <DialogContent className="bg-white max-w-sm rounded-3xl p-0 overflow-hidden">
                 <div className="text-center px-6 pt-6">
                     <DialogHeader>
                         <DialogTitle className="text-left text-xl font-semibold">You won!</DialogTitle>
@@ -53,7 +53,7 @@ export default function WinningModal({
                     <Button
                         title="Blockchain receipt" onClick={() => { }}
                         variant="outline"
-                        className="w-full border-black text-black font-semibold"
+                        className="w-full border-black text-black font-semibold hover:bg-black rounded-lg p-2"
                     >
                         Blockchain receipt
                     </Button>
