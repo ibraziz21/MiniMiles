@@ -1,53 +1,51 @@
-// SPDX-License-Identifier: SEE LICENSE IN LICENSE
-pragma solidity ^0.8.17;
-import "./MiniPoints.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
 
-contract Raffle {
-    // ------------------------- STRUCTS -------------------------
+import "./MiniPoints.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "witnet-solidity-bridge/contracts/interfaces/IWitnetRandomness.sol";
+
+/**
+ * @title Minimiles Raffle – Witnet‑powered randomness version for Celo
+ * @dev Works on Celo Mainnet & Alfajores using the canonical WitnetRandomness
+ *      contract deployed at 0x77703aE126B971c9946d562F41Dd47071dA00777.
+ */
+contract MiniRaffle is ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
+    // ─────────────────────────  CONSTANTS & IMMUTABLES  ─────────────────────────
+    address public immutable owner;
+    IMiniPoints public immutable miniPoints;
+    IWitnetRandomness public constant RNG =
+        IWitnetRandomness(0xC0FFEE98AD1434aCbDB894BbB752e138c1006fAB);
+    IERC20 public immutable cUSD;
+    IERC20 public immutable cKES;
+
+    // ───────────────────────────────  STRUCTS  ──────────────────────────────────
     struct RaffleRound {
         uint256 id;
-        uint256 startTime; // block timestamp when this round starts
-        uint256 endTime; // block timestamp when this round ends
-        uint256 maxTickets;
-        IERC20 rewardToken; // cap on number of participants
-        uint256 rewardPool; // amount of tokens for winner
-        address beneficiary; // potential beneficiary or partner
-        uint256 ticketCostPoints; // cost in "MiniPoints" per participant
-        address[] participants; // addresses who joined
-        bool isActive; // indicates if raffle is still active
-        bool winnersSelected; // to prevent repeated draws
-        // New fields:
-        mapping(address => uint256) tickets;
-        uint256 totalTickets;
-        address[] winners;
+        uint256 startTime;
+        uint256 endTime;
+        uint32 maxTickets;
+        IERC20 rewardToken;
+        uint256 rewardPool;
+        address beneficiary;
+        uint256 ticketCostPoints;
+        address[] participants;
+        bool isActive;
+        bool winnersSelected;
+        mapping(address => uint32) tickets; // participant => ticket count
+        uint32 totalTickets;
+        address[3] winners;           // up to 3 winners stored here
+        uint256 randomBlock;         // Witnet randomness beacon block id
     }
 
-    // ------------------------- STATE VARIABLES -------------------------
-    address public owner;
-    IMiniPoints public miniPoints;
-
-    // IERC20 private constant cUSD = IERC20(0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1);
-    // IERC20 private constant cKES = IERC20(0x1E0433C1769271ECcF4CFF9FDdD515eefE6CdF92);
-    IERC20 cUSD;
-    IERC20 cKES;
-
+    // ─────────────────────────────  STORAGE  ────────────────────────────────────
     uint256 public roundIdCounter;
-    mapping(uint256 => RaffleRound) public rounds;
-    mapping(uint256 => uint256) public currentTickets;
+    mapping(uint256 => RaffleRound) private rounds;
 
-    // ------------------------- MODIFIERS -------------------------
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Not owner");
-        _;
-    }
-
-    modifier roundExists(uint256 _roundId) {
-        require(rounds[_roundId].id != 0, "Round does not exist");
-        _;
-    }
-
-    // ------------------------- EVENTS -------------------------
+    // ──────────────────────────────  EVENTS  ────────────────────────────────────
     event RoundCreated(
         uint256 indexed roundId,
         uint256 startTime,
@@ -58,44 +56,45 @@ contract Raffle {
         address beneficiary,
         uint256 ticketCostPoints
     );
-
-    event ParticipantJoined(
-        uint256 indexed roundId,
-        address indexed participant
-    );
-
+    event ParticipantJoined(uint256 indexed roundId, address indexed participant);
+    event RandomnessRequested(uint256 indexed roundId, uint256 witnetBlock);
     event WinnersSelected(uint256 indexed roundId, address[3] winners);
 
+    // ─────────────────────────────  MODIFIERS  ──────────────────────────────────
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Raffle: not owner");
+        _;
+    }
+
+    modifier roundExists(uint256 _roundId) {
+        require(rounds[_roundId].id != 0, "Raffle: round does not exist");
+        _;
+    }
+
+    // ─────────────────────────────  CONSTRUCTOR  ────────────────────────────────
     constructor(address _miniPoints, address _cUSD, address _cKES) {
-        require(_miniPoints != address(0), "Invalid MiniPoints address");
+        require(_miniPoints != address(0), "invalid MiniPoints");
         miniPoints = IMiniPoints(_miniPoints);
         cUSD = IERC20(_cUSD);
         cKES = IERC20(_cKES);
-
         owner = msg.sender;
     }
 
+    // ───────────────────────────  ROUND CREATION  ───────────────────────────────
     function createRaffleRound(
         uint256 _startTime,
         uint256 _duration,
-        uint256 _maxTickets,
+        uint32 _maxTickets,
         IERC20 _token,
-        uint256 _rewardpool,
+        uint256 _rewardPool,
         uint256 _ticketCostPoints,
         address _beneficiary
     ) external onlyOwner {
-        require(_duration > 0, "Duration must be > 0");
-        require(_maxTickets > 0, "Max tickets must be > 0");
-        require(
-            _token == cUSD || _token == cKES,
-            "Not a supported token in the raffle"
-        );
+        require(_duration > 0 && _maxTickets > 0, "Raffle: bad params");
+        require(_token == cUSD || _token == cKES, "Raffle: unsupported token");
 
-        require(
-            _token.allowance(msg.sender, address(this)) >= _rewardpool,
-            "Insufficient Allowance"
-        );
-        _token.transferFrom(msg.sender, address(this), _rewardpool);
+        // Pull tokens after checks to avoid locking funds on revert
+        _token.safeTransferFrom(msg.sender, address(this), _rewardPool);
 
         roundIdCounter++;
         RaffleRound storage round = rounds[roundIdCounter];
@@ -104,7 +103,7 @@ contract Raffle {
         round.endTime = _startTime + _duration;
         round.maxTickets = _maxTickets;
         round.rewardToken = _token;
-        round.rewardPool = _rewardpool;
+        round.rewardPool = _rewardPool;
         round.beneficiary = _beneficiary;
         round.ticketCostPoints = _ticketCostPoints;
         round.isActive = true;
@@ -121,159 +120,140 @@ contract Raffle {
         );
     }
 
-    /**
-     * @notice Let the owner top up the prize pool for a round with additional funds.
-     * @param _roundId Which round to fund
-     */
+    // ────────────────────────────  FUND ROUND  ─────────────────────────────────
     function fundRaffleRound(
         uint256 _roundId,
-        IERC20 _token,
         uint256 _amount
-    ) external payable onlyOwner roundExists(_roundId) {
-        require(
-            _token == cUSD || _token == cKES,
-            "Not a supported token in the raffle"
-        );
-        require(_amount != 0, "Invalid Amount");
+    ) external onlyOwner roundExists(_roundId) {
         RaffleRound storage round = rounds[_roundId];
-        require(round.isActive, "Round not active");
-        require(
-            _token.allowance(msg.sender, address(this)) >= _amount,
-            "Insufficient Allowance"
-        );
-        _token.transferFrom(msg.sender, address(this), _amount);
+        require(round.isActive, "Raffle: inactive round");
+        round.rewardToken.safeTransferFrom(msg.sender, address(this), _amount);
         round.rewardPool += _amount;
     }
 
-    function joinRaffle(
-        uint256 _roundId,
-        uint256 _ticketCount
-    ) external roundExists(_roundId) {
+    // ───────────────────────────  JOIN RAFFLE  ─────────────────────────────────
+    function joinRaffle(uint256 _roundId, uint32 _ticketCount)
+        external
+        roundExists(_roundId)
+    {
         RaffleRound storage round = rounds[_roundId];
-        require(round.isActive, "Round not active");
+        require(round.isActive, "Raffle: inactive round");
         require(
-            block.timestamp >= round.startTime &&
-                block.timestamp <= round.endTime,
-            "Not within the round timeframe"
+            block.timestamp >= round.startTime && block.timestamp <= round.endTime,
+            "Raffle: not in timeframe"
         );
         require(
             round.totalTickets + _ticketCount <= round.maxTickets,
-            "Max tickets reached"
+            "Raffle: max tickets reached"
         );
 
-        uint ticketCost = round.ticketCostPoints * _ticketCount;
-        // Burn points from participant
-        require(
-            miniPoints.balanceOf(msg.sender) >= ticketCost,
-            "Not enough MiniPoints"
-        );
-        miniPoints.burn(msg.sender, ticketCost);
+        uint256 cost = round.ticketCostPoints * _ticketCount;
+
+        // Validate first, then burn to avoid loss on revert
+        require(miniPoints.balanceOf(msg.sender) >= cost, "Raffle: insufficient points");
+        miniPoints.burn(msg.sender, cost);
 
         if (round.tickets[msg.sender] == 0) {
             round.participants.push(msg.sender);
         }
-
         round.tickets[msg.sender] += _ticketCount;
         round.totalTickets += _ticketCount;
 
         emit ParticipantJoined(_roundId, msg.sender);
     }
 
-    function drawWinner(uint256 _roundId) external roundExists(_roundId) {
+    // ────────────────────────  RANDOMNESS REQUEST  ─────────────────────────────
+    /**
+     * @notice Request Witnet randomness for a round. Anyone can pay the fee.
+     * @dev Fee is dynamic; front‑end should query RNG.estimateRandomizeFee.
+     */
+    function requestRoundRandomness(uint256 _roundId)
+        external
+        payable
+        roundExists(_roundId)
+    {
         RaffleRound storage round = rounds[_roundId];
-        require(round.isActive, "Round not active");
-        require(!round.winnersSelected, "Winners already selected");
-        require(
-            block.timestamp > round.endTime ||
-                round.totalTickets == round.maxTickets,
-            "Round not finished yet"
-        );
-
-
-
-        // For 3 winners:
-        uint256 firstPrize = (round.rewardPool * 50) / 100;
-        uint256 secondPrize = (round.rewardPool * 30) / 100;
-        uint256 thirdPrize = (round.rewardPool * 20) / 100;
-
-        // 1) First winner
-        address winner1 = _pickWinner(round, round.totalTickets);
-        round.rewardToken.transfer(winner1, firstPrize);
-
-    
-        round.totalTickets -= round.tickets[winner1];
-        round.tickets[winner1] = 0;
-
-        // 3) Second winner
-        address winner2 = _pickWinner(round, round.totalTickets);
-        round.rewardToken.transfer(winner2, secondPrize);
-
-        // 4) Adjust again
-        round.totalTickets -= round.tickets[winner2];
-        round.tickets[winner2] = 0;
-
-        // 5) Third winner
-        address winner3 = _pickWinner(round, round.totalTickets);
-        round.rewardToken.transfer(winner3, thirdPrize);
-
-        // Mark round done
-        round.isActive = false;
-        round.winnersSelected = true;
-
-        // Save them for reference
-        round.winners.push(winner1);
-        round.winners.push(winner2);
-        round.winners.push(winner3);
-
-        emit WinnersSelected(_roundId, [winner1, winner2, winner3]);
+        require(round.randomBlock == 0, "Raffle: randomness already requested");
+        round.randomBlock = RNG.randomize{value: msg.value}();
+        emit RandomnessRequested(_roundId, round.randomBlock);
     }
 
-    function _pickWinner(
-        RaffleRound storage round,
-        uint256 ticketSupply
-    ) internal view returns (address) {
-        if (ticketSupply == 0) {
-            return address(0); // or revert if no tickets
+    // ───────────────────────────  DRAW WINNERS  ────────────────────────────────
+    function drawWinner(uint256 _roundId)
+        external
+        nonReentrant
+        roundExists(_roundId)
+    {
+        RaffleRound storage round = rounds[_roundId];
+        require(round.isActive, "Raffle: inactive round");
+        require(!round.winnersSelected, "Raffle: winners picked");
+        require(
+            block.timestamp > round.endTime || round.totalTickets == round.maxTickets,
+            "Raffle: round unfinished"
+        );
+           require(
+        round.participants.length >= 3,
+        "Raffle: need at least 3 distinct players"
+    );
+        require(round.randomBlock != 0, "Raffle: randomness not requested");
+        require(RNG.isRandomized(round.randomBlock), "Raffle: randomness pending");
+
+        uint256 firstPrize = (round.rewardPool * 50) / 100;
+        uint256 secondPrize = (round.rewardPool * 30) / 100;
+        uint256 thirdPrize = round.rewardPool - firstPrize - secondPrize;
+
+        // Helper to sample & remove a winner
+        address[3] memory winners;
+        uint32 supply = round.totalTickets;
+
+        for (uint8 i = 0; i < 3; i++) {
+            uint256 rand = RNG.random(supply, i, round.randomBlock);
+            address sel = _selectByIndex(round, rand);
+            winners[i] = sel;
+
+            uint32 ticketsOfSel = round.tickets[sel];
+            supply -= ticketsOfSel;
+            round.tickets[sel] = 0;
         }
 
-        // For demonstration, "random" with blockhash
-        uint256 rand = uint256(block.prevrandao) % ticketSupply;
+        round.rewardToken.safeTransfer(winners[0], firstPrize);
+        round.rewardToken.safeTransfer(winners[1], secondPrize);
+        round.rewardToken.safeTransfer(winners[2], thirdPrize);
 
-        // Now find which user owns that ticket index via cumulative sum
-        uint256 cumulative = 0;
-        address selected;
+        round.isActive = false;
+        round.winnersSelected = true;
+        round.winners = [winners[0], winners[1], winners[2]];
 
+        emit WinnersSelected(_roundId, winners);
+
+        // implicit: leftover tickets array can be cleaned in a maintenance tx
+    }
+
+    // ───────────────────── INTERNAL UTILS  ──────────────────────────────────────
+    function _selectByIndex(RaffleRound storage round, uint256 index) internal view returns (address) {
+        uint256 cumulative;
         for (uint256 i = 0; i < round.participants.length; i++) {
             address p = round.participants[i];
             uint256 count = round.tickets[p];
             if (count == 0) continue;
-            if (rand < cumulative + count) {
-                selected = p;
-                break;
+            if (index < cumulative + count) {
+                return p;
             }
             cumulative += count;
         }
-
-        return selected;
+        revert("Raffle: index overflow");
     }
 
-    // ------------------------- VIEW FUNCTIONS -------------------------
-    /**
-     * @notice Return current number of participants in a round.
-     */
-    function getParticipantCount(
-        uint256 _roundId
-    ) external view returns (uint256) {
+    // ─────────────────────────────  VIEWS  ──────────────────────────────────────
+    function getParticipantCount(uint256 _roundId) external view returns (uint256) {
         return rounds[_roundId].participants.length;
     }
 
-    /**
-     * @notice Return an array of all participants.
-     * @dev For large arrays, be mindful of gas if used on-chain. Off-chain calls are usually fine.
-     */
-    function getParticipants(
-        uint256 _roundId
-    ) external view returns (address[] memory) {
+    function getParticipants(uint256 _roundId) external view returns (address[] memory) {
         return rounds[_roundId].participants;
+    }
+
+    function getWinners(uint256 _roundId) external view returns (address[3] memory) {
+        return rounds[_roundId].winners;
     }
 }

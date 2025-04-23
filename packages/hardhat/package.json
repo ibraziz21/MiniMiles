@@ -26,7 +26,8 @@
     "typescript": "^5.5.3"
   },
   "dependencies": {
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "witnet-solidity-bridge": "^2.0.18"
   },
   "scripts": {
     "compile": "hardhat compile",
