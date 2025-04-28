@@ -1,4 +1,6 @@
+import { Earn } from "@/lib/svg";
 import { Activity, Home, Wallet } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 
 type Props = {
@@ -8,9 +10,9 @@ type Props = {
 
 export default function Footer() {
   return (
-    <nav className="fixed bottom-0 w-full bg-[#e6faee] border-t px-4 py-2 flex justify-between items-center p-4">
+    <nav className="fixed bottom-0 w-full bg-white border-t px-4 py-2 flex justify-between items-center p-4">
      <Link href="/earn" className="flex flex-col items-center text-gray-600 text-xs">
-        <Activity className="h-5 w-5" />
+        <Image src={Earn} alt="" />
         <span>Earn</span>
       </Link>
 

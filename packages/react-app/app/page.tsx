@@ -59,7 +59,7 @@ export default function Home() {
     <main className="pb-24 font-poppins">
       <DashboardHeader name="Jash.mini" />
       <PointsCard points={Number(miniMilesBalance)} />
-      <RafflesWonCard />
+      {/* <RafflesWonCard /> */}
       <DailyChallenges />
       <JoinRafflesCarousel />
 
