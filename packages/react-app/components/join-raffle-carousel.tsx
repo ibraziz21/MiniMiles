@@ -31,6 +31,7 @@ export default function JoinRafflesCarousel() {
             <div className="flex gap-3 overflow-x-auto mt-4">
                 {raffles.map((raffle,ind) => {
                     return <RaffleCard
+                        key={ind}
                         image={raffle.image}
                         title={raffle.title}
                         endsIn={raffle.subtitle}

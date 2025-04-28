@@ -5,11 +5,39 @@ import { Hero } from '@/components/Hero';
 import MiniPointsCard from '@/components/mini-points-card';
 import PartnerQuests from '@/components/partner-quests';
 import SwapRewardPopup from '@/components/swap-reward-popup';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from "@/components/ui/button";
+import { useWeb3 } from "@/contexts/useWeb3";
+
+
+
+
+
 
 const Page = () => {
+  const {address, getUserAddress, getMiniMilesBalance} = useWeb3();
   const [showPopup, setShowPopup] = useState(false);
+  const [miniMilesBalance, setMiniMilesBalance] = useState('0');
+
+
+useEffect(() => {
+  getUserAddress();
+}, []);
+
+
+
+useEffect(() => {
+  const fetchBalance = async () => {
+    if (!address) return;
+    try {
+      const balance = await getMiniMilesBalance(address);
+      setMiniMilesBalance(balance);
+    } catch (error) {
+      console.log(error);
+    }
+  };
+  fetchBalance();
+}, [address, getMiniMilesBalance]);
 
   const handleOpenPopup = () => {
     setShowPopup(true);
@@ -26,7 +54,7 @@ const Page = () => {
         <h3>Complete challenges and quests to earn MiniMiles.</h3>
       </div>
 
-      <MiniPointsCard points={120} />
+      <MiniPointsCard points={Number(miniMilesBalance)} />
       <DailyChallenges />
       <PartnerQuests openPopup={handleOpenPopup} />
 

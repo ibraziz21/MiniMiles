@@ -36,7 +36,7 @@ const upcomingGames = [
 
 export default function Home() {
   const { address, getUserAddress, getMiniMilesBalance } = useWeb3();
-  const [miniMilesBalance, setMiniMilesBalance] = useState("120");
+  const [miniMilesBalance, setMiniMilesBalance] = useState("0");
 
   useEffect(() => {
     getUserAddress();
