@@ -8,6 +8,7 @@ import SwapRewardPopup from '@/components/swap-reward-popup';
 import React, { useEffect, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { useWeb3 } from "@/contexts/useWeb3";
+import EarnPartnerQuestSheet from '@/components/earn-partner-quest-sheet';
 
 
 
@@ -17,7 +18,7 @@ import { useWeb3 } from "@/contexts/useWeb3";
 const Page = () => {
   const {address, getUserAddress, getMiniMilesBalance} = useWeb3();
   const [showPopup, setShowPopup] = useState(false);
-  const [miniMilesBalance, setMiniMilesBalance] = useState('0');
+  const [miniMilesBalance, setMiniMilesBalance] = useState('120');
 
 
 useEffect(() => {
@@ -58,15 +59,7 @@ useEffect(() => {
       <DailyChallenges />
       <PartnerQuests openPopup={handleOpenPopup} />
 
-      {/* Button to manually open the popup */}
-      <div className="px-4 mt-6">
-        <Button title="Claim Swap Reward" onClick={handleOpenPopup} className="bg-green-600 hover:bg-green-700 text-white">
-          
-        </Button>
-      </div>
-
-      {/* Popup controlled by state */}
-      <SwapRewardPopup open={showPopup} onOpenChange={setShowPopup} />
+      <EarnPartnerQuestSheet open={showPopup} onOpenChange={setShowPopup} />
     </main>
   );
 }

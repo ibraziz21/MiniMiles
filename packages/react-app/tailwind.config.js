@@ -16,6 +16,9 @@ module.exports = {
   		},
 		backgroundImage: {
 			"point-card":"url('/svg/balance-card-bg.svg')",
+			"action-button":"url('/svg/action-pill-bg.svg')",
+			"partner-quest":"url('/svg/partner-quest-bg.svg')",
+			"onboarding":"url('/svg/onboarding-bg.svg')",
 		},
   		borderRadius: {
   			lg: 'var(--radius)',
