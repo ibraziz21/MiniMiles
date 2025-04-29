@@ -38,6 +38,7 @@ const upcomingGames = [
 export default function Home() {
   const { address, getUserAddress, getMiniMilesBalance } = useWeb3();
   const [miniMilesBalance, setMiniMilesBalance] = useState("0");
+  const [showPopup, setShowPopup] = useState(false);
 
   useEffect(() => {
     getUserAddress();
@@ -73,6 +74,7 @@ export default function Home() {
             endsIn={raffle.endsIn}
             ticketCost={raffle.ticketCost}
             icon={MinimilesSymbol}
+            setShowPopup={setShowPopup}
           />
         ))}
       </div>
@@ -87,6 +89,7 @@ export default function Home() {
             endsIn={raffle.endsIn}
             ticketCost={raffle.ticketCost}
             icon={MinimilesSymbol}
+            setShowPopup={setShowPopup}
           />
         ))}
       </div>
@@ -101,6 +104,7 @@ export default function Home() {
             endsIn={raffle.endsIn}
             ticketCost={raffle.ticketCost}
             icon={MinimilesSymbol}
+            setShowPopup={setShowPopup}
           />
         ))}
       </div>
