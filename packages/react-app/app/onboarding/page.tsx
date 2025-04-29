@@ -3,11 +3,7 @@
 import React from "react";
 import { useRouter } from "next/navigation"; // Adjust the path as needed
 import Image from "next/image";
-// import { NexusLogo } from "@/constants/svg";
-
 import { onboardingSource } from "@/helpers/onboardingSource";
-// import { gsap } from "gsap";
-// import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
   Carousel,
   CarouselContent,
@@ -15,8 +11,8 @@ import {
 } from "@/components/ui/carousel";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { CaretLeft } from "@phosphor-icons/react";
 
-// gsap.registerPlugin(ScrollTrigger);
 
 const Onboarding = () => {
   const router = useRouter();
@@ -26,59 +22,45 @@ const Onboarding = () => {
     router.push("/");
   };
 
-
-  // useEffect(() => {
-  //   // Check if the user is already logged in
-  //   if (user) {
-  //     // User is logged in, redirect to homepage
-  //     router.replace("/home"); // Adjust this to your homepage route
-  //   }
-  //   // Else, stay on the onboarding page, allowing the user to navigate to login manually
-
-  //   ScrollTrigger.create({
-  //     trigger: "#animate",
-  //     start: "right top",
-  //     endTrigger: "#animate",
-  //     end: "+=700",
-  //     pin: true,
-  //     horizontal: true,
-  //   });
-  // }, [router, user]); // Add `user` dependency to react to changes in authentication status
-
   return (
-    <main className="onboarding-bg">
-      <div className="xsm:flex justify-center">
-        <Carousel className="xsm:w-[400px]">
-          <CarouselContent>
-            {onboardingSource.map((element, index) => {
-              return (
-                <CarouselItem key={index}>
-                  <div className="flex flex-col justify-around h-[400px]">
-                    <h2 className="text-4xl text-black font-bold">
-                      {element.title}
-                    </h2>
-                    <h4 className="text-black my-5">{element.subtitle}</h4>
-                    <div className="flex flex-col justify-center">
-                      <Button
-                        title={element.buttonText}
-                        onClick={completeOnboarding}
-                        className="bg-black text-white p-3 rounded-2xl mt-5 font-bold cursor-pointer text-center w-full sm:w-[400px]"
-                      >
-                      </Button>
-                    </div>
-                    <article className="flex justify-center">
-                      <hr className={`mx-1 rounded-full border-[4px] ${index === 0 ? 'w-0  border-black' : 'border-gray-300'}`} />
-                      <hr className={`mx-1 rounded-full border-[4px] ${index === 1 ? 'w-0  border-black' : 'border-gray-300'}`} />
-                      <hr className={`mx-1 rounded-full border-[4px] ${index === 2 ? 'w-0  border-black' : 'border-gray-300'}`} />
-                    </article>
-                  </div>
-                </CarouselItem>
-              );
-            })}
-          </CarouselContent>
-        </Carousel>
-      </div>
-    </main>
+    <Carousel className=" font-poppins xsm:flex justify-center h-screen m-0">
+      <CarouselContent className="h-screen">
+        {onboardingSource.map((element, index) => {
+          return (
+            <CarouselItem key={index}>
+              <div className={`flex flex-col justify-center h-screen p-3 bg-onboarding  bg-no-repeat bg-cover ${index === 3 ? 'bg-[#219653]' : ''}`}>
+                <div className={`flex justify-between items-center  ${index === 3 ? 'hidden' : ''}`}>
+                  <CaretLeft size={24} />
+                  <Link href="/" className="text-sm text-green-600 hover:underline font-bold">
+                    Skip & Claim
+                  </Link>
+                </div>
+                <div className="flex justify-center">
+                  <Image src={element.img} alt="w-full" />
+                </div>
+                <h2 className={`text-4xl text-black font-bold mt-5  ${index === 3 ? 'text-white' : ''}`}>
+                  {element.title}
+                </h2>
+                <h4 className={`text-[#00000080] my-5  ${index === 3 ? 'text-[#E6E6E6]' : ''}`}>{element.subtitle}</h4>
+                <article className="flex justify-start mb-10">
+                  <hr className={`mx-1 w-[30px] rounded-full border-[4px] ${index === 0 ? 'border-[#219653]' : 'border-[#07955F4D]'}`} />
+                  <hr className={`mx-1 w-[30px] rounded-full border-[4px] ${index === 1 ? 'border-[#219653]' : 'border-[#07955F4D]'}`} />
+                  <hr className={`mx-1 w-[30px] rounded-full border-[4px] ${index === 2 ? 'border-[#219653]' : 'border-[#07955F4D]'}`} />
+                </article>
+                <div className="flex flex-col justify-center">
+                  <Button
+                    title={element.buttonText}
+                    onClick={completeOnboarding}
+                    className={`w-full rounded-xl py-6 flex items-center justify-center gap-3 font-semibold tracking-wide shadow-sm text-white bg-[#07955F] hover:bg-[#07955F] ${index === 3 ? 'bg-white hover:bg-white text-[#219653]' : ''} disabled:bg-[#07955F]`}
+                  >
+                  </Button>
+                </div>
+              </div>
+            </CarouselItem>
+          );
+        })}
+      </CarouselContent>
+    </Carousel>
   );
 };
 

@@ -6,10 +6,14 @@ import { Hero } from '@/components/Hero';
 import MiniPointsCard from '@/components/mini-points-card';
 import { RaffleCard } from '@/components/raffle-card';
 import { SectionHeading } from '@/components/section-heading';
+import SpendPartnerQuestSheet from '@/components/spend-partner-quest-sheet';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
 import { WinImg } from '@/lib/img';
 import { MinimilesSymbol } from '@/lib/svg';
+import { Question } from '@phosphor-icons/react';
+import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 
 const digitalCashRaffles = [
@@ -34,82 +38,109 @@ const upcomingGames = [
 
 const Page = () => {
 
-  const {address, getUserAddress, getMiniMilesBalance} = useWeb3();
+  const { address, getUserAddress, getMiniMilesBalance } = useWeb3();
   const [miniMilesBalance, setMiniMilesBalance] = useState('0');
+  const [showPopup, setShowPopup] = useState(false);
 
 
-useEffect(() => {
-  getUserAddress();
-}, []);
+  useEffect(() => {
+    getUserAddress();
+  }, []);
 
 
 
-useEffect(() => {
-  const fetchBalance = async () => {
-    if (!address) return;
-    try {
-      const balance = await getMiniMilesBalance(address);
-      setMiniMilesBalance(balance);
-    } catch (error) {
-      console.log(error);
-    }
-  };
-  fetchBalance();
-}, [address, getMiniMilesBalance]);
+  useEffect(() => {
+    const fetchBalance = async () => {
+      if (!address) return;
+      try {
+        const balance = await getMiniMilesBalance(address);
+        setMiniMilesBalance(balance);
+      } catch (error) {
+        console.log(error);
+      }
+    };
+    fetchBalance();
+  }, [address, getMiniMilesBalance]);
 
   return (
-    <main className="pb-24 font-poppins">
+    <main className="pb-24 font-poppins bg-onboarding px-3">
       <div className="px-4 pt-4">
         <h1 className="text-2xl font-bold mt-2">Spend</h1>
         <h3>Win big by entering our Raffles</h3>
       </div>
       <MiniPointsCard points={Number(miniMilesBalance)} />
-      <Button
-        title="How to enter a raffle?"
-        variant="outline"
-        className="rounded-full border-2 border-[#a6ddb3] px-6 py-3 bg-[#d3f4e5] hover:bg-[#b2e2c5] w-full"
-        onClick={() => {
-          window.location.href = "/onboarding";
-        }}
+      <Link
+        className="p-3 rounded-xl flex items-center justify-center gap-3 font-semibold tracking-wide shadow-sm text-[#07955F] bg-[#07955F1A] hover:bg-[#07955F1A] disabled:bg-[#07955F]"
+        href={"/onboarding"}
       >
-        How to enter a raffle?
-      </Button>
-      
+        <Question size={24} />
+        <h3>How to enter a raffle?</h3>
+      </Link>
 
-      <SectionHeading title="Join physical goods raffles" />
-      <div className="flex space-x-3 overflow-x-auto px-4">
-        {physicalGoodsRaffles.map((raffle, idx) => (
-          <RaffleCard
-            key={idx}
-            image={raffle.image}
-            title={raffle.title}
-            endsIn={raffle.endsIn}
-            ticketCost={raffle.ticketCost}
-            icon={MinimilesSymbol}
-          />
-        ))}
-      </div>
 
-      <SectionHeading title="Join NFT Raffles" />
-      <div className="flex space-x-3 overflow-x-auto px-4">
-        {nftRaffles.map((raffle, idx) => (
-          <RaffleCard
-            key={idx}
-            image={raffle.image}
-            title={raffle.title}
-            endsIn={raffle.endsIn}
-            ticketCost={raffle.ticketCost}
-            icon={MinimilesSymbol}
-          />
-        ))}
-      </div>
+      <Tabs defaultValue="active" className="mt-5">
+        <TabsList>
+          <TabsTrigger value="active" className="text-[#219653] bg-[#66D5754D] rounded-full font-bold">Active</TabsTrigger>
+          <TabsTrigger value="participating" className="ml-1 text-[#8E8B8B] bg-[#EBEBEB] rounded-full font-bold">Participating</TabsTrigger>
+        </TabsList>
+        <TabsContent value="active">
+          <div>
+            <div className="">
+              <div className="flex justify-between items-center mb-5">
+                <h3 className="text-sm font-bold">Physical Goods raffles</h3>
+                <Link href="/earn" className="text-sm text-green-600 hover:underline font-bold">
+                  See all ›
+                </Link>
+              </div>
+              <div className="flex space-x-3 overflow-x-auto px-4">
+                {physicalGoodsRaffles.map((raffle, idx) => (
+                  <RaffleCard
+                    key={idx}
+                    image={raffle.image}
+                    title={raffle.title}
+                    endsIn={raffle.endsIn}
+                    ticketCost={raffle.ticketCost}
+                    icon={MinimilesSymbol}
+                    setShowPopup={setShowPopup}
+                  />
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between items-center mb-5">
+                <h3 className="text-sm font-bold">NFT raffles</h3>
+                <Link href="/earn" className="text-sm text-green-600 hover:underline font-bold">
+                  See all ›
+                </Link>
+              </div>
+              <div className="flex space-x-3 overflow-x-auto px-4">
+                {nftRaffles.map((raffle, idx) => (
+                  <RaffleCard
+                    key={idx}
+                    image={raffle.image}
+                    title={raffle.title}
+                    endsIn={raffle.endsIn}
+                    ticketCost={raffle.ticketCost}
+                    icon={MinimilesSymbol}
+                    setShowPopup={setShowPopup}
+                  />
+                ))}
+              </div>
+            </div>
 
-      <SectionHeading title="Upcoming games" />
-      <div className="flex space-x-3 overflow-x-auto px-4">
-        {upcomingGames.map((game, idx) => (
-          <GameCard key={idx} name={game.name} date={game.date} image={game.image} />
-        ))}
-      </div>
+            <div>
+              <SectionHeading title="Upcoming games" />
+              <div className="flex space-x-3 overflow-x-auto px-4">
+                {upcomingGames.map((game, idx) => (
+                  <GameCard key={idx} name={game.name} date={game.date} image={game.image} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </TabsContent>
+        <TabsContent value="participating">Participating Raffles here</TabsContent>
+      </Tabs>
+      <SpendPartnerQuestSheet open={showPopup} onOpenChange={setShowPopup} />
     </main>
   );
 }

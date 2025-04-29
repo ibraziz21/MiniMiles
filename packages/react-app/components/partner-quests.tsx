@@ -44,7 +44,7 @@ export default function PartnerQuests({openPopup}:any) {
       </div>
       <div className="grid grid-cols-2 gap-2 mt-4">
         {quests.map((quest, index) => (
-          <div onClick={()=> openPopup()} key={index} style={{backgroundColor: quest.color}} className={` border border-[#07955F4D] rounded-xl p-4  h-[200px]`}>
+          <div onClick={()=> openPopup()} key={index} style={{backgroundColor: quest.color}} className={` rounded-xl p-4  h-[180px] `}>
             <div className="text-center flex flex-col justify-around w-full h-full items-center">
               <Image src={quest.img} alt="" />
               <p className="text-sm font-semibold">{quest.title}</p>

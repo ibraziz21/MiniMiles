@@ -1,15 +1,17 @@
 // components/PointsCard.tsx
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
+import { MinimilesSymbolAlt } from "@/lib/svg";
+import Image from "next/image";
 
 export default function MiniPointsCard({ points }: { points: number }) {
     return (
-        <div className="bg-point-card bg-[#219653] bg-no-repeat bg-cover text-white rounded-3xl py-4 px-2 mx-4 my-4 space-y-4">
-            <div className="">
-                <h3 className="">Total MiniMiles</h3>
-                <p className="text-3xl font-semibold my-3">{points.toLocaleString()}</p>
-                <h5>1 MiniMiles per $ 1.00 spent. *</h5>
+        <div className="p-3 m-4 flex flex-col justify-between bg-point-card bg-[#219653] bg-no-repeat bg-cover font-poppins rounded-2xl">
+            <h3 className="text-white">Total MiniMiles</h3>
+            <div className="flex items-center justify-start my-3">
+                <Image src={MinimilesSymbolAlt} width={32} height={32} alt="" />
+                <p className="text-3xl font-bold pl-2 text-white">{points.toLocaleString()}</p>
             </div>
+            <h4 className="text-sm font-bold text-[#0E4023]">1 MiniMiles per $ 1.00 spent. *</h4>
         </div>
     );
 }

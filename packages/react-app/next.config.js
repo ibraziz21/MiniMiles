@@ -10,6 +10,7 @@ const nextConfig = {
   images: {
     domains: ['cdn-production-opera-website.operacdn.com'],
   },
+  devIndicators: false
 };
 
 module.exports = nextConfig;

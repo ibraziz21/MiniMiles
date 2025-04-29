@@ -1,6 +1,5 @@
 "use client";
 
-import { BottomNav } from "@/components/bottom-nav";
 import DailyChallenges from "@/components/daily-challenge";
 import DashboardHeader from "@/components/dashboard-header";
 import { GameCard } from "@/components/game-card";
@@ -13,6 +12,8 @@ import { useWeb3 } from "@/contexts/useWeb3";
 import { WinImg } from "@/lib/img";
 import { MinimilesSymbol } from "@/lib/svg";
 import { useEffect, useState } from "react";
+import AccountSheet from "@/components/account-sheet";
+import ContactSheet from "@/components/contact-sheet";
 
 const digitalCashRaffles = [
   { image: WinImg, title: "500 USDT weekly", endsIn: "7 days", ticketCost: "10 MiniMiles for 1 ticket" },
@@ -37,6 +38,7 @@ const upcomingGames = [
 export default function Home() {
   const { address, getUserAddress, getMiniMilesBalance } = useWeb3();
   const [miniMilesBalance, setMiniMilesBalance] = useState("0");
+  const [showPopup, setShowPopup] = useState(false);
 
   useEffect(() => {
     getUserAddress();
@@ -59,10 +61,9 @@ export default function Home() {
     <main className="pb-24 font-poppins">
       <DashboardHeader name="Jash.mini" />
       <PointsCard points={Number(miniMilesBalance)} />
-      <RafflesWonCard />
+      {/* <RafflesWonCard /> */}
       <DailyChallenges />
       <JoinRafflesCarousel />
-
       <SectionHeading title="Join digital cash raffles" />
       <div className="flex space-x-3 overflow-x-auto px-4 whitespace-nowrap scrollbar-hide">
         {digitalCashRaffles.map((raffle, idx) => (
@@ -73,6 +74,7 @@ export default function Home() {
             endsIn={raffle.endsIn}
             ticketCost={raffle.ticketCost}
             icon={MinimilesSymbol}
+            setShowPopup={setShowPopup}
           />
         ))}
       </div>
@@ -87,6 +89,7 @@ export default function Home() {
             endsIn={raffle.endsIn}
             ticketCost={raffle.ticketCost}
             icon={MinimilesSymbol}
+            setShowPopup={setShowPopup}
           />
         ))}
       </div>
@@ -101,6 +104,7 @@ export default function Home() {
             endsIn={raffle.endsIn}
             ticketCost={raffle.ticketCost}
             icon={MinimilesSymbol}
+            setShowPopup={setShowPopup}
           />
         ))}
       </div>
@@ -110,6 +114,12 @@ export default function Home() {
         {upcomingGames.map((game, idx) => (
           <GameCard key={idx} name={game.name} date={game.date} image={game.image} />
         ))}
+      </div>
+
+
+      <div className="mx-4 mt-6 space-y-4">
+        <AccountSheet />
+        <ContactSheet />
       </div>
     </main>
   );
