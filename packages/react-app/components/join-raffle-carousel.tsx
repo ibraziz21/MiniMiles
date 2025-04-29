@@ -2,9 +2,12 @@ import { WinImg } from "@/lib/img";
 import { RaffleCard } from "./raffle-card";
 import Link from "next/link";
 import { MinimilesSymbol } from "@/lib/svg";
+import { useState } from "react";
 
 
 export default function JoinRafflesCarousel() {
+  const [showPopup, setShowPopup] = useState(false);
+
     const raffles = [
         {
             title: "WIN 500 USDT",
@@ -37,6 +40,7 @@ export default function JoinRafflesCarousel() {
                         endsIn={raffle.subtitle}
                         ticketCost="10 MiniMiles for 1 ticket"
                         icon={MinimilesSymbol}
+                        setShowPopup={setShowPopup}
                     />
                 })}
             </div>
