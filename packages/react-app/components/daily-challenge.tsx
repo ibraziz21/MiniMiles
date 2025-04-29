@@ -113,12 +113,12 @@ export default function DailyChallenges() {
   };
 
   return (
-    <Tabs defaultValue="active" className="w-[400px]">
+    <Tabs defaultValue="active" className="mx-3">
       <TabsList>
         <TabsTrigger value="active" className="text-[#219653] bg-[#66D5754D] rounded-full font-bold">Active</TabsTrigger>
         <TabsTrigger value="completed" className="ml-1 text-[#8E8B8B] bg-[#EBEBEB] rounded-full font-bold">Completed</TabsTrigger>
       </TabsList>
-      <TabsContent value="active">    <div className="mx-4 mt-6">
+      <TabsContent value="active">    <div className="mt-6">
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-bold">Daily challenges</h3>
           <Link href="/earn" className="text-sm text-green-600 hover:underline font-bold">
@@ -160,7 +160,7 @@ export default function DailyChallenges() {
 
         <DailyChallengeSheet open={showPopup} onOpenChange={setShowPopup} />
       </div></TabsContent>
-      <TabsContent value="completed">Change your password here.</TabsContent>
+      <TabsContent value="completed">Completed Daily Challenges here.</TabsContent>
     </Tabs>
   );
 }

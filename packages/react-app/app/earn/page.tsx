@@ -54,11 +54,9 @@ useEffect(() => {
         <h1 className="text-2xl font-bold mt-2">Earn</h1>
         <h3>Complete challenges and quests to earn MiniMiles.</h3>
       </div>
-
       <MiniPointsCard points={Number(miniMilesBalance)} />
       <DailyChallenges />
       <PartnerQuests openPopup={handleOpenPopup} />
-
       <EarnPartnerQuestSheet open={showPopup} onOpenChange={setShowPopup} />
     </main>
   );

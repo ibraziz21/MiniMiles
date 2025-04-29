@@ -138,7 +138,7 @@ const Page = () => {
             </div>
           </div>
         </TabsContent>
-        <TabsContent value="participating">Change your password here.</TabsContent>
+        <TabsContent value="participating">Participating Raffles here</TabsContent>
       </Tabs>
       <SpendPartnerQuestSheet open={showPopup} onOpenChange={setShowPopup} />
     </main>
