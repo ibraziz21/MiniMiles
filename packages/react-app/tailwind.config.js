@@ -19,6 +19,7 @@ module.exports = {
 			"action-button":"url('/svg/action-pill-bg.svg')",
 			"partner-quest":"url('/svg/partner-quest-bg.svg')",
 			"onboarding":"url('/svg/onboarding-bg.svg')",
+			"claim":"url('/svg/claim.svg')",
 		},
   		borderRadius: {
   			lg: 'var(--radius)',

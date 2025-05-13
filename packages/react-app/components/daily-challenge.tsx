@@ -159,8 +159,52 @@ export default function DailyChallenges() {
         />
 
         <DailyChallengeSheet open={showPopup} onOpenChange={setShowPopup} />
-      </div></TabsContent>
-      <TabsContent value="completed">Completed Daily Challenges here.</TabsContent>
+      </div>
+      </TabsContent>
+      <TabsContent value="completed">
+        <div className="mt-6">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-bold">Daily challenges</h3>
+            <Link href="/earn" className="text-sm text-green-600 hover:underline font-bold">
+              See all ›
+            </Link>
+          </div>
+
+          <div className="flex space-x-3 overflow-x-auto mt-4">
+            {quests.map((q) => {
+              const map = ACTION_BY_ID[q.id];
+              if (!map) return null;
+
+              return (
+                <button
+                  key={q.id}
+                  onClick={() => handleQuestClick(q)}
+                  className="bg-[#07955F33] rounded-xl p-4 min-w-[180px] h-[234px] focus:outline-none shadow-xl"
+                >
+                  <div className="flex flex-col items-center justify-around h-full text-center bg-opacity-20">
+                    <Image src={map.img} alt="" />
+                    <p className="text-sm font-semibold">{q.title}</p>
+                    <p className="text-xs text-[#8E8B8B] mt-2">{q.description}</p>
+                    <p className="text-xs mt-3 flex items-center justify-center">
+                      <Image src={MinimilesSymbol} alt="" className="mr-1" />
+                      {q.reward} MiniMiles
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <QuestLoadingModal
+            open={modalOpen}
+            onOpenChange={setModalOpen}
+            status={modalStatus}
+            message={modalMsg}
+          />
+
+          <DailyChallengeSheet open={showPopup} onOpenChange={setShowPopup} />
+        </div>
+      </TabsContent>
     </Tabs>
   );
 }

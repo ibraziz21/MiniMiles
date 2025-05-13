@@ -48,7 +48,7 @@ export interface ButtonProps
   VariantProps<typeof buttonVariants> {
   asChild?: boolean;
   title: string;
-  onClick: () => void;
+  onClick?: () => void;
   widthFull?: boolean;
   disabled?: boolean;
   loading?: boolean;

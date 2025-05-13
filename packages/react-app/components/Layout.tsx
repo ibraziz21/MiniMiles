@@ -12,14 +12,15 @@ const Layout: FC<Props> = ({ children }) => {
     const pathname = usePathname();
 
     const isOnboarding = pathname.startsWith("/onboarding");
+    const isClaim = pathname.startsWith("/claim");
     return (
         <>
             <div className="bg-gypsum overflow-hidden flex flex-col min-h-screen">
-                {!isOnboarding && <Header />}
+                {!isOnboarding && !isClaim && <Header />}
                 <div className="">
                     {children}
                 </div>
-                {!isOnboarding && <Footer />}
+                {!isOnboarding && !isClaim && <Footer />}
             </div>
         </>
     );

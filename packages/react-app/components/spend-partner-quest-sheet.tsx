@@ -1,7 +1,7 @@
 import React from 'react'
 import { Button } from './ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet'
-import { Celo, MinimilesSymbolAlt } from '@/lib/svg';
+import { Celo, MinimilesSymbolAlt, Ticket } from '@/lib/svg';
 import Image from 'next/image';
 
 interface PartnerQuestSheetProps {
@@ -50,6 +50,12 @@ const SpendPartnerQuestSheet = ({ open, onOpenChange }: PartnerQuestSheetProps) 
                                 </div>
                             </li>
                         </ol>
+                    </div>
+
+                    <h3>Buy Tickets</h3>
+                    <div>
+                        <Image src={Ticket} alt=''  />
+                        <h4 className='font-bold text-[#07955F]'>10</h4>
                     </div>
                     <Button title="Buy"
                         onClick={() => { }} className="w-full rounded-xl py-6 flex items-center justify-center gap-3 font-semibold tracking-wide shadow-sm text-white bg-[#07955F] hover:bg-[#07955F]

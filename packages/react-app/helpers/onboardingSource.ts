@@ -1,4 +1,4 @@
-import { OnboardingImgFour, OnboardingImgOne } from "@/lib/svg";
+import { OnboardingImgFour, OnboardingImgOne, OnboardingImgThree, OnboardingImgTwo } from "@/lib/svg";
 
 export const onboardingSource = [
   {
@@ -9,14 +9,14 @@ export const onboardingSource = [
     buttonText: "Proceed & Earn 100 MiniMiles"
   },
   {
-    img: OnboardingImgOne,
+    img: OnboardingImgTwo,
     title: "Spend your MiniMiles for prizes",
     subtitle: "Use your MiniMiles to enter weekly raffles, get access to top deals and win onchain rewards like cUSD, cKES, and CELO.",
     line: "150px",
     buttonText: "Proceed"
   },
   {
-    img: OnboardingImgFour,
+    img: OnboardingImgThree,
     title: "Your journey starts now - Every miles counts.",
     subtitle:
       "Congrats! you receive a 100 MiniMiles for being part of the first 1000 users.",

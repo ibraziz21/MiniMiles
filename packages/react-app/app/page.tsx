@@ -9,25 +9,25 @@ import { RaffleCard } from "@/components/raffle-card";
 import RafflesWonCard from "@/components/raffle-won-card";
 import { SectionHeading } from "@/components/section-heading";
 import { useWeb3 } from "@/contexts/useWeb3";
-import { WinImg } from "@/lib/img";
+import { RaffleImg1, RaffleImg2, WinImg } from "@/lib/img";
 import { MinimilesSymbol } from "@/lib/svg";
 import { useEffect, useState } from "react";
 import AccountSheet from "@/components/account-sheet";
 import ContactSheet from "@/components/contact-sheet";
 
 const digitalCashRaffles = [
-  { image: WinImg, title: "500 USDT weekly", endsIn: "7 days", ticketCost: "10 MiniMiles for 1 ticket" },
-  { image: WinImg, title: "250 USDT", endsIn: "7 days", ticketCost: "6 points for 1 ticket" },
+  { image: RaffleImg1, title: "500 USDT weekly", endsIn: "7 days", ticketCost: "10 MiniMiles for 1 ticket" },
+  { image: RaffleImg2, title: "250 USDT", endsIn: "7 days", ticketCost: "6 points for 1 ticket" },
 ];
 
 const physicalGoodsRaffles = [
-  { image: WinImg, title: "Ledger hardware wallet", endsIn: "5 days", ticketCost: "3 MiniMiles for 1 ticket" },
-  { image: WinImg, title: "Laptop", endsIn: "4 days", ticketCost: "50 tickets by brand" },
+  { image: RaffleImg1, title: "Ledger hardware wallet", endsIn: "5 days", ticketCost: "3 MiniMiles for 1 ticket" },
+  { image: RaffleImg2, title: "Laptop", endsIn: "4 days", ticketCost: "50 tickets by brand" },
 ];
 
 const nftRaffles = [
-  { image: WinImg, title: "BoredApe #567", endsIn: "3 days", ticketCost: "10 MiniMiles for 1 ticket" },
-  { image: WinImg, title: "CryptoPunk #789", endsIn: "2 days", ticketCost: "12 MiniMiles" },
+  { image: RaffleImg1, title: "BoredApe #567", endsIn: "3 days", ticketCost: "10 MiniMiles for 1 ticket" },
+  { image: RaffleImg2, title: "CryptoPunk #789", endsIn: "2 days", ticketCost: "12 MiniMiles" },
 ];
 
 const upcomingGames = [
@@ -61,7 +61,6 @@ export default function Home() {
     <main className="pb-24 font-poppins">
       <DashboardHeader name="Jash.mini" />
       <PointsCard points={Number(miniMilesBalance)} />
-      {/* <RafflesWonCard /> */}
       <DailyChallenges />
       <JoinRafflesCarousel />
       <SectionHeading title="Join digital cash raffles" />

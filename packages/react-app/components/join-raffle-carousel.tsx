@@ -1,4 +1,4 @@
-import { WinImg } from "@/lib/img";
+import { RaffleImg1, RaffleImg3, WinImg } from "@/lib/img";
 import { RaffleCard } from "./raffle-card";
 import Link from "next/link";
 import { MinimilesSymbol } from "@/lib/svg";
@@ -12,13 +12,13 @@ export default function JoinRafflesCarousel() {
         {
             title: "WIN 500 USDT",
             subtitle: "Ends in 7 days",
-            image: WinImg,
+            image: RaffleImg1,
             ticketcost: "5 MiniMiles for 1 ticket"
         },
         {
             title: "250 USDC",
             subtitle: "Ends in 7 days",
-            image: WinImg,
+            image: RaffleImg3,
             ticketcost: "6 Minimiles for 2 ticket"
         },
     ];
