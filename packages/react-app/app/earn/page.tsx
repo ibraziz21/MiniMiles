@@ -10,42 +10,32 @@ import { Button } from "@/components/ui/button";
 import { useWeb3 } from "@/contexts/useWeb3";
 import EarnPartnerQuestSheet from '@/components/earn-partner-quest-sheet';
 
-
-
-
-
-
 const Page = () => {
-  const {address, getUserAddress, getMiniMilesBalance} = useWeb3();
+  const { address, getUserAddress, getMiniMilesBalance } = useWeb3();
   const [showPopup, setShowPopup] = useState(false);
   const [miniMilesBalance, setMiniMilesBalance] = useState('120');
+  const [selectedQuest, setSelectedQuest] = useState<any>(null);
 
+  useEffect(() => {
+    getUserAddress();
+  }, []);
 
-useEffect(() => {
-  getUserAddress();
-}, []);
+  useEffect(() => {
+    const fetchBalance = async () => {
+      if (!address) return;
+      try {
+        const balance = await getMiniMilesBalance(address);
+        setMiniMilesBalance(balance);
+      } catch (error) {
+        console.log(error);
+      }
+    };
+    fetchBalance();
+  }, [address, getMiniMilesBalance]);
 
-
-
-useEffect(() => {
-  const fetchBalance = async () => {
-    if (!address) return;
-    try {
-      const balance = await getMiniMilesBalance(address);
-      setMiniMilesBalance(balance);
-    } catch (error) {
-      console.log(error);
-    }
-  };
-  fetchBalance();
-}, [address, getMiniMilesBalance]);
-
-  const handleOpenPopup = () => {
+  const handleOpenPopup = (quest: any) => {
+    setSelectedQuest(quest);
     setShowPopup(true);
-  };
-
-  const handleClosePopup = () => {
-    setShowPopup(false);
   };
 
   return (
@@ -57,9 +47,10 @@ useEffect(() => {
       <MiniPointsCard points={Number(miniMilesBalance)} />
       <DailyChallenges />
       <PartnerQuests openPopup={handleOpenPopup} />
-      <EarnPartnerQuestSheet open={showPopup} onOpenChange={setShowPopup} />
+      <EarnPartnerQuestSheet open={showPopup} onOpenChange={setShowPopup} quest={selectedQuest} />
     </main>
   );
-}
+};
+
 
 export default Page;

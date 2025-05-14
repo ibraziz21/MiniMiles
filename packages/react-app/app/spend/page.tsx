@@ -10,25 +10,25 @@ import SpendPartnerQuestSheet from '@/components/spend-partner-quest-sheet';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
-import { WinImg } from '@/lib/img';
+import { RaffleImg1, RaffleImg2, RaffleImg3, RaffleImg4, WinImg } from '@/lib/img';
 import { MinimilesSymbol } from '@/lib/svg';
 import { Question } from '@phosphor-icons/react';
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 
 const digitalCashRaffles = [
-  { image: WinImg, title: "500 USDT weekly", endsIn: "7 days", ticketCost: "10 MiniMiles for 1 ticket" },
-  { image: WinImg, title: "250 USDT", endsIn: "7 days", ticketCost: "6 points for 1 ticket" },
+  { image: RaffleImg1, title: "500 USDT weekly", endsIn: "7 days", ticketCost: "10 MiniMiles for 1 ticket" },
+  { image: RaffleImg2, title: "250 USDT", endsIn: "7 days", ticketCost: "6 points for 1 ticket" },
 ];
 
 const physicalGoodsRaffles = [
-  { image: WinImg, title: "Ledger hardware wallet", endsIn: "5 days", ticketCost: "3 MiniMiles for 1 ticket" },
-  { image: WinImg, title: "Laptop", endsIn: "4 days", ticketCost: "50 tickets by brand" },
+  { image: RaffleImg3, title: "Ledger hardware wallet", endsIn: "5 days", ticketCost: "3 MiniMiles for 1 ticket" },
+  { image: RaffleImg4, title: "Laptop", endsIn: "4 days", ticketCost: "50 tickets by brand" },
 ];
 
 const nftRaffles = [
-  { image: WinImg, title: "BoredApe #567", endsIn: "3 days", ticketCost: "10 MiniMiles for 1 ticket" },
-  { image: WinImg, title: "CryptoPunk #789", endsIn: "2 days", ticketCost: "12 MiniMiles" },
+  { image: RaffleImg3, title: "BoredApe #567", endsIn: "3 days", ticketCost: "10 MiniMiles for 1 ticket" },
+  { image: RaffleImg2, title: "CryptoPunk #789", endsIn: "2 days", ticketCost: "12 MiniMiles" },
 ];
 
 const upcomingGames = [
@@ -41,6 +41,7 @@ const Page = () => {
   const { address, getUserAddress, getMiniMilesBalance } = useWeb3();
   const [miniMilesBalance, setMiniMilesBalance] = useState('0');
   const [showPopup, setShowPopup] = useState(false);
+  const [selectedRaffle, setSelectedRaffle] = useState<any>(null);
 
 
   useEffect(() => {
@@ -102,6 +103,10 @@ const Page = () => {
                     ticketCost={raffle.ticketCost}
                     icon={MinimilesSymbol}
                     setShowPopup={setShowPopup}
+                    onClick={() => {
+                      setSelectedRaffle(raffle);
+                      setShowPopup(true);
+                    }}
                   />
                 ))}
               </div>
@@ -123,6 +128,10 @@ const Page = () => {
                     ticketCost={raffle.ticketCost}
                     icon={MinimilesSymbol}
                     setShowPopup={setShowPopup}
+                    onClick={() => {
+                      setSelectedRaffle(raffle);
+                      setShowPopup(true);
+                    }}
                   />
                 ))}
               </div>
@@ -140,7 +149,7 @@ const Page = () => {
         </TabsContent>
         <TabsContent value="participating">Participating Raffles here</TabsContent>
       </Tabs>
-      <SpendPartnerQuestSheet open={showPopup} onOpenChange={setShowPopup} />
+      <SpendPartnerQuestSheet open={showPopup} onOpenChange={setShowPopup} raffle={selectedRaffle} />
     </main>
   );
 }

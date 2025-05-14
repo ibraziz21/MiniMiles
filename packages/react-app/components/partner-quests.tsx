@@ -33,7 +33,7 @@ const quests = [
   },
 ];
 
-export default function PartnerQuests({openPopup}:any) {
+export default function PartnerQuests({ openPopup }: any) {
   return (
     <div className="mx-4 mt-6">
       <div className="flex justify-between items-center">
@@ -44,7 +44,7 @@ export default function PartnerQuests({openPopup}:any) {
       </div>
       <div className="grid grid-cols-2 gap-2 mt-4">
         {quests.map((quest, index) => (
-          <div onClick={()=> openPopup()} key={index} style={{backgroundColor: quest.color}} className={` rounded-xl p-4  h-[180px] `}>
+          <div onClick={() => openPopup(quest)} key={index} style={{ backgroundColor: quest.color }} className="rounded-xl p-4 h-[180px]">
             <div className="text-center flex flex-col justify-around w-full h-full items-center">
               <Image src={quest.img} alt="" />
               <p className="text-sm font-semibold">{quest.title}</p>

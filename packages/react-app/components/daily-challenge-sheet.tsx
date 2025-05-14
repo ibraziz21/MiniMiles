@@ -3,13 +3,16 @@ import { Button } from './ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet'
 import { Celo, MinimilesSymbolAlt } from '@/lib/svg';
 import Image from 'next/image';
+import { Raffle } from '@/helpers/raffledisplay';
 
 interface DailyChallengeSheetProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    raffle: Raffle | null;
 }
 
-const DailyChallengeSheet = ({ open, onOpenChange }: DailyChallengeSheetProps) => {
+const DailyChallengeSheet = ({ open, onOpenChange, raffle  }: DailyChallengeSheetProps) => {
+    if (!raffle) return null;
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent side={"bottom"} className="bg-white rounded-t-xl font-poppins">
@@ -23,12 +26,12 @@ const DailyChallengeSheet = ({ open, onOpenChange }: DailyChallengeSheetProps) =
                             <h3 className='text-[#1E8C89] text-sm font-bold px-2'>Partner quest</h3>
                         </div>
                     </div>
-                    <h4 className='text-2xl font-bold'>Swap on ReFi DEX</h4>
+                    <h4 className='text-2xl font-bold'>{raffle.description}</h4>
 
                     <div className="bg-partner-quest bg-[#219653] bg-no-repeat bg-cover text-white text-center rounded-xl py-2">
                         <div className="flex items-center justify-center my-3">
                             <Image src={MinimilesSymbolAlt} width={32} height={32} alt="" />
-                            <p className="text-3xl font-bold pl-2">5</p>
+                            <p className="text-3xl font-bold pl-2">{raffle.ticketCost}</p>
                         </div>
                         <h4>MiniMiles</h4>
                     </div>

@@ -7,10 +7,11 @@ type RaffleCardProps = {
   ticketCost: string;
   icon: string
   setShowPopup: (open: boolean) => void;
+  onClick?: () => void;
 };
 
-export const RaffleCard = ({ image, title, endsIn, ticketCost, icon, setShowPopup }: RaffleCardProps) => (
-  <div onClick={()=>setShowPopup(true)} className="rounded-xl overflow-hidden bg-white shadow-md min-w-[180px] relative">
+export const RaffleCard = ({ image, title, endsIn, ticketCost, icon, setShowPopup, onClick }: RaffleCardProps) => (
+  <div onClick={onClick} className="rounded-xl overflow-hidden bg-white shadow-md min-w-[180px] relative">
     <div className="relative">
       <Image src={image} alt={title} width={180} height={120} className="w-full object-cover" />
       <div className="absolute inset-0 bg-black/30" /> 

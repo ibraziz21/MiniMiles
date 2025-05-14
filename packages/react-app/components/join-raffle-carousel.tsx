@@ -2,26 +2,24 @@ import { RaffleImg1, RaffleImg3, WinImg } from "@/lib/img";
 import { RaffleCard } from "./raffle-card";
 import Link from "next/link";
 import { MinimilesSymbol } from "@/lib/svg";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+import { fetchActiveRaffles,Raffle } from "@/helpers/raffledisplay";
 
 
 export default function JoinRafflesCarousel() {
+    const [raffles, setRaffles] = useState<Raffle[]>([])
+    const [loading, setLoading] = useState(true)
   const [showPopup, setShowPopup] = useState(false);
 
-    const raffles = [
-        {
-            title: "WIN 500 USDT",
-            subtitle: "Ends in 7 days",
-            image: RaffleImg1,
-            ticketcost: "5 MiniMiles for 1 ticket"
-        },
-        {
-            title: "250 USDC",
-            subtitle: "Ends in 7 days",
-            image: RaffleImg3,
-            ticketcost: "6 Minimiles for 2 ticket"
-        },
-    ];
+  useEffect(() => {
+    fetchActiveRaffles()
+      .then(setRaffles)
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return <div>Loading…</div>
 
     return (
         <div className="mx-4 mt-6">
@@ -35,9 +33,9 @@ export default function JoinRafflesCarousel() {
                 {raffles.map((raffle,ind) => {
                     return <RaffleCard
                         key={ind}
-                        image={raffle.image}
-                        title={raffle.title}
-                        endsIn={raffle.subtitle}
+                        image={RaffleImg1}
+                        title={raffle.rewardToken}
+                        endsIn={raffle.ends.toString()}
                         ticketCost="10 MiniMiles for 1 ticket"
                         icon={MinimilesSymbol}
                         setShowPopup={setShowPopup}
