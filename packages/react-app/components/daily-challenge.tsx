@@ -158,7 +158,7 @@ export default function DailyChallenges() {
           message={modalMsg}
         />
 
-        <DailyChallengeSheet open={showPopup} onOpenChange={setShowPopup} />
+        {/* <DailyChallengeSheet open={showPopup} onOpenChange={setShowPopup} /> */}
       </div></TabsContent>
       <TabsContent value="completed">Completed Daily Challenges here.</TabsContent>
     </Tabs>

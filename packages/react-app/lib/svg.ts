@@ -13,7 +13,11 @@ import ChatBubble from "../public/svg/chat.svg"
 import Ticket from "../public/svg/ticket.svg"
 import HomeSvg from "../public/svg/home.svg"
 import OnboardingImgOne from "../public/svg/onboarding-img-one.svg"
+import OnboardingImgTwo from "../public/svg/phone-screen.svg"
+import OnboardingImgThree from "../public/svg/reward.svg"
 import OnboardingImgFour from "../public/svg/onboarding-img-four.svg"
+import NotificationSvg from "../public/svg/notification.svg"
+import GearSvg from "../public/svg/gear.svg"
 
 export {
     Cash,
@@ -31,5 +35,9 @@ export {
     Ticket,
     HomeSvg,
     OnboardingImgOne,
-    OnboardingImgFour
+    OnboardingImgFour,
+    OnboardingImgTwo,
+    OnboardingImgThree,
+    NotificationSvg,
+    GearSvg,
 }
