@@ -93,7 +93,7 @@ export const RaffleDetails = ({
           </p>
 
           <SheetFooter className="mt-6">
-            <Button className="w-full bg-blue">Buy {selected} tickets</Button>
+            <Button className="w-full bg-blue"     title={`Buy ${selected} tickets`} >Buy {selected} tickets</Button>
           </SheetFooter>
         </section>
       </SheetContent>
