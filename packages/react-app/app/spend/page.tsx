@@ -5,11 +5,13 @@ import { GameCard } from '@/components/game-card';
 import { Hero } from '@/components/Hero';
 import MiniPointsCard from '@/components/mini-points-card';
 import { RaffleCard } from '@/components/raffle-card';
+import { RaffleDetails } from '@/components/raffle-details';
 import { SectionHeading } from '@/components/section-heading';
 import SpendPartnerQuestSheet from '@/components/spend-partner-quest-sheet';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
+import { fetchActiveRaffles, Raffle } from '@/helpers/raffledisplay';
 import { RaffleImg1, RaffleImg2, RaffleImg3, RaffleImg4, WinImg } from '@/lib/img';
 import { MinimilesSymbol } from '@/lib/svg';
 import { Question } from '@phosphor-icons/react';
@@ -42,6 +44,10 @@ const Page = () => {
   const [miniMilesBalance, setMiniMilesBalance] = useState('0');
   const [showPopup, setShowPopup] = useState(false);
   const [selectedRaffle, setSelectedRaffle] = useState<any>(null);
+  const [raffleSheetOpen, setRaffleSheetOpen] = useState(false);
+  const [loading, setLoading] = useState(true)
+  const [raffles, setRaffles] = useState<Raffle[]>([])
+
 
 
   useEffect(() => {
@@ -62,6 +68,20 @@ const Page = () => {
     };
     fetchBalance();
   }, [address, getMiniMilesBalance]);
+
+  useEffect(() => {
+    fetchActiveRaffles()
+      .then(setRaffles)
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
+
+  const formatEndsIn = (ends: number) => {
+    const secondsLeft = ends - Math.floor(Date.now() / 1000);
+    const days = Math.floor(secondsLeft / (60 * 60 * 24));
+    return `${days} days`;
+  };
+
 
   return (
     <main className="pb-24 font-poppins bg-onboarding px-3">
@@ -85,6 +105,43 @@ const Page = () => {
           <TabsTrigger value="participating" className="ml-1 text-[#8E8B8B] bg-[#EBEBEB] rounded-full font-bold">Participating</TabsTrigger>
         </TabsList>
         <TabsContent value="active">
+        <div className="mx-4 mt-6">
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-semibold">Join Raffles</h3>
+          <Link href='/spend'>
+            <span className="text-sm text-green-600 hover:underline">View more ›</span>
+          </Link>
+        </div>
+        <div className="flex gap-3 overflow-x-auto">
+          {raffles.map((r) => (
+            <RaffleCard
+              key={r.id}
+              image={r.image ?? RaffleImg1}
+              title={r.description}
+              endsIn={formatEndsIn(r.ends)}
+              ticketCost={`${r.ticketCost} MiniMiles for 1 ticket`}
+              icon={MinimilesSymbol}
+              onClick={() => {
+                setSelectedRaffle(r);
+                setRaffleSheetOpen(true);
+              }}
+            />
+          ))}
+        </div>
+      </div>
+      {selectedRaffle && (
+        <RaffleDetails
+          open={raffleSheetOpen}
+          onOpenChange={setRaffleSheetOpen}
+          title={selectedRaffle.description}
+          image={selectedRaffle.image ?? RaffleImg1}
+          prize={selectedRaffle.rewardPool!}
+          pricePerTicket={`${selectedRaffle.ticketCost} MiniMiles`}
+          drawDate={formatEndsIn(selectedRaffle.ends)}
+          balance={Number(miniMilesBalance)}
+        />
+      )}
+
           <div>
             <div className="">
               <div className="flex justify-between items-center mb-5">
@@ -102,7 +159,6 @@ const Page = () => {
                     endsIn={raffle.endsIn}
                     ticketCost={raffle.ticketCost}
                     icon={MinimilesSymbol}
-                    setShowPopup={setShowPopup}
                     onClick={() => {
                       setSelectedRaffle(raffle);
                       setShowPopup(true);
@@ -127,7 +183,6 @@ const Page = () => {
                     endsIn={raffle.endsIn}
                     ticketCost={raffle.ticketCost}
                     icon={MinimilesSymbol}
-                    setShowPopup={setShowPopup}
                     onClick={() => {
                       setSelectedRaffle(raffle);
                       setShowPopup(true);

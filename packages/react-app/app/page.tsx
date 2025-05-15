@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import AccountSheet from "@/components/account-sheet";
 import ContactSheet from "@/components/contact-sheet";
 import DailyChallengeSheet from "@/components/daily-challenge-sheet";
+import SpendPartnerQuestSheet from '@/components/spend-partner-quest-sheet';
 import { fetchActiveRaffles,Raffle } from "@/helpers/raffledisplay";
 import Link from "next/link";
 import { RaffleDetails } from "@/components/raffle-details";

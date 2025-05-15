@@ -49,6 +49,7 @@ export async function GET() {
       const entry = roundsRaw[i] as RawResp
       if (entry.status !== 'success') return null
 
+
       const r = entry.result as [
         bigint, // startTime
         bigint, // endTime
@@ -59,6 +60,9 @@ export async function GET() {
         bigint, // ticketCostPoints
         boolean // winnersSelected
       ]
+
+      const now = BigInt(Math.floor(Date.now() / 1000));
+      if (r[1] /* endTime */ <= now) return null;  
 
       return {
         id:            id.toString(),
