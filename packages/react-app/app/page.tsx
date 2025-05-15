@@ -17,6 +17,7 @@ import ContactSheet from "@/components/contact-sheet";
 import DailyChallengeSheet from "@/components/daily-challenge-sheet";
 import { fetchActiveRaffles,Raffle } from "@/helpers/raffledisplay";
 import Link from "next/link";
+import { RaffleDetails } from "@/components/raffle-details";
 
 const digitalCashRaffles: Raffle[] = [
   {
@@ -117,21 +118,22 @@ export default function Home() {
   const [showPopup, setShowPopup] = useState(false);
   const [raffles, setRaffles] = useState<Raffle[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedRaffle, setSelectedRaffle] = useState<Raffle>({
-    id: "raffle1",
-    rewardToken: "500 USDT weekly",
-    starts: 56532,
-    ends: 44232,
-    maxTickets: 1000,
-    ticketsSold: 300,
-    ticketCost: 10,
-    image: RaffleImg2,
-    description: "Win 500 USDT this week!",
-    status: "active",
-  });
+  const [raffleSheetOpen, setRaffleSheetOpen] = useState(false);
+const [selectedRaffle, setSelectedRaffle] = useState<Raffle | null>(null);
+  // const [selectedRaffle, setSelectedRaffle] = useState<Raffle>({
+  //   id: "raffle1",
+  //   rewardToken: "500 USDT weekly",
+  //   starts: 56532,
+  //   ends: 44232,
+  //   maxTickets: 1000,
+  //   ticketsSold: 300,
+  //   ticketCost: 10,
+  //   image: RaffleImg2,
+  //   description: "Win 500 USDT this week!",
+  //   status: "active",
+  // });
   
 
-  
   useEffect(() => {
     getUserAddress();
   }, []);
@@ -176,24 +178,36 @@ export default function Home() {
             <span className="text-sm text-green-600 hover:underline">View more ›</span>
           </Link>
         </div>
-        <div className="flex gap-3 overflow-x-auto mt-4">
-          {raffles.map((raffle, ind) => {
-            return <RaffleCard
-              key={ind}
-              image={RaffleImg1}
-              title={raffle.rewardToken}
-              endsIn={formatEndsIn(raffle.ends)}
-              ticketCost={`${raffle.ticketCost} MiniMiles for 1 ticket`}
+        <div className="flex gap-3 overflow-x-auto">
+          {raffles.map((r) => (
+            <RaffleCard
+              key={r.id}
+              image={r.image ?? RaffleImg1}
+              title={r.description}
+              endsIn={formatEndsIn(r.ends)}
+              ticketCost={`${r.ticketCost} MiniMiles`}
               icon={MinimilesSymbol}
-              setShowPopup={setShowPopup}
               onClick={() => {
-                setSelectedRaffle(raffle);
-                setShowPopup(true);
+                setSelectedRaffle(r);
+                setRaffleSheetOpen(true);
               }}
             />
-          })}
+          ))}
         </div>
       </div>
+      {selectedRaffle && (
+        <RaffleDetails
+          open={raffleSheetOpen}
+          onOpenChange={setRaffleSheetOpen}
+          title={selectedRaffle.description}
+          image={selectedRaffle.image ?? RaffleImg1}
+          prize={selectedRaffle.rewardPool!}
+          pricePerTicket={`${selectedRaffle.ticketCost} MiniMiles`}
+          drawDate={formatEndsIn(selectedRaffle.ends)}
+          balance={Number(miniMilesBalance)}
+        />
+      )}
+
       <SectionHeading title="Join digital cash raffles" />
       <div className="flex space-x-3 overflow-x-auto px-4 whitespace-nowrap scrollbar-hide">
         {digitalCashRaffles.map((raffle, idx) => (
@@ -204,7 +218,6 @@ export default function Home() {
             endsIn={formatEndsIn(raffle.ends)}
             ticketCost={`${raffle.ticketCost} MiniMiles for 1 ticket`}
             icon={MinimilesSymbol}
-            setShowPopup={setShowPopup}
             onClick={() => {
               setSelectedRaffle(raffle);
               setShowPopup(true);
@@ -223,7 +236,6 @@ export default function Home() {
             endsIn={formatEndsIn(raffle.ends)}
             ticketCost={`${raffle.ticketCost} MiniMiles for 1 ticket`}
             icon={MinimilesSymbol}
-            setShowPopup={setShowPopup}
             onClick={() => {
               setSelectedRaffle(raffle);
               setShowPopup(true);
@@ -242,7 +254,6 @@ export default function Home() {
             endsIn={formatEndsIn(raffle.ends)}
             ticketCost={`${raffle.ticketCost} MiniMiles for 1 ticket`}
             icon={MinimilesSymbol}
-            setShowPopup={setShowPopup}
             onClick={() => {
               setSelectedRaffle(raffle);
               setShowPopup(true);
@@ -257,7 +268,7 @@ export default function Home() {
           <GameCard key={idx} name={game.name} date={game.date} image={game.image} />
         ))}
       </div>
-
+      
       <DailyChallengeSheet open={showPopup} onOpenChange={setShowPopup} raffle={selectedRaffle} />
       <div className="mx-4 mt-6 space-y-4">
         <AccountSheet />

@@ -37,7 +37,7 @@ export default function QuestLoadingModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm rounded-3xl p-0 overflow-hidden">
+      <DialogContent className="max-w-sm rounded-3xl p-0 overflow-hidden bg-white">
         <div className="p-6 flex flex-col items-center justify-center h-64 text-center">
           {iconMap[status]}
           <p className="text-sm text-gray-600">

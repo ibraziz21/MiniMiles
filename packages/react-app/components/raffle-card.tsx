@@ -1,25 +1,38 @@
 import Image, { StaticImageData } from "next/image";
 
-type RaffleCardProps = {
+export type RaffleCardProps = {
   image: StaticImageData;
   title: string;
   endsIn: string;
   ticketCost: string;
-  icon: string
-  setShowPopup: (open: boolean) => void;
-  onClick?: () => void;
+  icon: StaticImageData;
+  onClick?: () => void;          // (optional) click handler
 };
 
-export const RaffleCard = ({ image, title, endsIn, ticketCost, icon, setShowPopup, onClick }: RaffleCardProps) => (
-  <div onClick={onClick} className="rounded-xl overflow-hidden bg-white shadow-md min-w-[180px] relative">
-    <div className="relative">
-      <Image src={image} alt={title} width={180} height={120} className="w-full object-cover" />
-      <div className="absolute inset-0 bg-black/30" /> 
+export const RaffleCard = ({
+  image,
+  title,
+  endsIn,
+  ticketCost,
+  icon,
+  onClick,
+}: RaffleCardProps) => (
+  <div
+    onClick={onClick}
+    className="rounded-xl bg-white shadow-md min-w-[180px] relative cursor-pointer overflow-hidden"
+  >
+    <div className="relative h-32 w-full">
+      <Image src={image} alt={title} fill className="object-cover" />
+      <div className="absolute inset-0 bg-black/30" />
     </div>
+
     <div className="absolute bottom-0 left-0 p-2 w-full">
       <p className="text-sm font-semibold text-white">{title}</p>
       <p className="text-xs text-gray-200">Ends in {endsIn}</p>
-      <p className="text-xs text-black font-bold bg-white rounded-full p-1 flex"><Image src={icon} alt="" className="mr-1" />{ticketCost}</p>
+      <p className="text-xs font-bold bg-white rounded-full p-1 mt-1 flex items-center">
+        <Image src={icon} alt="" width={12} height={12} className="mr-1" />
+        {ticketCost}
+      </p>
     </div>
   </div>
 );

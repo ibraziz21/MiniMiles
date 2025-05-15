@@ -1,6 +1,6 @@
 // src/app/api/spend/raffle_display/route.ts
 import { NextResponse } from 'next/server'
-import { createPublicClient, http, type Abi } from 'viem'
+import { createPublicClient, formatUnits, http, parseUnits, type Abi } from 'viem'
 import { celoAlfajores } from 'viem/chains'
 import raffleAbi from '@/contexts/raffle.json'          // must include getActiveRound
 import type { Address } from 'viem'
@@ -67,8 +67,8 @@ export async function GET() {
         maxTickets:    Number(r[2]),
         totalTickets:  Number(r[3]),
         rewardToken:   r[4],
-        rewardPool:    r[5].toString(),
-        ticketCost:    Number(r[6]),
+        rewardPool:    formatUnits(r[5], 18),
+        ticketCost:    formatUnits(r[6],18),
         winnersSelected: r[7],
       }
     })

@@ -38,7 +38,6 @@ export default function JoinRafflesCarousel() {
                         endsIn={raffle.ends.toString()}
                         ticketCost="10 MiniMiles for 1 ticket"
                         icon={MinimilesSymbol}
-                        setShowPopup={setShowPopup}
                     />
                 })}
             </div>
