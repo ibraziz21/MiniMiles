@@ -1,6 +1,6 @@
 import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
 
-const RaffleModule = buildModule("MiniRaffle1", (m) => {
+const RaffleModule = buildModule("MiniRaffle2", (m) => {
   // Initial numbers array to deploy the contract with
   const initialNumbers = [1, 2, 3, 4, 5]; // <-- you can change these
   const cUSD   = "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1";

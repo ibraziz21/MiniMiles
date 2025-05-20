@@ -272,6 +272,7 @@ function getActiveRound(uint256 _roundId)
     external
     view
     returns (
+        uint256 roundId,
         uint256   startTime,
         uint256   endTime,
         uint32    maxTickets,
@@ -286,6 +287,7 @@ function getActiveRound(uint256 _roundId)
     require(r.isActive, "Raffle: inactive round");
 
     return (
+        _roundId,
         r.startTime,
         r.endTime,
         r.maxTickets,

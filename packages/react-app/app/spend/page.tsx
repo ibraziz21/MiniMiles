@@ -30,6 +30,7 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
 
 // Shape it to what SpendPartnerQuestSheet expects:
 type SpendRaffle = {
+  id: number;
   title:      string;
   reward:     string;
   prize:      string;
@@ -91,7 +92,7 @@ useEffect(() => {
     const fetchBalance = async () => {
       if (!address) return;
       try {
-        const balance = await getMiniMilesBalance(address);
+        const balance = await getMiniMilesBalance();
         setMiniMilesBalance(balance);
       } catch (error) {
         console.log(error);
@@ -155,6 +156,7 @@ useEffect(() => {
               onClick={() => {
                 const img = TOKEN_IMAGES[r.symbol] ?? TOKEN_IMAGES.default
                 setSpendRaffle({
+                  id:  Number(r.id),
                   title:      r.description,
                   reward:     `${r.ticketCost} MiniMiles`,
                   prize:      r.rewardPool ?? "—",

@@ -52,20 +52,9 @@ const [hasMounted, setHasMounted] = useState(false);
 useEffect(() => {
   setHasMounted(true);
 }, []);
-  // const [selectedRaffle, setSelectedRaffle] = useState<Raffle>({
-  //   id: "raffle1",
-  //   rewardToken: "500 USDT weekly",
-  //   starts: 56532,
-  //   ends: 44232,
-  //   maxTickets: 1000,
-  //   ticketsSold: 300,
-  //   ticketCost: 10,
-  //   image: RaffleImg2,
-  //   description: "Win 500 USDT this week!",
-  //   status: "active",
-  // });
 
   type SpendRaffle = {
+    id: number;
     title:      string;
     reward:     string;
     prize:      string;
@@ -85,7 +74,7 @@ useEffect(() => {
     const fetchBalance = async () => {
       if (!address) return;
       try {
-        const balance = await getMiniMilesBalance(address);
+        const balance = await getMiniMilesBalance();
         setMiniMilesBalance(balance);
       } catch (error) {
         console.log(error);
@@ -133,6 +122,7 @@ useEffect(() => {
               onClick={() => {
                 const img = TOKEN_IMAGES[r.symbol] ?? TOKEN_IMAGES.default
                 setSpendRaffle({
+                  id: Number(r.id),
                   title:       `${r.symbol} raffle`,
                   reward:     `${r.ticketCost} MiniMiles`,
                   prize:      r.rewardPool ?? "—",

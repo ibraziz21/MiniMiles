@@ -15,8 +15,10 @@ import { Minus, Plus } from "@phosphor-icons/react";
 import { Slider } from "./ui/slider";
 import { Ticket, MinimilesSymbolAlt } from "@/lib/svg";
 import { StaticImageData } from "next/image";
+import { useWeb3 } from "@/contexts/useWeb3";
 
 interface SpendRaffle {
+  id: number;
   title:      string;
   reward:     string;
   prize:      string;
@@ -40,28 +42,42 @@ export default function SpendPartnerQuestSheet({
   onOpenChange,
   raffle,
 }: SpendPartnerQuestSheetProps) {
-  if (!raffle) return null;
-
-  // Extract numeric cost and compute max tickets
-  const ticketCostNum = Number(raffle.ticketCost.replace(/\D/g, "")) || 1;
-  const maxTickets = Math.max(Math.floor(raffle.balance / ticketCostNum), 1);
-
-  // Internal ticket count state
+  // ⚠️ Hooks must come first, unconditionally:
   const [count, setCount] = useState(1);
+  const {joinRaffle} = useWeb3();
+  // We'll compute these per-render below, after the early return
+  // (but we need them in our effects too, so we'll derive safe fallbacks now)
+  const ticketCostNum = Number(raffle?.ticketCost.replace(/\D/g, "")) || 1;
+  const maxTickets    = Math.max(Math.floor((raffle?.balance ?? 1) / ticketCostNum), 1);
 
-  // Reset to 1 whenever raffle changes
+  // Whenever the raffle object changes, reset to 1
   useEffect(() => {
     setCount(1);
   }, [raffle]);
 
-  // Clamp count to [1, maxTickets]
+  // Clamp into [1..maxTickets] any time count or maxTickets change
   useEffect(() => {
-    if (count > maxTickets) setCount(maxTickets);
-    if (count < 1) setCount(1);
+    if (count < 1)         setCount(1);
+    else if (count > maxTickets) setCount(maxTickets);
   }, [count, maxTickets]);
 
-  // Compute total cost for display
+  // Now it's safe to bail if there's no raffle
+  if (!raffle) return null;
+
+  // And we can compute totalCost for the button label
   const totalCost = count * ticketCostNum;
+
+
+  const handleBuy = async () => {
+    try {
+      const txHash = await joinRaffle(raffle.id, count);
+      console.log("Submitted tx:", txHash);
+      onOpenChange(false);
+    } catch (err: any) {
+      console.error("Join raffle failed:", err);
+      alert(err.message || "Failed to join raffle");
+    }
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -177,9 +193,7 @@ export default function SpendPartnerQuestSheet({
           <SheetFooter>
             <Button
               title={`Buy ${count} ticket${count > 1 ? "s" : ""}`}
-              onClick={() => {
-                console.log(`Buying ${count} tickets for ${totalCost} MiniMiles`);
-              }}
+              onClick={handleBuy}
               className="w-full bg-green-600 text-white rounded-xl py-4 font-semibold"
             >
               Buy {count} ticket{count > 1 ? "s" : ""}
