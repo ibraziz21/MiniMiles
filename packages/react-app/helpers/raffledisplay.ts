@@ -3,6 +3,7 @@
 import { StaticImageData } from "next/image"
 
 export interface Raffle {
+  symbol: any;
   id: string;
   starts: number;
   ends: number; // changed from string

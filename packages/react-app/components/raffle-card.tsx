@@ -22,7 +22,7 @@ export const RaffleCard = ({
     className="rounded-xl bg-white shadow-md min-w-[180px] relative cursor-pointer overflow-hidden"
   >
     <div className="relative h-32 w-full">
-      <Image src={image} alt={title} fill className="object-cover" />
+      <Image src={image} alt={`${title} banner`} fill className="object-cover" />
       <div className="absolute inset-0 bg-black/30" />
     </div>
 
