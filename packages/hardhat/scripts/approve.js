@@ -1,10 +1,10 @@
 const  ethers =  require("ethers");
 const raffleAbi = require("../artifacts/contracts/MiniRaffle.sol/MiniRaffle.json") 
-
+require("dotenv").config();
 // ─── ENV & CONSTANTS ──────────────────────────────────────────────
 const RPC_URL      = 'https://alfajores-forno.celo-testnet.org';      // e.g. "https://sepolia.optimism.io"
-const PRIVATE_KEY  = "";  // 
-console.log()
+const PRIVATE_KEY  = process.env.PRIVATE_KEY;  // 
+console.log(PRIVATE_KEY)
 const RAFFLE_ADDR  = "0x9950De7445F89e733CddECBA11fBd40cFF6fD260";
 const cUSD   = "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1";
 const cKES = '0x1E0433C1769271ECcF4CFF9FDdD515eefE6CdF92'

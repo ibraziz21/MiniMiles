@@ -53,7 +53,6 @@ contract MiniRaffle is ReentrancyGuard {
         uint256 rewardPool,
         IERC20 rewardToken,
         uint256 maxTickets,
-        address beneficiary,
         uint256 ticketCostPoints
     );
     event ParticipantJoined(uint256 indexed roundId, address indexed participant);
@@ -87,8 +86,8 @@ contract MiniRaffle is ReentrancyGuard {
         uint32 _maxTickets,
         IERC20 _token,
         uint256 _rewardPool,
-        uint256 _ticketCostPoints,
-        address _beneficiary
+        uint256 _ticketCostPoints
+   
     ) external onlyOwner {
         require(_duration > 0 && _maxTickets > 0, "Raffle: bad params");
         require(_token == cUSD || _token == cKES, "Raffle: unsupported token");
@@ -104,7 +103,6 @@ contract MiniRaffle is ReentrancyGuard {
         round.maxTickets = _maxTickets;
         round.rewardToken = _token;
         round.rewardPool = _rewardPool;
-        round.beneficiary = _beneficiary;
         round.ticketCostPoints = _ticketCostPoints;
         round.isActive = true;
 
@@ -115,7 +113,6 @@ contract MiniRaffle is ReentrancyGuard {
             round.rewardPool,
             round.rewardToken,
             round.maxTickets,
-            _beneficiary,
             _ticketCostPoints
         );
     }
@@ -167,16 +164,27 @@ contract MiniRaffle is ReentrancyGuard {
      * @notice Request Witnet randomness for a round. Anyone can pay the fee.
      * @dev Fee is dynamic; front‑end should query RNG.estimateRandomizeFee.
      */
-    function requestRoundRandomness(uint256 _roundId)
-        external
-        payable
-        roundExists(_roundId)
-    {
-        RaffleRound storage round = rounds[_roundId];
-        require(round.randomBlock == 0, "Raffle: randomness already requested");
-        round.randomBlock = RNG.randomize{value: msg.value}();
-        emit RandomnessRequested(_roundId, round.randomBlock);
+   function requestRoundRandomness(uint256 _roundId)
+    external
+    payable
+    roundExists(_roundId)
+{
+    RaffleRound storage round = rounds[_roundId];
+    require(round.randomBlock == 0, "Raffle: randomness already requested");
+
+    // Optional but recommended:
+    // uint256 minFee = RNG.estimateRandomizeFee(tx.gasprice);
+    // require(msg.value >= minFee, "Raffle: fee too low");
+
+    uint256 usedFee = RNG.randomize{value: msg.value}();
+    round.randomBlock = block.number;
+
+    if (usedFee < msg.value) {
+        payable(msg.sender).transfer(msg.value - usedFee);
     }
+
+    emit RandomnessRequested(_roundId, round.randomBlock);
+}
 
     // ───────────────────────────  DRAW WINNERS  ────────────────────────────────
     function drawWinner(uint256 _roundId)
@@ -256,4 +264,38 @@ contract MiniRaffle is ReentrancyGuard {
     function getWinners(uint256 _roundId) external view returns (address[3] memory) {
         return rounds[_roundId].winners;
     }
+    /// @notice     Lightweight, ABI‑friendly read‑only copy of a raffle round
+/// @dev        Add this at the end of MiniRaffle
+/// @notice Read‑only view of an *active* raffle round.
+/// @dev    Reverts if the round is not active.
+function getActiveRound(uint256 _roundId)
+    external
+    view
+    returns (
+        uint256   startTime,
+        uint256   endTime,
+        uint32    maxTickets,
+        uint32    totalTickets,
+        IERC20    rewardToken,
+        uint256   rewardPool,
+        uint256   ticketCostPoints,
+        bool      winnersSelected
+    )
+{
+    RaffleRound storage r = rounds[_roundId];
+    require(r.isActive, "Raffle: inactive round");
+
+    return (
+        r.startTime,
+        r.endTime,
+        r.maxTickets,
+        r.totalTickets,
+        r.rewardToken,
+        r.rewardPool,
+        r.ticketCostPoints,
+        r.winnersSelected
+    );
+}
+
+
 }

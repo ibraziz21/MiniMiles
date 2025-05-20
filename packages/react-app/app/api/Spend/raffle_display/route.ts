@@ -2,7 +2,8 @@
 import { NextResponse } from 'next/server'
 import { createPublicClient, formatUnits, http, parseUnits, type Abi } from 'viem'
 import { celoAlfajores } from 'viem/chains'
-import raffleAbi from '@/contexts/raffle.json'          // must include getActiveRound
+import raffleAbi from '@/contexts/raffle.json' 
+import    erc20Abi from '@/contexts/cusd-abi.json'      // must include getActiveRound
 import type { Address } from 'viem'
 
 const RAFFLE: Address = '0x9950De7445F89e733CddECBA11fBd40cFF6fD260'
@@ -44,7 +45,7 @@ export async function GET() {
     // 3️⃣ Shape results, drop inactive (failed) calls
   // 3️⃣ Unwrap and shape only successful calls
   interface RawResp { status: 'success' | 'failure'; result: unknown[] }
-  const raffles = roundIds
+  const base = roundIds
     .map((id, i) => {
       const entry = roundsRaw[i] as RawResp
       if (entry.status !== 'success') return null
@@ -77,6 +78,21 @@ export async function GET() {
       }
     })
     .filter((x): x is NonNullable<typeof x> => x !== null)
+
+    const raffles = await Promise.all(
+      base.map(async (rf) => {
+       
+         const symbol: any = await publicClient.readContract({
+            address: rf.rewardToken,
+            abi: erc20Abi.abi,
+            functionName: 'symbol',
+          }) 
+       
+        console.log(symbol)
+        return { ...rf, symbol }
+      })
+    )
+  
 
     return NextResponse.json({ raffles })
   } catch (err) {
