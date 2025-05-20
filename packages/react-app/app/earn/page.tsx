@@ -24,7 +24,7 @@ const Page = () => {
     const fetchBalance = async () => {
       if (!address) return;
       try {
-        const balance = await getMiniMilesBalance(address);
+        const balance = await getMiniMilesBalance();
         setMiniMilesBalance(balance);
       } catch (error) {
         console.log(error);
