@@ -1,6 +1,3 @@
-// components/earn-partner-quest-sheet.tsx
-
-
 import React, { useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { Sheet, SheetContent } from './ui/sheet';
@@ -20,45 +17,29 @@ const EarnPartnerQuestSheet = ({ open, onOpenChange, quest }: PartnerQuestSheetP
   if (!quest) return null;
   const [loading, setLoading] = useState(false);
   const { address, getUserAddress } = useWeb3();
-  const [pendingClaim, setPendingClaim] = useState(false);
 
   useEffect(() => {
     getUserAddress();
   }, [getUserAddress]);
   
   
-  const handleClaim = () => {
+  const handleClaim = async () => {
     if (!address) {
       alert('Wallet not connected');
       return;
     }
-    // open partner site first
     window.open(quest.actionLink, '_blank');
-    // mark for pending minting when user returns
-    setPendingClaim(true);
+    setLoading(true);
+    const { minted, error } = await claimPartnerQuest(address, quest.id);
+
+    if (error) {
+      alert(error);
+    } else {
+      onOpenChange(false);
+    }
+    // Ensure loading is reset for next time
+    setLoading(false);
   };
-
-  // Trigger mint when the app gains focus again
-  useEffect(() => {
-    const onFocus = async () => {
-      if (pendingClaim) {
-        setLoading(true);
-        const { minted, error } = await claimPartnerQuest(address!, quest.id);
-        setLoading(false);
-
-        if (error) {
-          alert(error);
-        } else {
-          alert(`Minted ${minted} MiniMiles!`);
-          onOpenChange(false);
-        }
-        setPendingClaim(false);
-      }
-    };
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-  }, [pendingClaim, address, quest, onOpenChange]);
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="bg-white rounded-t-xl font-poppins p-4">
