@@ -4,7 +4,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useConnect } from "wagmi";
+import { useConnect, useAccount } from "wagmi";
 import { injected } from "wagmi/connectors";
 
 export default function Header() {

@@ -3,25 +3,25 @@ import { OnboardingImgFour, OnboardingImgOne, OnboardingImgThree, OnboardingImgT
 export const onboardingSource = [
   {
     img: OnboardingImgOne,
-    title: "How to earn MiniMiles",
-    subtitle: "Send payments, refer friends, or explore the Minipay ecosystem to earn points and participate in real prize raffles.",
+    title: "Earn Miles",
+    subtitle: "Earn MiniMiles just by using Minipay: complete daily & partner challenges.",
     line: "150px",
-    buttonText: "Proceed & Earn 100 MiniMiles"
+    buttonText: "Next"
   },
   {
     img: OnboardingImgTwo,
-    title: "Spend your MiniMiles for prizes",
-    subtitle: "Use your MiniMiles to enter weekly raffles, get access to top deals and win onchain rewards like cUSD, cKES, and CELO.",
+    title: "Spend Miles",
+    subtitle: "Spend your MiniMiles on exclusive rewards like raffles, deals and prizes.",
     line: "150px",
-    buttonText: "Proceed"
+    buttonText: "Next"
   },
   {
     img: OnboardingImgThree,
-    title: "Your journey starts now - Every miles counts.",
+    title: "Get rewarded",
     subtitle:
-      "Congrats! you receive a 100 MiniMiles for being part of the first 1000 users.",
+      "Enjoy 100 free MiniMiles on us as a thank you for joining early. ",
     line: "150px",
-    buttonText: "Claim my 100 MiniMiles"
+    buttonText: "Claim  100 MiniMiles"
   },
   {
     img: OnboardingImgFour,

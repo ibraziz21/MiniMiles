@@ -104,6 +104,9 @@ importers:
       tailwindcss-animate:
         specifier: ^1.0.7
         version: 1.0.7(tailwindcss@3.4.17)
+      truncate-eth-address:
+        specifier: ^1.0.2
+        version: 1.0.2
       viem:
         specifier: 2.21.34
         version: 2.21.34(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
@@ -4370,6 +4373,9 @@ packages:
 
   tr46@0.0.3:
     resolution: {integrity: sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==}
+
+  truncate-eth-address@1.0.2:
+    resolution: {integrity: sha512-MLGSzEIDam9XdBQejtCpQfdbgXfYTEkQseqpz+Pcqu6SEvvVC4mYniWFp4n8VG+KOi6jYVtUfA6cqWecSvS3rw==}
 
   ts-api-utils@2.1.0:
     resolution: {integrity: sha512-CUgTZL1irw8u29bzrOD/nH85jqyc74D6SshFgujOIA7osm2Rz7dYH77agkx7H4FBNxDq7Cjf+IjaX/8zwFW+ZQ==}
@@ -10012,6 +10018,8 @@ snapshots:
   toidentifier@1.0.1: {}
 
   tr46@0.0.3: {}
+
+  truncate-eth-address@1.0.2: {}
 
   ts-api-utils@2.1.0(typescript@5.8.3):
     dependencies:

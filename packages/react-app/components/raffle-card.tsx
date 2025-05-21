@@ -19,9 +19,9 @@ export const RaffleCard = ({
 }: RaffleCardProps) => (
   <div
     onClick={onClick}
-    className="rounded-xl bg-white shadow-md min-w-[180px] relative cursor-pointer overflow-hidden"
+    className="rounded-xl bg-white shadow-md min-w-[240px] min-h-[240px] relative cursor-pointer overflow-hidden"
   >
-    <div className="relative h-32 w-full">
+    <div className="relative h-full w-full">
       <Image src={image} alt={title} fill className="object-cover" />
       <div className="absolute inset-0 bg-black/30" />
     </div>

@@ -19,6 +19,7 @@ import SpendPartnerQuestSheet from '@/components/spend-partner-quest-sheet';
 import { fetchActiveRaffles,Raffle } from "@/helpers/raffledisplay";
 import Link from "next/link";
 import { RaffleDetails } from "@/components/raffle-details";
+import truncateEthAddress from "truncate-eth-address";
 
 const digitalCashRaffles: Raffle[] = [
   {
@@ -169,7 +170,7 @@ const [selectedRaffle, setSelectedRaffle] = useState<Raffle | null>(null);
 
   return (
     <main className="pb-24 font-poppins">
-      <DashboardHeader name="Jash.mini" />
+      <DashboardHeader name={truncateEthAddress(address??"")} />
       <PointsCard points={Number(miniMilesBalance)} />
       <DailyChallenges />
       <div className="mx-4 mt-6">
@@ -264,17 +265,17 @@ const [selectedRaffle, setSelectedRaffle] = useState<Raffle | null>(null);
       </div>
 
       <SectionHeading title="Upcoming games" />
-      <div className="flex space-x-3 overflow-x-auto px-4">
+      {/* <div className="flex space-x-3 overflow-x-auto px-4">
         {upcomingGames.map((game, idx) => (
           <GameCard key={idx} name={game.name} date={game.date} image={game.image} />
         ))}
-      </div>
+      </div> */}
       
       <DailyChallengeSheet open={showPopup} onOpenChange={setShowPopup} raffle={selectedRaffle} />
-      <div className="mx-4 mt-6 space-y-4">
-        <AccountSheet />
-        <ContactSheet />
-      </div>
+        {/* <div className="mx-4 mt-6 space-y-4">
+          <AccountSheet />
+          <ContactSheet />
+        </div>  */}
     </main>
   );
 }

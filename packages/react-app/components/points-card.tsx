@@ -1,6 +1,6 @@
 // components/PointsCard.tsx
 import { Button } from "@/components/ui/button";
-import { MinimilesSymbolAlt } from "@/lib/svg";
+import { Earn, MinimilesSymbolAlt, Ticket, TicketAlt, Transcript } from "@/lib/svg";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -13,19 +13,17 @@ export default function PointsCard({ points }: { points: number }) {
                     <Image src={MinimilesSymbolAlt} width={32} height={32} alt="" />
                     <p className="text-3xl font-bold pl-2">{points.toLocaleString()}</p>
                 </div>
-                <h4 className="text-sm font-bold text-[#0E4023]">1 MiniMiles per $ 1.00 spent. *</h4>
             </div>
             <div className="bg-white p-5 rounded-t-xl">
                 <div className="flex gap-2 justify-around items-center w-full py-2">
-                    <Link href="/earn" className="w-full">
-                        <Button title="Earn" onClick={() => { }} variant="default" className="flex-1 bg-[#07955F1A] font-bold text-primarygreen hover:text-primarygreen rounded-xl w-full h-[50px]"></Button>
+                    <Link href="/earn" className="p-3 rounded-xl flex items-center justify-center w-full gap-3 font-semibold tracking-wide shadow-sm text-[#07955F] bg-[#07955F1A] hover:bg-[#07955F1A] disabled:bg-[#07955F]">
+                        <Image src={Earn} alt="" /> <h3>Earn</h3>
                     </Link>
-                    <Link href="" className="w-full">
-                        <Button title="Spend" onClick={() => { }} className="flex-1 bg-primarygreen hover:bg-primarygreen text-white rounded-xl w-full h-[50px]"></Button></Link>
+                    <Link href="" className="p-3 rounded-xl flex items-center justify-center w-full gap-3 font-semibold tracking-wide shadow-sm text-[#07955F] bg-[#07955F] hover:bg-[#07955F] disabled:bg-[#07955F]">
+                        <Image src={TicketAlt} alt="" />  <h3 className="text-white">Spend</h3></Link>
                 </div>
-                <Button title="View history" onClick={() => { }} variant="link" className="w-full bg-white text-primarygreen hover:bg-white hover:text-primarygreen font-bold">
-
-                </Button>
+                <Link href="" className="p-3 rounded-xl flex items-center justify-center w-full gap-3 font-semibold tracking-wide shadow-sm text-[#07955F] ">
+                    <Image src={Transcript} alt="" />  <h3>View History</h3></Link>
             </div>
         </div>
     );
