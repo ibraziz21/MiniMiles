@@ -11,7 +11,7 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || ""  // or ANON_
 const PRIVATE_KEY = process.env.PRIVATE_KEY || ""
 const MINIPOINTS_ADDRESS = process.env.MINIPOINTS_ADDRESS || ""
 const CUSD_ADDRESS = process.env.CUSD_ADDRESS || "" // e.g. 0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1 (Alfajores cUSD)
-
+const USDC_ADDRESS = "0x2F25deB3848C207fc8E0c34035B3Ba7fC157602B"
 // Safety check for required envs
 if (
   !SUPABASE_URL ||
@@ -38,6 +38,7 @@ const walletClient = createWalletClient({ account, chain: celoAlfajores, transpo
 export async function POST(req: Request) {
   try {
     const { userAddress, questId } = await req.json()
+    const addresses = [USDC_ADDRESS,CUSD_ADDRESS]
     console.log("[DAILY-CUSD] Checking claim for:", userAddress)
 
     // 1) Has user already claimed today?
@@ -55,12 +56,19 @@ export async function POST(req: Request) {
     }
 
     // 2) Check chain to see if user spent >= 5 cUSD in the last 24 hours
-    const spentEnough = await hasUserSpentAtLeast5CusdIn24Hrs(userAddress)
-    if (!spentEnough) {
-      console.log("Not enough spent")
+   
+    let anySpent = false
+    for (const token of addresses) {
+      if (await hasUserSpentAtLeast5CusdIn24Hrs(userAddress, token)) {
+        anySpent = true
+        break
+      }
+    }
+    if (!anySpent) {
+      console.log("No qualifying transfer found across any token")
       return NextResponse.json({
         success: false,
-        message: "No on-chain transfer >= 5 cUSD found in the last 24 hours",
+        message: `No on-chain transfer ≥ 5 found in the last 24 hours for any tracked token`,
       })
     }
 
@@ -69,7 +77,7 @@ export async function POST(req: Request) {
       address: MINIPOINTS_ADDRESS as `0x${string}`,
       abi: MiniPointsAbi.abi,
       functionName: "mint",
-      args: [userAddress, parseUnits("5",18)],
+      args: [userAddress, parseUnits("15",18)],
       account: account,
     })
     const txHash = await walletClient.writeContract(request)
@@ -80,7 +88,7 @@ export async function POST(req: Request) {
       user_address: userAddress,
       quest_id: questId,
       claimed_at: today,
-      points_awarded: 5,
+      points_awarded: 15,
     })
 
     return NextResponse.json({ success: true, txHash })
@@ -93,7 +101,7 @@ export async function POST(req: Request) {
 /**
  * Checks if user transferred >= 5 cUSD in the last 24 hours.
  */
-async function hasUserSpentAtLeast5CusdIn24Hrs(userAddress: string): Promise<boolean> {
+async function hasUserSpentAtLeast5CusdIn24Hrs(userAddress: string, tokenAddress: string): Promise<boolean> {
   // We'll approximate 24 hours as ~17280 blocks on Alfajores (5s block time).
   // You may want a more robust "block by timestamp" approach for exactness.
   const latestBlock = await publicClient.getBlockNumber()
@@ -103,7 +111,7 @@ async function hasUserSpentAtLeast5CusdIn24Hrs(userAddress: string): Promise<boo
   // 1. Fetch logs from cUSD's Transfer event
   // cUSD Transfer event signature: Transfer(address indexed from, address indexed to, uint256 value)
   const logs = await publicClient.getLogs({
-    address: CUSD_ADDRESS as `0x${string}`, // minimal ABI that has 'Transfer' event
+    address: tokenAddress as `0x${string}`, // minimal ABI that has 'Transfer' event
     event:parseAbiItem('event Transfer(address indexed from, address indexed to, uint256)'),
     fromBlock,
     toBlock: "latest",
@@ -114,12 +122,16 @@ async function hasUserSpentAtLeast5CusdIn24Hrs(userAddress: string): Promise<boo
    console.log("No such action onchain")
     return false
   }
-  // 2. Filter logs for transfers from user, value >= 5 cUSD
-  const FIVE_CUSD = parseUnits('5',18) // cUSD has 18 decimals
+  const TOKEN_DECIMALS: Record<string, number> = {
+    [USDC_ADDRESS]: 6,
+    [CUSD_ADDRESS]: 18,
+  };
+  const decimals = TOKEN_DECIMALS[tokenAddress] ?? 18;
+const FIVE = parseUnits("5", decimals); // cUSD has 18 decimals
   for (let log of logs) {
     if (
       log.args[0]?.toLowerCase() === userAddress.toLowerCase() &&
-      log.args[2]! >= FIVE_CUSD
+      log.args[2]! >= FIVE
     ) {
       // We also want to ensure it was within last 24 hours by block timestamp
       const block = await publicClient.getBlock({ blockNumber: log.blockNumber })

@@ -56,7 +56,7 @@ export function useWeb3() {
     if (!address) throw new Error("Wallet not connected");
     const miniMiles = getContract({
       abi: MiniMilesAbi.abi,
-      address: "0xcEb2caAc90F5B71ecb9a5f3149586b76C9811a76",
+      address: "0x9a51F81DAcEB772cC195fc8551e7f2fd7c62CD57",
       client: publicClient,
     });
     const raw: bigint = await miniMiles.read.balanceOf([address]) as bigint;

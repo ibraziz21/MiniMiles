@@ -1,14 +1,15 @@
 const  ethers =  require("ethers");
 const raffleAbi = require("../artifacts/contracts/MiniRaffle.sol/MiniRaffle.json") 
+const milesAbi = require("../artifacts/contracts/MiniPoints.sol/MiniPoints.json")
 require("dotenv").config();
 // ─── ENV & CONSTANTS ──────────────────────────────────────────────
 const RPC_URL      = 'https://alfajores-forno.celo-testnet.org';      // e.g. "https://sepolia.optimism.io"
 const PRIVATE_KEY  = process.env.PRIVATE_KEY;  // 
 console.log(PRIVATE_KEY)
-const RAFFLE_ADDR  = "0x28AC9810af772f4b7347F48D44EF47592b8ea750";
+const RAFFLE_ADDR  = "0xA1F1Cd3b90f49c9d44ed324C69869df139616d55";
 const cUSD   = "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1";
 const cKES = '0x1E0433C1769271ECcF4CFF9FDdD515eefE6CdF92'
-const MiniPoints = '0xcEb2caAc90F5B71ecb9a5f3149586b76C9811a76'
+const MiniPoints = '0x9a51F81DAcEB772cC195fc8551e7f2fd7c62CD57'
 // test‑net USDC
 const BENEFICIARY  = "";      // replace
 
@@ -24,10 +25,13 @@ const ownerSigner = new ethers.Wallet(PRIVATE_KEY, provider);
 const raffle = new ethers.Contract(RAFFLE_ADDR, raffleAbi.abi, ownerSigner);
 const usdc   = new ethers.Contract(cUSD, erc20Abi,        ownerSigner);
 const ckes   = new ethers.Contract(cKES, erc20Abi,        ownerSigner);
-const miles   = new ethers.Contract(MiniPoints, erc20Abi,        ownerSigner);
+const miles   = new ethers.Contract(MiniPoints, milesAbi.abi,        ownerSigner);
 // ─── MAIN LOGIC ───────────────────────────────────────────────────
 async function main() {
 
+  const allowRaffle = await miles.setMinter(RAFFLE_ADDR, true);
+  await allowRaffle.wait()
+  console.log("Tx Hash: ", allowRaffle.hash)
 
  //npx hardhat verify 0x9a9808Df68255c0EB0771814C9Bf5d6c7784091b 84628191486477406120341082024507574697055389208972799154939633540122731552071 0x787d74caea10b2b357790d5b5247c2f63d1d91572a9846f780606e4d953677ae 0x779877A7B0D9E8603169DdbD7836e478b4624789 0xa29dAcE44cEE5Aa2B143981031DafdEc5c09dBA5 --network sepolia
   // const rewardPool = ethers.utils.parseUnits("100", 18);  // 100 USDC (6 dec)
@@ -59,7 +63,7 @@ async function main() {
   // await tx.wait();
   // console.log("🎉 Round created in tx:", tx.hash);
 
-   const tx = await raffle.joinRaffle(1, 1);
+
   //   await tx.wait();
   // console.log(ownerSigner.address, ": Round Joined in tx:", tx.hash);
   

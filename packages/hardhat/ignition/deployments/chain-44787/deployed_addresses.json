@@ -4,5 +4,7 @@
   "CrossChainRaffle#CrossChainRaffle": "0xa29dAcE44cEE5Aa2B143981031DafdEc5c09dBA5",
   "MiniRaffle#MiniRaffle": "0xf22431825821d6F5bf277273c9d37F6cfde9C7fB",
   "MiniRaffle1#MiniRaffle": "0x9950De7445F89e733CddECBA11fBd40cFF6fD260",
-  "MiniRaffle2#MiniRaffle": "0x28AC9810af772f4b7347F48D44EF47592b8ea750"
+  "MiniRaffle2#MiniRaffle": "0x28AC9810af772f4b7347F48D44EF47592b8ea750",
+  "Minipoints1#MiniPoints": "0x9a51F81DAcEB772cC195fc8551e7f2fd7c62CD57",
+  "MiniRaffles#MiniRaffle": "0xA1F1Cd3b90f49c9d44ed324C69869df139616d55"
 }
