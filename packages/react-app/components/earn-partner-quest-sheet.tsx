@@ -1,11 +1,14 @@
 // components/earn-partner-quest-sheet.tsx
 
-import React from 'react';
+
+import React, { useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { Sheet, SheetContent } from './ui/sheet';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Quest } from './partner-quests';
+import { claimPartnerQuest } from '@/helpers/partnerQuests';
+import { useWeb3 } from '@/contexts/useWeb3';
 
 interface PartnerQuestSheetProps {
   open: boolean;
@@ -15,6 +18,46 @@ interface PartnerQuestSheetProps {
 
 const EarnPartnerQuestSheet = ({ open, onOpenChange, quest }: PartnerQuestSheetProps) => {
   if (!quest) return null;
+  const [loading, setLoading] = useState(false);
+  const { address, getUserAddress } = useWeb3();
+  const [pendingClaim, setPendingClaim] = useState(false);
+
+  useEffect(() => {
+    getUserAddress();
+  }, [getUserAddress]);
+  
+  
+  const handleClaim = () => {
+    if (!address) {
+      alert('Wallet not connected');
+      return;
+    }
+    // open partner site first
+    window.open(quest.actionLink, '_blank');
+    // mark for pending minting when user returns
+    setPendingClaim(true);
+  };
+
+  // Trigger mint when the app gains focus again
+  useEffect(() => {
+    const onFocus = async () => {
+      if (pendingClaim) {
+        setLoading(true);
+        const { minted, error } = await claimPartnerQuest(address!, quest.id);
+        setLoading(false);
+
+        if (error) {
+          alert(error);
+        } else {
+          alert(`Minted ${minted} MiniMiles!`);
+          onOpenChange(false);
+        }
+        setPendingClaim(false);
+      }
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [pendingClaim, address, quest, onOpenChange]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -48,9 +91,12 @@ const EarnPartnerQuestSheet = ({ open, onOpenChange, quest }: PartnerQuestSheetP
           </ol>
         </div>
 
-        <Link href={quest.actionLink}>
-          <Button className="w-full rounded-xl py-6 text-white bg-[#07955F]" title="Go & Earn" />
-        </Link>
+        <Button
+          className="w-full rounded-xl py-6 text-white bg-[#07955F] mb-2"
+          title={loading ? 'Processing…' : 'Go & Earn'}
+          onClick={handleClaim}
+          disabled={loading}
+        />
         <Button
           className="w-full text-green-600 bg-green-50"
           title="Close"
