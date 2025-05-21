@@ -2,34 +2,64 @@ import { Cash, Celo, Door, GloDollar, Mento, MinimilesSymbol, MiniPay } from "@/
 import Image from "next/image";
 import Link from "next/link";
 // components/DailyChallenges.tsx
-const quests = [
+export interface Quest {
+  img: any;
+  title: string;
+  description: string;
+  reward: string;
+  color: string;
+  instructions: { title: string; text: string }[];
+  actionLink: string;
+}
+
+const quests: Quest[] = [
   {
     img: Celo,
     title: "Celo",
-    description: "Send a daily MiniPay payment (above $5)",
-    reward: "5 MiniMiles",
-    color:"#FFFFD6"
+    description: "Stake more than 5 Celo through Mondo.celo.org",
+    reward: "15 MiniMiles",
+    color: "#FFFFD6",
+    actionLink: "https://mondo.celo.org",     // <-- where the button should go
+    instructions: [
+      { title: "Connect Wallet", text: "Open your wallet and select Celo network." },
+      { title: "Stake",      text: "Go to Mondo.celo.org and stake ≥ 5 CELO." },
+    ],
   },
   {
-    img: MiniPay,
-    title: "MiniPay",
-    description: "Open MiniMiles today",
-    reward: "10 MiniMiles",
-    color: "#B2DEC4"
+    img: MinimilesSymbol,
+    title: "MiniMiles",
+    description: "Follow Us on Twitter",
+    reward: "20 MiniMiles",
+    color: "#B2DEC4",
+    actionLink: "https://twitter.com/minimilesApp",
+    instructions: [
+      { title: "Open Twitter", text: "Go to our @minimilesApp page." },
+      { title: "Follow",      text: "Hit the Follow button and confirm." },
+    ],
   },
   {
     img: GloDollar,
-    title: "GLO Dollar",
-    description: "Send a daily MiniPay payment (above $5)",
+    title: "Pretium",
+    description: "Use Pretium to Offramp or make a local payment",
     reward: "5 MiniMiles",
-    color: "#24E5E033"
+    color: "#24E5E033",
+    actionLink: "https://twitter.com/pretium",
+    instructions: [
+      { title: "Open Pretium", text: "Open Pretium in your Minipay Mini Apps" },
+      { title: "Offramp",      text: "Buy Airtime, or make a local payment" },
+    ],
   },
   {
     img: Mento,
     title: "Mento",
-    description: "Open MiniMiles today",
-    reward: "10 MiniMiles",
-    color: "#07955F1A"
+    description: "Swap Between Celo and a Stablecoin",
+    reward: "15 MiniMiles",
+    color: "#07955F1A",
+    actionLink: "https://app.mento.org/",
+    instructions: [
+      { title: "Open Mento", text: "Go to our @minimilesApp page." },
+      { title: "Swap",      text: "Swap some Celo for any Stablecoin" },
+    ],
   },
 ];
 
