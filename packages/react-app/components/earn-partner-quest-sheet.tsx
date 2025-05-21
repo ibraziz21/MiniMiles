@@ -14,15 +14,16 @@ interface PartnerQuestSheetProps {
 }
 
 const EarnPartnerQuestSheet = ({ open, onOpenChange, quest }: PartnerQuestSheetProps) => {
-  if (!quest) return null;
-  const [loading, setLoading] = useState(false);
-  const { address, getUserAddress } = useWeb3();
+    const [loading, setLoading] = useState(false);
+    const { address, getUserAddress } = useWeb3();
+  
+    useEffect(() => {
+      getUserAddress();
+    }, [getUserAddress]);
+    
+    
+    if (!quest) return null;
 
-  useEffect(() => {
-    getUserAddress();
-  }, [getUserAddress]);
-  
-  
   const handleClaim = async () => {
     if (!address) {
       alert('Wallet not connected');
