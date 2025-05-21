@@ -16,8 +16,33 @@ import { fetchActiveRaffles, Raffle } from '@/helpers/raffledisplay';
 import { RaffleImg1, RaffleImg2, RaffleImg3, RaffleImg4, WinImg } from '@/lib/img';
 import { MinimilesSymbol } from '@/lib/svg';
 import { Question } from '@phosphor-icons/react';
+import { StaticImageData } from 'next/image';
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
+
+
+const TOKEN_IMAGES: Record<string, StaticImageData> = {
+  cUSD: RaffleImg1,
+  USDT: RaffleImg2,
+  cKES: RaffleImg3,
+  // default fallback:
+  default:   MinimilesSymbol, 
+}
+
+// Shape it to what SpendPartnerQuestSheet expects:
+type SpendRaffle = {
+  id: number;
+  title:      string;
+  reward:     string;
+  prize:      string;
+  endDate:    string;
+  ticketCost: string;
+  image:      StaticImageData;
+  balance: number;
+  symbol: string;
+};
+
+
 
 const digitalCashRaffles = [
   { image: RaffleImg1, title: "500 USDT weekly", endsIn: "7 days", ticketCost: "10 MiniMiles for 1 ticket" },
@@ -48,6 +73,13 @@ const Page = () => {
   const [raffleSheetOpen, setRaffleSheetOpen] = useState(false);
   const [loading, setLoading] = useState(true)
   const [raffles, setRaffles] = useState<Raffle[]>([])
+  const [spendSheetOpen, setSpendSheetOpen] = useState(false);
+const [spendRaffle,    setSpendRaffle]    = useState<SpendRaffle | null>(null); 
+const [hasMounted, setHasMounted] = useState(false);
+useEffect(() => {
+  setHasMounted(true);
+}, []);
+
 
 
 
@@ -61,7 +93,7 @@ const Page = () => {
     const fetchBalance = async () => {
       if (!address) return;
       try {
-        const balance = await getMiniMilesBalance(address);
+        const balance = await getMiniMilesBalance();
         setMiniMilesBalance(balance);
       } catch (error) {
         console.log(error);
@@ -98,42 +130,41 @@ const Page = () => {
           <TabsTrigger value="participating" className="ml-1 text-[#8E8B8B] bg-[#EBEBEB] rounded-full font-bold">Participating</TabsTrigger>
         </TabsList>
         <TabsContent value="active">
-          <div className=" mt-6">
-            <div className="flex justify-between items-center my-2">
-              <h3 className="text-lg font-semibold">Join Raffles</h3>
-              <Link href='/spend'>
-                <span className="text-sm text-green-600 hover:underline">View more ›</span>
-              </Link>
-            </div>
-            <div className="flex gap-3 overflow-x-auto">
-              {raffles.map((r) => (
-                <RaffleCard
-                  key={r.id}
-                  image={r.image ?? RaffleImg1}
-                  title={r.description}
-                  endsIn={formatEndsIn(r.ends)}
-                  ticketCost={`${r.ticketCost} MiniMiles for 1 ticket`}
-                  icon={MinimilesSymbol}
-                  onClick={() => {
-                    setSelectedRaffle(r);
-                    setRaffleSheetOpen(true);
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-          {selectedRaffle && (
-            <RaffleDetails
-              open={raffleSheetOpen}
-              onOpenChange={setRaffleSheetOpen}
-              title={selectedRaffle.description}
-              image={selectedRaffle.image ?? RaffleImg1}
-              prize={selectedRaffle.rewardPool!}
-              pricePerTicket={`${selectedRaffle.ticketCost} MiniMiles`}
-              drawDate={formatEndsIn(selectedRaffle.ends)}
-              balance={Number(miniMilesBalance)}
+        <div className="mx-4 mt-6">
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-semibold">Join Raffles</h3>
+          <Link href='/spend'>
+            <span className="text-sm text-green-600 hover:underline">View more ›</span>
+          </Link>
+        </div>
+        <div className="flex gap-3 overflow-x-auto">
+          {raffles.map((r) => (
+            <RaffleCard
+              key={r.id}
+              image={r.image ?? RaffleImg1}
+              title={r.description}
+              endsIn={formatEndsIn(r.ends)}
+              ticketCost={`${r.ticketCost} MiniMiles for 1 ticket`}
+              icon={MinimilesSymbol}
+              onClick={() => {
+                const img = TOKEN_IMAGES[r.symbol] ?? TOKEN_IMAGES.default
+                setSpendRaffle({
+                  id:  Number(r.id),
+                  title:      r.description,
+                  reward:     `${r.ticketCost} MiniMiles`,
+                  prize:      r.rewardPool ?? "—",
+                  endDate:    formatEndsIn(r.ends),
+                  ticketCost: `${r.ticketCost} MiniMiles`,
+                  image:      img as StaticImageData,
+                  balance: Number(miniMilesBalance),
+                  symbol:  r.symbol
+                });
+                setSpendSheetOpen(true);
+              }}
             />
-          )}
+          ))}
+        </div>
+      </div>
 
           <div>
             <div className="">
@@ -197,8 +228,12 @@ const Page = () => {
         </TabsContent>
         <TabsContent value="participating">Participating Raffles here</TabsContent>
       </Tabs>
-      <SpendPartnerQuestSheet open={showPopup} onOpenChange={setShowPopup} raffle={selectedRaffle} />
-    </main>
+{/*      <SpendPartnerQuestSheet open={showPopup} onOpenChange={setShowPopup} raffle={selectedRaffle} />*/}
+{hasMounted && (<SpendPartnerQuestSheet
+  open={spendSheetOpen}
+  onOpenChange={setSpendSheetOpen}
+  raffle={spendRaffle}
+/> )}   </main>
   );
 }
 

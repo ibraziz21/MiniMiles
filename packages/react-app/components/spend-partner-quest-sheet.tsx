@@ -1,124 +1,206 @@
-import React from 'react'
-import { Button } from './ui/button'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet'
-import { Celo, MinimilesSymbol, MinimilesSymbolAlt, Ticket } from '@/lib/svg';
-import Image from 'next/image';
-import { cn } from '@/lib/utils';
-import { Slider } from './ui/slider';
-import { Minus, Plus } from '@phosphor-icons/react';
-import { RaffleImg1 } from '@/lib/img';
+// components/spend-partner-quest-sheet.tsx
+"use client";
 
-interface Raffle {
-  title: string;
-  reward: string;
-  prize: string;
-  endDate: string;
-  ticketCost: string;
-  image: any;
+import React, { useState, useEffect } from "react";
+import { Button } from "./ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetFooter,
+} from "./ui/sheet";
+import Image from "next/image";
+import { Minus, Plus } from "@phosphor-icons/react";
+import { Slider } from "./ui/slider";
+import { Ticket, MinimilesSymbolAlt } from "@/lib/svg";
+import { StaticImageData } from "next/image";
+import { useWeb3 } from "@/contexts/useWeb3";
+
+interface SpendRaffle {
+  id: number;
+  title:      string;
+  reward:     string;
+  prize:      string;
+  endDate:    string;
+  ticketCost: string;         // e.g. "5 MiniMiles"
+  image:      StaticImageData;
+  balance:    number;         // user balance in MiniMiles
+  symbol: string;
 }
 
 interface SpendPartnerQuestSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  raffle: Raffle | null;
+  raffle: SpendRaffle | null;
 }
 
-const SpendPartnerQuestSheet = ({ open, onOpenChange, raffle }: SpendPartnerQuestSheetProps) => {
+const PRESETS = [1, 5, 10, 25, 50];
+
+export default function SpendPartnerQuestSheet({
+  open,
+  onOpenChange,
+  raffle,
+}: SpendPartnerQuestSheetProps) {
+  // ⚠️ Hooks must come first, unconditionally:
+  const [count, setCount] = useState(1);
+  const {joinRaffle} = useWeb3();
+  // We'll compute these per-render below, after the early return
+  // (but we need them in our effects too, so we'll derive safe fallbacks now)
+  const ticketCostNum = Number(raffle?.ticketCost.replace(/\D/g, "")) || 1;
+  const maxTickets    = Math.max(Math.floor((raffle?.balance ?? 1) / ticketCostNum), 1);
+
+  // Whenever the raffle object changes, reset to 1
+  useEffect(() => {
+    setCount(1);
+  }, [raffle]);
+
+  // Clamp into [1..maxTickets] any time count or maxTickets change
+  useEffect(() => {
+    if (count < 1)         setCount(1);
+    else if (count > maxTickets) setCount(maxTickets);
+  }, [count, maxTickets]);
+
+  // Now it's safe to bail if there's no raffle
   if (!raffle) return null;
+
+  // And we can compute totalCost for the button label
+  const totalCost = count * ticketCostNum;
+
+
+  const handleBuy = async () => {
+    try {
+      const txHash = await joinRaffle(raffle.id, count);
+      console.log("Submitted tx:", txHash);
+      onOpenChange(false);
+    } catch (err: any) {
+      console.error("Join raffle failed:", err);
+      alert(err.message || "Failed to join raffle");
+    }
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="bg-white rounded-t-xl font-poppins h-full">
-        <div className="bg-white">
-          <div className="flex items-center">
-            <div className="bg-[#24E5E033] rounded-full flex justify-center ml-2">
-              <h3 className="text-[#1E8C89] text-sm font-bold px-2">Raffle</h3>
+      <SheetContent
+        side="bottom"
+        className="bg-white rounded-t-xl font-poppins max-h-[90vh] overflow-auto"
+      >
+        <SheetHeader className="pt-4">
+          <SheetTitle>{raffle.title}</SheetTitle>
+        </SheetHeader>
+
+        <div className="p-4">
+          {/* Hero Image */}
+          <div className="relative w-full h-40 rounded-xl overflow-hidden mb-4">
+            <Image
+              src={raffle.image}
+              alt={`${raffle.title} banner`}
+              fill
+              className="object-cover"
+            />
+          </div>
+
+          {/* Prize Banner */}
+          <div className="bg-green-700 text-white rounded-xl py-3 text-center mb-4">
+            <div className="flex items-center justify-center space-x-2">
+              <Image src={MinimilesSymbolAlt} alt="MiniMiles icon" width={32} height={32} />
+              <span className="text-3xl font-bold">{raffle.reward}</span>
+            </div>
+            <p className="text-sm">MiniMiles</p>
+          </div>
+
+          {/* Details */}
+          <div className="mb-4 text-sm">
+            <p className="text-gray-500 mb-2">Raffle Details</p>
+            <ul className="space-y-2">
+              <li className="flex justify-between">
+                <span className="font-medium">Prize</span>
+                <span className="text-gray-700">{raffle.prize} {raffle.symbol}</span>
+              </li>
+              <li className="flex justify-between">
+                <span className="font-medium">Draw Date</span>
+                <span className="text-gray-700">{raffle.endDate}</span>
+              </li>
+              <li className="flex justify-between">
+                <span className="font-medium">Price per ticket</span>
+                <span className="text-gray-700">{ticketCostNum} MiniMiles</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Ticket Count Selector */}
+          <div className="mb-2">
+            <p className="text-sm text-gray-600 mb-1">Number of tickets</p>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setCount(c => Math.max(1, c - 1))}
+                className="p-2 bg-gray-100 rounded-full"
+              >
+                <Minus size={20} />
+              </button>
+
+              <div className="flex-1">
+                <Slider
+                  value={[count]}
+                  max={maxTickets}
+                  min={1}
+                  step={1}
+                  onValueChange={([v]) => setCount(v)}
+                />
+              </div>
+
+              <button
+                onClick={() => setCount(c => Math.min(maxTickets, c + 1))}
+                className="p-2 bg-gray-100 rounded-full"
+              >
+                <Plus size={20} />
+              </button>
+            </div>
+            <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <span>Min: 1</span>
+              <span>Max: {maxTickets}</span>
             </div>
           </div>
-          <h4 className="text-2xl font-bold">{raffle.title}</h4>
 
-          <div className="bg-partner-quest bg-[#219653] bg-no-repeat bg-cover text-white text-center rounded-xl py-2">
-            <div className="flex items-center justify-center my-3">
-              <Image src={MinimilesSymbolAlt} width={32} height={32} alt="" />
-              <p className="text-3xl font-bold pl-2">{raffle.reward}</p>
-            </div>
-            <h4>MiniMiles</h4>
+          {/* Preset Buttons */}
+          <div className="flex gap-2 mb-4">
+            {PRESETS.map(n => (
+              <button
+                key={n}
+                onClick={() => setCount(Math.min(n, maxTickets))}
+                disabled={n > maxTickets}
+                className={`flex-1 rounded-xl py-2 font-semibold ${
+                  count === n ? "bg-green-600 text-white" : "bg-gray-100 text-gray-800"
+                }`}
+              >
+                <div className="flex items-center justify-center space-x-1">
+                  <Image src={Ticket} alt="Ticket icon" width={16} height={16} />
+                  <span>{n}</span>
+                </div>
+              </button>
+            ))}
           </div>
 
-          <div>
-            <h3 className="text-gray-500 text-sm font-medium mb-4">Join our raffle and win big!</h3>
-            <p>Raffle Details</p>
-            <ol className="space-y-2 text-gray-800 text-sm my-2">
-              <li className="flex justify-between">
-                <h4 className="font-bold">Prize</h4>
-                <p className="text-[#8E8B8B]">{raffle.prize}</p>
-              </li>
-              <li className="flex justify-between">
-                <h4 className="font-bold">Ends</h4>
-                <p className="text-[#8E8B8B]">{raffle.endDate}</p>
-              </li>
-              <li className="flex justify-between">
-                <h4 className="font-bold">Ticket Price</h4>
-                <p className="text-[#8E8B8B]">{raffle.ticketCost}</p>
-              </li>
-            </ol>
-          </div>
+          {/* Available & Total */}
+          <p className="text-center text-xs text-gray-500 mb-1">
+            Available tickets: {maxTickets}
+          </p>
+          <p className="text-center text-sm font-medium mb-6">
+            Total cost: {totalCost} MiniMiles
+          </p>
 
-          <h3>Buy Tickets</h3>
-          <div className="flex items-center justify-center gap-2">
-            <Image src={Ticket} alt="" />
-            <h4 className="font-bold text-[#07955F]">1 Ticket</h4>
-          </div>
-
-          <Button title="Buy" onClick={() => { }} className="w-full mt-4 rounded-xl py-6 text-white bg-[#07955F]" />
-          <p className="text-center text-[10px] text-gray-400 mt-2">{raffle.endDate}</p>
-          <div className='flex justify-between'>
-            <button className='bg-[#07955F1A] rounded-full p-2'>
-              <Minus color='#07955F' width={24} height={24} />
-            </button>
-            <Slider defaultValue={[33]} max={100} step={1} />
-            <button className='bg-[#07955F1A] rounded-full p-2'>
-              <Plus color='#07955F' width={24} height={24} />
-            </button>
-          </div>
-          <div className='flex justify-between '>
-            <button
-              className="p-3 rounded-xl flex items-center justify-center gap-3 font-semibold tracking-wide shadow-sm text-[#07955F] bg-[#07955F1A] hover:bg-[#07955F1A] disabled:bg-[#07955F]"
-
+          {/* Buy Button */}
+          <SheetFooter>
+            <Button
+              title={`Buy ${count} ticket${count > 1 ? "s" : ""}`}
+              onClick={handleBuy}
+              className="w-full bg-green-600 text-white rounded-xl py-4 font-semibold"
             >
-              <Image src={Ticket} alt="" />
-              <h3>5</h3>
-            </button>
-            <button
-              className="p-3 rounded-xl flex items-center justify-center gap-3 font-semibold tracking-wide shadow-sm text-[#07955F] bg-[#07955F1A] hover:bg-[#07955F1A] disabled:bg-[#07955F]"
-
-            >
-              <Image src={Ticket} alt="" />
-              <h3>10</h3>
-            </button>
-            <button
-              className="p-3 rounded-xl flex items-center justify-center gap-3 font-semibold tracking-wide shadow-sm text-[#07955F] bg-[#07955F1A] hover:bg-[#07955F1A] disabled:bg-[#07955F]"
-
-            >
-              <Image src={Ticket} alt="" />
-              <h3>25</h3>
-            </button>
-            <button
-              className="p-3 rounded-xl flex items-center justify-center gap-3 font-semibold tracking-wide shadow-sm text-[#07955F] bg-[#07955F1A] hover:bg-[#07955F1A] disabled:bg-[#07955F]"
-
-            >
-              <Image src={Ticket} alt="" />
-              <h3>50</h3>
-            </button>
-          </div>
-          <h4>
-            Select an amount of tickets to buy
-          </h4>
-          <h4 className='flex justify-center items-center'>Balance: <Image src={MinimilesSymbol} alt='' /> 45 <button className="p-3 rounded-xl flex items-center justify-center gap-3 font-semibold tracking-wide shadow-sm text-[#07955F] bg-[#07955F1A] hover:bg-[#07955F1A] disabled:bg-[#07955F]"> Max</button> </h4>
+              Buy {count} ticket{count > 1 ? "s" : ""}
+            </Button>
+          </SheetFooter>
         </div>
       </SheetContent>
     </Sheet>
   );
-};
-
-export default SpendPartnerQuestSheet
+}

@@ -31,7 +31,7 @@ type QuestRow = {
   id: string;
   title: string;
   description: string;
-  reward: number;
+  reward_points: number;
   is_active: boolean;
 };
 
@@ -143,7 +143,7 @@ export default function DailyChallenges() {
                   <p className="text-xs text-gray-600 mt-2">{q.description}</p>
                   <p className="text-xs mt-3 flex items-center justify-center">
                     <Image src={MinimilesSymbol} alt="" className="mr-1" />
-                    {q.reward} MiniMiles
+                    {q.reward_points} MiniMiles
                   </p>
                 </div>
               </button>

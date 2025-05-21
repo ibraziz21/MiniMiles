@@ -10,7 +10,7 @@ dotenv.config();
 const SUPABASE_URL = process.env.SUPABASE_URL || ""
 const SUPABASE_ANON_KEY = process.env.SUPABASE_SERVICE_KEY || ""
 const PRIVATE_KEY = process.env.PRIVATE_KEY || "" // make sure this is secure
-const CONTRACT_ADDRESS = "0xcEb2caAc90F5B71ecb9a5f3149586b76C9811a76"
+const CONTRACT_ADDRESS = "0x9a51F81DAcEB772cC195fc8551e7f2fd7c62CD57"
 
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
       address: CONTRACT_ADDRESS as `0x${string}`,
       abi: MiniPointsAbi.abi,
       functionName: "mint",
-      args: [userAddress, parseUnits("5",18)],
+      args: [userAddress, parseUnits("10",18)],
       account,
     })
 
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
       user_address: userAddress,
       quest_id: questId,
       claimed_at: today,
-      points_awarded: 5,
+      points_awarded: 10,
     })
 
     return Response.json({ success: true, txHash })

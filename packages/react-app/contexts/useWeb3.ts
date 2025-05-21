@@ -1,162 +1,107 @@
-import { useState } from "react";
-import StableTokenABI from "./cusd-abi.json";
-import MinipayNFTABI from "./minipay-nft.json";
-import MiniMilesAbi from "./minimiles.json"
+// src/contexts/useWeb3.ts
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
 import {
-    createPublicClient,
-    createWalletClient,
-    custom,
-    getContract,
-    http,
-    parseEther,
-    stringToHex,
-    formatUnits
+  createPublicClient,
+  createWalletClient,
+  custom,
+  getContract,
+  http,
+  parseEther,
+  formatUnits,
 } from "viem";
 import { celoAlfajores } from "viem/chains";
+import StableTokenABI from "@/contexts/cusd-abi.json";
+import MiniMilesAbi from "@/contexts/minimiles.json";
+import raffleAbi from "@/contexts/raffle.json";
 
-const publicClient = createPublicClient({
+export function useWeb3() {
+  const [address, setAddress]         = useState<string | null>(null);
+  const [walletClient, setWalletClient] = useState<any>(null);
+
+  // 1️⃣ instantiate once on mount
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.ethereum) return;
+    const client = createWalletClient({
+      transport: custom(window.ethereum),
+      chain: celoAlfajores,
+    });
+    setWalletClient(client);
+
+    // grab the address
+    client.getAddresses().then(([addr]) => setAddress(addr)).catch(console.error);
+  }, []);
+
+  const getUserAddress = async () => {
+    if (typeof window !== "undefined" && window.ethereum) {
+        let walletClient = createWalletClient({
+            transport: custom(window.ethereum),
+            chain: celoAlfajores,
+        });
+
+        let [address] = await walletClient.getAddresses();
+        setAddress(address);
+    }
+};
+
+  const publicClient = createPublicClient({
     chain: celoAlfajores,
     transport: http(),
-});
+  });
 
-const MiniMilesAddress = '0xcEb2caAc90F5B71ecb9a5f3149586b76C9811a76'
-const cUSDTokenAddress = "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1"; // Testnet
-const MINIPAY_NFT_CONTRACT = "0xE8F4699baba6C86DA9729b1B0a1DA1Bd4136eFeF"; // Testnet
+  // 2️⃣ Helpers can now reuse walletClient + publicClient + address
 
-export const useWeb3 = () => {
-    const [address, setAddress] = useState<string | null>(null);
+  const getMiniMilesBalance = useCallback(async () => {
+    if (!address) throw new Error("Wallet not connected");
+    const miniMiles = getContract({
+      abi: MiniMilesAbi.abi,
+      address: "0x9a51F81DAcEB772cC195fc8551e7f2fd7c62CD57",
+      client: publicClient,
+    });
+    const raw: bigint = await miniMiles.read.balanceOf([address]) as bigint;
+    return formatUnits(raw, 18);
+  }, [address, publicClient]);
 
-    const getUserAddress = async () => {
-        if (typeof window !== "undefined" && window.ethereum) {
-            let walletClient = createWalletClient({
-                transport: custom(window.ethereum),
-                chain: celoAlfajores,
-            });
+  const sendCUSD = useCallback(
+    async (to: string, amount: string) => {
+      if (!walletClient || !address) throw new Error("Wallet not ready");
+      const tx = await walletClient.writeContract({
+        address: "0x874069Fa1Eb16d44d622f2e0Ca25eeA172369bC1",
+        abi: StableTokenABI.abi,
+        functionName: "transfer",
+        account: address,
+        args: [to, parseEther(amount)],
+      });
+      return publicClient.waitForTransactionReceipt({ hash: tx });
+    },
+    [walletClient, address, publicClient]
+  );
 
-            let [address] = await walletClient.getAddresses();
-            setAddress(address);
-        }
-    };
-
-    const sendCUSD = async (to: string, amount: string) => {
-        let walletClient = createWalletClient({
-            transport: custom(window.ethereum),
-            chain: celoAlfajores,
-        });
-
-        let [address] = await walletClient.getAddresses();
-
-        const amountInWei = parseEther(amount);
-
-        const tx = await walletClient.writeContract({
-            address: cUSDTokenAddress,
-            abi: StableTokenABI.abi,
-            functionName: "transfer",
-            account: address,
-            args: [to, amountInWei],
-        });
-
-        let receipt = await publicClient.waitForTransactionReceipt({
-            hash: tx,
-        });
-
-        return receipt;
-    };
-
-    // const mintMinipayNFT = async () => {
-    //     let walletClient = createWalletClient({
-    //         transport: custom(window.ethereum),
-    //         chain: celoAlfajores,
-    //     });
-
-    //     let [address] = await walletClient.getAddresses();
-
-    //     const tx = await walletClient.writeContract({
-    //         address: MINIPAY_NFT_CONTRACT,
-    //         abi: MinipayNFTABI.abi,
-    //         functionName: "safeMint",
-    //         account: address,
-    //         args: [
-    //             address,
-    //             "https://cdn-production-opera-website.operacdn.com/staticfiles/assets/images/sections/2023/hero-top/products/minipay/minipay__desktop@2x.a17626ddb042.webp",
-    //         ],
-    //     });
-
-    //     const receipt = await publicClient.waitForTransactionReceipt({
-    //         hash: tx,
-    //     });
-
-    //     return receipt;
-    // };
-
- 
-    async function getMiniMilesBalance(userAddress: string) {
-        let walletClient = createWalletClient({
-            transport: custom(window.ethereum),
-            chain: celoAlfajores,
-        });
-
-        let [address] = await walletClient.getAddresses();
-        const getMiniMilesBal = getContract({
-            abi: MiniMilesAbi.abi,
-            address: MiniMilesAddress,
-            client: publicClient,
-        })
-        const bal: any = await getMiniMilesBal.read.balanceOf([address])
-        const formatedbal: any = formatUnits(bal,18);
-        return formatedbal;
-
+ // in src/contexts/useWeb3.ts
+ // 2️⃣ joinRaffle writes directly
+ const joinRaffle = useCallback(
+    async (roundId: number, ticketCount: number) => {
+      if (!walletClient || !address) {
+        throw new Error("Wallet not connected");
       }
+      return walletClient.writeContract({
+        address: '0x28AC9810af772f4b7347F48D44EF47592b8ea750',
+        abi: raffleAbi.abi,
+        functionName: "joinRaffle",
+        account: address,
+        args: [BigInt(roundId), BigInt(ticketCount)],
+      });
+    },
+    [walletClient, address]
+  );
+  
 
-    // const getNFTs = async () => {
-    //     let walletClient = createWalletClient({
-    //         transport: custom(window.ethereum),
-    //         chain: celoAlfajores,
-    //     });
-
-    //     const minipayNFTContract = getContract({
-    //         abi: MinipayNFTABI.abi,
-    //         address: MINIPAY_NFT_CONTRACT,
-    //         client: publicClient,
-    //     });
-
-    //     const [address] = await walletClient.getAddresses();
-    //     const nfts: any = await minipayNFTContract.read.getNFTsByAddress([
-    //         address,
-    //     ]);
-
-    //     let tokenURIs: string[] = [];
-
-    //     for (let i = 0; i < nfts.length; i++) {
-    //         const tokenURI: string = (await minipayNFTContract.read.tokenURI([
-    //             nfts[i],
-    //         ])) as string;
-    //         tokenURIs.push(tokenURI);
-    //     }
-    //     return tokenURIs;
-    // };
-
-    const signTransaction = async () => {
-        let walletClient = createWalletClient({
-            transport: custom(window.ethereum),
-            chain: celoAlfajores,
-        });
-
-        let [address] = await walletClient.getAddresses();
-
-        const res = await walletClient.signMessage({
-            account: address,
-            message: stringToHex("Hello from Celo Composer MiniPay Template!"),
-        });
-
-        return res;
-    };
-
-    return {
-        address,
-        getUserAddress,
-        sendCUSD,
-        signTransaction,
-        getMiniMilesBalance,
-    };
-};
+  return {
+    address,
+    getMiniMilesBalance,
+    getUserAddress,
+    sendCUSD,
+    joinRaffle,
+  };
+}

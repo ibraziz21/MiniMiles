@@ -9,105 +9,33 @@ import { RaffleCard } from "@/components/raffle-card";
 import RafflesWonCard from "@/components/raffle-won-card";
 import { SectionHeading } from "@/components/section-heading";
 import { useWeb3 } from "@/contexts/useWeb3";
-import { RaffleImg1, RaffleImg2, WinImg } from "@/lib/img";
+import { RaffleImg1, RaffleImg2, RaffleImg3, WinImg } from "@/lib/img";
 import { Celo, MinimilesSymbol } from "@/lib/svg";
 import { useEffect, useState } from "react";
 import AccountSheet from "@/components/account-sheet";
 import ContactSheet from "@/components/contact-sheet";
 import DailyChallengeSheet from "@/components/daily-challenge-sheet";
-import SpendPartnerQuestSheet from '@/components/spend-partner-quest-sheet';
-import { fetchActiveRaffles,Raffle } from "@/helpers/raffledisplay";
+import { fetchActiveRaffles, Raffle } from "@/helpers/raffledisplay";
 import Link from "next/link";
+// import SpendPartnerQuestSheet from '@/components/spend-partner-quest-sheet';
+import { StaticImageData } from "next/image";
+import dynamic from 'next/dynamic'
 import { RaffleDetails } from "@/components/raffle-details";
 import truncateEthAddress from "truncate-eth-address";
 
-const digitalCashRaffles: Raffle[] = [
-  {
-    id: "raffle-usdt-weekly",
-    starts: Math.floor(Date.now() / 1000),
-    ends: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
-    maxTickets: 1000,
-    image: RaffleImg1,
-    ticketsSold: 450,
-    rewardToken: "0x0000000000000000000000000000000000000001", // dummy ERC20 address
-    rewardPool: "500000000", // example: 500 USDT (in smallest units if needed)
-    ticketCost: 10,
-    description: "Enter to win 500 USDT this week!",
-    status: "active",
-  },
-  {
-    id: "raffle-usdt-250",
-    starts: Math.floor(Date.now() / 1000),
-    ends: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
-    maxTickets: 1000,
-    image: RaffleImg2,
-    ticketsSold: 300,
-    rewardToken: "0x0000000000000000000000000000000000000002",
-    rewardPool: "250000000",
-    ticketCost: 6,
-    description: "Try your luck to win 250 USDT!",
-    status: "active",
-  },
-];
-
-const physicalGoodsRaffles: Raffle[] = [
-  {
-    id: "raffle-ledger-wallet",
-    starts: Math.floor(Date.now() / 1000),
-    ends: Math.floor(Date.now() / 1000) + 5 * 24 * 60 * 60,
-    maxTickets: 500,
-    image: RaffleImg1,
-    ticketsSold: 120,
-    rewardToken: "PHYSICAL_LEDGER", // Or a dummy token to represent physical goods
-    rewardPool: undefined,
-    ticketCost: 3,
-    description: "Win a Ledger hardware wallet!",
-    status: "active",
-  },
-  {
-    id: "raffle-laptop",
-    starts: Math.floor(Date.now() / 1000),
-    ends: Math.floor(Date.now() / 1000) + 4 * 24 * 60 * 60,
-    maxTickets: 100,
-    image: RaffleImg2,
-    ticketsSold: 80,
-    rewardToken: "PHYSICAL_LAPTOP",
-    rewardPool: undefined,
-    ticketCost: 50,
-    description: "Get a chance to win a high-end laptop!",
-    status: "active",
-  },
-];
+const SpendPartnerQuestSheet = dynamic(
+  () => import('@/components/spend-partner-quest-sheet'),
+  { ssr: false }
+)
 
 
-const nftRaffles: Raffle[] = [
-  {
-    id: "raffle-boredape-567",
-    starts: Math.floor(Date.now() / 1000),
-    ends: Math.floor(Date.now() / 1000) + 3 * 24 * 60 * 60,
-    maxTickets: 200,
-    image: RaffleImg1,
-    ticketsSold: 75,
-    rewardToken: "0xNFTBOREDAPE567", // dummy NFT token ID/address
-    rewardPool: undefined,
-    ticketCost: 10,
-    description: "Win BoredApe #567 NFT!",
-    status: "active",
-  },
-  {
-    id: "raffle-cryptopunk-789",
-    starts: Math.floor(Date.now() / 1000),
-    ends: Math.floor(Date.now() / 1000) + 2 * 24 * 60 * 60,
-    maxTickets: 200,
-    image: RaffleImg2,
-    ticketsSold: 120,
-    rewardToken: "0xNFTCRYPTOPUNK789",
-    rewardPool: undefined,
-    ticketCost: 12,
-    description: "Win CryptoPunk #789 NFT!",
-    status: "active",
-  },
-];
+const TOKEN_IMAGES: Record<string, StaticImageData> = {
+  cUSD: RaffleImg1,
+  USDT: RaffleImg2,
+  cKES: RaffleImg3,
+  // default fallback:
+  default: MinimilesSymbol,
+}
 
 const upcomingGames = [
   { name: "Dice", date: "xx/xx/xx", image: "/dice.jpg" },
@@ -120,21 +48,25 @@ export default function Home() {
   const [showPopup, setShowPopup] = useState(false);
   const [raffles, setRaffles] = useState<Raffle[]>([])
   const [loading, setLoading] = useState(true)
-  const [raffleSheetOpen, setRaffleSheetOpen] = useState(false);
-const [selectedRaffle, setSelectedRaffle] = useState<Raffle | null>(null);
-  // const [selectedRaffle, setSelectedRaffle] = useState<Raffle>({
-  //   id: "raffle1",
-  //   rewardToken: "500 USDT weekly",
-  //   starts: 56532,
-  //   ends: 44232,
-  //   maxTickets: 1000,
-  //   ticketsSold: 300,
-  //   ticketCost: 10,
-  //   image: RaffleImg2,
-  //   description: "Win 500 USDT this week!",
-  //   status: "active",
-  // });
-  
+  const [spendSheetOpen, setSpendSheetOpen] = useState(false);
+  const [spendRaffle, setSpendRaffle] = useState<SpendRaffle | null>(null);
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  type SpendRaffle = {
+    id: number;
+    title: string;
+    reward: string;
+    prize: string;
+    endDate: string;
+    ticketCost: string;
+    image: StaticImageData;
+    balance: number;
+    symbol: string;
+  };
+
 
   useEffect(() => {
     getUserAddress();
@@ -144,7 +76,7 @@ const [selectedRaffle, setSelectedRaffle] = useState<Raffle | null>(null);
     const fetchBalance = async () => {
       if (!address) return;
       try {
-        const balance = await getMiniMilesBalance(address);
+        const balance = await getMiniMilesBalance();
         setMiniMilesBalance(balance);
       } catch (error) {
         console.log(error);
@@ -152,7 +84,7 @@ const [selectedRaffle, setSelectedRaffle] = useState<Raffle | null>(null);
     };
     fetchBalance();
   }, [address, getMiniMilesBalance]);
-  
+
   useEffect(() => {
     fetchActiveRaffles()
       .then(setRaffles)
@@ -170,7 +102,7 @@ const [selectedRaffle, setSelectedRaffle] = useState<Raffle | null>(null);
 
   return (
     <main className="pb-24 font-poppins">
-      <DashboardHeader name={truncateEthAddress(address??"")} />
+      <DashboardHeader name={truncateEthAddress(address ?? "")} />
       <PointsCard points={Number(miniMilesBalance)} />
       <DailyChallenges />
       <div className="mx-4 mt-6">
@@ -187,95 +119,33 @@ const [selectedRaffle, setSelectedRaffle] = useState<Raffle | null>(null);
               image={r.image ?? RaffleImg1}
               title={r.description}
               endsIn={formatEndsIn(r.ends)}
-              ticketCost={`${r.ticketCost} MiniMiles`}
+              ticketCost={`${r.ticketCost} MiniMiles for 1 ticket`}
               icon={MinimilesSymbol}
               onClick={() => {
-                setSelectedRaffle(r);
-                setRaffleSheetOpen(true);
+                const img = TOKEN_IMAGES[r.symbol] ?? TOKEN_IMAGES.default
+                setSpendRaffle({
+                  id: Number(r.id),
+                  title: `${r.symbol} raffle`,
+                  reward: `${r.ticketCost} MiniMiles`,
+                  prize: r.rewardPool ?? "—",
+                  endDate: formatEndsIn(r.ends),
+                  ticketCost: `${r.ticketCost} MiniMiles`,
+                  image: img as StaticImageData,
+                  balance: Number(miniMilesBalance),
+                  symbol: r.symbol
+                });
+                setSpendSheetOpen(true);
               }}
             />
           ))}
         </div>
       </div>
-      {selectedRaffle && (
-        <RaffleDetails
-          open={raffleSheetOpen}
-          onOpenChange={setRaffleSheetOpen}
-          title={selectedRaffle.description}
-          image={selectedRaffle.image ?? RaffleImg1}
-          prize={selectedRaffle.rewardPool!}
-          pricePerTicket={`${selectedRaffle.ticketCost} MiniMiles`}
-          drawDate={formatEndsIn(selectedRaffle.ends)}
-          balance={Number(miniMilesBalance)}
-        />
-      )}
-
-      <SectionHeading title="Join digital cash raffles" />
-      <div className="flex space-x-3 overflow-x-auto px-4 whitespace-nowrap scrollbar-hide">
-        {digitalCashRaffles.map((raffle, idx) => (
-          <RaffleCard
-            key={idx}
-            image={raffle.image}
-            title={raffle.description}
-            endsIn={formatEndsIn(raffle.ends)}
-            ticketCost={`${raffle.ticketCost} MiniMiles for 1 ticket`}
-            icon={MinimilesSymbol}
-            onClick={() => {
-              setSelectedRaffle(raffle);
-              setShowPopup(true);
-            }}
-          />
-        ))}
-      </div>
-
-      <SectionHeading title="Join physical goods raffles" />
-      <div className="flex space-x-3 overflow-x-auto px-4">
-        {physicalGoodsRaffles.map((raffle, idx) => (
-          <RaffleCard
-            key={idx}
-            image={raffle.image}
-            title={raffle.description}
-            endsIn={formatEndsIn(raffle.ends)}
-            ticketCost={`${raffle.ticketCost} MiniMiles for 1 ticket`}
-            icon={MinimilesSymbol}
-            onClick={() => {
-              setSelectedRaffle(raffle);
-              setShowPopup(true);
-            }}
-          />
-        ))}
-      </div>
-
-      <SectionHeading title="Join NFT Raffles" />
-      <div className="flex space-x-3 overflow-x-auto px-4">
-        {nftRaffles.map((raffle, idx) => (
-          <RaffleCard
-            key={idx}
-            image={raffle.image}
-            title={raffle.description}
-            endsIn={formatEndsIn(raffle.ends)}
-            ticketCost={`${raffle.ticketCost} MiniMiles for 1 ticket`}
-            icon={MinimilesSymbol}
-            onClick={() => {
-              setSelectedRaffle(raffle);
-              setShowPopup(true);
-            }}
-          />
-        ))}
-      </div>
-
-      <SectionHeading title="Upcoming games" />
-      {/* <div className="flex space-x-3 overflow-x-auto px-4">
-        {upcomingGames.map((game, idx) => (
-          <GameCard key={idx} name={game.name} date={game.date} image={game.image} />
-        ))}
-      </div> */}
-      
-      <DailyChallengeSheet open={showPopup} onOpenChange={setShowPopup} raffle={selectedRaffle} />
-        {/* <div className="mx-4 mt-6 space-y-4">
-          <AccountSheet />
-          <ContactSheet />
-        </div>  */}
+      {hasMounted && (<SpendPartnerQuestSheet
+        open={spendSheetOpen}
+        onOpenChange={setSpendSheetOpen}
+        raffle={spendRaffle}
+      />)}
     </main>
+
   );
 }
