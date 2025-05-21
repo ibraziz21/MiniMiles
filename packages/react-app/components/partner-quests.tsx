@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 // components/DailyChallenges.tsx
 export interface Quest {
+  id: string; 
   img: any;
   title: string;
   description: string;
@@ -14,6 +15,7 @@ export interface Quest {
 
 const quests: Quest[] = [
   {
+    id: '8d5a7766-4d2a-4bff-ac97-6b03fd5b570f',
     img: Celo,
     title: "Celo",
     description: "Stake more than 5 Celo through Mondo.celo.org",
@@ -26,6 +28,7 @@ const quests: Quest[] = [
     ],
   },
   {
+    id: '99da9e3d-5332-419e-aa40-5cb9d6e3a7ab',
     img: MinimilesSymbol,
     title: "MiniMiles",
     description: "Follow Us on Twitter",
@@ -38,6 +41,7 @@ const quests: Quest[] = [
     ],
   },
   {
+    id: '8d8ae13c-a4b0-47fa-aa30-4fdfc6d3032e',
     img: GloDollar,
     title: "Pretium",
     description: "Use Pretium to Offramp or make a local payment",
@@ -50,6 +54,7 @@ const quests: Quest[] = [
     ],
   },
   {
+    id: 'a487d06b-fe99-4f4f-91bb-532f1647a86c',
     img: Mento,
     title: "Mento",
     description: "Swap Between Celo and a Stablecoin",

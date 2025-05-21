@@ -6,7 +6,7 @@ import raffleAbi from '@/contexts/raffle.json'
 import    erc20Abi from '@/contexts/cusd-abi.json'      // must include getActiveRound
 import type { Address } from 'viem'
 
-const RAFFLE: Address = '0x28AC9810af772f4b7347F48D44EF47592b8ea750'
+const RAFFLE: Address = '0xA1F1Cd3b90f49c9d44ed324C69869df139616d55'
 
 const publicClient = createPublicClient({
   chain: celoAlfajores,

@@ -1,11 +1,11 @@
-// components/earn-partner-quest-sheet.tsx
-
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { Sheet, SheetContent } from './ui/sheet';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Quest } from './partner-quests';
+import { claimPartnerQuest } from '@/helpers/partnerQuests';
+import { useWeb3 } from '@/contexts/useWeb3';
 
 interface PartnerQuestSheetProps {
   open: boolean;
@@ -14,8 +14,33 @@ interface PartnerQuestSheetProps {
 }
 
 const EarnPartnerQuestSheet = ({ open, onOpenChange, quest }: PartnerQuestSheetProps) => {
-  if (!quest) return null;
+    const [loading, setLoading] = useState(false);
+    const { address, getUserAddress } = useWeb3();
+  
+    useEffect(() => {
+      getUserAddress();
+    }, [getUserAddress]);
+    
+    
+    if (!quest) return null;
 
+  const handleClaim = async () => {
+    if (!address) {
+      alert('Wallet not connected');
+      return;
+    }
+    window.open(quest.actionLink, '_blank');
+    setLoading(true);
+    const { minted, error } = await claimPartnerQuest(address, quest.id);
+
+    if (error) {
+      alert(error);
+    } else {
+      onOpenChange(false);
+    }
+    // Ensure loading is reset for next time
+    setLoading(false);
+  };
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="bg-white rounded-t-xl font-poppins p-4">
@@ -48,9 +73,12 @@ const EarnPartnerQuestSheet = ({ open, onOpenChange, quest }: PartnerQuestSheetP
           </ol>
         </div>
 
-        <Link href={quest.actionLink}>
-          <Button className="w-full rounded-xl py-6 text-white bg-[#07955F]" title="Go & Earn" />
-        </Link>
+        <Button
+          className="w-full rounded-xl py-6 text-white bg-[#07955F] mb-2"
+          title={loading ? 'Processing…' : 'Go & Earn'}
+          onClick={handleClaim}
+          disabled={loading}
+        />
         <Button
           className="w-full text-green-600 bg-green-50"
           title="Close"

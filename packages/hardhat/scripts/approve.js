@@ -29,7 +29,7 @@ const miles   = new ethers.Contract(MiniPoints, milesAbi.abi,        ownerSigner
 // ─── MAIN LOGIC ───────────────────────────────────────────────────
 async function main() {
 
-  const allowRaffle = await miles.setMinter(RAFFLE_ADDR, true);
+  const allowRaffle = await miles.setMinter('0xa5065676D5d12b202dF10f479F2DDD62234b91b9', true);
   await allowRaffle.wait()
   console.log("Tx Hash: ", allowRaffle.hash)
 
