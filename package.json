@@ -26,5 +26,8 @@
   "keywords": [
     "celo-composer",
     "celo"
-  ]
+  ],
+  "dependencies": {
+    "truncate-eth-address": "^1.0.2"
+  }
 }

@@ -101,36 +101,48 @@ export default function SpendPartnerQuestSheet({
           </div>
 
           {/* Prize Banner */}
-          <div className="bg-green-700 text-white rounded-xl py-3 text-center mb-4">
+          <div className="text-gray-500 rounded-xl py-3 text-center mb-4">
             <div className="flex items-center justify-center space-x-2">
-              <Image src={MinimilesSymbolAlt} alt="MiniMiles icon" width={32} height={32} />
-              <span className="text-3xl font-bold">{raffle.reward}</span>
             </div>
-            <p className="text-sm">MiniMiles</p>
+            <p className="text-sm">Join our weekly raffle of {raffle.prize} {raffle.symbol} and win big</p>
           </div>
 
           {/* Details */}
           <div className="mb-4 text-sm">
-            <p className="text-gray-500 mb-2">Raffle Details</p>
+            <p className="text-black mb-2">Raffle Details</p>
             <ul className="space-y-2">
               <li className="flex justify-between">
                 <span className="font-medium">Prize</span>
                 <span className="text-gray-700">{raffle.prize} {raffle.symbol}</span>
               </li>
               <li className="flex justify-between">
-                <span className="font-medium">Draw Date</span>
-                <span className="text-gray-700">{raffle.endDate}</span>
-              </li>
-              <li className="flex justify-between">
                 <span className="font-medium">Price per ticket</span>
                 <span className="text-gray-700">{ticketCostNum} MiniMiles</span>
               </li>
+              <li className="flex justify-between">
+                <span className="font-medium">Draw Date</span>
+                <span className="text-gray-700">{raffle.endDate}</span>
+              </li>
+            
             </ul>
           </div>
-
+          <p className="text-center text-2xl font-semibold mb-6">
+  Buy tickets
+</p>
+<div className="flex items-center justify-center space-x-2">
+  <Image
+    src={Ticket}
+    alt="Ticket icon"
+    width={32}
+    height={32}
+    className="w-8 h-8"         // ensure the actual rendered size matches
+  />
+  <span className="text-2xl font-semibold">
+    {count}
+  </span>
+</div>
           {/* Ticket Count Selector */}
           <div className="mb-2">
-            <p className="text-sm text-gray-600 mb-1">Number of tickets</p>
             <div className="flex items-center space-x-2">
               <button
                 onClick={() => setCount(c => Math.max(1, c - 1))}
@@ -192,11 +204,11 @@ export default function SpendPartnerQuestSheet({
           {/* Buy Button */}
           <SheetFooter>
             <Button
-              title={`Buy ${count} ticket${count > 1 ? "s" : ""}`}
+              title={`Buy`}
               onClick={handleBuy}
               className="w-full bg-green-600 text-white rounded-xl py-4 font-semibold"
             >
-              Buy {count} ticket{count > 1 ? "s" : ""}
+              Buy 
             </Button>
           </SheetFooter>
         </div>

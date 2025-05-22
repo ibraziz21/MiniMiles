@@ -1,6 +1,7 @@
 "use client";
 
 import DailyChallenges from '@/components/daily-challenge';
+import EnterRaffleSheet from '@/components/enter-raffle-sheet';
 import { GameCard } from '@/components/game-card';
 import { Hero } from '@/components/Hero';
 import MiniPointsCard from '@/components/mini-points-card';
@@ -117,39 +118,22 @@ useEffect(() => {
 
   return (
     <main className="pb-24 font-poppins bg-onboarding px-3">
-      <div className="px-4 pt-4">
+      <div className="pt-4">
         <h1 className="text-2xl font-bold mt-2">Spend</h1>
         <h3>Win big by entering our Raffles</h3>
       </div>
       <MiniPointsCard points={Number(miniMilesBalance)} />
-      <Link
-        className="p-3 rounded-xl flex items-center justify-center gap-3 font-semibold tracking-wide shadow-sm text-[#07955F] bg-[#07955F1A] hover:bg-[#07955F1A] disabled:bg-[#07955F]"
-        href={"/onboarding"}
-      >
-        <Question size={24} />
-        <h3>How to enter a raffle?</h3>
-      </Link>
-
-
-      <Tabs defaultValue="active" className="mt-5">
-        <TabsList>
-          <TabsTrigger value="active" className="text-[#219653] bg-[#66D5754D] rounded-full font-bold">Active</TabsTrigger>
-          <TabsTrigger value="participating" className="ml-1 text-[#8E8B8B] bg-[#EBEBEB] rounded-full font-bold">Participating</TabsTrigger>
-        </TabsList>
-        <TabsContent value="active">
+      <EnterRaffleSheet />
         <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold">Join Raffles</h3>
-          <Link href='/spend'>
-            <span className="text-sm text-green-600 hover:underline">View more ›</span>
-          </Link>
+          <h3 className="text-lg font-semibold">Digital Cash Raffles</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
           {raffles.map((r) => (
             <RaffleCard
               key={r.id}
               image={r.image ?? RaffleImg1}
-              title={r.description}
+              title={`${r.rewardPool} ${r.symbol} weekly`}
               endsIn={formatEndsIn(r.ends)}
               ticketCost={`${r.ticketCost} MiniMiles for 1 ticket`}
               icon={MinimilesSymbol}
@@ -173,15 +157,11 @@ useEffect(() => {
         </div>
       </div>
 
-          <div>
-            <div className="">
-              <div className="flex justify-between items-center mb-5">
-                <h3 className="text-sm font-bold">Physical Goods raffles</h3>
-                <Link href="/earn" className="text-sm text-green-600 hover:underline font-bold">
-                  See all ›
-                </Link>
-              </div>
-              <div className="flex space-x-3 overflow-x-auto px-4">
+            <div className="mx-4 mt-6">
+            <div className="flex justify-between items-center">
+          <h3 className="text-lg font-semibold">Physical Goods Raffles</h3>
+         </div>
+              <div className="flex gap-3 overflow-x-auto">
                 {physicalGoodsRaffles.map((raffle, idx) => (
                   <RaffleCard
                     key={idx}
@@ -198,14 +178,11 @@ useEffect(() => {
                 ))}
               </div>
             </div>
-            <div>
-              <div className="flex justify-between items-center mb-5">
-                <h3 className="text-sm font-bold">NFT raffles</h3>
-                <Link href="/earn" className="text-sm text-green-600 hover:underline font-bold">
-                  See all ›
-                </Link>
+          <div  className="mx-4 mt-6">
+              <div className="flex justify-between items-center mb-5 my-2">
+                <h3 className="text-lg font-bold">NFT raffles</h3>
               </div>
-              <div className="flex space-x-3 overflow-x-auto px-4">
+              <div className="flex gap-3 overflow-x-auto">
                 {nftRaffles.map((raffle, idx) => (
                   <RaffleCard
                     key={idx}
@@ -221,7 +198,8 @@ useEffect(() => {
                   />
                 ))}
               </div>
-            </div>
+              </div>
+           
 
             <div>
               <SectionHeading title="Upcoming games" />
@@ -231,10 +209,7 @@ useEffect(() => {
                 ))}
               </div>
             </div>
-          </div>
-        </TabsContent>
-        <TabsContent value="participating">Participating Raffles here</TabsContent>
-      </Tabs>
+  
 {/*      <SpendPartnerQuestSheet open={showPopup} onOpenChange={setShowPopup} raffle={selectedRaffle} />*/}
 {hasMounted && (<SpendPartnerQuestSheet
   open={spendSheetOpen}

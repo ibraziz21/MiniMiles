@@ -76,8 +76,6 @@ const AccountSheet = () => {
         </SheetHeader>
       </SheetContent>
     </Sheet>
-
-
   );
 };
 

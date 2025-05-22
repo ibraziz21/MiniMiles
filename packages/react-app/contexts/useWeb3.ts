@@ -86,7 +86,7 @@ export function useWeb3() {
         throw new Error("Wallet not connected");
       }
       return walletClient.writeContract({
-        address: '0x28AC9810af772f4b7347F48D44EF47592b8ea750',
+        address: '0xA1F1Cd3b90f49c9d44ed324C69869df139616d55',
         abi: raffleAbi.abi,
         functionName: "joinRaffle",
         account: address,

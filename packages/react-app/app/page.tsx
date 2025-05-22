@@ -15,11 +15,13 @@ import { useEffect, useState } from "react";
 import AccountSheet from "@/components/account-sheet";
 import ContactSheet from "@/components/contact-sheet";
 import DailyChallengeSheet from "@/components/daily-challenge-sheet";
-import { fetchActiveRaffles,Raffle } from "@/helpers/raffledisplay";
+import { fetchActiveRaffles, Raffle } from "@/helpers/raffledisplay";
 import Link from "next/link";
 // import SpendPartnerQuestSheet from '@/components/spend-partner-quest-sheet';
 import { StaticImageData } from "next/image";
 import dynamic from 'next/dynamic'
+import { RaffleDetails } from "@/components/raffle-details";
+import truncateEthAddress from "truncate-eth-address";
 
 const SpendPartnerQuestSheet = dynamic(
   () => import('@/components/spend-partner-quest-sheet'),
@@ -32,7 +34,7 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   USDT: RaffleImg2,
   cKES: RaffleImg3,
   // default fallback:
-  default:   MinimilesSymbol, 
+  default: MinimilesSymbol,
 }
 
 const upcomingGames = [
@@ -47,24 +49,24 @@ export default function Home() {
   const [raffles, setRaffles] = useState<Raffle[]>([])
   const [loading, setLoading] = useState(true)
   const [spendSheetOpen, setSpendSheetOpen] = useState(false);
-const [spendRaffle,    setSpendRaffle]    = useState<SpendRaffle | null>(null);
-const [hasMounted, setHasMounted] = useState(false);
-useEffect(() => {
-  setHasMounted(true);
-}, []);
+  const [spendRaffle, setSpendRaffle] = useState<SpendRaffle | null>(null);
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   type SpendRaffle = {
     id: number;
-    title:      string;
-    reward:     string;
-    prize:      string;
-    endDate:    string;
+    title: string;
+    reward: string;
+    prize: string;
+    endDate: string;
     ticketCost: string;
-    image:      StaticImageData;
+    image: StaticImageData;
     balance: number;
     symbol: string;
   };
-  
+
 
   useEffect(() => {
     getUserAddress();
@@ -82,7 +84,7 @@ useEffect(() => {
     };
     fetchBalance();
   }, [address, getMiniMilesBalance]);
-  
+
   useEffect(() => {
     fetchActiveRaffles()
       .then(setRaffles)
@@ -100,7 +102,7 @@ useEffect(() => {
 
   return (
     <main className="pb-24 font-poppins">
-      <DashboardHeader name="Jash.mini" />
+      <DashboardHeader name={truncateEthAddress(address ?? "")} />
       <PointsCard points={Number(miniMilesBalance)} />
       <DailyChallenges />
       <div className="mx-4 mt-6">
@@ -111,7 +113,7 @@ useEffect(() => {
           </Link>
         </div>
         <div className="flex gap-3 overflow-x-auto">
-        {raffles.map((r) => (
+          {raffles.map((r) => (
             <RaffleCard
               key={r.id}
               image={r.image ?? RaffleImg1}
@@ -123,12 +125,12 @@ useEffect(() => {
                 const img = TOKEN_IMAGES[r.symbol] ?? TOKEN_IMAGES.default
                 setSpendRaffle({
                   id: Number(r.id),
-                  title:       `${r.symbol} raffle`,
-                  reward:     `${r.ticketCost} MiniMiles`,
-                  prize:      r.rewardPool ?? "—",
-                  endDate:    formatEndsIn(r.ends),
+                  title: `${r.symbol} raffle`,
+                  reward: `${r.ticketCost} MiniMiles`,
+                  prize: r.rewardPool ?? "—",
+                  endDate: formatEndsIn(r.ends),
                   ticketCost: `${r.ticketCost} MiniMiles`,
-                  image:      img as StaticImageData,
+                  image: img as StaticImageData,
                   balance: Number(miniMilesBalance),
                   symbol: r.symbol
                 });
@@ -139,11 +141,11 @@ useEffect(() => {
         </div>
       </div>
       {hasMounted && (<SpendPartnerQuestSheet
-  open={spendSheetOpen}
-  onOpenChange={setSpendSheetOpen}
-  raffle={spendRaffle}
-/> )}  
+        open={spendSheetOpen}
+        onOpenChange={setSpendSheetOpen}
+        raffle={spendRaffle}
+      />)}
     </main>
-    
+
   );
 }
