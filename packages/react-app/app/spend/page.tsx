@@ -139,7 +139,7 @@ useEffect(() => {
             <RaffleCard
               key={r.id}
               image={r.image ?? RaffleImg1}
-              title={r.description}
+              title={`${r.rewardPool} ${r.symbol} weekly`}
               endsIn={formatEndsIn(r.ends)}
               ticketCost={`${r.ticketCost} MiniMiles for 1 ticket`}
               icon={MinimilesSymbol}
