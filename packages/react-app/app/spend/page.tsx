@@ -124,12 +124,6 @@ useEffect(() => {
       </div>
       <MiniPointsCard points={Number(miniMilesBalance)} />
       <EnterRaffleSheet />
-      <Tabs defaultValue="active" className="mt-5">
-        <TabsList>
-          <TabsTrigger value="active" className="text-[#219653] bg-[#66D5754D] rounded-full font-bold">Active</TabsTrigger>
-          <TabsTrigger value="participating" className="ml-1 text-[#8E8B8B] bg-[#EBEBEB] rounded-full font-bold">Participating</TabsTrigger>
-        </TabsList>
-        <TabsContent value="active">
         <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-semibold">Digital Cash Raffles</h3>
@@ -215,9 +209,7 @@ useEffect(() => {
                 ))}
               </div>
             </div>
-        </TabsContent>
-        <TabsContent value="participating">Participating Raffles here</TabsContent>
-      </Tabs>
+  
 {/*      <SpendPartnerQuestSheet open={showPopup} onOpenChange={setShowPopup} raffle={selectedRaffle} />*/}
 {hasMounted && (<SpendPartnerQuestSheet
   open={spendSheetOpen}

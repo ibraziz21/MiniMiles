@@ -11,7 +11,6 @@ export default function MiniPointsCard({ points }: { points: number }) {
                 <Image src={MinimilesSymbolAlt} width={32} height={32} alt="" />
                 <p className="text-3xl font-bold pl-2 text-white">{points.toLocaleString()}</p>
             </div>
-            <h4 className="text-sm font-bold text-[#0E4023]">1 MiniMiles per $ 1.00 spent. *</h4>
         </div>
     );
 }
