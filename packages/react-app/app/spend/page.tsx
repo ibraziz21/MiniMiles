@@ -132,10 +132,7 @@ useEffect(() => {
         <TabsContent value="active">
         <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold">Join Raffles</h3>
-          <Link href='/spend'>
-            <span className="text-sm text-green-600 hover:underline">View more ›</span>
-          </Link>
+          <h3 className="text-lg font-semibold">Digital Cash Raffles</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
           {raffles.map((r) => (
@@ -166,15 +163,11 @@ useEffect(() => {
         </div>
       </div>
 
-          <div>
-            <div className="">
-              <div className="flex justify-between items-center mb-5 my-2">
-                <h3 className="text-sm font-bold">Physical Goods raffles</h3>
-                <Link href="/earn" className="text-sm text-green-600 hover:underline font-bold">
-                  See all ›
-                </Link>
-              </div>
-              <div className="flex space-x-3 overflow-x-auto px-4">
+            <div className="mx-4 mt-6">
+            <div className="flex justify-between items-center">
+          <h3 className="text-lg font-semibold">Physical Goods Raffles</h3>
+         </div>
+              <div className="flex gap-3 overflow-x-auto">
                 {physicalGoodsRaffles.map((raffle, idx) => (
                   <RaffleCard
                     key={idx}
@@ -191,14 +184,11 @@ useEffect(() => {
                 ))}
               </div>
             </div>
-            <div>
+          <div  className="mx-4 mt-6">
               <div className="flex justify-between items-center mb-5 my-2">
-                <h3 className="text-sm font-bold">NFT raffles</h3>
-                <Link href="/earn" className="text-sm text-green-600 hover:underline font-bold">
-                  See all ›
-                </Link>
+                <h3 className="text-lg font-bold">NFT raffles</h3>
               </div>
-              <div className="flex space-x-3 overflow-x-auto px-4">
+              <div className="flex gap-3 overflow-x-auto">
                 {nftRaffles.map((raffle, idx) => (
                   <RaffleCard
                     key={idx}
@@ -214,7 +204,8 @@ useEffect(() => {
                   />
                 ))}
               </div>
-            </div>
+              </div>
+           
 
             <div>
               <SectionHeading title="Upcoming games" />
@@ -224,7 +215,6 @@ useEffect(() => {
                 ))}
               </div>
             </div>
-          </div>
         </TabsContent>
         <TabsContent value="participating">Participating Raffles here</TabsContent>
       </Tabs>
