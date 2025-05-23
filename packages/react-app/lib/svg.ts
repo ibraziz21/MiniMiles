@@ -20,6 +20,7 @@ import OnboardingImgFour from "../public/svg/onboarding-img-four.svg"
 import NotificationSvg from "../public/svg/notification.svg"
 import GearSvg from "../public/svg/gear.svg"
 import Transcript from "../public/svg/transcript.svg"
+import Successsvg from "../public/svg/success.svg"
 
 export {
     Cash,
@@ -43,5 +44,6 @@ export {
     NotificationSvg,
     GearSvg,
     TicketAlt,
-    Transcript
+    Transcript,
+    Successsvg
 }

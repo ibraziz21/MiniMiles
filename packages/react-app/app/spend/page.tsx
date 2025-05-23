@@ -176,8 +176,18 @@ const Page = () => {
               ticketCost={raffle.ticketCost}
               icon={MinimilesSymbol}
               onClick={() => {
-                setSelectedRaffle(raffle);
-                setShowPopup(true);
+                setSpendRaffle({
+                  id: idx,
+                  title: raffle.title,
+                  reward: raffle.ticketCost,
+                  prize: raffle.title,
+                  endDate: `${raffle.endsIn} days`,
+                  ticketCost: raffle.ticketCost,
+                  image: raffle.image,
+                  balance: Number(miniMilesBalance),
+                  symbol: 'MiniMiles'
+                });
+                setSpendSheetOpen(true);
               }}
             />
           ))}
@@ -197,8 +207,19 @@ const Page = () => {
               ticketCost={raffle.ticketCost}
               icon={MinimilesSymbol}
               onClick={() => {
-                setSelectedRaffle(raffle);
-                setShowPopup(true);
+                setSpendRaffle({
+                  id: idx,
+                  title: raffle.title,
+                  reward: raffle.ticketCost,
+                  prize: raffle.title,
+                  endDate: `${raffle.endsIn} days`,
+                  ticketCost: raffle.ticketCost,
+                  image: raffle.image,
+                  balance: Number(miniMilesBalance),
+                  symbol: 'MiniMiles'
+                });
+                setSpendSheetOpen(true);
+                console.log("hello")
               }}
             />
           ))}
@@ -215,7 +236,7 @@ const Page = () => {
         </div>
       </div>
 
-      {/*      <SpendPartnerQuestSheet open={showPopup} onOpenChange={setShowPopup} raffle={selectedRaffle} />*/}
+      {/*      <SpendPartnerQuestSheet open={showPopup} onOpenChange={setSpendSheetOpen} raffle={selectedRaffle} />*/}
       {hasMounted && (<SpendPartnerQuestSheet
         open={spendSheetOpen}
         onOpenChange={setSpendSheetOpen}
