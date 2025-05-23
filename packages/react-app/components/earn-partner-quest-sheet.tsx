@@ -25,24 +25,42 @@ const EarnPartnerQuestSheet = ({ open, onOpenChange, quest, setOpenSuccess }: Pa
     
     if (!quest) return null;
 
-  const handleClaim = async () => {
+  // EarnPartnerQuestSheet.tsx  ⟨only handleClaim changed⟩
+const handleClaim = async () => {
     if (!address) {
-      alert('Wallet not connected');
+      alert("Wallet not connected");
       return;
     }
-    window.open(quest.actionLink, '_blank');
+  
+    /* ---------- decide how to open the partner app ---------- */
+    const isMiniPay = typeof window !== "undefined" && (window as any).ethereum?.isMiniPay;
+  
+    // Build a deep-link for Twitter quests
+    let destination = quest.actionLink;
+    if (quest.title.toLowerCase().includes("twitter")) {
+      // open the Twitter app if installed, else fall back to web
+      destination = isMiniPay
+        ? "twitter://user?screen_name=minimilesApp"
+        : "https://twitter.com/minimilesApp";
+    }
+  
+    if (isMiniPay) {
+      // leave MiniPay completely (opens external browser / app)
+      window.location.href = destination;
+    } else {
+      // normal browsers → new tab
+      window.open(destination, "_blank", "noopener,noreferrer");
+    }
+  
+    /* ---------- mint later (same as before) ---------- */
     setLoading(true);
     const { minted, error } = await claimPartnerQuest(address, quest.id);
-    setOpenSuccess ? setOpenSuccess(true) : null;
-
-    if (error) {
-      alert(error);
-    } else {
-      onOpenChange(false);
-    }
-    // Ensure loading is reset for next time
+    if (error) alert(error);
+    else setOpenSuccess?.(true);
     setLoading(false);
+    onOpenChange(false);
   };
+  
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="bg-white rounded-t-xl font-poppins p-4">
