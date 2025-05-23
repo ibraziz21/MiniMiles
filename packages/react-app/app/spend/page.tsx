@@ -139,8 +139,9 @@ const Page = () => {
               key={r.id}
               image={r.image ?? RaffleImg1}
               title={`${r.rewardPool} ${r.symbol} weekly`}
-              endsIn={r.ends}
+              endsIn={formatEndsIn(r.ends)}
               ticketCost={`${r.ticketCost} MiniMiles for 1 ticket`}
+              locked={false}
               icon={MinimilesSymbol}
               onClick={() => {
                 const img = TOKEN_IMAGES[r.symbol] ?? TOKEN_IMAGES.default
@@ -163,47 +164,41 @@ const Page = () => {
       </div>
 
       <div className="mx-4 mt-6">
-        <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold">Physical Goods Raffles</h3>
-        </div>
-        <div className="flex gap-3 overflow-x-auto">
-          {physicalGoodsRaffles.map((raffle, idx) => (
-            <RaffleCard
-              key={idx}
-              image={raffle.image}
-              title={raffle.title}
-              endsIn={raffle.endsIn}
-              ticketCost={raffle.ticketCost}
-              icon={MinimilesSymbol}
-              onClick={() => {
-                setSelectedRaffle(raffle);
-                setShowPopup(true);
-              }}
-            />
-          ))}
-        </div>
-      </div>
-      <div className="mx-4 mt-6">
-        <div className="flex justify-between items-center mb-5 my-2">
-          <h3 className="text-lg font-bold">NFT raffles</h3>
-        </div>
-        <div className="flex gap-3 overflow-x-auto">
-          {nftRaffles.map((raffle, idx) => (
-            <RaffleCard
-              key={idx}
-              image={raffle.image}
-              title={raffle.title}
-              endsIn={raffle.endsIn}
-              ticketCost={raffle.ticketCost}
-              icon={MinimilesSymbol}
-              onClick={() => {
-                setSelectedRaffle(raffle);
-                setShowPopup(true);
-              }}
-            />
-          ))}
-        </div>
-      </div>
+  <h3 className="text-lg font-semibold mb-2">Physical Goods Raffles</h3>
+  <div className="flex gap-3 overflow-x-auto">
+    {physicalGoodsRaffles.map((r, idx) => (
+      <RaffleCard
+        key={idx}
+        image={r.image}
+        title={r.title}
+        endsIn={`${r.endsIn} days`}
+        ticketCost={r.ticketCost}
+        icon={MinimilesSymbol}
+        locked={true}               // ← force Coming Soon
+        onClick={() => {/* … */}}
+      />
+    ))}
+  </div>
+</div>
+
+{/* NFT Raffles */}
+<div className="mx-4 mt-6">
+  <h3 className="text-lg font-semibold mb-2">NFT Raffles</h3>
+  <div className="flex gap-3 overflow-x-auto">
+    {nftRaffles.map((r, idx) => (
+      <RaffleCard
+        key={idx}
+        image={r.image}
+        title={r.title}
+        endsIn={`${r.endsIn} days`}
+        ticketCost={r.ticketCost}
+        icon={MinimilesSymbol}
+        locked={true}               // ← force Coming Soon
+        onClick={() => {/* … */}}
+      />
+    ))}
+  </div>
+</div>
 
 
       <div>
@@ -220,8 +215,7 @@ const Page = () => {
         open={spendSheetOpen}
         onOpenChange={setSpendSheetOpen}
         raffle={spendRaffle}
-        setOpenSuccess={setOpenSuccess}
-      />)}  <SuccessModal openSuccess={openSuccess} setOpenSuccess={setOpenSuccess} /> </main>
+      />)}  </main>
   );
 }
 
