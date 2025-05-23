@@ -164,41 +164,70 @@ const Page = () => {
       </div>
 
       <div className="mx-4 mt-6">
-  <h3 className="text-lg font-semibold mb-2">Physical Goods Raffles</h3>
-  <div className="flex gap-3 overflow-x-auto">
-    {physicalGoodsRaffles.map((r, idx) => (
-      <RaffleCard
-        key={idx}
-        image={r.image}
-        title={r.title}
-        endsIn={`${r.endsIn} days`}
-        ticketCost={r.ticketCost}
-        icon={MinimilesSymbol}
-        locked={true}               // ← force Coming Soon
-        onClick={() => {/* … */}}
-      />
-    ))}
-  </div>
-</div>
-
-{/* NFT Raffles */}
-<div className="mx-4 mt-6">
-  <h3 className="text-lg font-semibold mb-2">NFT Raffles</h3>
-  <div className="flex gap-3 overflow-x-auto">
-    {nftRaffles.map((r, idx) => (
-      <RaffleCard
-        key={idx}
-        image={r.image}
-        title={r.title}
-        endsIn={`${r.endsIn} days`}
-        ticketCost={r.ticketCost}
-        icon={MinimilesSymbol}
-        locked={true}               // ← force Coming Soon
-        onClick={() => {/* … */}}
-      />
-    ))}
-  </div>
-</div>
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-semibold">Physical Goods Raffles</h3>
+        </div>
+        <div className="flex gap-3 overflow-x-auto">
+          {physicalGoodsRaffles.map((raffle, idx) => (
+            <RaffleCard
+              key={idx}
+              image={raffle.image}
+              title={raffle.title}
+              endsIn={`${raffle.endsIn} days` }
+              ticketCost={raffle.ticketCost}
+              icon={MinimilesSymbol}
+              locked={true}
+              onClick={() => {
+                setSpendRaffle({
+                  id: idx,
+                  title: raffle.title,
+                  reward: raffle.ticketCost,
+                  prize: raffle.title,
+                  endDate: `${raffle.endsIn} days`,
+                  ticketCost: raffle.ticketCost,
+                  image: raffle.image,
+                  balance: Number(miniMilesBalance),
+                  symbol: 'MiniMiles'
+                });
+                setSpendSheetOpen(true);
+              }}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="mx-4 mt-6">
+        <div className="flex justify-between items-center mb-5 my-2">
+          <h3 className="text-lg font-bold">NFT raffles</h3>
+        </div>
+        <div className="flex gap-3 overflow-x-auto">
+          {nftRaffles.map((raffle, idx) => (
+            <RaffleCard
+              key={idx}
+              image={raffle.image}
+              title={raffle.title}
+              endsIn={`${raffle.endsIn} days` }
+              ticketCost={raffle.ticketCost}
+              icon={MinimilesSymbol}
+              locked={true}
+              onClick={() => {
+                setSpendRaffle({
+                  id: idx,
+                  title: raffle.title,
+                  reward: raffle.ticketCost,
+                  prize: raffle.title,
+                  endDate: `${raffle.endsIn} days`,
+                  ticketCost: raffle.ticketCost,
+                  image: raffle.image,
+                  balance: Number(miniMilesBalance),
+                  symbol: 'MiniMiles'
+                });
+                setSpendSheetOpen(true);
+                console.log("hello")
+              }}
+            />
+          ))}
+        </div>
+      </div>
 
 
       <div>
@@ -210,7 +239,7 @@ const Page = () => {
         </div>
       </div>
 
-      {/*      <SpendPartnerQuestSheet open={showPopup} onOpenChange={setShowPopup} raffle={selectedRaffle} />*/}
+      {/*      <SpendPartnerQuestSheet open={showPopup} onOpenChange={setSpendSheetOpen} raffle={selectedRaffle} />*/}
       {hasMounted && (<SpendPartnerQuestSheet
         open={spendSheetOpen}
         onOpenChange={setSpendSheetOpen}

@@ -12,9 +12,6 @@ import { useWeb3 } from "@/contexts/useWeb3";
 import { RaffleImg1, RaffleImg2, RaffleImg3, WinImg } from "@/lib/img";
 import { Celo, MinimilesSymbol } from "@/lib/svg";
 import { useEffect, useState } from "react";
-import AccountSheet from "@/components/account-sheet";
-import ContactSheet from "@/components/contact-sheet";
-import DailyChallengeSheet from "@/components/daily-challenge-sheet";
 import { fetchActiveRaffles, Raffle } from "@/helpers/raffledisplay";
 import Link from "next/link";
 // import SpendPartnerQuestSheet from '@/components/spend-partner-quest-sheet';
@@ -119,7 +116,7 @@ export default function Home() {
             <RaffleCard
               key={r.id}
               image={r.image ?? RaffleImg1}
-              title={r.description}
+              title={`${r.rewardPool} ${r.symbol} weekly`}
               endsIn={formatEndsIn(r.ends)}
               ticketCost={`${r.ticketCost} MiniMiles for 1 ticket`}
               icon={MinimilesSymbol}

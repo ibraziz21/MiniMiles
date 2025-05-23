@@ -9,7 +9,7 @@ const SuccessModal = ({ openSuccess, setOpenSuccess }: { openSuccess: boolean; s
             <DialogContent className="max-w-lg bg-white">
                 <DialogHeader>
                     <DialogTitle className="mb-[20px]">
-                        Raffle Purchase Successful
+                        Claimed
                     </DialogTitle>
                     <Player
                         keepLastFrame
