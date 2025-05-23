@@ -9,11 +9,12 @@ import { RaffleCard } from '@/components/raffle-card';
 import { RaffleDetails } from '@/components/raffle-details';
 import { SectionHeading } from '@/components/section-heading';
 import SpendPartnerQuestSheet from '@/components/spend-partner-quest-sheet';
+import SuccessModal from '@/components/success-modal';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
 import { fetchActiveRaffles, Raffle } from '@/helpers/raffledisplay';
-import { RaffleImg1, RaffleImg2, RaffleImg3, RaffleImg4, WinImg } from '@/lib/img';
+import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, RaffleImg4, WinImg } from '@/lib/img';
 import { MinimilesSymbol } from '@/lib/svg';
 import { Question } from '@phosphor-icons/react';
 import { StaticImageData } from 'next/image';
@@ -26,18 +27,18 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   USDT: RaffleImg2,
   cKES: RaffleImg3,
   // default fallback:
-  default:   MinimilesSymbol, 
+  default: MinimilesSymbol,
 }
 
 // Shape it to what SpendPartnerQuestSheet expects:
 type SpendRaffle = {
   id: number;
-  title:      string;
-  reward:     string;
-  prize:      string;
-  endDate:    string;
+  title: string;
+  reward: string;
+  prize: string;
+  endDate: string;
   ticketCost: string;
-  image:      StaticImageData;
+  image: StaticImageData;
   balance: number;
   symbol: string;
 };
@@ -45,23 +46,23 @@ type SpendRaffle = {
 
 
 const digitalCashRaffles = [
-  { image: RaffleImg1, title: "500 USDT weekly", endsIn: "7 days", ticketCost: "10 MiniMiles for 1 ticket" },
-  { image: RaffleImg2, title: "250 USDT", endsIn: "7 days", ticketCost: "6 points for 1 ticket" },
+  { image: RaffleImg1, title: "500 USDT weekly", endsIn: 2, ticketCost: "10 MiniMiles for 1 ticket" },
+  { image: RaffleImg2, title: "250 USDT", endsIn: 5, ticketCost: "6 points for 1 ticket" },
 ];
 
 const physicalGoodsRaffles = [
-  { image: RaffleImg3, title: "Ledger hardware wallet", endsIn: "5 days", ticketCost: "3 MiniMiles for 1 ticket" },
-  { image: RaffleImg4, title: "Laptop", endsIn: "4 days", ticketCost: "50 tickets by brand" },
+  { image: RaffleImg3, title: "Ledger hardware wallet", endsIn: 6, ticketCost: "3 MiniMiles for 1 ticket" },
+  { image: RaffleImg4, title: "Laptop", endsIn: 4, ticketCost: "50 tickets by brand" },
 ];
 
 const nftRaffles = [
-  { image: RaffleImg3, title: "BoredApe #567", endsIn: "3 days", ticketCost: "10 MiniMiles for 1 ticket" },
-  { image: RaffleImg2, title: "CryptoPunk #789", endsIn: "2 days", ticketCost: "12 MiniMiles" },
+  { image: RaffleImg3, title: "BoredApe #567", endsIn: 7, ticketCost: "10 MiniMiles for 1 ticket" },
+  { image: RaffleImg2, title: "CryptoPunk #789", endsIn: 3, ticketCost: "12 MiniMiles" },
 ];
 
 const upcomingGames = [
-  { name: "Dice", date: "xx/xx/xx", image: "/dice.jpg" },
-  { name: "Coin flip", date: "xx/xx/xx", image: "/coin.jpg" },
+  { name: "Dice", date: "xx/xx/xx", image: Dice },
+  { name: "Coin flip", date: "xx/xx/xx", image: Dice },
 ];
 
 const Page = () => {
@@ -74,11 +75,13 @@ const Page = () => {
   const [loading, setLoading] = useState(true)
   const [raffles, setRaffles] = useState<Raffle[]>([])
   const [spendSheetOpen, setSpendSheetOpen] = useState(false);
-const [spendRaffle,    setSpendRaffle]    = useState<SpendRaffle | null>(null); 
-const [hasMounted, setHasMounted] = useState(false);
-useEffect(() => {
-  setHasMounted(true);
-}, []);
+  const [spendRaffle, setSpendRaffle] = useState<SpendRaffle | null>(null);
+  const [hasMounted, setHasMounted] = useState(false);
+  const [openSuccess, setOpenSuccess] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
 
 
@@ -117,14 +120,16 @@ useEffect(() => {
 
 
   return (
-    <main className="pb-24 font-poppins bg-onboarding px-3">
-      <div className="pt-4">
-        <h1 className="text-2xl font-bold mt-2">Spend</h1>
+    <main className="pb-24 font-poppins bg-onboarding">
+      <div className="p-4">
+        <h1 className="text-2xl font-bold m-2">Spend</h1>
         <h3>Win big by entering our Raffles</h3>
       </div>
       <MiniPointsCard points={Number(miniMilesBalance)} />
-      <EnterRaffleSheet />
-        <div className="mx-4 mt-6">
+      <div className="mx-3">
+        <EnterRaffleSheet />
+      </div>
+      <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-semibold">Digital Cash Raffles</h3>
         </div>
@@ -136,19 +141,20 @@ useEffect(() => {
               title={`${r.rewardPool} ${r.symbol} weekly`}
               endsIn={formatEndsIn(r.ends)}
               ticketCost={`${r.ticketCost} MiniMiles for 1 ticket`}
+              locked={false}
               icon={MinimilesSymbol}
               onClick={() => {
                 const img = TOKEN_IMAGES[r.symbol] ?? TOKEN_IMAGES.default
                 setSpendRaffle({
-                  id:  Number(r.id),
-                  title:      r.description,
-                  reward:     `${r.ticketCost} MiniMiles`,
-                  prize:      r.rewardPool ?? "—",
-                  endDate:    formatEndsIn(r.ends),
+                  id: Number(r.id),
+                  title: r.description,
+                  reward: `${r.ticketCost} MiniMiles`,
+                  prize: r.rewardPool ?? "—",
+                  endDate: formatEndsIn(r.ends),
                   ticketCost: `${r.ticketCost} MiniMiles`,
-                  image:      img as StaticImageData,
+                  image: img as StaticImageData,
                   balance: Number(miniMilesBalance),
-                  symbol:  r.symbol
+                  symbol: r.symbol
                 });
                 setSpendSheetOpen(true);
               }}
@@ -157,65 +163,59 @@ useEffect(() => {
         </div>
       </div>
 
-            <div className="mx-4 mt-6">
-            <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold">Physical Goods Raffles</h3>
-         </div>
-              <div className="flex gap-3 overflow-x-auto">
-                {physicalGoodsRaffles.map((raffle, idx) => (
-                  <RaffleCard
-                    key={idx}
-                    image={raffle.image}
-                    title={raffle.title}
-                    endsIn={raffle.endsIn}
-                    ticketCost={raffle.ticketCost}
-                    icon={MinimilesSymbol}
-                    onClick={() => {
-                      setSelectedRaffle(raffle);
-                      setShowPopup(true);
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          <div  className="mx-4 mt-6">
-              <div className="flex justify-between items-center mb-5 my-2">
-                <h3 className="text-lg font-bold">NFT raffles</h3>
-              </div>
-              <div className="flex gap-3 overflow-x-auto">
-                {nftRaffles.map((raffle, idx) => (
-                  <RaffleCard
-                    key={idx}
-                    image={raffle.image}
-                    title={raffle.title}
-                    endsIn={raffle.endsIn}
-                    ticketCost={raffle.ticketCost}
-                    icon={MinimilesSymbol}
-                    onClick={() => {
-                      setSelectedRaffle(raffle);
-                      setShowPopup(true);
-                    }}
-                  />
-                ))}
-              </div>
-              </div>
-           
+      <div className="mx-4 mt-6">
+  <h3 className="text-lg font-semibold mb-2">Physical Goods Raffles</h3>
+  <div className="flex gap-3 overflow-x-auto">
+    {physicalGoodsRaffles.map((r, idx) => (
+      <RaffleCard
+        key={idx}
+        image={r.image}
+        title={r.title}
+        endsIn={`${r.endsIn} days`}
+        ticketCost={r.ticketCost}
+        icon={MinimilesSymbol}
+        locked={true}               // ← force Coming Soon
+        onClick={() => {/* … */}}
+      />
+    ))}
+  </div>
+</div>
 
-            <div>
-              <SectionHeading title="Upcoming games" />
-              <div className="flex space-x-3 overflow-x-auto px-4">
-                {upcomingGames.map((game, idx) => (
-                  <GameCard key={idx} name={game.name} date={game.date} image={game.image} />
-                ))}
-              </div>
-            </div>
-  
-{/*      <SpendPartnerQuestSheet open={showPopup} onOpenChange={setShowPopup} raffle={selectedRaffle} />*/}
-{hasMounted && (<SpendPartnerQuestSheet
-  open={spendSheetOpen}
-  onOpenChange={setSpendSheetOpen}
-  raffle={spendRaffle}
-/> )}   </main>
+{/* NFT Raffles */}
+<div className="mx-4 mt-6">
+  <h3 className="text-lg font-semibold mb-2">NFT Raffles</h3>
+  <div className="flex gap-3 overflow-x-auto">
+    {nftRaffles.map((r, idx) => (
+      <RaffleCard
+        key={idx}
+        image={r.image}
+        title={r.title}
+        endsIn={`${r.endsIn} days`}
+        ticketCost={r.ticketCost}
+        icon={MinimilesSymbol}
+        locked={true}               // ← force Coming Soon
+        onClick={() => {/* … */}}
+      />
+    ))}
+  </div>
+</div>
+
+
+      <div>
+        <SectionHeading title="Upcoming games" />
+        <div className="flex space-x-3 overflow-x-auto px-4">
+          {upcomingGames.map((game, idx) => (
+            <GameCard key={idx} name={game.name} date={game.date} image={game.image} />
+          ))}
+        </div>
+      </div>
+
+      {/*      <SpendPartnerQuestSheet open={showPopup} onOpenChange={setShowPopup} raffle={selectedRaffle} />*/}
+      {hasMounted && (<SpendPartnerQuestSheet
+        open={spendSheetOpen}
+        onOpenChange={setSpendSheetOpen}
+        raffle={spendRaffle}
+      />)}  </main>
   );
 }
 

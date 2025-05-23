@@ -16,7 +16,7 @@ const EnterRaffleSheet = () => {
       {/* Tell Radix to use our <button> as the trigger, not wrap it */}
       <SheetTrigger asChild>
         <button
-          className="w-full p-3 rounded-xl flex items-center justify-center gap-3 font-semibold tracking-wide shadow-sm text-[#07955F] bg-[#07955F1A] hover:bg-[#07955F1A] disabled:bg-[#07955F]"
+          className=" w-full p-3 rounded-xl flex items-center justify-center gap-3 font-semibold tracking-wide shadow-sm text-[#07955F] bg-[#07955F1A] hover:bg-[#07955F1A] disabled:bg-[#07955F]"
         >
           <Question size={24} />
           <span>How to enter a raffle?</span>

@@ -22,6 +22,7 @@ import { StaticImageData } from "next/image";
 import dynamic from 'next/dynamic'
 import { RaffleDetails } from "@/components/raffle-details";
 import truncateEthAddress from "truncate-eth-address";
+import SuccessModal from "@/components/success-modal";
 
 const SpendPartnerQuestSheet = dynamic(
   () => import('@/components/spend-partner-quest-sheet'),
@@ -51,6 +52,7 @@ export default function Home() {
   const [spendSheetOpen, setSpendSheetOpen] = useState(false);
   const [spendRaffle, setSpendRaffle] = useState<SpendRaffle | null>(null);
   const [hasMounted, setHasMounted] = useState(false);
+  const [openSuccess, setOpenSuccess ] = useState(false);
   useEffect(() => {
     setHasMounted(true);
   }, []);
