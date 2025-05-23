@@ -9,12 +9,14 @@ import React, { useEffect, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { useWeb3 } from "@/contexts/useWeb3";
 import EarnPartnerQuestSheet from '@/components/earn-partner-quest-sheet';
+import SuccessModal from '@/components/success-modal';
 
 const Page = () => {
   const { address, getUserAddress, getMiniMilesBalance } = useWeb3();
   const [showPopup, setShowPopup] = useState(false);
   const [miniMilesBalance, setMiniMilesBalance] = useState('120');
   const [selectedQuest, setSelectedQuest] = useState<any>(null);
+  const [openSuccess, setOpenSuccess] = useState(false);
 
   useEffect(() => {
     getUserAddress();
@@ -47,7 +49,8 @@ const Page = () => {
       <MiniPointsCard points={Number(miniMilesBalance)} />
       <DailyChallenges />
       <PartnerQuests openPopup={handleOpenPopup} />
-      <EarnPartnerQuestSheet open={showPopup} onOpenChange={setShowPopup} quest={selectedQuest} />
+      <EarnPartnerQuestSheet open={showPopup} onOpenChange={setShowPopup} quest={selectedQuest} setOpenSuccess={setOpenSuccess} />
+      <SuccessModal openSuccess={openSuccess} setOpenSuccess={setOpenSuccess} />
     </main>
   );
 };

@@ -11,9 +11,10 @@ interface PartnerQuestSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   quest: Quest | null;
+  setOpenSuccess?: (c:boolean) => void;
 }
 
-const EarnPartnerQuestSheet = ({ open, onOpenChange, quest }: PartnerQuestSheetProps) => {
+const EarnPartnerQuestSheet = ({ open, onOpenChange, quest, setOpenSuccess }: PartnerQuestSheetProps) => {
     const [loading, setLoading] = useState(false);
     const { address, getUserAddress } = useWeb3();
   
@@ -32,6 +33,7 @@ const EarnPartnerQuestSheet = ({ open, onOpenChange, quest }: PartnerQuestSheetP
     window.open(quest.actionLink, '_blank');
     setLoading(true);
     const { minted, error } = await claimPartnerQuest(address, quest.id);
+    setOpenSuccess ? setOpenSuccess(true) : null;
 
     if (error) {
       alert(error);
