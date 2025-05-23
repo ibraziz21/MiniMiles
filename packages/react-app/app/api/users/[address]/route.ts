@@ -7,11 +7,8 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY!
 );
 
-export async function GET(
-  request: Request,
-  { params }: { params: { address: string } }
-) {
-    const { address } = await params;
+export async function GET(request: Request, context: any) {
+    const address = context.params.address as string;
   if (!address) {
     return NextResponse.json({ error: "Missing address" }, { status: 400 });
   }
