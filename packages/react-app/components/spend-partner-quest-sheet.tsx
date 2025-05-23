@@ -130,6 +130,11 @@ export default function SpendPartnerQuestSheet({
 
             <div className="flex justify-center">
               <Image src={Successsvg} alt="Success" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-white text-center">
+                <div className="flex items-center py-1 px-3 justify-center">
+                  <h2 className="text-xl mx-2">{count}</h2><h4 className="text-white text-sm"> Tickets</h4>
+                </div>
+              </div>
             </div>
 
             <Link
@@ -232,11 +237,10 @@ export default function SpendPartnerQuestSheet({
                   key={n}
                   onClick={() => setCount(Math.min(n, maxTickets))}
                   disabled={n > maxTickets}
-                  className={`flex-1 rounded-xl py-2 font-semibold ${
-                    count === n
-                      ? "bg-green-600 text-white"
-                      : "bg-gray-100 text-gray-800"
-                  }`}
+                  className={`flex-1 rounded-xl py-2 font-semibold ${count === n
+                    ? "bg-green-600 text-white"
+                    : "bg-gray-100 text-gray-800"
+                    }`}
                 >
                   <div className="flex items-center justify-center space-x-1">
                     <Image
