@@ -34,35 +34,44 @@ async function main() {
   // console.log("Tx Hash: ", allowRaffle.hash)
 
  //npx hardhat verify 0x9a9808Df68255c0EB0771814C9Bf5d6c7784091b 84628191486477406120341082024507574697055389208972799154939633540122731552071 0x787d74caea10b2b357790d5b5247c2f63d1d91572a9846f780606e4d953677ae 0x779877A7B0D9E8603169DdbD7836e478b4624789 0xa29dAcE44cEE5Aa2B143981031DafdEc5c09dBA5 --network sepolia
-  const rewardPool = ethers.utils.parseUnits("100", 18);  // 100 USDC (6 dec)
-  const approveTx  = await usdc.approve(RAFFLE_ADDR, rewardPool);
-  await approveTx.wait();
-  console.log(`✅ Approved ${ethers.utils.formatUnits(rewardPool,18 )} USDC`);
+  // const rewardPool = ethers.utils.parseUnits("100", 18);  // 100 USDC (6 dec)
+  // const approveTx  = await usdc.approve(RAFFLE_ADDR, rewardPool);
+  // await approveTx.wait();
+  // console.log(`✅ Approved ${ethers.utils.formatUnits(rewardPool,18 )} USDC`);
 
 // // //   // 2. compute startTime = now + 5 minutes
   const latest      = await provider.getBlock("latest");
   const startTime   = BigInt(latest.timestamp) + 1000n; // 300 s = 5 min
 
-//   const vrfFee = ethers.utils.parseEther("0.01");
-//   const reqTx  = await raffle.drawWinner(
-//     2                          // _roundI          // payable fee
-//   );
-//   await reqTx.wait();
-//   console.log("🎲 Randomness requested in tx:", reqTx.hash);
+  const vrfFee = ethers.utils.parseEther("0.01");
+  
+  // const reqTx  = await raffle.requestRoundRandomness(
+  //   1 , {value: vrfFee}                       // _roundI          // payable fee
+  // );
+  // await reqTx.wait();
+  // console.log("🎲 Randomness requested in tx:", reqTx.hash);
+
+
+  //  const reqTx  = await raffle.drawWinner(
+  //   1                       // _roundI          // payable fee
+  // );
+  // await reqTx.wait();
+  // console.log("🎲 Randomness requested in tx:", reqTx.hash);
 
 
   // // // 3. create the round
   const tx = await raffle.createRaffleRound(
     startTime,               // _startTime
     1200000,                 // _duration (1 week)
-    1_0,                   // _maxTickets
+    3_0,                   // _maxTickets
     cUSD,               // _token
-    ethers.utils.parseEther('1'),              // _rewardpool
+    ethers.utils.parseEther('3'),              // _rewardpool
     ethers.utils.parseUnits("5", 18), // _ticketCostPoints (50 MiniPoints)              // _beneficiary
   );
   await tx.wait();
   console.log("🎉 Round created in tx:", tx.hash);
 
+  
 
   //   await tx.wait();
   // console.log(ownerSigner.address, ": Round Joined in tx:", tx.hash);

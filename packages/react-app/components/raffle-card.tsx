@@ -6,7 +6,7 @@ import Image, { StaticImageData } from "next/image";
 export type RaffleCardProps = {
   image: StaticImageData;
   title: string;
-  endsIn: number;
+  endsIn: string;
   ticketCost: string;
   icon: StaticImageData;
   onClick?: () => void;

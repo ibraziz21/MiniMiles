@@ -173,9 +173,10 @@ const Page = () => {
               key={idx}
               image={raffle.image}
               title={raffle.title}
-              endsIn={raffle.endsIn}
+              endsIn={`${raffle.endsIn} days` }
               ticketCost={raffle.ticketCost}
               icon={MinimilesSymbol}
+              locked={true}
               onClick={() => {
                 setSpendRaffle({
                   id: idx,
@@ -204,9 +205,10 @@ const Page = () => {
               key={idx}
               image={raffle.image}
               title={raffle.title}
-              endsIn={raffle.endsIn}
+              endsIn={`${raffle.endsIn} days` }
               ticketCost={raffle.ticketCost}
               icon={MinimilesSymbol}
+              locked={true}
               onClick={() => {
                 setSpendRaffle({
                   id: idx,
