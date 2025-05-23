@@ -120,7 +120,7 @@ export default function Home() {
               key={r.id}
               image={r.image ?? RaffleImg1}
               title={r.description}
-              endsIn={r.ends}
+              endsIn={formatEndsIn(r.ends)}
               ticketCost={`${r.ticketCost} MiniMiles for 1 ticket`}
               icon={MinimilesSymbol}
               onClick={() => {
@@ -146,9 +146,7 @@ export default function Home() {
         open={spendSheetOpen}
         onOpenChange={setSpendSheetOpen}
         raffle={spendRaffle}
-        setOpenSuccess={setOpenSuccess}
       />)}
-      <SuccessModal openSuccess={openSuccess} setOpenSuccess={setOpenSuccess} />
     </main>
 
   );

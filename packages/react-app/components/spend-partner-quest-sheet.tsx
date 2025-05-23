@@ -21,13 +21,13 @@ import Link from "next/link";
 
 interface SpendRaffle {
   id: number;
-  title: string;
-  reward: string;
-  prize: string;
-  endDate: string;
+  title:      string;
+  reward:     string;
+  prize:      string;
+  endDate:    string;
   ticketCost: string;         // e.g. "5 MiniMiles"
-  image: StaticImageData;
-  balance: number;         // user balance in MiniMiles
+  image:      StaticImageData;
+  balance:    number;         // user balance in MiniMiles
   symbol: string;
 }
 
@@ -44,7 +44,6 @@ export default function SpendPartnerQuestSheet({
   open,
   onOpenChange,
   raffle,
-  setOpenSuccess
 }: SpendPartnerQuestSheetProps) {
   // ⚠️ Hooks must come first, unconditionally:
   const [count, setCount] = useState(1);
@@ -53,8 +52,7 @@ export default function SpendPartnerQuestSheet({
   // We'll compute these per-render below, after the early return
   // (but we need them in our effects too, so we'll derive safe fallbacks now)
   const ticketCostNum = Number(raffle?.ticketCost.replace(/\D/g, "")) || 1;
-  const maxTickets = Math.max(Math.floor((raffle?.balance ?? 1) / ticketCostNum), 1);
-
+  const maxTickets    = Math.max(Math.floor((raffle?.balance ?? 1) / ticketCostNum), 1);
 
   // Whenever the raffle object changes, reset to 1
   useEffect(() => {
@@ -63,7 +61,7 @@ export default function SpendPartnerQuestSheet({
 
   // Clamp into [1..maxTickets] any time count or maxTickets change
   useEffect(() => {
-    if (count < 1) setCount(1);
+    if (count < 1)         setCount(1);
     else if (count > maxTickets) setCount(maxTickets);
   }, [count, maxTickets]);
 

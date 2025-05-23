@@ -139,8 +139,9 @@ const Page = () => {
               key={r.id}
               image={r.image ?? RaffleImg1}
               title={`${r.rewardPool} ${r.symbol} weekly`}
-              endsIn={r.ends}
+              endsIn={formatEndsIn(r.ends)}
               ticketCost={`${r.ticketCost} MiniMiles for 1 ticket`}
+              locked={false}
               icon={MinimilesSymbol}
               onClick={() => {
                 const img = TOKEN_IMAGES[r.symbol] ?? TOKEN_IMAGES.default
@@ -241,8 +242,7 @@ const Page = () => {
         open={spendSheetOpen}
         onOpenChange={setSpendSheetOpen}
         raffle={spendRaffle}
-        setOpenSuccess={setOpenSuccess}
-      />)}  <SuccessModal openSuccess={openSuccess} setOpenSuccess={setOpenSuccess} /> </main>
+      />)}  </main>
   );
 }
 
