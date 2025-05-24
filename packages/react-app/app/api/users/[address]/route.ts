@@ -10,11 +10,12 @@ const supabase = createClient(
 /* -------------------------------------------------------------------------- */
 /*  GET /api/users/[address]                                                  */
 /* -------------------------------------------------------------------------- */
-export async function GET(
-  _req: Request,                                  // 1) the incoming request
-  { params }: { params: { address: string } }     // 2) the *typed* params obj
-) {
-  const address = params.address;
+export async function GET(request: Request, context: any) {
+  const address = context.params.address as string;
+if (!address) {
+  return NextResponse.json({ error: "Missing address" }, { status: 400 });
+}
+
   console.log(address)
 
   if (!address) {
