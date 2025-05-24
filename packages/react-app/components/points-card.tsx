@@ -19,7 +19,7 @@ export default function PointsCard({ points }: { points: number }) {
                     <Link href="/earn" className="p-3 rounded-xl flex items-center justify-center w-full gap-3 font-semibold tracking-wide shadow-sm text-[#07955F] bg-[#07955F1A] hover:bg-[#07955F1A] disabled:bg-[#07955F]">
                         <Image src={Earn} alt="" /> <h3>Earn</h3>
                     </Link>
-                    <Link href="" className="p-3 rounded-xl flex items-center justify-center w-full gap-3 font-semibold tracking-wide shadow-sm text-[#07955F] bg-[#07955F] hover:bg-[#07955F] disabled:bg-[#07955F]">
+                    <Link href="/spend" className="p-3 rounded-xl flex items-center justify-center w-full gap-3 font-semibold tracking-wide shadow-sm text-[#07955F] bg-[#07955F] hover:bg-[#07955F] disabled:bg-[#07955F]">
                         <Image src={TicketAlt} alt="" />  <h3 className="text-white">Spend</h3></Link>
                 </div>
                 <Link href="" className="p-3 rounded-xl flex items-center justify-center w-full gap-3 font-semibold tracking-wide shadow-sm text-[#07955F] ">

@@ -1,59 +1,95 @@
 "use client";
 
-import DailyChallenges from '@/components/daily-challenge';
-import { Hero } from '@/components/Hero';
-import MiniPointsCard from '@/components/mini-points-card';
-import PartnerQuests from '@/components/partner-quests';
-import SwapRewardPopup from '@/components/swap-reward-popup';
-import React, { useEffect, useState } from 'react';
-import { Button } from "@/components/ui/button";
+import MiniPointsCard from "@/components/mini-points-card";
+import DailyChallenges from "@/components/daily-challenge";
+import PartnerQuests  from "@/components/partner-quests";
+import EarnPartnerQuestSheet from "@/components/earn-partner-quest-sheet";
+import SuccessModal   from "@/components/success-modal";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useWeb3 } from "@/contexts/useWeb3";
-import EarnPartnerQuestSheet from '@/components/earn-partner-quest-sheet';
-import SuccessModal from '@/components/success-modal';
+import React, { useEffect, useState } from "react";
 
-const Page = () => {
+export default function EarnPage() {
   const { address, getUserAddress, getMiniMilesBalance } = useWeb3();
-  const [showPopup, setShowPopup] = useState(false);
-  const [miniMilesBalance, setMiniMilesBalance] = useState('120');
-  const [selectedQuest, setSelectedQuest] = useState<any>(null);
-  const [openSuccess, setOpenSuccess] = useState(false);
+  const [balance, setBalance] = useState("0");
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [quest, setQuest] = useState<any>(null);
+  const [success, setSuccess] = useState(false);
 
+  /* wallet + balance */
+  useEffect(() => { getUserAddress(); }, [getUserAddress]);
   useEffect(() => {
-    getUserAddress();
-  }, []);
-
-  useEffect(() => {
-    const fetchBalance = async () => {
-      if (!address) return;
-      try {
-        const balance = await getMiniMilesBalance();
-        setMiniMilesBalance(balance);
-      } catch (error) {
-        console.log(error);
-      }
-    };
-    fetchBalance();
+    if (!address) return;
+    (async () => {
+      const b = await getMiniMilesBalance();
+      setBalance(b);
+    })();
   }, [address, getMiniMilesBalance]);
 
-  const handleOpenPopup = (quest: any) => {
-    setSelectedQuest(quest);
-    setShowPopup(true);
-  };
+  const openQuest = (q: any) => { setQuest(q); setSheetOpen(true); };
 
   return (
     <main className="pb-24 font-poppins bg-white">
       <div className="px-4 pt-4">
-        <h1 className="text-2xl font-bold mt-2">Earn</h1>
-        <h3>Complete challenges and quests to earn MiniMiles.</h3>
+        <h1 className="text-2xl font-bold">Earn</h1>
+        <p>Complete challenges and quests to earn MiniMiles.</p>
       </div>
-      <MiniPointsCard points={Number(miniMilesBalance)} />
-      <DailyChallenges />
-      <PartnerQuests openPopup={handleOpenPopup} />
-      <EarnPartnerQuestSheet open={showPopup} onOpenChange={setShowPopup} quest={selectedQuest} setOpenSuccess={setOpenSuccess} />
-      <SuccessModal openSuccess={openSuccess} setOpenSuccess={setOpenSuccess} />
+
+      <MiniPointsCard points={Number(balance)} />
+
+      {/* ── Page-level Active / Completed tabs ───────────── */}
+      <Tabs defaultValue="active" className="mx-4">
+        <TabsList>
+          <TabsTrigger
+            value="active"
+            className="bg-[#EBEBEB] text-[#8E8B8B]
+                       data-[state=active]:bg-[#66D5754D]
+                       data-[state=active]:text-[#219653]
+                       rounded-full font-bold"
+          >
+            Active
+          </TabsTrigger>
+          <TabsTrigger
+            value="completed"
+            className="ml-1 bg-[#EBEBEB] text-[#8E8B8B]
+                       data-[state=active]:bg-[#66D5754D]
+                       data-[state=active]:text-[#219653]
+                       rounded-full font-bold"
+          >
+            Completed
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ── ACTIVE tab ─────────────────────────── */}
+        <TabsContent value="active">
+          {/* Daily (active only) */}
+          <h3 className="text-lg font-bold mt-6 mb-2">Daily challenges</h3>
+          <DailyChallenges />
+
+     
+          <PartnerQuests openPopup={openQuest} />
+        </TabsContent>
+
+        {/* ── COMPLETED tab ──────────────────────── */}
+        <TabsContent value="completed">
+          <h3 className="text-lg font-bold mt-6 mb-2">Completed today</h3>
+          {/* reuse DailyChallenges with flag */}
+          <DailyChallenges showCompleted />
+
+          {/* partner quests don’t yet track completion —
+              if/when you store partner_engagements, you can
+              add a PartnerQuestsCompleted component here */}
+        </TabsContent>
+      </Tabs>
+
+      {/* sheets / modals */}
+      <EarnPartnerQuestSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        quest={quest}
+        setOpenSuccess={setSuccess}
+      />
+      <SuccessModal openSuccess={success} setOpenSuccess={setSuccess} />
     </main>
   );
-};
-
-
-export default Page;
+}

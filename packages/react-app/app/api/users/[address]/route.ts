@@ -7,12 +7,25 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY!
 );
 
+/* -------------------------------------------------------------------------- */
+/*  GET /api/users/[address]                                                  */
+/* -------------------------------------------------------------------------- */
 export async function GET(request: Request, context: any) {
-    const address = context.params.address as string;
+  const address = context.params.address as string;
+if (!address) {
+  return NextResponse.json({ error: "Missing address" }, { status: 400 });
+}
+
+  console.log(address)
+
   if (!address) {
-    return NextResponse.json({ error: "Missing address" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing address" },
+      { status: 400 }
+    );
   }
 
+  /* ---- DB lookup --------------------------------------------------------- */
   const { data, error } = await supabase
     .from("users")
     .select("is_member")
@@ -20,10 +33,13 @@ export async function GET(request: Request, context: any) {
     .single();
 
   if (error && error.code !== "PGRST116") {
+    // PGRST116 = no rows
     console.error(error);
-    return NextResponse.json({ error: "Database error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Database error" },
+      { status: 500 }
+    );
   }
 
-  const isMember = data?.is_member === true;
-  return NextResponse.json({ isMember });
+  return NextResponse.json({ isMember: data?.is_member === true });
 }

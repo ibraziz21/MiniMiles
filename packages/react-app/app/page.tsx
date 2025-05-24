@@ -49,7 +49,7 @@ export default function Home() {
   const [spendSheetOpen, setSpendSheetOpen] = useState(false);
   const [spendRaffle, setSpendRaffle] = useState<SpendRaffle | null>(null);
   const [hasMounted, setHasMounted] = useState(false);
-  const [openSuccess, setOpenSuccess ] = useState(false);
+  const [openSuccess, setOpenSuccess] = useState(false);
   useEffect(() => {
     setHasMounted(true);
   }, []);
@@ -103,7 +103,14 @@ export default function Home() {
     <main className="pb-24 font-poppins bg-white">
       <DashboardHeader name={truncateEthAddress(address ?? "")} />
       <PointsCard points={Number(miniMilesBalance)} />
-      <DailyChallenges />
+      <div className="mx-4 mt-6">
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-bold mt-6 mb-2">Daily challenges</h3>
+        </div>
+        <div className="flex gap-3 overflow-x-auto">
+          <DailyChallenges />
+        </div>
+      </div>
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-semibold">Join Raffles</h3>

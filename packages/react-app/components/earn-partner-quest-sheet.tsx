@@ -99,15 +99,9 @@ const handleClaim = async () => {
           onClick={handleClaim}
           disabled={loading}
         />
-        <Button
-          className="w-full text-green-600 bg-green-50"
-          title="Close"
-          onClick={() => onOpenChange(false)}
-        />
+     
 
-        <p className="text-center text-xs text-gray-400 mt-2">
-          Valid until xx/xx/xxxx. Terms apply.
-        </p>
+       
       </SheetContent>
     </Sheet>
   );
