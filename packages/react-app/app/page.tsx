@@ -100,7 +100,7 @@ export default function Home() {
   };
 
   return (
-    <main className="pb-24 font-poppins">
+    <main className="pb-24 font-poppins bg-white">
       <DashboardHeader name={truncateEthAddress(address ?? "")} />
       <PointsCard points={Number(miniMilesBalance)} />
       <DailyChallenges />
