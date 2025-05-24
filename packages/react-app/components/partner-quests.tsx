@@ -75,55 +75,65 @@ const quests: Quest[] = [
   },
 ];
 
-export default function PartnerQuests({ openPopup }: { openPopup: (q: Quest) => void }) {
+export default function PartnerQuests({
+  openPopup,
+}: {
+  openPopup: (q: Quest) => void;
+}) {
   return (
     <div className="mx-4 mt-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-bold">Partner Quests</h3>
-        <Link href='/earn'>
-          <span className="text-sm text-green-600 hover:underline font-bold">See all ›</span>
-        </Link>
-      </div>
+      <h3 className="text-lg font-bold mb-3">Partner Quests</h3>
 
-      <div className="grid grid-cols-2 gap-2 mt-4">
-        {quests.map((quest) => {
-          const isLocked = quest.isLocked;
-          const containerClasses = [
-            "rounded-xl p-4 h-[180px] flex items-center justify-center",
-            isLocked ? "cursor-not-allowed opacity-70" : "cursor-pointer",
-          ].join(" ");
+      <div className="grid grid-cols-2 gap-2">
+        {quests.map((q) => {
+          const locked = q.isLocked;
 
           return (
             <div
-              key={quest.id}
-              onClick={() => {
-                if (!isLocked) openPopup(quest);
-              }}
-              style={{ backgroundColor: quest.color }}
-              className={containerClasses}
+              key={q.id}
+              onClick={() => !locked && openPopup(q)}
+              style={{ backgroundColor: q.color }}
+              className={`relative rounded-xl p-4 h-[180px] flex items-center justify-center ${
+                locked ? "cursor-not-allowed opacity-80" : "cursor-pointer"
+              }`}
             >
-              <div className="relative flex flex-col justify-around w-full h-full items-center text-center">
-                <Image
-                  src={quest.img}
-                  alt={quest.title}
-                  className={isLocked ? "blur-sm" : ""}
-                />
+              {/* logo */}
+              <Image
+                src={q.img}
+                alt={q.title}
+                className={locked ? "blur-sm" : ""}
+              />
 
-                {isLocked && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <div className="bg-white rounded-full flex items-center py-1 px-3">
-                      <Lock color="#07955F" className="w-4 h-4 mb-1 ml-2" />
-                      <h4 className="text-[#07955F] text-sm">Coming Soon</h4>
-                    </div>
-                  </div>
-                )}
-
-                <p className="text-sm font-semibold">{quest.title}</p>
-                <p className="text-xs text-black mt-2 flex items-center justify-center">
-                  <Image src={MinimilesSymbol} alt="" className="mr-1" width={12} height={12}/>
-                  {quest.reward}
+              {/* title + reward, blurred only when locked */}
+              <div
+                className={`absolute bottom-3 left-0 right-0 flex flex-col items-center text-center ${
+                  locked ? "blur-sm" : ""
+                }`}
+              >
+                <p className="text-sm font-semibold">{q.title}</p>
+                <p className="text-xs mt-1 flex items-center justify-center">
+                  <Image
+                    src={MinimilesSymbol}
+                    alt=""
+                    width={12}
+                    height={12}
+                    className="mr-1"
+                  />
+                  {q.reward}
                 </p>
               </div>
+
+              {/* locked overlay */}
+              {locked && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="bg-white/90 rounded-full flex items-center py-1 px-3">
+                    <Lock color="#07955F" className="w-4 h-4 mr-1" />
+                    <span className="text-sm text-[#07955F] font-semibold">
+                      Coming Soon
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
