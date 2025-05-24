@@ -120,7 +120,7 @@ const Page = () => {
 
 
   return (
-    <main className="pb-24 font-poppins bg-onboarding">
+    <main className="pb-24 font-poppins bg-onboarding bg-white">
       <div className="p-4">
         <h1 className="text-2xl font-bold m-2">Spend</h1>
         <h3>Win big by entering our Raffles</h3>

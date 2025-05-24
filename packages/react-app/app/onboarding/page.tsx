@@ -52,7 +52,7 @@ const Onboarding = () => {
   };
 
   return (
-    <div className="relative h-screen font-poppins">
+    <div className="relative h-screen font-poppins bg-white">
       {/* Skip & Claim in top-right */}
       <div className="absolute top-4 right-4 z-10">
         <button
