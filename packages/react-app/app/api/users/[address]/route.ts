@@ -12,10 +12,10 @@ const supabase = createClient(
  * returns { isMember: boolean }
  */
 export async function GET(
-  _req: Request,
+  _req: NextRequest,
   { params }: { params: { address: string } }
 ) {
-  const { address } = params;          // no need to “await” params
+  const address = params.address;        // no need to “await” params
   if (!address) {
     return NextResponse.json({ error: "Missing address" }, { status: 400 });
   }
