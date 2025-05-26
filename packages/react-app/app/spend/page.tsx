@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
 import { fetchActiveRaffles, Raffle } from '@/helpers/raffledisplay';
-import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, RaffleImg4, WinImg } from '@/lib/img';
+import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, RaffleImg4, laptop, WinImg } from '@/lib/img';
 import { MinimilesSymbol } from '@/lib/svg';
 import { Question } from '@phosphor-icons/react';
 import { StaticImageData } from 'next/image';
@@ -52,7 +52,7 @@ const digitalCashRaffles = [
 
 const physicalGoodsRaffles = [
   { image: RaffleImg3, title: "Ledger hardware wallet", endsIn: 6, ticketCost: "3 MiniMiles for 1 ticket" },
-  { image: RaffleImg4, title: "Laptop", endsIn: 4, ticketCost: "50 tickets by brand" },
+  { image: laptop, title: "Laptop", endsIn: 4, ticketCost: "50 tickets by brand" },
 ];
 
 const nftRaffles = [

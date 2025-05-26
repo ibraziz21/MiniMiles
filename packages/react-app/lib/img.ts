@@ -3,6 +3,7 @@ import RaffleImg1 from "../public/img/raffle-1.png";
 import RaffleImg2 from "../public/img/raffle-2.png";
 import RaffleImg3 from "../public/img/raffle-3.png";
 import RaffleImg4 from "../public/img/raffle-4.png";
+import laptop from "../public/img/laptop.png";
 import Dice from "../public/img/dice.png"
 
 export {
@@ -11,5 +12,6 @@ export {
   RaffleImg2,
   RaffleImg3,
   RaffleImg4,
+  laptop,
   Dice
 };
