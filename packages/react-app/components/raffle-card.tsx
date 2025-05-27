@@ -26,16 +26,18 @@ export const RaffleCard = ({
 
   return (
     <div
-      onClick={onClick}
-      className="rounded-xl bg-white shadow-md min-w-[240px] min-h-[240px] relative cursor-pointer overflow-hidden"
-    >
+         /* ⬇︎ Disable pointer events when locked */
+       onClick={!isLocked ? onClick : undefined}
+       className={`rounded-xl bg-white shadow-md min-w-[240px] min-h-[240px] relative overflow-hidden ${
+         isLocked ? "pointer-events-none" : "cursor-pointer"
+       }`}
+       >
       <div className="relative h-full w-full">
-        <Image
-          src={image}
-          alt={`${title} banner`}
-          fill
-          className={isLocked ? "object-cover blur-sm" : "object-cover"}
-        />
+      <Image
+         src={image}
+        alt={`${title} banner`}
+        fill
+         className={isLocked ? "object-cover blur-sm" : "object-cover"}      />
         {isLocked && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-white text-center">
             <div className="bg-white rounded-full flex items-center py-1 px-3">
@@ -46,7 +48,10 @@ export const RaffleCard = ({
         )}
       </div>
 
-      <div className="absolute bottom-0 left-0 p-2 w-full">
+     <div
+      className={`absolute bottom-0 left-0 p-2 w-full ${
+         isLocked ? "blur-sm" : ""
+       }`}>
         <p className="text-sm font-semibold text-white">{title}</p>
         <p className="text-xs text-gray-200">Ends in {endsIn}</p>
         <p className="text-xs font-bold bg-white rounded-full p-1 mt-1 flex items-center">

@@ -75,22 +75,40 @@ export default function SpendPartnerQuestSheet({
 
   if (!raffle) return null;
 
-  // Handle buy + 6s delay
   const handleBuy = async () => {
+    if (!raffle) return;                // should never happen, but guards TS
+  
     try {
+      // 1️⃣ Start spinner / disable UI
       setProcessing(true);
+      setJoined(false);
+      setTxHash(null);
+  
+      // 2️⃣ Send tx (your hook returns the hash)
       const hash = await joinRaffle(raffle.id, count);
       setTxHash(hash);
-
-      // wait 6 seconds then show success
-      setTimeout(() => {
-        setProcessing(false);
-        setJoined(true);
-      }, 6000);
+  
+      // 3️⃣ Wait for confirmation ─ either:
+      //    a) the receipt (preferred – no magic numbers), OR
+      //    b) a 6 s fallback if you don’t want an extra RPC call
+      try {
+        // If you already have a viem publicClient in scope, use it:
+        // await publicClient.waitForTransactionReceipt({ hash });
+        //
+        // Otherwise, keep the simple timeout:
+        await new Promise((res) => setTimeout(res, 6_000));
+      } catch {
+        /* ignore wait errors – we’ll still show success after the timeout */
+      }
+  
+      // 4️⃣ Switch to success screen
+      setJoined(true);
     } catch (err: any) {
-      setProcessing(false);
       console.error("Join raffle failed:", err);
-      alert(err.message || "Failed to join raffle");
+      alert(err?.message ?? "Failed to join raffle");
+    } finally {
+      // 5️⃣ Always stop spinner
+      setProcessing(false);
     }
   };
 
