@@ -37,16 +37,18 @@ export const RaffleCard = ({
           className={isLocked ? "object-cover blur-sm" : "object-cover"}
         />
         {isLocked && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-white text-center">
-            <div className="bg-white rounded-full flex items-center py-1 px-3">
-              <Lock color="#07955F" className="w-4 h-4 mb-1 ml-2" />
-              <h4 className="text-[#07955F] text-sm">Coming Soon</h4>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="bg-white/90 rounded-full flex items-center p-1">
+              <Lock size={16} color="#219653" weight="bold" className="mr-1" />
+              <span className="text-xs text-[#07955F] font-semibold">
+                Coming Soon
+              </span>
             </div>
           </div>
         )}
       </div>
 
-      <div className="absolute bottom-0 left-0 p-2 w-full">
+      <div className="absolute bottom-0 left-0 p-2">
         <p className="text-sm font-semibold text-white">{title}</p>
         <p className="text-xs text-gray-200">Ends in {endsIn}</p>
         <p className="text-xs font-bold bg-white rounded-full p-1 mt-1 flex items-center">

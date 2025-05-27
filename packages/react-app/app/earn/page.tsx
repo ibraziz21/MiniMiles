@@ -2,9 +2,9 @@
 
 import MiniPointsCard from "@/components/mini-points-card";
 import DailyChallenges from "@/components/daily-challenge";
-import PartnerQuests  from "@/components/partner-quests";
+import PartnerQuests from "@/components/partner-quests";
 import EarnPartnerQuestSheet from "@/components/earn-partner-quest-sheet";
-import SuccessModal   from "@/components/success-modal";
+import SuccessModal from "@/components/success-modal";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useWeb3 } from "@/contexts/useWeb3";
 import React, { useEffect, useState } from "react";
@@ -66,7 +66,7 @@ export default function EarnPage() {
           <h3 className="text-lg font-bold mt-6 mb-2">Daily challenges</h3>
           <DailyChallenges />
 
-     
+
           <PartnerQuests openPopup={openQuest} />
         </TabsContent>
 

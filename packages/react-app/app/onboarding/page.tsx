@@ -84,8 +84,8 @@ export default function Onboarding() {
         </button>
       </div>
 
-      <Carousel className="h-full" setApi={setApi}>
-        <CarouselContent className="h-full">
+      <Carousel setApi={setApi}>
+        <CarouselContent className="h-screen">
           {onboardingSource.map((step, i) => (
             <CarouselItem key={i}>
               <div className="flex flex-col items-center justify-center h-full px-6 bg-onboarding bg-no-repeat bg-cover">
@@ -101,7 +101,8 @@ export default function Onboarding() {
 
                 <Image src={step.img} alt={step.title} />
 
-                <h2 className="mt-5 text-4xl font-bold text-black">
+                <div>
+                  <h2 className="mt-5 text-4xl font-bold text-black">
                   {step.title}
                 </h2>
                 <h4 className="my-5 text-[#00000080]">{step.subtitle}</h4>
@@ -116,22 +117,18 @@ export default function Onboarding() {
                     />
                   ))}
                 </div>
-
-                {/* main button */}
-
-                {/* main button */}
-
+                </div>
 
                 <div className="w-full max-w-xs">
-  <Button
-    className="w-full py-4 font-semibold bg-[#07955F] text-white hover:bg-[#07955F]"
-    onClick={() => (isLast ? finish() : api?.scrollNext())}
-    /* title is optional; you can keep it if you want the hover tooltip */
-    title={label}
-  >
-    {label}   {/* ← visible text */}
-  </Button>
-</div>
+                  <Button
+                    className="w-full py-4 font-semibold bg-[#07955F] text-white hover:bg-[#07955F]"
+                    onClick={() => (isLast ? finish() : api?.scrollNext())}
+                    /* title is optional; you can keep it if you want the hover tooltip */
+                    title={label}
+                  >
+                    {label}   {/* ← visible text */}
+                  </Button>
+                </div>
 
 
               </div>

@@ -122,7 +122,7 @@ const Page = () => {
   return (
     <main className="pb-24 font-poppins bg-onboarding bg-white">
       <div className="p-4">
-        <h1 className="text-2xl font-bold m-2">Spend</h1>
+        <h1 className="text-2xl font-bold">Spend</h1>
         <h3>Win big by entering our Raffles</h3>
       </div>
       <MiniPointsCard points={Number(miniMilesBalance)} />
@@ -131,7 +131,7 @@ const Page = () => {
       </div>
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold">Digital Cash Raffles</h3>
+          <h3 className="text-lg font-semibold mb-2">Digital Cash Raffles</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
           {raffles.map((r) => (
@@ -165,7 +165,7 @@ const Page = () => {
 
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold">Physical Goods Raffles</h3>
+          <h3 className="text-lg font-semibold mb-2">Physical Goods Raffles</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
           {physicalGoodsRaffles.map((raffle, idx) => (
@@ -196,8 +196,8 @@ const Page = () => {
         </div>
       </div>
       <div className="mx-4 mt-6">
-        <div className="flex justify-between items-center mb-5 my-2">
-          <h3 className="text-lg font-bold">NFT raffles</h3>
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-bold mb-2">NFT raffles</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
           {nftRaffles.map((raffle, idx) => (

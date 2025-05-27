@@ -64,9 +64,11 @@ const handleClaim = async () => {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="bg-white rounded-t-xl font-poppins p-4">
-        <div className="flex justify-between items-center mb-2">
-          <h3 className='text-base font-bold'>Partner Quest</h3>
-          <button onClick={() => onOpenChange(false)} className="text-gray-400">✕</button>
+        <div className="flex justify-start items-center mb-2">
+          <div className={`rounded-full mr-2`} style={{backgroundColor: quest.color}}>
+            <Image src={quest.img} alt='' className='h-[20px]' />
+          </div>
+          <h3 className='text-sm font-bold bg-[#24E5E033] text-[#1E8C89] rounded-full px-3 '>Partner Quest</h3>
         </div>
 
         <div className="mb-4">
@@ -74,7 +76,7 @@ const handleClaim = async () => {
           <p className='text-sm text-gray-500'>{quest.description}</p>
         </div>
 
-        <div className="bg-[${quest.color}] rounded-xl p-3 text-center mb-4">
+        <div className="bg-partner-quest bg-[#219653] rounded-xl p-3 text-center mb-4 text-white">
           <div className="flex justify-center items-center mb-1">
             <Image src={quest.img} width={32} height={32} alt={quest.title} />
             <span className="text-3xl font-bold ml-2">{quest.reward.split(' ')[0]}</span>
@@ -95,7 +97,7 @@ const handleClaim = async () => {
 
         <Button
           className="w-full rounded-xl py-6 text-white bg-[#07955F] mb-2"
-          title={loading ? 'Processing…' : 'Go & Earn'}
+          title={loading ? 'Processing…' : 'Follow Us'}
           onClick={handleClaim}
           disabled={loading}
         />
