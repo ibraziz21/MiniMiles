@@ -75,22 +75,40 @@ export default function SpendPartnerQuestSheet({
 
   if (!raffle) return null;
 
-  // Handle buy + 6s delay
   const handleBuy = async () => {
+    if (!raffle) return;                // should never happen, but guards TS
+  
     try {
+      // 1️⃣ Start spinner / disable UI
       setProcessing(true);
+      setJoined(false);
+      setTxHash(null);
+  
+      // 2️⃣ Send tx (your hook returns the hash)
       const hash = await joinRaffle(raffle.id, count);
       setTxHash(hash);
-
-      // wait 6 seconds then show success
-      setTimeout(() => {
-        setProcessing(false);
-        setJoined(true);
-      }, 6000);
+  
+      // 3️⃣ Wait for confirmation ─ either:
+      //    a) the receipt (preferred – no magic numbers), OR
+      //    b) a 6 s fallback if you don’t want an extra RPC call
+      try {
+        // If you already have a viem publicClient in scope, use it:
+        // await publicClient.waitForTransactionReceipt({ hash });
+        //
+        // Otherwise, keep the simple timeout:
+        await new Promise((res) => setTimeout(res, 6_000));
+      } catch {
+        /* ignore wait errors – we’ll still show success after the timeout */
+      }
+  
+      // 4️⃣ Switch to success screen
+      setJoined(true);
     } catch (err: any) {
-      setProcessing(false);
       console.error("Join raffle failed:", err);
-      alert(err.message || "Failed to join raffle");
+      alert(err?.message ?? "Failed to join raffle");
+    } finally {
+      // 5️⃣ Always stop spinner
+      setProcessing(false);
     }
   };
 
@@ -110,49 +128,57 @@ export default function SpendPartnerQuestSheet({
           </div>
         ) : joined ? (
           // ─── Success View ──────────────────────────────────────
-          <div className="flex flex-col justify-center h-full p-6 space-y-6">
-            <div className="flex justify-between items-center">
-              <CaretLeft
-                size={24}
-                onClick={() => {
-                  setJoined(false);
-                  onOpenChange(true);
-                }}
-                className="cursor-pointer"
-              />
-              <button
-                className="text-sm text-green-600 hover:underline font-bold"
-                onClick={() => onOpenChange(false)}
-              >
-                Close
-              </button>
-            </div>
+    
+<div className="flex flex-col justify-center h-full p-6 space-y-6">
+  {/* header row */}
+  <div className="flex items-center justify-between">
+    <CaretLeft
+      size={24}
+      className="cursor-pointer"
+      onClick={() => {
+        setJoined(false)
+        onOpenChange(true)
+      }}
+    />
+    <button
+      onClick={() => onOpenChange(false)}
+      className="font-bold text-sm text-green-600 hover:underline"
+    >
+      Close
+    </button>
+  </div>
 
-            <div className="flex justify-center">
-              <Image src={Successsvg} alt="Success" />
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-white text-center">
-                <div className="flex items-center py-1 px-3 justify-center">
-                  <h2 className="text-xl mx-2">{count}</h2><h4 className="text-white text-sm"> Tickets</h4>
-                </div>
-              </div>
-            </div>
+  {/* image + badge */}
+  <div className="relative flex justify-center">          {/* ⬅️ give context */}
+    <Image src={Successsvg} alt="Success" />
 
-            <Link
-              href={`${explorerBase}/${txHash}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex justify-center items-center text-[#07955F] font-bold space-x-2"
-            >
-              <span>View blockchain receipt</span>
-              <Share size={20} />
-            </Link>
+    {/* badge overlay – ignore clicks */}
+    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+      <div className="pointer-events-auto flex items-center gap-1 rounded-md bg-[#07955F]/80 px-3 py-1">
+        <h2 className="text-xl">{count}</h2>
+        <span className="text-sm">Tickets</span>
+      </div>
+    </div>
+  </div>
 
-            <Button
-              title="Done"
-              onClick={() => onOpenChange(false)}
-              className="w-full bg-[#07955F] text-white rounded-xl py-4 font-semibold"
-            />
-          </div>
+  {/* explorer link */}
+  <Link
+    href={`${explorerBase}/${txHash}`}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="flex items-center justify-center gap-1 font-bold text-[#07955F]"
+  >
+    View blockchain receipt <Share size={20} />
+  </Link>
+
+  {/* done button */}
+  <Button
+          className="w-full rounded-xl bg-[#07955F] py-4 font-semibold text-white"
+          onClick={() => onOpenChange(false)} title={"Done"}  >
+    Done
+  </Button>
+</div>
+
         ) : (
           // ─── Purchase View ────────────────────────────────────
           <div className="p-4">
