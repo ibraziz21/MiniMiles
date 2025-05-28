@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
 import { fetchActiveRaffles, Raffle } from '@/helpers/raffledisplay';
 import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2 } from '@/lib/img';
-import { MinimilesSymbol } from '@/lib/svg';
+import { Coin, MinimilesSymbol } from '@/lib/svg';
 import { Question } from '@phosphor-icons/react';
 import { StaticImageData } from 'next/image';
 import Link from 'next/link';
@@ -63,7 +63,7 @@ const nftRaffles = [
 
 const upcomingGames = [
   { name: "Dice", date: "xx/xx/xx", image: Dice },
-  { name: "Coin flip", date: "xx/xx/xx", image: Dice },
+  { name: "Coin flip", date: "xx/xx/xx", image: Coin },
 ];
 
 const Page = () => {
@@ -121,10 +121,10 @@ const Page = () => {
 
 
   return (
-    <main className="pb-24 font-poppins bg-onboarding bg-white">
+    <main className="pb-24 font-sterling bg-onboarding bg-white">
       <div className="p-4">
-        <h1 className="text-2xl font-bold m-2">Spend</h1>
-        <h3>Win big by entering our Raffles</h3>
+        <h1 className="text-2xl font-medium">Spend</h1>
+        <h3 className='font-extralight'>Win big by entering our Raffles</h3>
       </div>
       <MiniPointsCard points={Number(miniMilesBalance)} />
       <div className="mx-3">
@@ -132,7 +132,7 @@ const Page = () => {
       </div>
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold">Digital Cash Raffles</h3>
+          <h3 className="text-lg font-extrabold mb-2">Digital cash raffles</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
           {raffles.map((r) => (
@@ -166,7 +166,7 @@ const Page = () => {
 
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold">Physical Goods Raffles</h3>
+          <h3 className="text-lg font-medium mb-2">Physical goods raffles</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
           {physicalGoodsRaffles.map((raffle, idx) => (
@@ -197,8 +197,8 @@ const Page = () => {
         </div>
       </div>
       <div className="mx-4 mt-6">
-        <div className="flex justify-between items-center mb-5 my-2">
-          <h3 className="text-lg font-bold">NFT raffles</h3>
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-medium mb-2">NFT raffles</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
           {nftRaffles.map((raffle, idx) => (

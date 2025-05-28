@@ -60,10 +60,10 @@ export default function ClaimUsernamePage() {
 
     return (
         <>
-            <main className="flex min-h-dvh flex-col gap-10 px-3 py-10 font-poppins">
+            <main className="flex min-h-dvh flex-col gap-10 px-3 py-10 font-sterling">
 
                 <header className="space-y-1">
-                    <h1 className="text-xl font-semibold">Claim your MiniMiles username</h1>
+                    <h1 className="text-xl font-medium">Claim your MiniMiles username</h1>
                     <p className="text-sm text-muted-foreground">
                         Start by claiming your first{" "}
                         <span className="font-medium text-primarygreen">.mini</span>{" "}
@@ -78,7 +78,7 @@ export default function ClaimUsernamePage() {
                             value={username}
                             onChange={(e) => setUsername(e.target.value.trim())}
                             className={cn(
-                                "w-full text-right shadow-none p-0 text-4xl font-bold placeholder:text-muted-foreground focus:outline-none",
+                                "w-full text-right shadow-none p-0 text-4xl font-medium placeholder:text-muted-foreground focus:outline-none",
                                 status === "available" && "text-primarygreen",
                                 status === "taken" && "text-destructive/80",
                                 status === "idle" && "text-muted-foreground"
@@ -86,7 +86,7 @@ export default function ClaimUsernamePage() {
                         />
                         <span
                             className={cn(
-                                "text-4xl font-bold",
+                                "text-4xl font-medium",
                                 username ? "text-primarygreen" : "text-muted-foreground"
                             )}
                         >
@@ -111,7 +111,7 @@ export default function ClaimUsernamePage() {
                     <Button
                         title="Claim username"
                         widthFull
-                        className="rounded-xl py-6 text-lg font-semibold shadow-sm bg-[#07955F] "
+                        className="rounded-xl py-6 text-lg font-medium shadow-sm bg-[#07955F] "
                         disabled={!isClaimable}
                         onClick={() => {setSheetOpen(true)
                             router.push("/")

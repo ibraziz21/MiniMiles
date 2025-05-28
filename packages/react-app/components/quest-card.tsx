@@ -16,7 +16,7 @@ export default function QuestCard({ title, description, reward, onClick }: Quest
         <Clock size={16} className="text-gray-600" />
         <span className="text-xs text-green-800">{reward}</span>
       </div>
-      <p className="font-semibold text-sm">{title}</p>
+      <p className="font-medium text-sm">{title}</p>
       <p className="text-xs text-gray-600 mt-1">{description}</p>
     </div>
   );

@@ -100,12 +100,12 @@ export default function Home() {
   };
 
   return (
-    <main className="pb-24 font-poppins bg-white">
+    <main className="pb-24 font-sterling bg-white">
       <DashboardHeader name={truncateEthAddress(address ?? "")} />
       <PointsCard points={Number(miniMilesBalance)} />
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-bold mt-6 mb-2">Daily challenges</h3>
+          <h3 className="text-lg font-medium mt-6 mb-2">Daily challenges</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
           <DailyChallenges />
@@ -113,7 +113,7 @@ export default function Home() {
       </div>
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold">Join Raffles</h3>
+          <h3 className="text-lg font-medium">Join Raffles</h3>
           <Link href='/spend'>
             <span className="text-sm text-green-600 hover:underline">View more ›</span>
           </Link>

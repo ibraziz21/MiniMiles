@@ -19,7 +19,7 @@ export default function QuestsPage() {
 
   return (
     <div className="p-4">
-      <h1 className="text-xl font-bold mb-4">Quests</h1>
+      <h1 className="text-xl font-medium mb-4">Quests</h1>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { Cash, Celo, Door, GloDollar, Mento, MinimilesSymbol, MiniPay } from "@/lib/svg";
+import { Cash, Celo, Door, GloDollar, Mento, MinimilesSymbol, MinimilesSymbolAlt, MiniPay } from "@/lib/svg";
 import { Lock } from "@phosphor-icons/react";
 import Image from "next/image";
 import Link from "next/link";
@@ -19,7 +19,7 @@ const quests: Quest[] = [
   {
     id: '99da9e3d-5332-419e-aa40-5cb9d6e3a7ab',
     isLocked: false,
-    img: MinimilesSymbol,
+    img: MinimilesSymbolAlt,
     title: "MiniMiles",
     description: "Follow Us on Twitter",
     reward: "20 MiniMiles",
@@ -81,8 +81,8 @@ export default function PartnerQuests({
   openPopup: (q: Quest) => void;
 }) {
   return (
-    <div className="mx-4 mt-6">
-      <h3 className="text-lg font-bold mb-3">Partner Quests</h3>
+    <div className="mt-6">
+      <h3 className="text-lg font-medium mb-3">Partner Quests</h3>
 
       <div className="grid grid-cols-2 gap-2">
         {quests.map((q) => {
@@ -93,30 +93,30 @@ export default function PartnerQuests({
               key={q.id}
               onClick={() => !locked && openPopup(q)}
               style={{ backgroundColor: q.color }}
-              className={`relative rounded-xl p-4 h-[180px] flex items-center justify-center ${
+              className={`relative rounded-xl p-4 h-[180px] flex flex-col items-center justify-between ${
                 locked ? "cursor-not-allowed opacity-80" : "cursor-pointer"
               }`}
             >
-              {/* logo */}
-              <Image
-                src={q.img}
-                alt={q.title}
-                className={locked ? "blur-sm" : ""}
-              />
 
               {/* title + reward, blurred only when locked */}
               <div
-                className={`absolute bottom-3 left-0 right-0 flex flex-col items-center text-center ${
+                className={`flex flex-col items-center justify-around text-center h-full ${
                   locked ? "blur-sm" : ""
                 }`}
               >
-                <p className="text-sm font-semibold">{q.title}</p>
-                <p className="text-xs mt-1 flex items-center justify-center">
+                {/* logo */}
+                <Image
+                  src={q.img}
+                  alt={q.title}
+                  className={`h-[64px] w-[64px]`}
+                />
+                <p className="text-sm font-medium">{q.title}</p>
+                <p className="text-xs mt-1 flex items-center justify-center font-poppins">
                   <Image
                     src={MinimilesSymbol}
                     alt=""
-                    width={12}
-                    height={12}
+                    width={16}
+                    height={16}
                     className="mr-1"
                   />
                   {q.reward}
@@ -126,9 +126,9 @@ export default function PartnerQuests({
               {/* locked overlay */}
               {locked && (
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="bg-white/90 rounded-full flex items-center py-1 px-3">
-                    <Lock color="#07955F" className="w-4 h-4 mr-1" />
-                    <span className="text-sm text-[#07955F] font-semibold">
+                  <div className="bg-white/90 rounded-full flex items-center p-1">
+                    <Lock size={16} color="#219653" weight="bold" className="mr-1"/>
+                    <span className="text-xs text-[#07955F] font-medium">
                       Coming Soon
                     </span>
                   </div>

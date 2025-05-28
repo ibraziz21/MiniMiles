@@ -18,7 +18,7 @@ const SuccessModal = ({ openSuccess, setOpenSuccess }: { openSuccess: boolean; s
                         style={{ height: "300px", width: "300px" }}
                     ></Player>
                     {/* <button
-                        className="flex items-center m-2 py-2 px-2 bg-white text-[#218B53] border-2 border-[#218B53] rounded-lg font-semibold hover:bg-[#218B53] hover:text-white"
+                        className="flex items-center m-2 py-2 px-2 bg-white text-[#218B53] border-2 border-[#218B53] rounded-lg font-medium hover:bg-[#218B53] hover:text-white"
                         onClick={() => setOpenSuccess(false)}
                     >
                         Done

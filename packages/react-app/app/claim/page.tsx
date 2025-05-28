@@ -12,12 +12,12 @@ export default function ClaimPage() {
     return (
         <div className="bg-white">
             {
-                claimUsername ? <ClaimUsernamePage /> : <main className="relative flex h-dvh flex-col items-center justify-between bg-claim bg-cover bg-center px-6 py-10 font-poppins bg-[#F5FFFB] bg-opacity-80">
+                claimUsername ? <ClaimUsernamePage /> : <main className="relative flex h-dvh flex-col items-center justify-between bg-claim bg-cover bg-center px-6 py-10 font-sterling bg-[#F5FFFB] bg-opacity-80">
                     {/* Headline */}
                     <div className="mt-24 flex flex-col items-center text-center">
                         <h1 className="text-4xl  leading-tight text-primarygreen">
                             Welcome to <br />
-                            <span className="text-5xl font-bold">MiniMiles</span>
+                            <span className="text-5xl font-medium">MiniMiles</span>
                         </h1>
                         <p className="mt-4 max-w-xs text-base text-muted-foreground">
                             A gamified loyalty layer for the Minipay ecosystem.
@@ -29,11 +29,11 @@ export default function ClaimPage() {
                         <Button
                             title="Let's go"
                             widthFull
-                            className="rounded-xl py-6 text-lg font-semibold shadow-sm bg-[#07955F] "
+                            className="rounded-xl py-6 text-lg font-medium shadow-sm bg-[#07955F] "
                             onClick={() => setClaimUsername(true)}
                         />
 
-                        <p className="mt-3 text-center text-xs text-muted-foreground text-[#07955F] font-bold">
+                        <p className="mt-3 text-center text-xs text-muted-foreground text-[#07955F] font-medium">
                             By proceeding you agree with the <span className="underline">Terms & Conditions</span>
                         </p>
                     </div>

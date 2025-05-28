@@ -19,13 +19,13 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "font-bold bg-colors-secondary text-white shadow hover:bg-primary/90 rounded-2xl",
+          "font-medium bg-colors-secondary text-white shadow hover:bg-primary/90 rounded-2xl",
         destructive:
           "bg-destructive text-white shadow-sm hover:bg-destructive/90 rounded-2xl",
         outline:
           "border border-input bg-background shadow-sm hover:bg-accent hover:text-white rounded-2xl",
         secondary:
-          "font-bold bg-colors-secondary text-white shadow-sm hover:bg-secondary/80 rounded-2xl",
+          "font-medium bg-colors-secondary text-white shadow-sm hover:bg-secondary/80 rounded-2xl",
         ghost: "hover:bg-accent hover:text-white",
         link: " underline-offset-4 hover:underline",
       },

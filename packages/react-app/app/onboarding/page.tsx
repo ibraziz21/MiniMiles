@@ -73,19 +73,19 @@ export default function Onboarding() {
     ? isMember ? "Finish" : "Claim 100 MiniMiles"
     : "Next";
   return (
-    <div className="relative h-screen font-poppins bg-white">
+    <div className="relative h-screen font-sterling bg-white">
       {/* Skip / Skip & Claim */}
       <div className="absolute top-4 right-4 z-10">
         <button
-          className="text-sm font-bold text-green-600 hover:underline"
+          className="text-sm font-medium text-green-600 hover:underline"
           onClick={finish}
         >
           {isMember ? "Skip" : "Skip & Claim"}
         </button>
       </div>
 
-      <Carousel className="h-full" setApi={setApi}>
-        <CarouselContent className="h-full">
+      <Carousel setApi={setApi}>
+        <CarouselContent className="h-screen">
           {onboardingSource.map((step, i) => (
             <CarouselItem key={i}>
               <div className="flex flex-col items-center justify-center h-full px-6 bg-onboarding bg-no-repeat bg-cover">
@@ -101,37 +101,33 @@ export default function Onboarding() {
 
                 <Image src={step.img} alt={step.title} />
 
-                <h2 className="mt-5 text-4xl font-bold text-black">
-                  {step.title}
-                </h2>
-                <h4 className="my-5 text-[#00000080]">{step.subtitle}</h4>
+                <div>
+                  <h2 className="mt-5 text-4xl font-[900] text-black">
+                    {step.title}
+                  </h2>
+                  <h4 className="my-5 text-[#00000080] font-poppins">{step.subtitle}</h4>
 
-                {/* progress */}
-                <div className="flex mb-10 space-x-2">
-                  {onboardingSource.map((_, j) => (
-                    <span
-                      key={j}
-                      className={`h-1 w-8 rounded-full ${j === i ? "bg-[#219653]" : "bg-[#07955F4D]"
-                        }`}
-                    />
-                  ))}
+                  {/* progress */}
+                  <div className="flex mb-10 space-x-2">
+                    {onboardingSource.map((_, j) => (
+                      <span
+                        key={j}
+                        className={`h-2 w-8 rounded-full ${j === i ? "bg-[#219653]" : "bg-[#07955F4D]"
+                          }`}
+                      />
+                    ))}
+                  </div>
                 </div>
 
-                {/* main button */}
 
-                {/* main button */}
+                <button
+                  className="w-full h-[56px] font-medium bg-[#07955F] text-white hover:bg-[#07955F] rounded-2xl"
+                  onClick={() => (isLast ? finish() : api?.scrollNext())}
+                /* title is optional; you can keep it if you want the hover tooltip */
+                >
+                  {label}   {/* ← visible text */}
+                </button>
 
-
-                <div className="w-full max-w-xs">
-  <Button
-    className="w-full py-4 font-semibold bg-[#07955F] text-white hover:bg-[#07955F]"
-    onClick={() => (isLast ? finish() : api?.scrollNext())}
-    /* title is optional; you can keep it if you want the hover tooltip */
-    title={label}
-  >
-    {label}   {/* ← visible text */}
-  </Button>
-</div>
 
 
               </div>

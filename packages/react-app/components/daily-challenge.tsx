@@ -146,9 +146,9 @@ export default function DailyChallenges({ showCompleted = false }: { showComplet
               >
                 <div className="flex flex-col justify-between h-full text-center">
                   <Image src={map.img} alt="" className="mx-auto" />
-                  <p className="text-sm font-semibold mt-2">{q.title}</p>
+                  <p className="text-sm font-medium mt-2">{q.title}</p>
                   <p className="text-xs text-gray-600 mt-1 px-1
-                                whitespace-normal break-words leading-4">
+                                whitespace-normal break-words leading-4 font-poppins">
                     {q.description}
                   </p>
                   <p className="text-xs mt-2 flex items-center justify-center">

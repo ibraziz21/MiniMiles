@@ -63,31 +63,33 @@ const handleClaim = async () => {
   
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="bg-white rounded-t-xl font-poppins p-4">
-        <div className="flex justify-between items-center mb-2">
-          <h3 className='text-base font-bold'>Partner Quest</h3>
-          <button onClick={() => onOpenChange(false)} className="text-gray-400">✕</button>
+      <SheetContent side="bottom" className="bg-white rounded-t-xl font-sterling p-4">
+        <div className="flex justify-start items-center mb-2">
+          <div className={`rounded-full mr-2`} style={{backgroundColor: quest.color}}>
+            <Image src={quest.img} alt='' className='h-[20px]' />
+          </div>
+          <h3 className='text-sm font-medium bg-[#24E5E033] text-[#1E8C89] rounded-full px-3 '>Partner Quest</h3>
         </div>
 
         <div className="mb-4">
-          <h4 className='text-2xl font-bold'>{quest.title}</h4>
+          <h4 className='text-2xl font-medium'>{quest.title}</h4>
           <p className='text-sm text-gray-500'>{quest.description}</p>
         </div>
 
-        <div className="bg-[${quest.color}] rounded-xl p-3 text-center mb-4">
+        <div className="bg-partner-quest bg-[#219653] rounded-xl p-3 text-center mb-4 text-white">
           <div className="flex justify-center items-center mb-1">
             <Image src={quest.img} width={32} height={32} alt={quest.title} />
-            <span className="text-3xl font-bold ml-2">{quest.reward.split(' ')[0]}</span>
+            <span className="text-3xl font-medium ml-2">{quest.reward.split(' ')[0]}</span>
           </div>
           <span className="text-sm uppercase">MiniMiles</span>
         </div>
 
-        <div className="mb-6">
-          <h5 className="font-semibold mb-2">Instructions</h5>
-          <ol className="list-decimal list-inside space-y-2 text-gray-800">
+        <div className="mb-6 font-poppins">
+          <h5 className="font-medium mb-2">Instructions</h5>
+          <ol className="list-decimal list-inside space-y-2 text-[#8E8B8B]">
             {quest.instructions.map((step, i) => (
               <li key={i}>
-                <strong>{step.title}:</strong> {step.text}
+                <strong className='text-black font-semibold'>{step.title}:</strong> {step.text}
               </li>
             ))}
           </ol>
@@ -95,7 +97,7 @@ const handleClaim = async () => {
 
         <Button
           className="w-full rounded-xl py-6 text-white bg-[#07955F] mb-2"
-          title={loading ? 'Processing…' : 'Go & Earn'}
+          title={loading ? 'Processing…' : 'Follow Us'}
           onClick={handleClaim}
           disabled={loading}
         />

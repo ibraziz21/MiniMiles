@@ -39,7 +39,7 @@ export default function UsernameClaimSheet({
             <span className="text-primarygreen">{username}.mini</span>
           </div>
 
-          <h3 className="text-base font-semibold">A simplified address</h3>
+          <h3 className="text-base font-medium">A simplified address</h3>
           <p className="text-sm text-muted-foreground">
             MiniMiles usernames transform complex&nbsp;0x addresses into
             readable names. By claiming a&nbsp;
