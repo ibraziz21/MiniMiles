@@ -33,10 +33,9 @@ const client = createWalletClient({
 
 export async function POST(req: Request) {
   const { userAddress, questId } = await req.json()
-  console.log("let's go")
+ 
 
   const today = new Date().toISOString().slice(0, 10) // e.g., 2025-04-15
-  console.log("checking for: ", userAddress)
   // Check Supabase: already claimed?
   const { data: claimed, error } = await supabase
     .from("daily_engagements")
@@ -47,7 +46,6 @@ export async function POST(req: Request) {
     .maybeSingle()
 
   if (claimed) {
-    console.log("Already Claimed")
     return Response.json({ success: false, message: "Already claimed today" })
   }
 

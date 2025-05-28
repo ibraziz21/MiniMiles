@@ -29,7 +29,8 @@
     "@chainlink/contracts": "^1.3.0",
     "@chainlink/contracts-ccip": "^1.5.0",
     "@safe-global/protocol-kit": "^6.0.4",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "witnet-solidity-bridge": "^2.0.18"
   },
   "scripts": {
     "compile": "hardhat compile",

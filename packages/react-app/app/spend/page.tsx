@@ -223,7 +223,6 @@ const Page = () => {
                   symbol: 'MiniMiles'
                 });
                 setSpendSheetOpen(true);
-                console.log("hello")
               }}
             />
           ))}

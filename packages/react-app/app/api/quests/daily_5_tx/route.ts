@@ -40,7 +40,7 @@ const walletClient = createWalletClient({ account, chain: celoAlfajores, transpo
 export async function POST(req: Request) {
   try {
     const { userAddress, questId } = await req.json();
-    console.log("[DAILY-5TX] Checking quest for:", userAddress);
+
 
     /* 1️⃣  already claimed today? */
     const today = new Date().toISOString().slice(0, 10);
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
       account,
     });
     const txHash = await walletClient.writeContract({ ...request, account, chain: celoAlfajores });
-    console.log("[DAILY-5TX] Mint tx:", txHash);
+
 
     /* 4️⃣  Save engagement */
     await supabase.from("daily_engagements").insert({

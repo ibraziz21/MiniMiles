@@ -77,16 +77,18 @@ export default function SpendPartnerQuestSheet({
 
   const handleBuy = async () => {
     if (!raffle) return;                // should never happen, but guards TS
-
+    console.log("Button actually runs function")
     try {
       // 1️⃣ Start spinner / disable UI
       setProcessing(true);
       setJoined(false);
       setTxHash(null);
+      console.log("Processing....")
 
       // 2️⃣ Send tx (your hook returns the hash)
       const hash = await joinRaffle(raffle.id, count);
       setTxHash(hash);
+      console.log("Tx Hash", hash)
 
       // 3️⃣ Wait for confirmation ─ either:
       //    a) the receipt (preferred – no magic numbers), OR

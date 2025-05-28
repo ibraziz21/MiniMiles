@@ -60,7 +60,7 @@ async function main() {
 
 
   // // // 3. create the round
-  const tx = await raffle.createRaffleRound(
+  const tx = await raffle.(
     startTime,               // _startTime
     1200000,                 // _duration (1 week)
     3_0,                   // _maxTickets
