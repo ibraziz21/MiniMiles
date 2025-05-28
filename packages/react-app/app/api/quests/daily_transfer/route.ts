@@ -39,7 +39,7 @@ export async function POST(req: Request) {
   try {
     const { userAddress, questId } = await req.json()
     const addresses = [USDC_ADDRESS,CUSD_ADDRESS]
-    console.log("[DAILY-CUSD] Checking claim for:", userAddress)
+
 
     // 1) Has user already claimed today?
     const today = new Date().toISOString().slice(0, 10) // 'YYYY-MM-DD'
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
       }
     }
     if (!anySpent) {
-      console.log("No qualifying transfer found across any token")
+  
       return NextResponse.json({
         success: false,
         message: `No on-chain transfer ≥ 5 found in the last 24 hours for any tracked token`,
@@ -81,7 +81,7 @@ export async function POST(req: Request) {
       account: account,
     })
     const txHash = await walletClient.writeContract(request)
-    console.log("[DAILY-CUSD] Mint Tx:", txHash)
+ 
  
     // 4) Log claim in DB
     await supabase.from("daily_engagements").insert({
@@ -119,7 +119,6 @@ async function hasUserSpentAtLeast5CusdIn24Hrs(userAddress: string, tokenAddress
   })
   
   if (!logs.length) {
-   console.log("No such action onchain")
     return false
   }
   const TOKEN_DECIMALS: Record<string, number> = {

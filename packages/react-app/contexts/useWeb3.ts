@@ -81,7 +81,9 @@ export function useWeb3() {
  // in src/contexts/useWeb3.ts
  // 2️⃣ joinRaffle writes directly
  const joinRaffle = useCallback(
+
     async (roundId: number, ticketCount: number) => {
+      console.log("Working? ",roundId, "  ", ticketCount )
       if (!walletClient || !address) {
         throw new Error("Wallet not connected");
       }

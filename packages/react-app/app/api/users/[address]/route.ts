@@ -16,7 +16,6 @@ if (!address) {
   return NextResponse.json({ error: "Missing address" }, { status: 400 });
 }
 
-  console.log(address)
 
   if (!address) {
     return NextResponse.json(

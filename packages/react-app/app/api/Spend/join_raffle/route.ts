@@ -16,9 +16,8 @@ const publicClient = createPublicClient({
 
 export async function POST(req: Request) {
   try {
+
     const { roundId, ticketCount, userAddress } = await req.json()
-    console.log("ROund detail; ", roundId, ticketCount, userAddress)
-    
 
     // sanity‐check inputs
     if (
