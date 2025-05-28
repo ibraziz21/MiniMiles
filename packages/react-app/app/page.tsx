@@ -106,6 +106,9 @@ export default function Home() {
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-medium mt-6 mb-2">Daily challenges</h3>
+          <Link href='/spend'>
+            <span className="text-sm text-green-600 hover:underline">See All ›</span>
+          </Link>
         </div>
         <div className="flex gap-3 overflow-x-auto">
           <DailyChallenges />
