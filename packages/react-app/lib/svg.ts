@@ -21,6 +21,7 @@ import NotificationSvg from "../public/svg/notification.svg"
 import GearSvg from "../public/svg/gear.svg"
 import Transcript from "../public/svg/transcript.svg"
 import Successsvg from "../public/svg/success.svg"
+import Coin from "../public/svg/coin.svg"
 
 export {
     Cash,
@@ -45,5 +46,6 @@ export {
     GearSvg,
     TicketAlt,
     Transcript,
-    Successsvg
+    Successsvg,
+    Coin
 }

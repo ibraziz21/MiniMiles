@@ -19,7 +19,7 @@ export const ActionPill = ({
 }: ActionPillProps) => {
     const base =
         "w-full rounded-2xl py-4 flex items-center justify-center gap-3 " +
-        "font-semibold tracking-wide shadow-sm text-[#07955F] bg-action-button bg-[#07955F1A] hover:bg-[#07955F1A]" +
+        "font-medium tracking-wide shadow-sm text-[#07955F] bg-action-button bg-[#07955F1A] hover:bg-[#07955F1A]" +
         "disabled:bg-[#07955F1A]";
 
     return (

@@ -15,14 +15,14 @@ export default function SwapRewardPopup({ open, onOpenChange }: SwapRewardPopupP
                 <div className="bg-white">
                     <div className="px-6 pt-6">
                         <DialogHeader>
-                            <DialogTitle className="text-lg font-semibold text-gray-900">
+                            <DialogTitle className="text-lg font-medium text-gray-900">
                                 Swap on ReFi DEX
                             </DialogTitle>
                         </DialogHeader>
                     </div>
 
                     <div className="bg-green-600 text-white text-center py-8">
-                        <h2 className="text-4xl font-bold">10 MiniMiles</h2>
+                        <h2 className="text-4xl font-medium">10 MiniMiles</h2>
                     </div>
 
                     <div className="px-6 py-4">

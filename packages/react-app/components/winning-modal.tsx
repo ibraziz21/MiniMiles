@@ -23,11 +23,11 @@ export default function WinningModal({
             <DialogContent className="bg-white max-w-sm rounded-3xl p-0 overflow-hidden">
                 <div className="text-center px-6 pt-6">
                     <DialogHeader>
-                        <DialogTitle className="text-left text-xl font-semibold">You won!</DialogTitle>
+                        <DialogTitle className="text-left text-xl font-medium">You won!</DialogTitle>
                     </DialogHeader>
 
                     <div className="bg-gradient-to-t from-gray-300 to-white w-full rounded-xl py-6 mt-4">
-                        <p className="text-3xl font-bold">$500 USDT</p>
+                        <p className="text-3xl font-medium">$500 USDT</p>
                     </div>
 
                     <p className="text-sm text-gray-500 mt-4 mb-6">
@@ -53,14 +53,14 @@ export default function WinningModal({
                     <Button
                         title="Blockchain receipt" onClick={() => { }}
                         variant="outline"
-                        className="w-full border-black text-black font-semibold hover:bg-black rounded-lg p-2"
+                        className="w-full border-black text-black font-medium hover:bg-black rounded-lg p-2"
                     >
                         Blockchain receipt
                     </Button>
                     <Button
                         title="Close"
                         onClick={() => onOpenChange(false)}
-                        className="w-full bg-green-100 text-green-700 font-semibold"
+                        className="w-full bg-green-100 text-green-700 font-medium"
                     >
                         Close
                     </Button>

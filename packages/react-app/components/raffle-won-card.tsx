@@ -9,7 +9,7 @@ export default function RafflesWonCard() {
 
   return (
     <div className="mx-4 mt-6">
-      <h3 className="text-lg font-semibold">Raffles you won</h3>
+      <h3 className="text-lg font-medium">Raffles you won</h3>
       <p className="text-sm text-gray-500">Congratulations!</p>
       <div className="bg-gray-100 rounded-xl p-4 mt-3 flex justify-between items-center">
         <div className="flex items-center gap-2">
@@ -19,7 +19,7 @@ export default function RafflesWonCard() {
             <p className="text-xs text-gray-500">You just received $500</p>
           </div>
         </div>
-        <Button title="View" onClick={() => { setOpen(true) }} variant="ghost" className="text-green-600 font-semibold">
+        <Button title="View" onClick={() => { setOpen(true) }} variant="ghost" className="text-green-600 font-medium">
           View
         </Button>
       </div>

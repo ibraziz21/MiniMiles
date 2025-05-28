@@ -9,7 +9,9 @@ module.exports = {
   theme: {
   	extend: {
 		fontFamily: {
-			'poppins' :['Poppins', 'sans-serif']
+			'poppins' :['Poppins', 'sans-serif'],
+			DM: ["DM Sans", "sans-serif"],
+			sterling: ['var(--font-sterling)']
 		},
   		colors: {
 			primarygreen:"#219653"

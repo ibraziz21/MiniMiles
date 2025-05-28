@@ -82,7 +82,7 @@ export default function PartnerQuests({
 }) {
   return (
     <div className="mt-6">
-      <h3 className="text-lg font-bold mb-3">Partner Quests</h3>
+      <h3 className="text-lg font-medium mb-3">Partner Quests</h3>
 
       <div className="grid grid-cols-2 gap-2">
         {quests.map((q) => {
@@ -110,8 +110,8 @@ export default function PartnerQuests({
                   alt={q.title}
                   className={`h-[64px] w-[64px]`}
                 />
-                <p className="text-sm font-semibold">{q.title}</p>
-                <p className="text-xs mt-1 flex items-center justify-center">
+                <p className="text-sm font-medium">{q.title}</p>
+                <p className="text-xs mt-1 flex items-center justify-center font-poppins">
                   <Image
                     src={MinimilesSymbol}
                     alt=""
@@ -128,7 +128,7 @@ export default function PartnerQuests({
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="bg-white/90 rounded-full flex items-center p-1">
                     <Lock size={16} color="#219653" weight="bold" className="mr-1"/>
-                    <span className="text-xs text-[#07955F] font-semibold">
+                    <span className="text-xs text-[#07955F] font-medium">
                       Coming Soon
                     </span>
                   </div>

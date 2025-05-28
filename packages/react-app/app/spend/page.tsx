@@ -14,8 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
 import { fetchActiveRaffles, Raffle } from '@/helpers/raffledisplay';
-import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, RaffleImg4, laptop, WinImg } from '@/lib/img';
-import { MinimilesSymbol } from '@/lib/svg';
+import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2 } from '@/lib/img';
+import { Coin, MinimilesSymbol } from '@/lib/svg';
 import { Question } from '@phosphor-icons/react';
 import { StaticImageData } from 'next/image';
 import Link from 'next/link';
@@ -51,18 +51,19 @@ const digitalCashRaffles = [
 ];
 
 const physicalGoodsRaffles = [
-  { image: RaffleImg3, title: "Ledger hardware wallet", endsIn: 6, ticketCost: "3 MiniMiles for 1 ticket" },
+  { image: airpods, title: "Airpods 2", endsIn: 6, ticketCost: "3 MiniMiles for 1 ticket" },
   { image: laptop, title: "Laptop", endsIn: 4, ticketCost: "50 tickets by brand" },
+  { image: bicycle, title: "Bicycle", endsIn: 4, ticketCost: "50 tickets by brand" }
 ];
 
 const nftRaffles = [
-  { image: RaffleImg3, title: "BoredApe #567", endsIn: 7, ticketCost: "10 MiniMiles for 1 ticket" },
-  { image: RaffleImg2, title: "CryptoPunk #789", endsIn: 3, ticketCost: "12 MiniMiles" },
+  { image: nft1, title: "BoredApe #567", endsIn: 7, ticketCost: "10 MiniMiles for 1 ticket" },
+  { image: nft2, title: "CryptoPunk #789", endsIn: 3, ticketCost: "12 MiniMiles" },
 ];
 
 const upcomingGames = [
   { name: "Dice", date: "xx/xx/xx", image: Dice },
-  { name: "Coin flip", date: "xx/xx/xx", image: Dice },
+  { name: "Coin flip", date: "xx/xx/xx", image: Coin },
 ];
 
 const Page = () => {
@@ -120,10 +121,10 @@ const Page = () => {
 
 
   return (
-    <main className="pb-24 font-poppins bg-onboarding bg-white">
+    <main className="pb-24 font-sterling bg-onboarding bg-white">
       <div className="p-4">
-        <h1 className="text-2xl font-bold">Spend</h1>
-        <h3>Win big by entering our Raffles</h3>
+        <h1 className="text-2xl font-medium">Spend</h1>
+        <h3 className='font-extralight'>Win big by entering our Raffles</h3>
       </div>
       <MiniPointsCard points={Number(miniMilesBalance)} />
       <div className="mx-3">
@@ -131,7 +132,7 @@ const Page = () => {
       </div>
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold mb-2">Digital Cash Raffles</h3>
+          <h3 className="text-lg font-extrabold mb-2">Digital cash raffles</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
           {raffles.map((r) => (
@@ -165,7 +166,7 @@ const Page = () => {
 
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold mb-2">Physical Goods Raffles</h3>
+          <h3 className="text-lg font-medium mb-2">Physical goods raffles</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
           {physicalGoodsRaffles.map((raffle, idx) => (
@@ -197,7 +198,7 @@ const Page = () => {
       </div>
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-bold mb-2">NFT raffles</h3>
+          <h3 className="text-lg font-medium mb-2">NFT raffles</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
           {nftRaffles.map((raffle, idx) => (

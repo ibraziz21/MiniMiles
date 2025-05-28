@@ -53,7 +53,7 @@ export const RaffleDetails = ({
           <div className="relative w-full h-40 rounded-xl overflow-hidden mb-4">
             <Image src={image} alt={title} fill className="object-cover" />
             <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-              <p className="text-white text-2xl font-bold">{prize}</p>
+              <p className="text-white text-2xl font-medium">{prize}</p>
             </div>
           </div>
 
@@ -80,7 +80,7 @@ export const RaffleDetails = ({
               <button
                 key={n}
                 onClick={() => setSelected(n)}
-                className={`flex-1 rounded-xl py-3 font-semibold ${
+                className={`flex-1 rounded-xl py-3 font-medium ${
                   selected === n ? "border-2 border-black bg-white" : "bg-gray-100"
                 }`}
               >
@@ -113,6 +113,6 @@ const DetailRow = ({
   <div className="flex items-center gap-3">
     <div className="w-5 h-5 flex items-center justify-center">{icon}</div>
     <span>{label}:</span>
-    <span className="font-semibold">{value}</span>
+    <span className="font-medium">{value}</span>
   </div>
 );

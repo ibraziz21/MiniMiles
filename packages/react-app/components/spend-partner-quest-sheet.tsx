@@ -75,22 +75,40 @@ export default function SpendPartnerQuestSheet({
 
   if (!raffle) return null;
 
-  // Handle buy + 6s delay
   const handleBuy = async () => {
+    if (!raffle) return;                // should never happen, but guards TS
+
     try {
+      // 1️⃣ Start spinner / disable UI
       setProcessing(true);
+      setJoined(false);
+      setTxHash(null);
+
+      // 2️⃣ Send tx (your hook returns the hash)
       const hash = await joinRaffle(raffle.id, count);
       setTxHash(hash);
 
-      // wait 6 seconds then show success
-      setTimeout(() => {
-        setProcessing(false);
-        setJoined(true);
-      }, 6000);
+      // 3️⃣ Wait for confirmation ─ either:
+      //    a) the receipt (preferred – no magic numbers), OR
+      //    b) a 6 s fallback if you don’t want an extra RPC call
+      try {
+        // If you already have a viem publicClient in scope, use it:
+        // await publicClient.waitForTransactionReceipt({ hash });
+        //
+        // Otherwise, keep the simple timeout:
+        await new Promise((res) => setTimeout(res, 6_000));
+      } catch {
+        /* ignore wait errors – we’ll still show success after the timeout */
+      }
+
+      // 4️⃣ Switch to success screen
+      setJoined(true);
     } catch (err: any) {
-      setProcessing(false);
       console.error("Join raffle failed:", err);
-      alert(err.message || "Failed to join raffle");
+      alert(err?.message ?? "Failed to join raffle");
+    } finally {
+      // 5️⃣ Always stop spinner
+      setProcessing(false);
     }
   };
 
@@ -101,7 +119,7 @@ export default function SpendPartnerQuestSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="bg-white rounded-t-xl font-poppins max-h-[90vh] overflow-auto"
+        className="bg-white rounded-t-xl font-sterling max-h-[90vh] overflow-auto"
       >
         {processing ? (
           // ─── Processing View ───────────────────────────────────
@@ -110,55 +128,68 @@ export default function SpendPartnerQuestSheet({
           </div>
         ) : joined ? (
           // ─── Success View ──────────────────────────────────────
+
           <div className="flex flex-col justify-center h-full p-6 space-y-6">
-            <div className="flex justify-between items-center">
+            {/* header row */}
+            <div className="flex items-center justify-between">
               <CaretLeft
                 size={24}
-                onClick={() => {
-                  setJoined(false);
-                  onOpenChange(true);
-                }}
                 className="cursor-pointer"
+                onClick={() => {
+                  setJoined(false)
+                  onOpenChange(true)
+                }}
               />
               <button
-                className="text-sm text-green-600 hover:underline font-bold"
                 onClick={() => onOpenChange(false)}
+                className="font-medium text-sm text-green-600 hover:underline"
               >
                 Close
               </button>
             </div>
 
-            <div className="flex justify-center">
+            {/* image + badge */}
+            <div className="relative flex justify-center">          {/* ⬅️ give context */}
               <Image src={Successsvg} alt="Success" />
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-white text-center">
-                <div className="flex items-center py-1 px-3 justify-center">
-                  <h2 className="text-xl mx-2">{count}</h2><h4 className="text-white text-sm"> Tickets</h4>
+
+              {/* badge overlay – ignore clicks */}
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                <div className="pointer-events-auto flex items-center gap-1 rounded-md bg-[#07955F]/80 px-3 py-1">
+                  <h2 className="text-xl">{count}</h2>
+                  <span className="text-sm">Tickets</span>
                 </div>
               </div>
             </div>
 
+            {/* explorer link */}
             <Link
               href={`${explorerBase}/${txHash}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex justify-center items-center text-[#07955F] font-bold space-x-2"
+              className="flex items-center justify-center gap-1 font-medium text-[#07955F]"
             >
-              <span>View blockchain receipt</span>
-              <Share size={20} />
+              View blockchain receipt <Share size={20} />
             </Link>
 
+            {/* done button */}
             <Button
-              title="Done"
-              onClick={() => onOpenChange(false)}
-              className="w-full bg-[#07955F] text-white rounded-xl py-4 font-semibold"
-            />
+              className="w-full rounded-xl bg-[#07955F] py-4 font-medium text-white"
+              onClick={() => onOpenChange(false)} title={"Done"}  >
+              Done
+            </Button>
           </div>
+
         ) : (
           // ─── Purchase View ────────────────────────────────────
           <div className="p-4">
             <SheetHeader className="pt-4">
-              <SheetTitle>{raffle.title}</SheetTitle>
+              <SheetTitle></SheetTitle>
             </SheetHeader>
+
+            <div className="flex flex-col justify-start items-start mb-2">
+              <h3 className='text-sm font-medium bg-[#24E5E033] text-[#1E8C89] rounded-full px-3 '>Digital cash raffle</h3>
+              <h2 className="text-black font-medium text-3xl my-2">Weekly Raffle</h2>
+            </div>
 
             <div className="relative w-full h-40 rounded-xl overflow-hidden mb-4">
               <Image
@@ -192,12 +223,12 @@ export default function SpendPartnerQuestSheet({
               </div>
             </div>
 
-            <p className="text-center text-2xl font-semibold mb-6">
+            <p className="text-center text-xl font-medium mb-6">
               Buy tickets
             </p>
             <div className="flex items-center justify-center space-x-2 mb-4">
               <Image src={Ticket} alt="Ticket icon" width={32} height={32} />
-              <span className="text-2xl font-semibold">{count}</span>
+              <span className="text-2xl font-medium text-[#07955F]">{count}</span>
             </div>
 
             {/* Ticket count controls */}
@@ -207,7 +238,7 @@ export default function SpendPartnerQuestSheet({
                   onClick={() => setCount((c) => Math.max(1, c - 1))}
                   className="p-2 bg-gray-100 rounded-full"
                 >
-                  <Minus size={20} />
+                  <Minus size={20} color="#07955F" />
                 </button>
                 <Slider
                   value={[count]}
@@ -221,7 +252,7 @@ export default function SpendPartnerQuestSheet({
                   onClick={() => setCount((c) => Math.min(maxTickets, c + 1))}
                   className="p-2 bg-gray-100 rounded-full"
                 >
-                  <Plus size={20} />
+                  <Plus size={20} color="#07955F" />
                 </button>
               </div>
               <div className="flex justify-between text-xs text-gray-500 mt-1">
@@ -237,17 +268,17 @@ export default function SpendPartnerQuestSheet({
                   key={n}
                   onClick={() => setCount(Math.min(n, maxTickets))}
                   disabled={n > maxTickets}
-                  className={`flex-1 rounded-xl py-2 font-semibold ${count === n
-                    ? "bg-green-600 text-white"
-                    : "bg-gray-100 text-gray-800"
+                  className={`flex-1 rounded-xl p-2 font-medium ${count === n
+                    ? "border-[#07955F] bg-[#07955F1A] text-[#07955F] border-2"
+                    : "bg-gray-100 text-[#07955F]"
                     }`}
                 >
                   <div className="flex items-center justify-center space-x-1">
                     <Image
                       src={Ticket}
                       alt="Ticket icon"
-                      width={16}
-                      height={16}
+                      width={24}
+                      height={24}
                     />
                     <span>{n}</span>
                   </div>
@@ -266,7 +297,7 @@ export default function SpendPartnerQuestSheet({
               <Button
                 title="Buy"
                 onClick={handleBuy}
-                className="w-full bg-green-600 text-white rounded-xl py-4 font-semibold"
+                className="w-full bg-[#07955F] text-white rounded-xl h-[56px] font-medium"
               />
             </SheetFooter>
           </div>

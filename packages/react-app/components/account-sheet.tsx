@@ -41,7 +41,7 @@ const AccountSheet = () => {
       </SheetTrigger>
       <SheetContent
         side={"bottom"}
-        className="bg-white rounded-t-xl font-poppins"
+        className="bg-white rounded-t-xl font-sterling"
       >
         <SheetHeader>
           <SheetTitle>Account</SheetTitle>
@@ -50,7 +50,7 @@ const AccountSheet = () => {
           <div className="flex flex-col justify-between items-start shadow-lg rounded-xl p-2 text-[#00000080]">
             <h3 className="text-sm text-left">Username</h3>
             <div className="flex justify-between items-center w-full">
-              <h2 className="font-bold">{username}</h2>
+              <h2 className="font-medium">{username}</h2>
               <Copy
                 size={24}
                 className="cursor-pointer"
@@ -63,7 +63,7 @@ const AccountSheet = () => {
           <div className="flex flex-col justify-between items-start shadow-lg rounded-xl p-2 text-[#00000080] mt-4">
             <h3 className="text-sm text-left">Paired address</h3>
             <div className="flex justify-between items-center w-full">
-              <h2 className="font-bold break-all">{address}</h2>
+              <h2 className="font-medium break-all">{address}</h2>
               <Copy
                 size={24}
                 className="cursor-pointer"

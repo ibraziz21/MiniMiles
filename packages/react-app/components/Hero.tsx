@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 
 export const Hero = () => {
   return (
-    <section className="w-full bg-gradient-to-b from-[#d3f4e5] to-[#a6ddb3] py-10 px-2 text-left font-poppins">
+    <section className="w-full bg-gradient-to-b from-[#d3f4e5] to-[#a6ddb3] py-10 px-2 text-left font-sterling">
       <p className="text-base font-medium mb-2 text-black">
         Use your MiniMiles to buy tickets
       </p>

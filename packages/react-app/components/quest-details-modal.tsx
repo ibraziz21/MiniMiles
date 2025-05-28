@@ -27,11 +27,11 @@ export default function QuestDetailModal({
     <DialogContent className="max-w-sm rounded-3xl p-0 overflow-hidden">
         <div className="p-6">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold">Swap on ReFi DEX</DialogTitle>
+            <DialogTitle className="text-xl font-medium">Swap on ReFi DEX</DialogTitle>
           </DialogHeader>
 
           <div className="bg-green-700 text-white rounded-xl py-4 text-center mt-4">
-            <p className="text-2xl font-bold">10 MiniMiles</p>
+            <p className="text-2xl font-medium">10 MiniMiles</p>
           </div>
 
           <div className="mt-6 text-sm space-y-3">
