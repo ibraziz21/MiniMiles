@@ -56,10 +56,10 @@ const Layout: FC<Props> = ({ children }) => {
   const isOnboarding = pathname.startsWith("/onboarding");
   const isClaim = pathname.startsWith("/claim");
 
-  // 4) If we haven’t even checked membership yet, render nothing
-  if (!isMiniPay && !isOnboarding && !isClaim && !hasCheckedMember) {
-    return null;
-  }
+  // // 4) If we haven’t even checked membership yet, render nothing
+  // if (!isMiniPay && !isOnboarding && !isClaim && !hasCheckedMember) {
+  //   return null;
+  // }
 
   return (
     <div className="bg-gypsum overflow-hidden flex flex-col min-h-screen">
