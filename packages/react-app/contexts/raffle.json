@@ -1,7 +1,4 @@
 {
-  "_format": "hh-sol-artifact-1",
-  "contractName": "MiniRaffle",
-  "sourceName": "contracts/MiniRaffle.sol",
   "abi": [
     {
       "inputs": [
