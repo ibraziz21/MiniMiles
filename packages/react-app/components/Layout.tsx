@@ -57,7 +57,7 @@ const Layout: FC<Props> = ({ children }) => {
   const isClaim = pathname.startsWith("/claim");
 
   // 4) If we haven’t even checked membership yet, render nothing
-  if (!isMiniPay && !isOnboarding && !isClaim && !hasCheckedMember) {
+  if (!isOnboarding && !isClaim && !hasCheckedMember) {
     return null;
   }
 
