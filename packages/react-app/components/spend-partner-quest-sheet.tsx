@@ -140,12 +140,10 @@ export default function SpendPartnerQuestSheet({
                   onOpenChange(true)
                 }}
               />
-              <button
-                onClick={() => onOpenChange(false)}
-                className="font-medium text-sm text-green-600 hover:underline"
-              >
-                Close
-              </button>
+            </div>
+
+            <div className="flex justify-center">
+              <h3 className="font-bold text-lg text-center">Your raffle tickets have been successfully purchased!</h3>
             </div>
 
             {/* image + badge */}
@@ -153,14 +151,22 @@ export default function SpendPartnerQuestSheet({
               <Image src={Successsvg} alt="Success" />
 
               {/* badge overlay – ignore clicks */}
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                <div className="pointer-events-auto flex items-center gap-1 rounded-md bg-[#07955F]/80 px-3 py-1">
-                  <h2 className="text-xl">{count}</h2>
-                  <span className="text-sm">Tickets</span>
+              <div className="pointer-events-none absolute inset-0 top-20 flex flex-col items-center justify-center">
+                <div className="pointer-events-auto flex items-center gap-1 rounded-md  px-3 py-1 text-white">
+                  <h2 className="text-4xl mr-2">{count}</h2>
+                  <span className="text-2xl">ticket{count > 1 ? 's' : null}</span>
                 </div>
               </div>
+
             </div>
 
+            <div className="flex flex-col justify-center items-center">
+              <div className="">
+
+                <h4 className="bg-[#CFF2E5] rounded-full text-[#07955F] px-4 font-semibold">Purchased</h4>
+              </div>
+              {/* <h3 className="">28 May 2025, 14:20</h3> */}
+            </div>
             {/* explorer link */}
             <Link
               href={`${explorerBase}/${txHash}`}
@@ -173,9 +179,9 @@ export default function SpendPartnerQuestSheet({
 
             {/* done button */}
             <Button
-              className="w-full rounded-xl bg-[#07955F] py-4 font-medium text-white"
-              onClick={() => onOpenChange(false)} title={"Done"}  >
-              Done
+              className="w-full rounded-xl bg-[#07955F1A] text-[#07955F] py-4 font-medium text-lg h-[56px]"
+              onClick={() => onOpenChange(false)} title={"Close"}  >
+              Close
             </Button>
           </div>
 
