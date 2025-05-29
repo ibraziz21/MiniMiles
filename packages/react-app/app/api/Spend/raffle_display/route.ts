@@ -26,8 +26,6 @@ export async function GET() {
       return NextResponse.json({ raffles: [] })
     }
 
-    console.log("We get here: ", roundCountBN)
-
     // 2️⃣ Attempt to fetch each as an active round
     const roundIds = [...Array(total).keys()].map(i => BigInt(i + 1))
     const roundsRaw: any[] = await publicClient.multicall({
@@ -39,8 +37,6 @@ export async function GET() {
       })),
       allowFailure: true,
     })
-
-    console.log("We get here too: ", roundsRaw);
 
     // 3️⃣ Shape results, drop inactive (failed) calls
   // 3️⃣ Unwrap and shape only successful calls
@@ -89,7 +85,7 @@ export async function GET() {
             functionName: 'symbol',
           }) 
        
-        console.log(symbol)
+
         return { ...rf, symbol }
       })
     )

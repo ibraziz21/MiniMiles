@@ -49,7 +49,11 @@ export default function SpendPartnerQuestSheet({
   const [joined, setJoined] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
 
-  const { joinRaffle } = useWeb3();
+  const { joinRaffle, address, getUserAddress } = useWeb3();
+
+  useEffect(() => {
+    getUserAddress();
+  }, []);
 
   // Derive numeric values
   const ticketCostNum = Number(raffle?.ticketCost.replace(/\D/g, "")) || 1;
@@ -77,16 +81,23 @@ export default function SpendPartnerQuestSheet({
 
   const handleBuy = async () => {
     if (!raffle) return;                // should never happen, but guards TS
+    console.log("Button actually runs function")
 
+    if(!address) {
+      console.error("Not Connected")
+    }
+    console.log(address)
     try {
       // 1️⃣ Start spinner / disable UI
       setProcessing(true);
       setJoined(false);
       setTxHash(null);
+      console.log("Processing....")
 
       // 2️⃣ Send tx (your hook returns the hash)
       const hash = await joinRaffle(raffle.id, count);
       setTxHash(hash);
+      console.log("Tx Hash", hash)
 
       // 3️⃣ Wait for confirmation ─ either:
       //    a) the receipt (preferred – no magic numbers), OR

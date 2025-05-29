@@ -38,9 +38,6 @@ export async function POST(req: Request) {
   try {
     const { userAddress, questId } = await req.json()
     const addresses = [USDC_ADDRESS,CUSD_ADDRESS]
-    console.log("[DAILY-CUSD] Checking claim for:", userAddress)
-
-
     // 1) Has user already claimed today?
     const today = new Date().toISOString().slice(0, 10) // 'YYYY-MM-DD'
     const { data: claimed, error } = await supabase
@@ -79,8 +76,12 @@ export async function POST(req: Request) {
       args: [userAddress, parseUnits("5",18)],
       account: account.address,
     })
-    const txHash = await walletClient.writeContract(request)
-    console.log("[DAILY-CUSD] Mint Tx:", txHash)
+    const txHash = await walletClient.writeContract({
+      ...request,           // to, data, gas, etc.
+      account,              // <-- full account object, so Viem can sign
+      chain:   celoAlfajores,   // (optional) but avoids auto-detect
+    })
+
 
     // 4) Log claim in DB
     await supabase.from("daily_engagements").insert({

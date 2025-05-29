@@ -9,6 +9,9 @@ import {
 import {
   claimDailyReceive,
 } from "@/helpers/claimReceive";
+import {
+  claimFiveTransfers,
+} from "@/helpers/claimFiveTransfers";
 import { Cash, Door, MinimilesSymbol } from "@/lib/svg";
 import QuestLoadingModal, { QuestStatus } from "./quest-loading-modal";
 import { useWeb3 } from "@/contexts/useWeb3";
@@ -21,6 +24,18 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY!
 );
+
+/* ──────────────────────────────────────────────────────────────── */
+/*  0.   DEPENDENCY MAP                                             */
+/* ──────────────────────────────────────────────────────────────── */
+/*   questId         →  questIds that must be completed _today_     */
+const PREREQ: Record<string, string[]> = {
+  // Quest-D (Receive 5 tokens) unlocks only after Quest-C (Send 5 tokens)
+  "f6d027d2-bf52-4768-a87f-2be00a5b03a0": [
+    "383eaa90-75aa-4592-a783-ad9126e8f04d",
+  ],
+};
+/* ──────────────────────────────────────────────────────────────── */
 
 type QuestRow = {
   id: string;
@@ -37,6 +52,7 @@ const ACTION_BY_ID: Record<
   "a9c68150-7db8-4555-b87f-5e9117b43a08": { action: claimDailyQuest,   img: Door },
   "383eaa90-75aa-4592-a783-ad9126e8f04d": { action: claimDailyTransfer, img: Cash },
   "c6b14ae1-66e9-4777-9c9f-65e57b091b16": { action: claimDailyReceive,  img: Cash },
+  "f6d027d2-bf52-4768-a87f-2be00a5b03a0": { action: claimFiveTransfers,  img: Cash },
 };
 
 /**
@@ -68,13 +84,15 @@ export default function DailyChallenges({ showCompleted = false }: { showComplet
         .eq("is_active", true);
       if (!quests) { setLoading(false); return; }
 
-      if (!address) {               // not connected
+      // if wallet not connected → all quests are just “active”
+      if (!address) {
         setActive(quests as QuestRow[]);
         setCompleted([]);
         setLoading(false);
         return;
       }
 
+      // what has the user already claimed TODAY?
       const today = new Date().toISOString().slice(0, 10);
       const { data: eng } = await supabase
         .from("daily_engagements")
@@ -83,8 +101,17 @@ export default function DailyChallenges({ showCompleted = false }: { showComplet
         .eq("claimed_at", today);
 
       const claimed = new Set(eng?.map(e => e.quest_id));
-      setActive(quests.filter(q => !claimed.has(q.id)));
-      setCompleted(quests.filter(q =>  claimed.has(q.id)));
+
+      // helper: all prerequisites of q have been claimed?
+      const ready = (q: QuestRow) =>
+        (PREREQ[q.id] ?? []).every(dep => claimed.has(dep));
+
+      setActive(
+        quests.filter(q => !claimed.has(q.id) && ready(q)) as QuestRow[]
+      );
+      setCompleted(
+        quests.filter(q =>  claimed.has(q.id)) as QuestRow[]
+      );
       setLoading(false);
     }
     fetchAll();
