@@ -83,28 +83,24 @@ export function useWeb3() {
  // in src/contexts/useWeb3.ts
  // 2️⃣ joinRaffle writes directly
  const joinRaffle = useCallback(
+  async (roundId: number, ticketCount: number) => {
+    if (!walletClient || !address) throw new Error("Wallet not connected");
 
-    async (roundId: number, ticketCount: number) => {
-      console.log("Working? ",roundId, "  ", ticketCount )
-      if (!walletClient || !address) {
-        posthog.capture("join-raffle-error-2", {
-          address
-        })
-        throw new Error("Wallet not connected");
-      }
-      posthog.capture('client-milestone', {
-        details: 'milestone check'
-      })
-      return walletClient.writeContract({
-        address: '0xA1F1Cd3b90f49c9d44ed324C69869df139616d55',
-        abi: raffleAbi.abi,
-        functionName: "joinRaffle",
-        account: address,
-        args: [BigInt(roundId), BigInt(ticketCount)],
-      });
-    },
-    [walletClient, address]
-  );
+    const hash = await walletClient.writeContract({
+      address: '0xA1F1Cd3b90f49c9d44ed324C69869df139616d55',
+      abi: raffleAbi.abi,
+      functionName: "joinRaffle",
+      account: address,
+      args: [BigInt(roundId), BigInt(ticketCount)],
+    });
+
+    // wait until it’s mined (optional-but-nice UX)
+    await publicClient.waitForTransactionReceipt({ hash });
+
+    return hash;          // <- RETURN THE HASH STRING
+  },
+  [walletClient, address, publicClient]
+);
   
 
   return {
