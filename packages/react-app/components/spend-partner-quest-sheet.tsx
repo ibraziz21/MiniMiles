@@ -17,6 +17,7 @@ import { Ticket, Successsvg } from "@/lib/svg";
 import { StaticImageData } from "next/image";
 import { useWeb3 } from "@/contexts/useWeb3";
 import Link from "next/link";
+import posthog from "posthog-js";
 
 interface SpendRaffle {
   id: number;
@@ -80,6 +81,10 @@ export default function SpendPartnerQuestSheet({
   if (!raffle) return null;
 
   const handleBuy = async () => {
+    posthog.capture('buy-state', {
+      raffle,
+      address
+    })
     if (!raffle) return;                // should never happen, but guards TS
     console.log("Button actually runs function")
 
@@ -96,6 +101,9 @@ export default function SpendPartnerQuestSheet({
 
       // 2️⃣ Send tx (your hook returns the hash)
       const hash = await joinRaffle(raffle.id, count);
+      posthog.capture('join-success', {
+        hash
+      })
       setTxHash(hash);
       console.log("Tx Hash", hash)
 
@@ -115,6 +123,9 @@ export default function SpendPartnerQuestSheet({
       // 4️⃣ Switch to success screen
       setJoined(true);
     } catch (err: any) {
+      posthog.capture("buy-button-press-error",{
+        err: err
+      })
       console.error("Join raffle failed:", err);
       alert(err?.message ?? "Failed to join raffle");
     } finally {

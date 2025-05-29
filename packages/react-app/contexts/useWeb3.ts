@@ -15,6 +15,7 @@ import { celoAlfajores } from "viem/chains";
 import StableTokenABI from "@/contexts/cusd-abi.json";
 import MiniMilesAbi from "@/contexts/minimiles.json";
 import raffleAbi from "@/contexts/raffle.json";
+import posthog from "posthog-js";
 
 export function useWeb3() {
   const [address, setAddress]         = useState<string | null>(null);
@@ -42,6 +43,7 @@ export function useWeb3() {
 
         let [address] = await walletClient.getAddresses();
         setAddress(address);
+        posthog.identify(address)
     }
 };
 
@@ -85,8 +87,14 @@ export function useWeb3() {
     async (roundId: number, ticketCount: number) => {
       console.log("Working? ",roundId, "  ", ticketCount )
       if (!walletClient || !address) {
+        posthog.capture("join-raffle-error-2", {
+          address
+        })
         throw new Error("Wallet not connected");
       }
+      posthog.capture('client-milestone', {
+        details: 'milestone check'
+      })
       return walletClient.writeContract({
         address: '0xA1F1Cd3b90f49c9d44ed324C69869df139616d55',
         abi: raffleAbi.abi,

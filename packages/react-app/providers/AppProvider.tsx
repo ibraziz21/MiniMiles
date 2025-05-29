@@ -12,6 +12,7 @@ import { celo, celoAlfajores } from 'wagmi/chains';
 
 import Layout from '../components/Layout';
 import { injectedWallet } from '@rainbow-me/rainbowkit/wallets';
+import { PostHogProvider } from '@/components/posthog-provider';
 
 const connectors = connectorsForWallets(
   [
@@ -41,9 +42,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider>
-          <Layout>{children}</Layout>
-        </RainbowKitProvider>
+        <PostHogProvider>
+          <RainbowKitProvider>
+            <Layout>{children}</Layout>
+          </RainbowKitProvider>
+        </PostHogProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );
