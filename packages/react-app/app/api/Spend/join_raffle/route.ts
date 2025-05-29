@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server"
 import { createPublicClient, http, type Abi } from "viem"
 import { celoAlfajores } from "viem/chains"
-import raffleAbi from "@/contexts/raffle.json"
+import raffleAbi from "@/contexts/miniraffle.json"
 
 const RAFFLE_ADDRESS = "0x28AC9810af772f4b7347F48D44EF47592b8ea750"
 

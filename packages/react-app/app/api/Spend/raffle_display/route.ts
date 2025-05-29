@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server'
 import { createPublicClient, formatUnits, http, parseUnits, type Abi } from 'viem'
 import { celoAlfajores } from 'viem/chains'
-import raffleAbi from '@/contexts/raffle.json' 
+import raffleAbi from '@/contexts/miniraffle.json' 
 import    erc20Abi from '@/contexts/cusd-abi.json'      // must include getActiveRound
 import type { Address } from 'viem'
 
