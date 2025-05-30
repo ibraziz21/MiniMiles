@@ -25,6 +25,7 @@ On Alfajores
 
 ```bash
 npx hardhat ignition deploy ./ignition/modules/MiniPay.ts --network alfajores
+npx hardhat ignition deploy ./ignition/modules/MiniRaffle.ts --network alfajores
 ```
 
 

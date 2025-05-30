@@ -66,12 +66,12 @@ contract MiniRaffle is ReentrancyGuard {
         _;
     }
 
-    constructor(address _miniPoints, address _cUSD, address _cKES) {
+    constructor(address _miniPoints, address _cUSD) {
         require(_miniPoints != address(0), "invalid MiniPoints");
         miniPoints = IMiniPoints(_miniPoints);
         miles = IERC20(_miniPoints);
         cUSD = IERC20(_cUSD);
-        cKES = IERC20(_cKES);
+        // cKES = IERC20(_cKES);
         owner = msg.sender;
     }
 
