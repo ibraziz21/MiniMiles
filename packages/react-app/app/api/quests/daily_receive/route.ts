@@ -63,7 +63,7 @@ export async function POST(req: Request) {
       console.log("No qualifying transfer found across any token")
       return NextResponse.json({
         success: false,
-        message: `No on-chain transfer ≥ 5 found in the last 24 hours for any tracked token`,
+        message: `No on-chain Top Up ≥ $1 found in the last 24 hours for any tracked token`,
       })
     }
 
@@ -73,7 +73,7 @@ export async function POST(req: Request) {
       address: MINIPOINTS_ADDRESS as `0x${string}`,
       abi: MiniPointsAbi.abi,
       functionName: "mint",
-      args: [userAddress, parseUnits("5",18)],
+      args: [userAddress, parseUnits("15",18)],
       account: account.address,
     })
     const txHash = await walletClient.writeContract({
@@ -125,7 +125,7 @@ async function hasUserReceivedAtLeast5CusdIn24Hrs(userAddress: string, tokenAddr
     [CUSD_ADDRESS]: 18,
   };
   const decimals = TOKEN_DECIMALS[tokenAddress] ?? 18;
-const FIVE = parseUnits("5", decimals);
+const FIVE = parseUnits("1", decimals);
   for (let log of logs) {
     if (
       log.args[1]?.toLowerCase() === userAddress.toLowerCase() &&

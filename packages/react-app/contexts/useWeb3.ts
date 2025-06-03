@@ -91,7 +91,7 @@ export function useWeb3() {
       abi: raffleAbi.abi,
       functionName: "joinRaffle",
       account: address,
-      args: [BigInt(roundId), BigInt(ticketCount)],
+      args: [BigInt(roundId), BigInt(ticketCount)]
     });
 
     // wait until it’s mined (optional-but-nice UX)

@@ -68,7 +68,7 @@ export async function POST(req: Request) {
   
       return NextResponse.json({
         success: false,
-        message: `No on-chain transfer ≥ 5 found in the last 24 hours for any tracked token`,
+        message: `No on-chain transfer ≥ $1 found in the last 24 hours for any tracked token`,
       })
     }
 
@@ -126,7 +126,7 @@ async function hasUserSpentAtLeast5CusdIn24Hrs(userAddress: string, tokenAddress
     [CUSD_ADDRESS]: 18,
   };
   const decimals = TOKEN_DECIMALS[tokenAddress] ?? 18;
-const FIVE = parseUnits("5", decimals); // cUSD has 18 decimals
+const FIVE = parseUnits("1", decimals); // cUSD has 18 decimals
   for (let log of logs) {
     if (
       log.args[0]?.toLowerCase() === userAddress.toLowerCase() &&

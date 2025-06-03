@@ -110,6 +110,7 @@ export default function Home() {
             <span className="text-sm text-green-600 hover:underline">See All ›</span>
           </Link>
         </div>
+        <p>Completed a challenge? Click on the card and claim Miles</p>
         <div className="flex gap-3 overflow-x-auto">
           <DailyChallenges />
         </div>
