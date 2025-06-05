@@ -103,14 +103,14 @@ export default function Home() {
     <main className="pb-24 font-sterling">
       <DashboardHeader name={truncateEthAddress(address ?? "")} />
       <PointsCard points={Number(miniMilesBalance)} />
-      <div className="mx-4 mt-6">
+      <div className="mx-4 mt-6 gap-1">
         <div className="flex justify-between items-center my-2">
           <h3 className="text-lg font-medium">Daily challenges</h3>
           <Link href='/earn'>
             <span className="text-sm text-green-600 hover:underline font-medium">See All ›</span>
           </Link>
         </div>
-        <p>Completed a challenge? Click on the card and claim Miles</p>
+        <p className="text-gray-500">Completed a challenge? Click on the card and claim Miles</p>
         <div className="flex gap-3 overflow-x-auto">
           <DailyChallenges />
         </div>

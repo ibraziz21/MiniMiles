@@ -122,9 +122,9 @@ const Page = () => {
 
   return (
     <main className="pb-24 font-sterling bg-onboarding">
-      <div className="px-4 min-h-[110px]  flex flex-col justify-around">
+      <div className="px-4 flex flex-col justify-around gap-1 mb-4">
         <h1 className="text-2xl font-medium">Spend</h1>
-        <h3 className='font-extralight'>Win big by entering our Raffles</h3>
+        <h3 className='font-poppins'>Win big by entering our Raffles</h3>
       </div>
       <MiniPointsCard points={Number(miniMilesBalance)} />
       <div className="mx-3">

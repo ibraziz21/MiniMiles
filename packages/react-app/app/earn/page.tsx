@@ -30,7 +30,7 @@ export default function EarnPage() {
 
   return (
     <main className="pb-24 font-sterling">
-      <div className="px-4 min-h-[110px] flex flex-col justify-around">
+      <div className="px-4 flex flex-col justify-around gap-1 mb-4">
         <h1 className="text-2xl font-medium">Earn</h1>
         <p className="font-poppins">Complete challenges and quests to earn MiniMiles.</p>
       </div>
@@ -61,7 +61,10 @@ export default function EarnPage() {
         {/* ── ACTIVE tab ─────────────────────────── */}
         <TabsContent value="active">
           {/* Daily (active only) */}
+          <div className="mx-4 mt-6 gap-1">
           <h3 className="text-lg font-medium mt-6 mb-2">Daily challenges</h3>
+        <p className="text-gray-500">Completed a challenge? Click on the card and claim Miles</p>
+        </div>
           <DailyChallenges />
 
 
