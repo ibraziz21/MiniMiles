@@ -7,7 +7,7 @@ import Link from "next/link";
 export default function DashboardHeader({ name }: { name: any }) {
   return (
     <div className="px-4 pt-4 flex justify-between items-center">
-      <h1 className="text-xl font-medium mt-2">Welcome {name}!</h1>
+      <h1 className="text-xl font-medium">Welcome {name}!</h1>
 
       <div className="flex">
         <Image src={GearSvg} alt="" />

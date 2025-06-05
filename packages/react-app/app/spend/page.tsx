@@ -121,8 +121,8 @@ const Page = () => {
 
 
   return (
-    <main className="pb-24 font-sterling bg-onboarding bg-white">
-      <div className="p-4">
+    <main className="pb-24 font-sterling bg-onboarding">
+      <div className="px-4 min-h-[110px]  flex flex-col justify-around">
         <h1 className="text-2xl font-medium">Spend</h1>
         <h3 className='font-extralight'>Win big by entering our Raffles</h3>
       </div>

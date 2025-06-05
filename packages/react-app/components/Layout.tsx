@@ -66,7 +66,7 @@ const Layout: FC<Props> = ({ children }) => {
       {/* only show Header when not onboarding/claim AND not in MiniPay */}
       {!isOnboarding && !isClaim && !isMiniPay && <Header />}
 
-      <div className="flex-grow">
+      <div className="flex-grow bg-app">
         {children}
       </div>
 

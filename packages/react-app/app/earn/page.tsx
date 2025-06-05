@@ -29,14 +29,12 @@ export default function EarnPage() {
   const openQuest = (q: any) => { setQuest(q); setSheetOpen(true); };
 
   return (
-    <main className="pb-24 font-sterling bg-white">
-      <div className="px-4 pt-4">
+    <main className="pb-24 font-sterling">
+      <div className="px-4 min-h-[110px] flex flex-col justify-around">
         <h1 className="text-2xl font-medium">Earn</h1>
         <p className="font-poppins">Complete challenges and quests to earn MiniMiles.</p>
       </div>
-
       <MiniPointsCard points={Number(balance)} />
-
       {/* ── Page-level Active / Completed tabs ───────────── */}
       <Tabs defaultValue="active" className="mx-4">
         <TabsList>

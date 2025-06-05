@@ -10,7 +10,7 @@ export default function ClaimPage() {
     const [claimUsername, setClaimUsername] = useState(false);
 
     return (
-        <div className="bg-white">
+        <div className="">
             {
                 claimUsername ? <ClaimUsernamePage /> : <main className="relative flex h-dvh flex-col items-center justify-between bg-claim bg-cover bg-center px-6 py-10 font-sterling bg-[#F5FFFB] bg-opacity-80">
                     {/* Headline */}

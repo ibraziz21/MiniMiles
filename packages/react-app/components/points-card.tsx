@@ -6,7 +6,7 @@ import Link from "next/link";
 
 export default function PointsCard({ points }: { points: number }) {
     return (
-        <div className="bg-point-card bg-[#219653] bg-no-repeat bg-cover text-white rounded-2xl pt-4 px-2 mx-4 mt-4 space-y-4">
+        <div className="bg-point-card bg-[#219653] bg-no-repeat bg-contain  text-white rounded-2xl pt-4 px-2 mx-4 mt-4 space-y-4">
             <div className="p-3 flex flex-col justify-between">
                 <h3 className="">Total MiniMiles</h3>
                 <div className="flex items-center justify-start my-3">
