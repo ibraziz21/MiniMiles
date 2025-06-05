@@ -22,6 +22,10 @@ import GearSvg from "../public/svg/gear.svg"
 import Transcript from "../public/svg/transcript.svg"
 import Successsvg from "../public/svg/success.svg"
 import Coin from "../public/svg/coin.svg"
+import CeloRaffleSvg from "../public/svg/celo-cash-raffle.svg"
+import CkesRaffleSvg from "../public/svg/ckes-cash-raffle.svg"
+import CusdRaffleSvg from "../public/svg/cusd-cash-raffle.svg"
+import MilesRaffleSvg from "../public/svg/miles-cash-raffle.svg"
 
 export {
     Cash,
@@ -47,5 +51,9 @@ export {
     TicketAlt,
     Transcript,
     Successsvg,
-    Coin
+    Coin,
+    CeloRaffleSvg,
+    CkesRaffleSvg,
+    CusdRaffleSvg,
+    MilesRaffleSvg,
 }

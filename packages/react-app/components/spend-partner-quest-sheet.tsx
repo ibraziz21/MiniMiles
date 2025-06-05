@@ -13,7 +13,7 @@ import {
 import Image from "next/image";
 import { CaretLeft, Minus, Plus, Share } from "@phosphor-icons/react";
 import { Slider } from "./ui/slider";
-import { Ticket, Successsvg } from "@/lib/svg";
+import { Ticket, Successsvg, MinimilesSymbol } from "@/lib/svg";
 import { StaticImageData } from "next/image";
 import { useWeb3 } from "@/contexts/useWeb3";
 import Link from "next/link";
@@ -88,7 +88,7 @@ export default function SpendPartnerQuestSheet({
     if (!raffle) return;                // should never happen, but guards TS
     console.log("Button actually runs function")
 
-    if(!address) {
+    if (!address) {
       console.error("Not Connected")
     }
     console.log(address)
@@ -123,7 +123,7 @@ export default function SpendPartnerQuestSheet({
       // 4️⃣ Switch to success screen
       setJoined(true);
     } catch (err: any) {
-      posthog.capture("buy-button-press-error",{
+      posthog.capture("buy-button-press-error", {
         err: err
       })
       console.error("Join raffle failed:", err);
@@ -141,7 +141,7 @@ export default function SpendPartnerQuestSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="bg-white rounded-t-xl font-sterling max-h-[90vh] overflow-auto"
+        className="bg-white rounded-t-xl font-sterling max-h-[90vh] overflow-auto p-3"
       >
         {processing ? (
           // ─── Processing View ───────────────────────────────────
@@ -209,7 +209,7 @@ export default function SpendPartnerQuestSheet({
 
         ) : (
           // ─── Purchase View ────────────────────────────────────
-          <div className="p-4">
+          <div className="">
             <SheetHeader className="pt-4">
               <SheetTitle></SheetTitle>
             </SheetHeader>
@@ -226,6 +226,14 @@ export default function SpendPartnerQuestSheet({
                 fill
                 className="object-cover"
               />
+              <div
+                className={`absolute top-10 right-5 p-2 `}>
+                <p className="font-medium text-white text-3xl">500</p>
+                <p className="text-xs  rounded-full p-1 mt-1 flex items-center text-white">
+                  <Image src={MinimilesSymbol} alt="" width={16} height={16} className="mr-1" />
+                  cUSD
+                </p>
+              </div>
             </div>
 
             <div className="text-gray-500 rounded-xl py-3 text-center mb-4">
@@ -237,13 +245,13 @@ export default function SpendPartnerQuestSheet({
             <div className="mb-4 text-sm space-y-2">
               <div className="flex justify-between">
                 <span className="font-medium">Prize</span>
-                <span className="text-gray-700">
-                  {raffle.prize} {raffle.symbol}
+                <span className="text-gray-700 flex">
+                  <Image src={MinimilesSymbol} alt="" width={16} height={16} className="mr-1" /> {raffle.prize} {raffle.symbol}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="font-medium">Price per ticket</span>
-                <span className="text-gray-700">{ticketCostNum} MiniMiles</span>
+                <span className="text-gray-700 flex "><Image src={MinimilesSymbol} alt="" width={16} height={16} className="mr-1" />{ticketCostNum} MiniMiles</span>
               </div>
               <div className="flex justify-between">
                 <span className="font-medium">Draw Date</span>
@@ -296,9 +304,9 @@ export default function SpendPartnerQuestSheet({
                   key={n}
                   onClick={() => setCount(Math.min(n, maxTickets))}
                   disabled={n > maxTickets}
-                  className={`flex-1 rounded-xl p-2 font-medium ${count === n
+                  className={`flex-1 rounded-xl py-2 px-3 font-medium ${count === n
                     ? "border-[#07955F] bg-[#07955F1A] text-[#07955F] border-2"
-                    : "bg-gray-100 text-[#07955F]"
+                    : "bg-[#07955F1A] text-[#07955F]"
                     }`}
                 >
                   <div className="flex items-center justify-center space-x-1">
@@ -313,14 +321,14 @@ export default function SpendPartnerQuestSheet({
                 </button>
               ))}
             </div>
-
-            <p className="text-center text-xs text-gray-500 mb-1">
-              Available tickets: {maxTickets}
+            <p className="text-center text-xs text-gray-500 "> Select an amount of tickets to buy </p>
+            <div className="text-center text-xs text-gray-500 flex justify-center items-center"> Balance: <Image src={MinimilesSymbol} alt="" width={16} height={16} className="mr-1" /> <p className="font-medium text-black">{maxTickets}</p> <p className="text-xs mx-1 rounded-full py-1 px-3 flex items-center text-[#219653] bg-[#07955F1A]">
+              Max
             </p>
+            </div>
             <p className="text-center text-sm font-medium mb-6">
               Total cost: {totalCost} MiniMiles
             </p>
-
             <SheetFooter>
               <Button
                 title="Buy"
