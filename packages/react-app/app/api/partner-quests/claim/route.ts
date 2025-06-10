@@ -31,7 +31,7 @@ const walletClient = createWalletClient({
   transport: http(),
 })
 
-const CONTRACT_ADDRESS = '0x9a51F81DAcEB772cC195fc8551e7f2fd7c62CD57'
+const CONTRACT_ADDRESS = '0xb0012Ff26b6eB4F75d09028233204635c0332050'
 
 // ── POST HANDLER ─────────────────────────────────────────────────────────────
 export async function POST(request: Request) {

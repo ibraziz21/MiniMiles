@@ -135,7 +135,7 @@ export default function SpendPartnerQuestSheet({
   };
 
   // Block explorer URL (Alfajores)
-  const explorerBase = "https://alfajores.celoscan.io/tx";
+  const explorerBase = "https://celoscan.io/tx";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>

@@ -1,15 +1,15 @@
 // src/app/api/spend/raffle_display/route.ts
 import { NextResponse } from 'next/server'
 import { createPublicClient, formatUnits, http, parseUnits, type Abi } from 'viem'
-import { celoAlfajores } from 'viem/chains'
+import { celo } from 'viem/chains'
 import raffleAbi from '@/contexts/miniraffle.json' 
 import erc20Abi from '@/contexts/cusd-abi.json'      // must include getActiveRound
 import type { Address } from 'viem'
 
-const RAFFLE: Address = '0x8762277745b6f05ceb3F2c2E85FF3062A57482B6'
+const RAFFLE: Address = '0x46dE92B184776D1BebD7c95D8CC085009280E4f6'
 
 const publicClient = createPublicClient({
-  chain: celoAlfajores,
+  chain: celo,
   transport: http(),
 })
 

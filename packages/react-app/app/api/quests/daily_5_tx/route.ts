@@ -8,7 +8,7 @@ import {
   parseUnits,
 } from "viem";
 import { privateKeyToAccount }   from "viem/accounts";
-import { celoAlfajores }         from "viem/chains";
+import { celo }         from "viem/chains";
 import { NextResponse }          from "next/server";
 import MiniPointsAbi             from "@/contexts/minimiles.json";
 
@@ -33,8 +33,8 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !PRIVATE_KEY || !MINIPOINTS_ADDRES
 // ───── clients ────────────────────────────────────────────────────────────────
 const supabase     = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 const account      = privateKeyToAccount(`0x${PRIVATE_KEY}`);
-const publicClient = createPublicClient({ chain: celoAlfajores, transport: http() });
-const walletClient = createWalletClient({ account, chain: celoAlfajores, transport: http() });
+const publicClient = createPublicClient({ chain: celo, transport: http() });
+const walletClient = createWalletClient({ account, chain: celo, transport: http() });
 
 // ───── POST handler ───────────────────────────────────────────────────────────
 export async function POST(req: Request) {
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
       args: [userAddress, parseUnits("20", 18)],
       account,
     });
-    const txHash = await walletClient.writeContract({ ...request, account, chain: celoAlfajores });
+    const txHash = await walletClient.writeContract({ ...request, account, chain: celo });
 
 
     /* 4️⃣  Save engagement */

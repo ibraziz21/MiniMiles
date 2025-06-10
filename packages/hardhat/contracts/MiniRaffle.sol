@@ -17,7 +17,7 @@ contract MiniRaffle is ReentrancyGuard {
     IWitnetRandomness public constant RNG =
         IWitnetRandomness(0xC0FFEE98AD1434aCbDB894BbB752e138c1006fAB);
     IERC20 public immutable cUSD;
-    IERC20 public immutable cKES;
+    IERC20 public immutable usdt;
     IERC20 public immutable miles;
 
     struct RaffleRound {
@@ -66,12 +66,12 @@ contract MiniRaffle is ReentrancyGuard {
         _;
     }
 
-    constructor(address _miniPoints, address _cUSD) {
+    constructor(address _miniPoints, address _cUSD, address _usdt) {
         require(_miniPoints != address(0), "invalid MiniPoints");
         miniPoints = IMiniPoints(_miniPoints);
         miles = IERC20(_miniPoints);
         cUSD = IERC20(_cUSD);
-        // cKES = IERC20(_cKES);
+         usdt = IERC20(_usdt);
         owner = msg.sender;
     }
 
@@ -84,8 +84,6 @@ contract MiniRaffle is ReentrancyGuard {
         uint256 _ticketCostPoints
     ) external onlyOwner {
         require(_duration > 0 && _maxTickets > 0, "Raffle: bad params");
-        require(_token == cUSD || _token == cKES || _token == miles, "Raffle: unsupported token");
-
         _token.safeTransferFrom(msg.sender, address(this), _rewardPool);
         roundIdCounter++;
         RaffleRound storage r = rounds[roundIdCounter];

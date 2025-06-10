@@ -3,13 +3,12 @@ const raffleAbi = require("../artifacts/contracts/MiniRaffle.sol/MiniRaffle.json
 const milesAbi = require("../artifacts/contracts/MiniPoints.sol/MiniPoints.json")
 require("dotenv").config();
 // ─── ENV & CONSTANTS ──────────────────────────────────────────────
-const RPC_URL      = 'https://alfajores-forno.celo-testnet.org';      // e.g. "https://sepolia.optimism.io"
+const RPC_URL      = 'https://forno.celo.org';      // e.g. "https://sepolia.optimism.io"
 const PRIVATE_KEY  = process.env.PRIVATE_KEY;  // 
 console.log(PRIVATE_KEY)
-const RAFFLE_ADDR  = "0xA1F1Cd3b90f49c9d44ed324C69869df139616d55";
-const cUSD   = "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1";
-const cKES = '0x1E0433C1769271ECcF4CFF9FDdD515eefE6CdF92'
-const MiniPoints = '0x9a51F81DAcEB772cC195fc8551e7f2fd7c62CD57'
+const RAFFLE_ADDR  = "0x46dE92B184776D1BebD7c95D8CC085009280E4f6";
+const cUSD   = "0x765de816845861e75a25fca122bb6898b8b1282a";
+const MiniPoints = '0xb0012Ff26b6eB4F75d09028233204635c0332050'
 // test‑net USDC
 const BENEFICIARY  = "";      // replace
 
@@ -24,12 +23,11 @@ const ownerSigner = new ethers.Wallet(PRIVATE_KEY, provider);
 
 const raffle = new ethers.Contract(RAFFLE_ADDR, raffleAbi.abi, ownerSigner);
 const usdc   = new ethers.Contract(cUSD, erc20Abi,        ownerSigner);
-const ckes   = new ethers.Contract(cKES, erc20Abi,        ownerSigner);
 const miles   = new ethers.Contract(MiniPoints, milesAbi.abi,        ownerSigner);
 // ─── MAIN LOGIC ───────────────────────────────────────────────────
 async function main() {
 
-  // const allowRaffle = await miles.setMinter('0xa5065676D5d12b202dF10f479F2DDD62234b91b9', true);
+  // const allowRaffle = await miles.setMinter('0x46dE92B184776D1BebD7c95D8CC085009280E4f6', true);
   // await allowRaffle.wait()
   // console.log("Tx Hash: ", allowRaffle.hash)
 
@@ -40,10 +38,10 @@ async function main() {
   // console.log(`✅ Approved ${ethers.utils.formatUnits(rewardPool,18 )} USDC`);
 
 // // //   // 2. compute startTime = now + 5 minutes
-  const latest      = await provider.getBlock("latest");
-  const startTime   = BigInt(latest.timestamp) + 1000n; // 300 s = 5 min
+  // const latest      = await provider.getBlock("latest");
+  // const startTime   = BigInt(latest.timestamp) + 1000n; // 300 s = 5 min
 
-  const vrfFee = ethers.utils.parseEther("0.01");
+  // const vrfFee = ethers.utils.parseEther("0.01");
   
   // const reqTx  = await raffle.requestRoundRandomness(
   //   1 , {value: vrfFee}                       // _roundI          // payable fee
@@ -52,24 +50,24 @@ async function main() {
   // console.log("🎲 Randomness requested in tx:", reqTx.hash);
 
 
-  //  const reqTx  = await raffle.drawWinner(
-  //   1                       // _roundI          // payable fee
-  // );
-  // await reqTx.wait();
-  // console.log("🎲 Randomness requested in tx:", reqTx.hash);
-
-
-  // // // 3. create the round
-  const tx = await raffle.(
-    startTime,               // _startTime
-    1200000,                 // _duration (1 week)
-    3_0,                   // _maxTickets
-    cUSD,               // _token
-    ethers.utils.parseEther('3'),              // _rewardpool
-    ethers.utils.parseUnits("5", 18), // _ticketCostPoints (50 MiniPoints)              // _beneficiary
+   const reqTx  = await raffle.drawWinner(
+    1                      // _roundI          // payable fee
   );
-  await tx.wait();
-  console.log("🎉 Round created in tx:", tx.hash);
+  await reqTx.wait();
+  console.log("🎲 Randomness requested in tx:", reqTx.hash);
+
+
+  // // 3. create the round
+  // const tx = await raffle.createRaffleRound(
+  //   startTime,               // _startTime
+  //   1200,                 // _duration (1 week)
+  //   1_0,                   // _maxTickets
+  //   cUSD,               // _token
+  //   ethers.utils.parseEther('1'),              // _rewardpool
+  //   ethers.utils.parseUnits("5", 18), // _ticketCostPoints (50 MiniPoints)              // _beneficiary
+  // );
+  // await tx.wait();
+  // console.log("🎉 Round created in tx:", tx.hash);
 
   
 

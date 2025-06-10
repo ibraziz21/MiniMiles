@@ -1,18 +1,18 @@
 import { createClient } from "@supabase/supabase-js"
 import { createWalletClient, createPublicClient, http, parseAbiItem, parseEther, parseUnits } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
-import { celoAlfajores } from "viem/chains"
+import { celo } from "viem/chains"
 import { NextResponse } from "next/server"
 import cUSDAbi from "@/contexts/cusd-abi.json" // minimal ABI for Transfer event
 import MiniPointsAbi from "@/contexts/minimiles.json"
+import { CellSignalLow } from "@phosphor-icons/react/dist/ssr"
 
 const SUPABASE_URL = process.env.SUPABASE_URL || ""
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || ""  // or ANON_KEY
 const PRIVATE_KEY = process.env.PRIVATE_KEY || ""
 const MINIPOINTS_ADDRESS = process.env.MINIPOINTS_ADDRESS || ""
 const CUSD_ADDRESS = process.env.CUSD_ADDRESS || "" // e.g. 0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1 (Alfajores cUSD)
-const USDC_ADDRESS = "0x2F25deB3848C207fc8E0c34035B3Ba7fC157602B"
-
+const USDT_ADDRESS = process.env.USDT_ADDRESS || ""
 // Safety check for required envs
 if (
   !SUPABASE_URL ||
@@ -30,14 +30,14 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 // 2. viem clients
 const account = privateKeyToAccount(`0x${PRIVATE_KEY}`)
-const publicClient = createPublicClient({ chain: celoAlfajores, transport: http() })
-const walletClient = createWalletClient({ account, chain: celoAlfajores, transport: http() })
+const publicClient = createPublicClient({ chain: celo, transport: http() })
+const walletClient = createWalletClient({ account, chain: celo, transport: http() })
 
 
 export async function POST(req: Request) {
   try {
     const { userAddress, questId } = await req.json()
-    const addresses = [USDC_ADDRESS,CUSD_ADDRESS]
+    const addresses = [USDT_ADDRESS,CUSD_ADDRESS]
     // 1) Has user already claimed today?
     const today = new Date().toISOString().slice(0, 10) // 'YYYY-MM-DD'
     const { data: claimed, error } = await supabase
@@ -79,7 +79,7 @@ export async function POST(req: Request) {
     const txHash = await walletClient.writeContract({
       ...request,           // to, data, gas, etc.
       account,              // <-- full account object, so Viem can sign
-      chain:   celoAlfajores,   // (optional) but avoids auto-detect
+      chain:   celo,   // (optional) but avoids auto-detect
     })
 
 
@@ -121,7 +121,7 @@ async function hasUserReceivedAtLeast5CusdIn24Hrs(userAddress: string, tokenAddr
   if (!logs.length) return false
 
   const TOKEN_DECIMALS: Record<string, number> = {
-    [USDC_ADDRESS]: 6,
+    [USDT_ADDRESS]: 6,
     [CUSD_ADDRESS]: 18,
   };
   const decimals = TOKEN_DECIMALS[tokenAddress] ?? 18;

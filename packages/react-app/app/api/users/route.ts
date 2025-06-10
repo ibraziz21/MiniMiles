@@ -8,18 +8,18 @@ import {
   parseUnits,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { celoAlfajores } from "viem/chains";
+import { celo } from "viem/chains";
 import MiniPointsAbi from "@/contexts/minimiles.json";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY!;
 const PRIVATE_KEY = process.env.PRIVATE_KEY!;
-const CONTRACT_ADDRESS = "0x9a51F81DAcEB772cC195fc8551e7f2fd7c62CD57";
+const CONTRACT_ADDRESS = "0xb0012Ff26b6eB4F75d09028233204635c0332050";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const account = privateKeyToAccount(`0x${PRIVATE_KEY}`);
-const publicClient = createPublicClient({ chain: celoAlfajores, transport: http() });
-const walletClient = createWalletClient({ account, chain: celoAlfajores, transport: http() });
+const publicClient = createPublicClient({ chain: celo, transport: http() });
+const walletClient = createWalletClient({ account, chain: celo, transport: http() });
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
