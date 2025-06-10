@@ -10,7 +10,7 @@ import {
   parseUnits,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import { celoAlfajores } from 'viem/chains'
+import { celo } from 'viem/chains'
 
 // ── ENV & CLIENT SETUP ────────────────────────────────────────────────────────
 const supabase = createClient(
@@ -21,13 +21,13 @@ const supabase = createClient(
 const account = privateKeyToAccount(`0x${process.env.PRIVATE_KEY!}`)
 
 const publicClient = createPublicClient({
-  chain: celoAlfajores,
+  chain: celo,
   transport: http(),
 })
 
 const walletClient = createWalletClient({
   account,
-  chain: celoAlfajores,
+  chain: celo,
   transport: http(),
 })
 
