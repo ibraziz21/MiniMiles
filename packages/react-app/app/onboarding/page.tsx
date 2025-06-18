@@ -126,7 +126,17 @@ export default function Onboarding() {
                 /* title is optional; you can keep it if you want the hover tooltip */
                 >
                   {label}   {/* ← visible text */}
-                </button>
+                </button>  {isLast && (
+    <div className="mt-4 flex space-x-4 text-sm text-[#00000080]">
+      <a href="https://www.minimiles.app/terms-of-use" className="hover:underline" target="_blank">
+        Terms of Service
+      </a>
+      <span>•</span>
+      <a href="https://www.minimiles.app/privacy-policy" className="hover:underline" target="_blank">
+        Privacy Policy
+      </a>
+    </div>
+  )}
 
 
 
