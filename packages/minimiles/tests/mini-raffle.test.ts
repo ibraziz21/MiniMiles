@@ -5,7 +5,7 @@ import {
   clearStore,
   beforeAll,
   afterAll
-} from "matchstick-as/assembly/index"
+} from "matchstick-as"
 import { BigInt, Address } from "@graphprotocol/graph-ts"
 import { ParticipantJoined } from "../generated/schema"
 import { ParticipantJoined as ParticipantJoinedEvent } from "../generated/MiniRaffle/MiniRaffle"
