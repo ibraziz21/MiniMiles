@@ -4,6 +4,7 @@ import HistoryStats from '@/components/history-stats';
 import MiniMilesHistoryCard from '@/components/mini-miles-history-card';
 import { RaffleCard } from '@/components/raffle-card';
 import TransactionHistoryCard from '@/components/transaction-history-card';
+import { useWeb3 } from '@/contexts/useWeb3';
 import { fetchActiveRaffles, Raffle } from '@/helpers/raffledisplay';
 import { RaffleImg1, RaffleImg2, RaffleImg3 } from '@/lib/img';
 import { MinimilesSymbol } from '@/lib/svg';
@@ -33,6 +34,7 @@ type SpendRaffle = {
 
 
 const History = () => {
+    const { address, getUserAddress, getMiniMilesBalance } = useWeb3();
     const [miniMilesBalance, setMiniMilesBalance] = useState('0');
     const [raffles, setRaffles] = useState<Raffle[]>([])
     const [loading, setLoading] = useState(true)
@@ -40,6 +42,18 @@ const History = () => {
 
     const [spendRaffle, setSpendRaffle] = useState<SpendRaffle | null>(null);
 
+    useEffect(() => {
+        const fetchBalance = async () => {
+          if (!address) return;
+          try {
+            const balance = await getMiniMilesBalance();
+            setMiniMilesBalance(balance);
+          } catch (error) {
+            console.log(error);
+          }
+        };
+        fetchBalance();
+      }, [address, getMiniMilesBalance]);
 
     useEffect(() => {
         fetchActiveRaffles()
@@ -62,9 +76,9 @@ const History = () => {
                 <h3 className='font-extralight'>View your MiniMiles gaming stats & history.</h3>
             </div>
             <MiniMilesHistoryCard points={Number(miniMilesBalance)} />
-            <HistoryStats title='Total Raffles won' stats={"20"} />
-            <HistoryStats title='Total prizes won valued in USD' stats={"$ 2,036.80"} />
-            <HistoryStats title='Total completed challenges' stats={"14"} />
+            <HistoryStats title='Total Raffles won' stats={"0"} />
+            <HistoryStats title='Total prizes won valued in USD' stats={"$ 0"} />
+            <HistoryStats title='Total completed challenges' stats={"0"} />
             <div className="mx-4 mt-6">
                 <div className="flex justify-between items-center">
                     <h3 className="text-lg font-extrabold mb-2">Digital cash raffles</h3>

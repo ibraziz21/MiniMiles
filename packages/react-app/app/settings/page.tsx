@@ -1,9 +1,11 @@
 'use client'
 
 import { Toaster } from '@/components/ui/sonner'
+import { useWeb3 } from '@/contexts/useWeb3'
 import { Chats, Copy, Envelope, Export, GithubLogo, TwitterLogo } from '@phosphor-icons/react/dist/ssr'
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import truncateEthAddress from "truncate-eth-address";
 
 const SettingsPage = () => {
     const handleCopy = (text: string) => {
@@ -14,6 +16,15 @@ const SettingsPage = () => {
         });
     }
 
+    const { address, getUserAddress } = useWeb3();
+
+
+
+    useEffect(() => {
+        getUserAddress();
+      }, []);
+
+     
     return (
         <div className='p-3 font-sterling'>
             <div className="min-h-[110px]  flex flex-col justify-around">
@@ -23,21 +34,14 @@ const SettingsPage = () => {
 
             <h3 className='font-medium'>Account</h3>
 
-            <div className="flex flex-col justify-between items-start shadow-lg rounded-xl p-4 text-[#00000080] my-2 bg-white">
-                <h3 className='font-light text-[#00000080]'>Username</h3>
-                <div className="flex justify-between items-center w-full">
-                    <h2 className="font-medium text-black">username.mini</h2>
-                    <Copy size={24} className="cursor-pointer" onClick={() => handleCopy('username.mini')} />
-                </div>
-            </div>
 
             <div className="flex flex-col justify-between items-start shadow-lg rounded-xl p-4 text-[#00000080] my-2 bg-white">
                 <h3 className='font-light text-[#00000080]'>Paired address</h3>
                 <div className="flex justify-between items-center w-full">
-                    <h2 className="font-medium text-black">0xA56..78E3</h2>
+                    <h2 className="font-medium text-black">{truncateEthAddress(address ?? "")}</h2>
                     <div className='flex justify-center space-x-2'>
                         <Copy size={24} className="cursor-pointer" onClick={() => handleCopy('0xA56..78E3')} />
-                        <Export size={24} />
+                       
                     </div>
                 </div>
             </div>
