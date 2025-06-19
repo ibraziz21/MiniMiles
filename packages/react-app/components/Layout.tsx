@@ -43,13 +43,13 @@ const Layout: FC<Props> = ({ children }) => {
     fetch(`/api/users/${address}`)
       .then((res) => res.json())
       .then(({ isMember }) => {
-        if (!isMember) {
-          router.replace("/onboarding");
-        }
+        // if (!isMember) {
+        //   router.replace("/onboarding");
+        // }
       })
       .catch(() => {
         // network or 404 => treat as new
-        router.replace("/onboarding");
+        // router.replace("/onboarding");
       });
   }, [address, hasCheckedMember, pathname, router]);
 

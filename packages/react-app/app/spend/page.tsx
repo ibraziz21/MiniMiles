@@ -84,14 +84,9 @@ const Page = () => {
     setHasMounted(true);
   }, []);
 
-
-
-
   useEffect(() => {
     getUserAddress();
   }, []);
-
-
 
   useEffect(() => {
     const fetchBalance = async () => {
