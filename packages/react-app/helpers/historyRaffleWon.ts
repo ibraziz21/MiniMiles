@@ -1,7 +1,7 @@
 export async function fetchTotalRafflesWon(user: string): Promise<number> {
     const query = `
       query GetTotalRafflesWon($user: Bytes!) {
-        winnerSelecteds(where: { winner: ${user} }) {
+        winnerSelecteds(where: { winner: $user }) {
           id
         }
       }

@@ -5,6 +5,7 @@ import MiniMilesHistoryCard from '@/components/mini-miles-history-card';
 import { RaffleCard } from '@/components/raffle-card';
 import TransactionHistoryCard from '@/components/transaction-history-card';
 import { useWeb3 } from '@/contexts/useWeb3';
+import { fetchTotalRewardsWon } from '@/helpers/historicRewards';
 import { fetchTotalMiniMilesEarned } from '@/helpers/historyBalance';
 import { fetchTotalRafflesWon } from '@/helpers/historyRaffleWon';
 import { fetchActiveRaffles, Raffle } from '@/helpers/raffledisplay';
@@ -47,6 +48,24 @@ const History = () => {
     const [totalEarned, setTotalEarned] = useState('0');
 
     const [totalWins, setTotalWins] = useState("0");
+
+    const [totalUSDWon, setTotalUSDWon] = useState("$ 0");
+
+    useEffect(() => {
+        const fetchRewards = async () => {
+          if (!address) return;
+          try {
+            const { totalUSD } = await fetchTotalRewardsWon(address);
+            setTotalUSDWon(`$ ${totalUSD.toFixed(2)}`);
+          } catch (e) {
+            console.error("Error fetching rewards won:", e);
+            setTotalUSDWon("$ 0");
+          }
+        };
+      
+        fetchRewards();
+      }, [address]);
+      
 
     useEffect(() => {
         const fetchWins = async () => {
@@ -110,7 +129,7 @@ useEffect(() => {
             </div>
             <MiniMilesHistoryCard points={Number(totalEarned)} />
             <HistoryStats title='Total Raffles won' stats={totalWins} />
-            <HistoryStats title='Total prizes won valued in USD' stats={"$ 0"} />
+            <HistoryStats title='Total prizes won valued in USD' stats={totalUSDWon} />
             <HistoryStats title='Total completed challenges' stats={"0"} />
             <div className="mx-4 mt-6">
                 <div className="flex justify-between items-center">

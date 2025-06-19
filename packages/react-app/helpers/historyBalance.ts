@@ -1,7 +1,7 @@
 export async function fetchTotalMiniMilesEarned(user: string): Promise<number> {
     const query = `
       query GetTotalMiniMilesEarned($user: Bytes!) {
-        miniPointsTransfers(where: {  to: ${user} }) {
+        miniPointsTransfers(where: { to: $user }) {
           value
         }
       }
@@ -14,10 +14,8 @@ export async function fetchTotalMiniMilesEarned(user: string): Promise<number> {
     });
   
     const json = await res.json();
-  
-    const values = json.data.miniPointsTransfers.map((t: any) => BigInt(t.value));
+    const values = json.data?.miniPointsTransfers?.map((t: any) => BigInt(t.value)) ?? [];
     const total = values.reduce((acc: bigint, val: bigint) => acc + val, 0n);
-    console.log("Total amount: ",total)
-    return Number(total) / 1e18; // if 18 decimals
+    return Number(total) / 1e18;
   }
   
