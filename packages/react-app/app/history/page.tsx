@@ -5,6 +5,8 @@ import MiniMilesHistoryCard from '@/components/mini-miles-history-card';
 import { RaffleCard } from '@/components/raffle-card';
 import TransactionHistoryCard from '@/components/transaction-history-card';
 import { useWeb3 } from '@/contexts/useWeb3';
+import { fetchTotalMiniMilesEarned } from '@/helpers/historyBalance';
+import { fetchTotalRafflesWon } from '@/helpers/historyRaffleWon';
 import { fetchActiveRaffles, Raffle } from '@/helpers/raffledisplay';
 import { RaffleImg1, RaffleImg2, RaffleImg3 } from '@/lib/img';
 import { MinimilesSymbol } from '@/lib/svg';
@@ -42,6 +44,37 @@ const History = () => {
 
     const [spendRaffle, setSpendRaffle] = useState<SpendRaffle | null>(null);
 
+    const [totalEarned, setTotalEarned] = useState('0');
+
+    const [totalWins, setTotalWins] = useState("0");
+
+    useEffect(() => {
+        const fetchWins = async () => {
+          if (!address) return;
+          try {
+            const wins = await fetchTotalRafflesWon(address);
+            setTotalWins(wins.toString());
+          } catch (e) {
+            console.error("Error fetching total raffles won:", e);
+          }
+        };
+        fetchWins();
+      }, [address]);
+      
+
+useEffect(() => {
+  const fetchTotalEarned = async () => {
+    if (!address) return;
+    try {
+      const earned = await fetchTotalMiniMilesEarned(address);
+      setTotalEarned(earned.toFixed(0));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+  fetchTotalEarned();
+}, [address]);
+
     useEffect(() => {
         const fetchBalance = async () => {
           if (!address) return;
@@ -75,8 +108,8 @@ const History = () => {
                 <h1 className="text-2xl font-medium">Your history</h1>
                 <h3 className='font-extralight'>View your MiniMiles gaming stats & history.</h3>
             </div>
-            <MiniMilesHistoryCard points={Number(miniMilesBalance)} />
-            <HistoryStats title='Total Raffles won' stats={"0"} />
+            <MiniMilesHistoryCard points={Number(totalEarned)} />
+            <HistoryStats title='Total Raffles won' stats={totalWins} />
             <HistoryStats title='Total prizes won valued in USD' stats={"$ 0"} />
             <HistoryStats title='Total completed challenges' stats={"0"} />
             <div className="mx-4 mt-6">

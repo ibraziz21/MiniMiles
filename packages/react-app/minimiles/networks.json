@@ -3,6 +3,9 @@
     "MiniPoints": {
       "address": "0xb0012Ff26b6eB4F75d09028233204635c0332050",
       "startBlock": 37634864
+    },
+    "MiniRaffle": {
+      "address": "0x46dE92B184776D1BebD7c95D8CC085009280E4f6"
     }
   }
 }
