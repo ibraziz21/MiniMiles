@@ -21,44 +21,38 @@ export async function fetchTotalRewardsWon(user: string): Promise<{
   
     // Step 2: Fetch roundCreateds by ID
     const roundsQuery = `
-      query GetRoundRewards($ids: [ID!]!) {
-        roundCreateds(where: { id_in: $ids }) {
+      query GetRoundRewards {
+        roundCreateds(where: { roundId: $ids }) {
           rewardPool
           rewardToken
         }
       }
     `;
     const roundsRes = await fetch("https://api.studio.thegraph.com/query/106434/minimiles/version/latest", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: roundsQuery, variables: { ids: roundIds } }),
-    });
-    const rounds = roundsRes.ok ? (await roundsRes.json()).data?.roundCreateds ?? [] : [];
-  
-    // Step 3: Sum reward amounts by token
-    const totals: Record<string, bigint> = {};
-    for (const r of rounds) {
-      const token = r.rewardToken.toLowerCase();
-      const amount = BigInt(r.rewardPool);
-      totals[token] = (totals[token] || 0n) + amount;
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: roundsQuery, variables: { ids: roundIds } }),
+      });
+    
+      const rounds = roundsRes.ok
+        ? (await roundsRes.json()).data?.roundCreateds ?? []
+        : [];
+    
+      // Step 3: Sum amounts by token
+      const totals: Record<string, bigint> = {};
+      for (const r of rounds) {
+        const token = r.rewardToken.toLowerCase();
+        const amount = BigInt(r.rewardPool);
+        totals[token] = (totals[token] || 0n) + amount;
+      }
+    
+      const breakdown = Object.entries(totals).map(([token, amt]) => ({
+        token,
+        amount: Number(amt) / 1e18,
+      }));
+    
+      // Step 4: Total USD = sum of all reward amounts (since they're all USD stablecoins)
+      const totalUSD = breakdown.reduce((sum, item) => sum + item.amount, 0);
+    
+      return { totalUSD, breakdown };
     }
-  
-    const breakdown = Object.entries(totals).map(([token, amt]) => ({
-      token,
-      amount: Number(amt) / 1e18,
-    }));
-  
-    // USD Estimation (mocked here)
-    const USD_RATES: Record<string, number> = {
-      "0xaddress_of_cusd": 1,
-      "0xaddress_of_usdt": 1,
-    };
-  
-    const totalUSD = breakdown.reduce(
-      (sum, item) => sum + (item.amount * (USD_RATES[item.token] || 0)),
-      0
-    );
-  
-    return { totalUSD, breakdown };
-  }
-  
