@@ -87,7 +87,7 @@ export function useWeb3() {
     if (!walletClient || !address) throw new Error("Wallet not connected");
 
     const hash = await walletClient.writeContract({
-      address: '0x46dE92B184776D1BebD7c95D8CC085009280E4f6',
+      address: '0xFCbb70095bCCe24Bc26cfb1ff88E2a2120ffe821',
       abi: raffleAbi.abi,
       functionName: "joinRaffle",
       account: address,

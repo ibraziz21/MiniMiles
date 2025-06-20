@@ -3,22 +3,27 @@ pragma solidity ^0.8.20;
 
 import "./MiniPoints.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "witnet-solidity-bridge/contracts/interfaces/IWitnetRandomness.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-/**
- * @title Minimiles Raffle – Witnet‑powered randomness version for Celo
- */
-contract MiniRaffle is ReentrancyGuard {
+contract MiniRaffle is
+    UUPSUpgradeable,
+    ReentrancyGuardUpgradeable
+{
     using SafeERC20 for IERC20;
 
-    address public immutable owner;
-    IMiniPoints public immutable miniPoints;
+    address public owner;
+    IMiniPoints public miniPoints;
     IWitnetRandomness public constant RNG =
         IWitnetRandomness(0xC0FFEE98AD1434aCbDB894BbB752e138c1006fAB);
-    IERC20 public immutable cUSD;
-    IERC20 public immutable usdt;
-    IERC20 public immutable miles;
+
+    IERC20 public cUSD;
+    IERC20 public usdt;
+    IERC20 private miles;
+
+  
 
     struct RaffleRound {
         uint256 id;
@@ -40,6 +45,7 @@ contract MiniRaffle is ReentrancyGuard {
     uint256 public roundIdCounter;
     mapping(uint256 => RaffleRound) private rounds;
 
+
     event RoundCreated(
         uint256 indexed roundId,
         uint256 startTime,
@@ -57,6 +63,7 @@ contract MiniRaffle is ReentrancyGuard {
     event WinnerSelected(uint256 indexed roundId, address winner);
     event RaffleClosed(uint256 indexed roundId);
 
+
     modifier onlyOwner() {
         require(msg.sender == owner, "Raffle: not owner");
         _;
@@ -66,13 +73,20 @@ contract MiniRaffle is ReentrancyGuard {
         _;
     }
 
-    constructor(address _miniPoints, address _cUSD, address _usdt) {
+    function initialize(
+        address _miniPoints,
+        address _cUSD,
+        address _usdt,
+        address _owner
+    ) public initializer {
+        __UUPSUpgradeable_init();
+        __ReentrancyGuard_init();
         require(_miniPoints != address(0), "invalid MiniPoints");
         miniPoints = IMiniPoints(_miniPoints);
         miles = IERC20(_miniPoints);
         cUSD = IERC20(_cUSD);
-         usdt = IERC20(_usdt);
-        owner = msg.sender;
+        usdt = IERC20(_usdt);
+        owner = _owner;
     }
 
     function createRaffleRound(
@@ -84,7 +98,10 @@ contract MiniRaffle is ReentrancyGuard {
         uint256 _ticketCostPoints
     ) external onlyOwner {
         require(_duration > 0 && _maxTickets > 0, "Raffle: bad params");
-        _token.safeTransferFrom(msg.sender, address(this), _rewardPool);
+
+        if (_token != miles) {
+            _token.safeTransferFrom(msg.sender, address(this), _rewardPool);
+        }
         roundIdCounter++;
         RaffleRound storage r = rounds[roundIdCounter];
         r.id = roundIdCounter;
@@ -110,7 +127,7 @@ contract MiniRaffle is ReentrancyGuard {
     function joinRaffle(
         uint256 _roundId,
         uint32 _ticketCount
-    ) external roundExists(_roundId) {
+    ) external roundExists(_roundId) nonReentrant {
         RaffleRound storage r = rounds[_roundId];
         require(r.isActive, "Raffle: inactive round");
         require(
@@ -170,7 +187,11 @@ contract MiniRaffle is ReentrancyGuard {
 
         uint256 pick = RNG.random(r.totalTickets, 0, r.randomBlock);
         r.winner = _selectByIndex(r, pick);
-        r.rewardToken.safeTransfer(r.winner, r.rewardPool);
+        if (address(r.rewardToken) == address(miles)) {
+            miniPoints.mint(r.winner, r.rewardPool);
+        } else {
+            r.rewardToken.safeTransfer(r.winner, r.rewardPool);
+        }
         r.isActive = false;
         r.winnerSelected = true;
 
@@ -256,4 +277,16 @@ contract MiniRaffle is ReentrancyGuard {
             r.winnerSelected
         );
     }
+
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "Owner: zero addr");
+        owner = newOwner;
+    }
+
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyOwner {}
+
+
+    uint256[50] private __gap;
 }

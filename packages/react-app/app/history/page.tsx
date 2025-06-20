@@ -10,7 +10,7 @@ import { fetchTotalRewardsWon } from '@/helpers/historicRewards';
 import { fetchTotalMiniMilesEarned } from '@/helpers/historyBalance';
 import { fetchTotalRafflesWon } from '@/helpers/historyRaffleWon';
 import { fetchActiveRaffles, Raffle } from '@/helpers/raffledisplay';
-import { RaffleImg1, RaffleImg2, RaffleImg3 } from '@/lib/img';
+import { RaffleImg1, RaffleImg2, RaffleImg3, RaffleImg5 } from '@/lib/img';
 import { MinimilesSymbol } from '@/lib/svg';
 import { StaticImageData } from 'next/image';
 import React, { useEffect, useState } from 'react'
@@ -18,7 +18,7 @@ import React, { useEffect, useState } from 'react'
 const TOKEN_IMAGES: Record<string, StaticImageData> = {
     cUSD: RaffleImg1,
     USDT: RaffleImg2,
-    cKES: RaffleImg3,
+    Miles: RaffleImg5,
     // default fallback:
     default: MinimilesSymbol,
 }

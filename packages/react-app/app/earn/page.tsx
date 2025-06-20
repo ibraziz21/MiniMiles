@@ -63,7 +63,7 @@ export default function EarnPage() {
           {/* Daily (active only) */}
           <div className="mx-4 mt-6 gap-1">
           <h3 className="text-lg font-medium mt-6 mb-2">Daily challenges</h3>
-        <p className="text-gray-500">Completed a challenge? Click on the card and claim Miles</p>
+        <p className="text-gray-500">Completed a challenge? Click & claim Miles</p>
         </div>
           <DailyChallenges />
 
