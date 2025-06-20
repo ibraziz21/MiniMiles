@@ -81,6 +81,15 @@ const SettingsPage = () => {
                     <Export size={24} />
                 </div>
             </div>
+            <div className="mt-4 flex space-x-4 text-sm text-[#00000080]">
+      <a href="https://www.minimiles.app/terms-of-use" className="hover:underline" target="_blank">
+        Terms of Service
+      </a>
+      <span>•</span>
+      <a href="https://www.minimiles.app/privacy-policy" className="hover:underline" target="_blank">
+        Privacy Policy
+      </a>
+    </div>
             <Toaster className='bg-white text-[#17C985]' />
         </div>
     )
