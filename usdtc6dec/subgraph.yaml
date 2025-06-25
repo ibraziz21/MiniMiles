@@ -1,0 +1,77 @@
+specVersion: 1.2.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: FiatTokenCeloV2_2
+    network: celo
+    source:
+      address: "0xda06d4e3f59fe2c8ff3077a9d50d5be5e231becd"
+      abi: FiatTokenCeloV2_2
+      startBlock: 38943500
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - Approval
+        - AuthorizationCanceled
+        - AuthorizationUsed
+        - Blacklisted
+        - BlacklisterChanged
+        - Burn
+        - FeeCallerChanged
+        - MasterMinterChanged
+        - Mint
+        - MinterConfigured
+        - MinterRemoved
+        - OwnershipTransferred
+        - Pause
+        - PauserChanged
+        - RescuerChanged
+        - Transfer
+        - UnBlacklisted
+        - Unpause
+      abis:
+        - name: FiatTokenCeloV2_2
+          file: ./abis/FiatTokenCeloV2_2.json
+      eventHandlers:
+        - event: Approval(indexed address,indexed address,uint256)
+          handler: handleApproval
+        - event: AuthorizationCanceled(indexed address,indexed bytes32)
+          handler: handleAuthorizationCanceled
+        - event: AuthorizationUsed(indexed address,indexed bytes32)
+          handler: handleAuthorizationUsed
+        - event: Blacklisted(indexed address)
+          handler: handleBlacklisted
+        - event: BlacklisterChanged(indexed address)
+          handler: handleBlacklisterChanged
+        - event: Burn(indexed address,uint256)
+          handler: handleBurn
+        - event: FeeCallerChanged(indexed address)
+          handler: handleFeeCallerChanged
+        - event: MasterMinterChanged(indexed address)
+          handler: handleMasterMinterChanged
+        - event: Mint(indexed address,indexed address,uint256)
+          handler: handleMint
+        - event: MinterConfigured(indexed address,uint256)
+          handler: handleMinterConfigured
+        - event: MinterRemoved(indexed address)
+          handler: handleMinterRemoved
+        - event: OwnershipTransferred(address,address)
+          handler: handleOwnershipTransferred
+        - event: Pause()
+          handler: handlePause
+        - event: PauserChanged(indexed address)
+          handler: handlePauserChanged
+        - event: RescuerChanged(indexed address)
+          handler: handleRescuerChanged
+        - event: Transfer(indexed address,indexed address,uint256)
+          handler: handleTransfer
+        - event: UnBlacklisted(indexed address)
+          handler: handleUnBlacklisted
+        - event: Unpause()
+          handler: handleUnpause
+      file: ./src/fiat-token-celo-v-2-2.ts

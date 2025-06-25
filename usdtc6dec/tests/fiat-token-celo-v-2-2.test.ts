@@ -6,11 +6,11 @@ import {
   beforeAll,
   afterAll
 } from "matchstick-as/assembly/index"
-import { Address, BigInt } from "@graphprotocol/graph-ts"
+import { Address, BigInt, Bytes } from "@graphprotocol/graph-ts"
 import { Approval } from "../generated/schema"
-import { Approval as ApprovalEvent } from "../generated/StableTokenV2/StableTokenV2"
-import { handleApproval } from "../src/stable-token-v-2"
-import { createApprovalEvent } from "./stable-token-v-2-utils"
+import { Approval as ApprovalEvent } from "../generated/FiatTokenCeloV2_2/FiatTokenCeloV2_2"
+import { handleApproval } from "../src/fiat-token-celo-v-2-2"
+import { createApprovalEvent } from "./fiat-token-celo-v-2-2-utils"
 
 // Tests structure (matchstick-as >=0.5.0)
 // https://thegraph.com/docs/en/developer/matchstick/#tests-structure-0-5-0
