@@ -14,6 +14,7 @@ import { RaffleImg1, RaffleImg2, RaffleImg3, RaffleImg5 } from '@/lib/img';
 import { MinimilesSymbol } from '@/lib/svg';
 import { StaticImageData } from 'next/image';
 import React, { useEffect, useState } from 'react'
+import { useMiniMilesHistory } from '@/helpers/txHistory';
 
 const TOKEN_IMAGES: Record<string, StaticImageData> = {
     cUSD: RaffleImg1,
@@ -39,6 +40,7 @@ type SpendRaffle = {
 
 const History = () => {
     const { address, getUserAddress, getMiniMilesBalance } = useWeb3();
+    const { data: txHistory = [], isLoading: txLoading } = useMiniMilesHistory();
     const [miniMilesBalance, setMiniMilesBalance] = useState('0');
     const [raffles, setRaffles] = useState<Raffle[]>([])
     const [loading, setLoading] = useState(true)
@@ -183,7 +185,11 @@ useEffect(() => {
                 <h1 className="text-2xl font-medium">Transaction history</h1>
                 <h3 className='font-extralight'>View all your MiniMiles activities.</h3>
             </div>
-            <TransactionHistoryCard />
+            { txLoading ? (
+    <p className="mx-4 mt-2 text-sm text-gray-500">Loading…</p>
+  ) : (
+    <TransactionHistoryCard items={txHistory} />
+)}
         </main>
     )
 }
