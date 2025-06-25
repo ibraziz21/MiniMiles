@@ -8,9 +8,9 @@ import {
 } from "matchstick-as/assembly/index"
 import { Address, BigInt, Bytes } from "@graphprotocol/graph-ts"
 import { Approval } from "../generated/schema"
-import { Approval as ApprovalEvent } from "../generated/FiatTokenCeloV2_2/FiatTokenCeloV2_2"
-import { handleApproval } from "../src/fiat-token-celo-v-2-2"
-import { createApprovalEvent } from "./fiat-token-celo-v-2-2-utils"
+import { Approval as ApprovalEvent } from "../generated/TetherTokenCeloExtension/TetherTokenCeloExtension"
+import { handleApproval } from "../src/tether-token-celo-extension"
+import { createApprovalEvent } from "./tether-token-celo-extension-utils"
 
 // Tests structure (matchstick-as >=0.5.0)
 // https://thegraph.com/docs/en/developer/matchstick/#tests-structure-0-5-0

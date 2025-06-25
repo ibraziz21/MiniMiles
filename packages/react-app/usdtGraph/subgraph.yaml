@@ -1,0 +1,56 @@
+specVersion: 1.2.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: TetherTokenCeloExtension
+    network: celo
+    source:
+      address: "0xbf83f8436ac46a8b1da5a9348ed84f68aee07b98"
+      abi: TetherTokenCeloExtension
+      startBlock: 38940000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - Approval
+        - AuthorizationCanceled
+        - AuthorizationUsed
+        - BlockPlaced
+        - BlockReleased
+        - DestroyedBlockedFunds
+        - LogSetFeeCurrencyWrapper
+        - Mint
+        - OwnershipTransferred
+        - Redeem
+        - Transfer
+      abis:
+        - name: TetherTokenCeloExtension
+          file: ./abis/TetherTokenCeloExtension.json
+      eventHandlers:
+        - event: Approval(indexed address,indexed address,uint256)
+          handler: handleApproval
+        - event: AuthorizationCanceled(indexed address,indexed bytes32)
+          handler: handleAuthorizationCanceled
+        - event: AuthorizationUsed(indexed address,indexed bytes32)
+          handler: handleAuthorizationUsed
+        - event: BlockPlaced(indexed address)
+          handler: handleBlockPlaced
+        - event: BlockReleased(indexed address)
+          handler: handleBlockReleased
+        - event: DestroyedBlockedFunds(indexed address,uint256)
+          handler: handleDestroyedBlockedFunds
+        - event: LogSetFeeCurrencyWrapper(indexed address)
+          handler: handleLogSetFeeCurrencyWrapper
+        - event: Mint(indexed address,uint256)
+          handler: handleMint
+        - event: OwnershipTransferred(indexed address,indexed address)
+          handler: handleOwnershipTransferred
+        - event: Redeem(uint256)
+          handler: handleRedeem
+        - event: Transfer(indexed address,indexed address,uint256)
+          handler: handleTransfer
+      file: ./src/tether-token-celo-extension.ts
