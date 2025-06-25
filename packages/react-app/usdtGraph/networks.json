@@ -1,8 +1,0 @@
-{
-  "celo": {
-    "TetherTokenCeloExtension": {
-      "address": "0xbf83f8436ac46a8b1da5a9348ed84f68aee07b98",
-      "startBlock": 38940000
-    }
-  }
-}
