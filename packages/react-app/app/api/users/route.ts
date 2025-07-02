@@ -14,7 +14,7 @@ import MiniPointsAbi from "@/contexts/minimiles.json";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY!;
 const PRIVATE_KEY = process.env.PRIVATE_KEY!;
-const CONTRACT_ADDRESS = "0xb0012Ff26b6eB4F75d09028233204635c0332050";
+const CONTRACT_ADDRESS =process.env.MINIPOINTS_ADDRESS ;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const account = privateKeyToAccount(`0x${PRIVATE_KEY}`);

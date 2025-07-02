@@ -1,7 +1,7 @@
 import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
 import { ethers } from "ethers";
 
-const MiniRaffleModule = buildModule("MiniRaffleModule", (m) => {
+const MiniRaffleModule = buildModule("MiniRaffleFinal", (m) => {
   /*************
    *  CONFIG   *
    *************/
@@ -9,14 +9,14 @@ const MiniRaffleModule = buildModule("MiniRaffleModule", (m) => {
  
   const cUSD   = "0x765de816845861e75a25fca122bb6898b8b1282a";
    const usdt = '0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e'
-  const miniPoints = '0xb0012Ff26b6eB4F75d09028233204635c0332050'
-  const owner = '0xa5065676D5d12b202dF10f479F2DDD62234b91b9'
+  const miniPoints = '0xEeD878017f027FE96316007D0ca5fDA58Ee93a6b'
+  const owner = '0xf20a5e1a4ca28d64f2c4a90998a41e8045288f48'
 
 
   /*************
    * 1. Deploy implementation
    *************/
-  const implementation = m.contract("MiniRaffle");
+  const implementation = m.contract("AkibaRaffle", [], { id: "akiba_impl" });
 
   /*************
    * 2. Encode initializer data
@@ -35,6 +35,7 @@ const MiniRaffleModule = buildModule("MiniRaffleModule", (m) => {
    * 3. Deploy ERC1967 proxy
    *************/
   const proxy = m.contract("ERC1967Proxy",  [ implementation, initData ],
+    { id: "akiba_proxy", after: [implementation] }
   );
 
   /*************

@@ -8,10 +8,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-contract MiniRaffle is
-    UUPSUpgradeable,
-    ReentrancyGuardUpgradeable
-{
+contract AkibaRaffle is UUPSUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
 
     address public owner;
@@ -22,8 +19,6 @@ contract MiniRaffle is
     IERC20 public cUSD;
     IERC20 public usdt;
     IERC20 private miles;
-
-  
 
     struct RaffleRound {
         uint256 id;
@@ -45,7 +40,6 @@ contract MiniRaffle is
     uint256 public roundIdCounter;
     mapping(uint256 => RaffleRound) private rounds;
 
-
     event RoundCreated(
         uint256 indexed roundId,
         uint256 startTime,
@@ -57,15 +51,26 @@ contract MiniRaffle is
     );
     event ParticipantJoined(
         uint256 indexed roundId,
-        address indexed participant
+        address indexed participant,
+        uint256 tickets
     );
     event RandomnessRequested(uint256 indexed roundId, uint256 witnetBlock);
-    event WinnerSelected(uint256 indexed roundId, address winner);
+    event WinnerSelected(
+        uint256 indexed roundId,
+        address winner,
+        uint256 reward
+    );
     event RaffleClosed(uint256 indexed roundId);
 
+    error Unauthorized();
+    mapping(address => bool) public minters;
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Raffle: not owner");
+        _;
+    }
+    modifier onlyAllowed() {
+        if (msg.sender != owner && !minters[msg.sender]) revert Unauthorized();
         _;
     }
     modifier roundExists(uint256 _roundId) {
@@ -89,6 +94,11 @@ contract MiniRaffle is
         owner = _owner;
     }
 
+    function setMinter(address who, bool enabled) external onlyOwner {
+        require(who != address(0), "Zero addr");
+        minters[who] = enabled;
+    }
+
     function createRaffleRound(
         uint256 _startTime,
         uint256 _duration,
@@ -96,7 +106,7 @@ contract MiniRaffle is
         IERC20 _token,
         uint256 _rewardPool,
         uint256 _ticketCostPoints
-    ) external onlyOwner {
+    ) external onlyAllowed {
         require(_duration > 0 && _maxTickets > 0, "Raffle: bad params");
 
         if (_token != miles) {
@@ -152,7 +162,7 @@ contract MiniRaffle is
         r.tickets[msg.sender] += _ticketCount;
         r.totalTickets += _ticketCount;
 
-        emit ParticipantJoined(_roundId, msg.sender);
+        emit ParticipantJoined(_roundId, msg.sender, _ticketCount);
     }
 
     function requestRoundRandomness(
@@ -187,15 +197,15 @@ contract MiniRaffle is
 
         uint256 pick = RNG.random(r.totalTickets, 0, r.randomBlock);
         r.winner = _selectByIndex(r, pick);
+        r.isActive = false;
+        r.winnerSelected = true;
         if (address(r.rewardToken) == address(miles)) {
             miniPoints.mint(r.winner, r.rewardPool);
         } else {
             r.rewardToken.safeTransfer(r.winner, r.rewardPool);
         }
-        r.isActive = false;
-        r.winnerSelected = true;
 
-        emit WinnerSelected(_roundId, r.winner);
+        emit WinnerSelected(_roundId, r.winner, r.rewardPool);
     }
 
     /// @notice Close an under-subscribed raffle after its endTime and refund all MiniPoints.
@@ -214,6 +224,7 @@ contract MiniRaffle is
         );
 
         // refund each participant their spent points
+        round.isActive = false;
         for (uint256 i = 0; i < round.participants.length; i++) {
             address player = round.participants[i];
             uint32 bought = round.tickets[player];
@@ -227,7 +238,6 @@ contract MiniRaffle is
         }
 
         // mark closed
-        round.isActive = false;
 
         emit RaffleClosed(_roundId);
     }
@@ -286,7 +296,6 @@ contract MiniRaffle is
     function _authorizeUpgrade(
         address newImplementation
     ) internal override onlyOwner {}
-
 
     uint256[50] private __gap;
 }

@@ -58,7 +58,7 @@ export function useWeb3() {
     if (!address) throw new Error("Wallet not connected");
     const miniMiles = getContract({
       abi: MiniMilesAbi.abi,
-      address: "0xb0012Ff26b6eB4F75d09028233204635c0332050",
+      address: "0xEeD878017f027FE96316007D0ca5fDA58Ee93a6b",
       client: publicClient,
     });
     const raw: bigint = await miniMiles.read.balanceOf([address]) as bigint;
@@ -87,7 +87,7 @@ export function useWeb3() {
     if (!walletClient || !address) throw new Error("Wallet not connected");
 
     const hash = await walletClient.writeContract({
-      address: '0xFCbb70095bCCe24Bc26cfb1ff88E2a2120ffe821',
+      address: '0xD75dfa972C6136f1c594Fec1945302f885E1ab29',
       abi: raffleAbi.abi,
       functionName: "joinRaffle",
       account: address,
