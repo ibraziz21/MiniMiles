@@ -10,7 +10,7 @@ export async function fetchTotalRewardsWon(user: string): Promise<{
         }
       }
     `;
-    const winsRes = await fetch("https://api.studio.thegraph.com/query/106434/minimiles/version/latest", {
+    const winsRes = await fetch("https://api.studio.thegraph.com/query/115307/akiba-miles/version/latest", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query: winsQuery, variables: { user: user.toLowerCase() } }),
@@ -28,7 +28,7 @@ export async function fetchTotalRewardsWon(user: string): Promise<{
         }
       }
     `;
-    const roundsRes = await fetch("https://api.studio.thegraph.com/query/106434/minimiles/version/latest", {
+    const roundsRes = await fetch("https://api.studio.thegraph.com/query/115307/akiba-miles/version/latest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: roundsQuery, variables: { ids: roundIds } }),

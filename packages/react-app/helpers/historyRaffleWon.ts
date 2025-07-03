@@ -7,7 +7,7 @@ export async function fetchTotalRafflesWon(user: string): Promise<number> {
       }
     `;
   
-    const res = await fetch("https://api.studio.thegraph.com/query/106434/minimiles/version/latest", {
+    const res = await fetch("https://api.studio.thegraph.com/query/115307/akiba-miles/version/latest", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

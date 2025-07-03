@@ -10,9 +10,9 @@
    /* ------------------------------------------------------------------ CONFIG */
    
    const MINI_SUBGRAPH =
-     'https://api.studio.thegraph.com/query/106434/minimiles/version/latest';
+     'https://api.studio.thegraph.com/query/115307/akiba-miles/version/latest';
    const RAFFLE_SUBGRAPH =
-     'https://api.studio.thegraph.com/query/106434/miles-history/version/latest';
+     'https://api.studio.thegraph.com/query/115307/akiba-miles/version/latest';
    
    /* ------------------------------------------------------------------- TYPES */
    
