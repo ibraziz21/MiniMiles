@@ -13,7 +13,7 @@ import {
 import Image from "next/image";
 import { CaretLeft, Minus, Plus, Share } from "@phosphor-icons/react";
 import { Slider } from "./ui/slider";
-import { Ticket, Successsvg, MinimilesSymbol } from "@/lib/svg";
+import { Ticket, Successsvg, akibaMilesSymbol } from "@/lib/svg";
 import { StaticImageData } from "next/image";
 import { useWeb3 } from "@/contexts/useWeb3";
 import Link from "next/link";
@@ -230,7 +230,7 @@ export default function SpendPartnerQuestSheet({
                 className={`absolute top-10 right-5 p-2 `}>
                 <p className="font-medium text-white text-3xl">500</p>
                 <p className="text-xs  rounded-full p-1 mt-1 flex items-center text-white">
-                  <Image src={MinimilesSymbol} alt="" width={16} height={16} className="mr-1" />
+                  <Image src={akibaMilesSymbol} alt="" width={16} height={16} className="mr-1" />
                   cUSD
                 </p>
               </div>
@@ -246,12 +246,12 @@ export default function SpendPartnerQuestSheet({
               <div className="flex justify-between">
                 <span className="font-medium">Prize</span>
                 <span className="text-gray-700 flex">
-                  <Image src={MinimilesSymbol} alt="" width={16} height={16} className="mr-1" /> {raffle.prize} {raffle.symbol}
+                  <Image src={akibaMilesSymbol} alt="" width={16} height={16} className="mr-1" /> {raffle.prize} {raffle.symbol}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="font-medium">Price per ticket</span>
-                <span className="text-gray-700 flex "><Image src={MinimilesSymbol} alt="" width={16} height={16} className="mr-1" />{ticketCostNum} MiniMiles</span>
+                <span className="text-gray-700 flex "><Image src={akibaMilesSymbol} alt="" width={16} height={16} className="mr-1" />{ticketCostNum} akibaMiles</span>
               </div>
               <div className="flex justify-between">
                 <span className="font-medium">Draw Date</span>
@@ -322,12 +322,12 @@ export default function SpendPartnerQuestSheet({
               ))}
             </div>
             <p className="text-center text-xs text-gray-500 "> Select an amount of tickets to buy </p>
-            <div className="text-center text-xs text-gray-500 flex justify-center items-center"> Balance: <Image src={MinimilesSymbol} alt="" width={16} height={16} className="mr-1" /> <p className="font-medium text-black">{maxTickets}</p> <p className="text-xs mx-1 rounded-full py-1 px-3 flex items-center text-[#219653] bg-[#07955F1A]">
+            <div className="text-center text-xs text-gray-500 flex justify-center items-center"> Balance: <Image src={akibaMilesSymbol} alt="" width={16} height={16} className="mr-1" /> <p className="font-medium text-black">{maxTickets}</p> <p className="text-xs mx-1 rounded-full py-1 px-3 flex items-center text-[#219653] bg-[#07955F1A]">
               Max
             </p>
             </div>
             <p className="text-center text-sm font-medium mb-6">
-              Total cost: {totalCost} MiniMiles
+              Total cost: {totalCost} akibaMiles
             </p>
             <SheetFooter>
               <Button

@@ -40,8 +40,8 @@ const handleClaim = async () => {
     if (quest.title.toLowerCase().includes("twitter")) {
       // open the Twitter app if installed, else fall back to web
       destination = isMiniPay
-        ? "twitter://user?screen_name=minimilesApp"
-        : "https://twitter.com/minimilesApp";
+        ? "twitter://user?screen_name=akibaMilesApp"
+        : "https://twitter.com/akibaMilesApp";
     }
   
     if (isMiniPay) {
@@ -81,7 +81,7 @@ const handleClaim = async () => {
             <Image src={quest.img} width={32} height={32} alt={quest.title} />
             <span className="text-3xl font-medium ml-2">{quest.reward.split(' ')[0]}</span>
           </div>
-          <span className="text-sm uppercase">MiniMiles</span>
+          <span className="text-sm uppercase">akibaMiles</span>
         </div>
 
         <div className="mb-6 font-poppins">

@@ -30,7 +30,7 @@ const EnterRaffleSheet = () => {
         <SheetHeader>
           <SheetTitle>How to enter raffles</SheetTitle>
           <p className="text-[#00000080] mt-2">
-            With your earned MiniMiles you can buy tickets of raffles. The more
+            With your earned akibaMiles you can buy tickets of raffles. The more
             tickets you buy the higher your chances are to win big.
           </p>
         </SheetHeader>

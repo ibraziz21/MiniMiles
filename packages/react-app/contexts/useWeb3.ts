@@ -54,7 +54,7 @@ export function useWeb3() {
 
   // 2️⃣ Helpers can now reuse walletClient + publicClient + address
 
-  const getMiniMilesBalance = useCallback(async () => {
+  const getakibaMilesBalance = useCallback(async () => {
     if (!address) throw new Error("Wallet not connected");
     const miniMiles = getContract({
       abi: MiniMilesAbi.abi,
@@ -105,7 +105,7 @@ export function useWeb3() {
 
   return {
     address,
-    getMiniMilesBalance,
+    getakibaMilesBalance,
     getUserAddress,
     sendCUSD,
     joinRaffle,

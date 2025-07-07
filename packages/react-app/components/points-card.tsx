@@ -1,6 +1,6 @@
 // components/PointsCard.tsx
 import { Button } from "@/components/ui/button";
-import { Earn, MinimilesSymbolAlt, Ticket, TicketAlt, Transcript } from "@/lib/svg";
+import { Earn, akibaMilesSymbolAlt, Ticket, TicketAlt, Transcript } from "@/lib/svg";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -8,9 +8,9 @@ export default function PointsCard({ points }: { points: number }) {
     return (
         <div className="bg-point-card bg-[#219653] bg-no-repeat bg-contain  text-white rounded-2xl pt-4 px-2 mx-4 mt-4 space-y-4">
             <div className="p-3 flex flex-col justify-between">
-                <h3 className="">Total MiniMiles</h3>
+                <h3 className="">Total akibaMiles</h3>
                 <div className="flex items-center justify-start my-3">
-                    <Image src={MinimilesSymbolAlt} width={32} height={32} alt="" />
+                    <Image src={akibaMilesSymbolAlt} width={32} height={32} alt="" />
                     <p className="text-3xl font-medium pl-2">{points.toLocaleString()}</p>
                 </div>
             </div>

@@ -7,6 +7,7 @@ export async function fetchTotalRewardsWon(user: string): Promise<{
       query GetWins($user: Bytes!) {
         winnerSelecteds(where: { winner: $user }) {
           roundId
+          rewardPool
         }
       }
     `;

@@ -1,6 +1,6 @@
 // components/PointsCard.tsx
 import { Button } from "@/components/ui/button";
-import { MinimilesSymbolAlt } from "@/lib/svg";
+import { akibaMilesSymbolAlt } from "@/lib/svg";
 import Image from "next/image";
 
 type Props = {

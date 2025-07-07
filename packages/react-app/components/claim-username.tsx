@@ -63,7 +63,7 @@ export default function ClaimUsernamePage() {
             <main className="flex min-h-dvh flex-col gap-10 px-3 py-10 font-sterling">
 
                 <header className="space-y-1">
-                    <h1 className="text-xl font-medium">Claim your MiniMiles username</h1>
+                    <h1 className="text-xl font-medium">Claim your akibaMiles username</h1>
                     <p className="text-sm text-muted-foreground">
                         Start by claiming your first{" "}
                         <span className="font-medium text-primarygreen">.mini</span>{" "}

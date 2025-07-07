@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
 import { fetchActiveRaffles, Raffle } from '@/helpers/raffledisplay';
 import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2 } from '@/lib/img';
-import { Coin, MinimilesSymbol } from '@/lib/svg';
+import { Coin, akibaMilesSymbol } from '@/lib/svg';
 import { Question } from '@phosphor-icons/react';
 import { StaticImageData } from 'next/image';
 import Link from 'next/link';
@@ -27,7 +27,7 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   USDT: RaffleImg2,
   cKES: RaffleImg3,
   // default fallback:
-  default: MinimilesSymbol,
+  default: akibaMilesSymbol,
 }
 
 // Shape it to what SpendPartnerQuestSheet expects:
@@ -46,19 +46,19 @@ type SpendRaffle = {
 
 
 const digitalCashRaffles = [
-  { image: RaffleImg1, title: "500 USDT weekly", endsIn: 2, ticketCost: "10 MiniMiles for 1 ticket" },
+  { image: RaffleImg1, title: "500 USDT weekly", endsIn: 2, ticketCost: "10 akibaMiles for 1 ticket" },
   { image: RaffleImg2, title: "250 USDT", endsIn: 5, ticketCost: "6 points for 1 ticket" },
 ];
 
 const physicalGoodsRaffles = [
-  { image: airpods, title: "Airpods 2", endsIn: 6, ticketCost: "3 MiniMiles for 1 ticket" },
+  { image: airpods, title: "Airpods 2", endsIn: 6, ticketCost: "3 akibaMiles for 1 ticket" },
   { image: laptop, title: "Laptop", endsIn: 4, ticketCost: "50 tickets by brand" },
   { image: bicycle, title: "Bicycle", endsIn: 4, ticketCost: "50 tickets by brand" }
 ];
 
 const nftRaffles = [
-  { image: nft1, title: "BoredApe #567", endsIn: 7, ticketCost: "10 MiniMiles for 1 ticket" },
-  { image: nft2, title: "CryptoPunk #789", endsIn: 3, ticketCost: "12 MiniMiles" },
+  { image: nft1, title: "BoredApe #567", endsIn: 7, ticketCost: "10 akibaMiles for 1 ticket" },
+  { image: nft2, title: "CryptoPunk #789", endsIn: 3, ticketCost: "12 akibaMiles" },
 ];
 
 const upcomingGames = [
@@ -68,8 +68,8 @@ const upcomingGames = [
 
 const Page = () => {
 
-  const { address, getUserAddress, getMiniMilesBalance } = useWeb3();
-  const [miniMilesBalance, setMiniMilesBalance] = useState('0');
+  const { address, getUserAddress, getakibaMilesBalance } = useWeb3();
+  const [akibaMilesBalance, setakibaMilesBalance] = useState('0');
   const [showPopup, setShowPopup] = useState(false);
   const [selectedRaffle, setSelectedRaffle] = useState<any>(null);
   const [raffleSheetOpen, setRaffleSheetOpen] = useState(false);
@@ -92,14 +92,14 @@ const Page = () => {
     const fetchBalance = async () => {
       if (!address) return;
       try {
-        const balance = await getMiniMilesBalance();
-        setMiniMilesBalance(balance);
+        const balance = await getakibaMilesBalance();
+        setakibaMilesBalance(balance);
       } catch (error) {
         console.log(error);
       }
     };
     fetchBalance();
-  }, [address, getMiniMilesBalance]);
+  }, [address, getakibaMilesBalance]);
 
   useEffect(() => {
     fetchActiveRaffles()
@@ -121,7 +121,7 @@ const Page = () => {
         <h1 className="text-2xl font-medium">Spend</h1>
         <h3 className='font-poppins'>Win big by entering our Raffles</h3>
       </div>
-      <MiniPointsCard points={Number(miniMilesBalance)} />
+      <MiniPointsCard points={Number(akibaMilesBalance)} />
       <div className="mx-3">
         <EnterRaffleSheet />
       </div>
@@ -136,20 +136,20 @@ const Page = () => {
               image={r.image ?? RaffleImg1}
               title={`${r.rewardPool} ${r.symbol} weekly`}
               endsIn={formatEndsIn(r.ends)}
-              ticketCost={`${r.ticketCost} MiniMiles for 1 ticket`}
+              ticketCost={`${r.ticketCost} akibaMiles for 1 ticket`}
               locked={false}
-              icon={MinimilesSymbol}
+              icon={akibaMilesSymbol}
               onClick={() => {
                 const img = TOKEN_IMAGES[r.symbol] ?? TOKEN_IMAGES.default
                 setSpendRaffle({
                   id: Number(r.id),
                   title: r.description,
-                  reward: `${r.ticketCost} MiniMiles`,
+                  reward: `${r.ticketCost} akibaMiles`,
                   prize: r.rewardPool ?? "—",
                   endDate: formatEndsIn(r.ends),
-                  ticketCost: `${r.ticketCost} MiniMiles`,
+                  ticketCost: `${r.ticketCost} akibaMiles`,
                   image: img as StaticImageData,
-                  balance: Number(miniMilesBalance),
+                  balance: Number(akibaMilesBalance),
                   symbol: r.symbol
                 });
                 setSpendSheetOpen(true);
@@ -171,7 +171,7 @@ const Page = () => {
               title={raffle.title}
               endsIn={`${raffle.endsIn} days` }
               ticketCost={raffle.ticketCost}
-              icon={MinimilesSymbol}
+              icon={akibaMilesSymbol}
               locked={true}
               onClick={() => {
                 setSpendRaffle({
@@ -182,8 +182,8 @@ const Page = () => {
                   endDate: `${raffle.endsIn} days`,
                   ticketCost: raffle.ticketCost,
                   image: raffle.image,
-                  balance: Number(miniMilesBalance),
-                  symbol: 'MiniMiles'
+                  balance: Number(akibaMilesBalance),
+                  symbol: 'akibaMiles'
                 });
                 setSpendSheetOpen(true);
               }}
@@ -203,7 +203,7 @@ const Page = () => {
               title={raffle.title}
               endsIn={`${raffle.endsIn} days` }
               ticketCost={raffle.ticketCost}
-              icon={MinimilesSymbol}
+              icon={akibaMilesSymbol}
               locked={true}
               onClick={() => {
                 setSpendRaffle({
@@ -214,8 +214,8 @@ const Page = () => {
                   endDate: `${raffle.endsIn} days`,
                   ticketCost: raffle.ticketCost,
                   image: raffle.image,
-                  balance: Number(miniMilesBalance),
-                  symbol: 'MiniMiles'
+                  balance: Number(akibaMilesBalance),
+                  symbol: 'akibaMiles'
                 });
                 setSpendSheetOpen(true);
               }}

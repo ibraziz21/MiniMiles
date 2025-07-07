@@ -15,7 +15,7 @@ import {
   userReceivedAtLeast1DollarIn24Hrs,
 } from "@/helpers/graphQuestTransfer";
 
-import { Cash, Door, MinimilesSymbol } from "@/lib/svg";
+import { Cash, Door, akibaMilesSymbol } from "@/lib/svg";
 
 /* ─── Supabase ───────────────────────────────────────────── */
 const supabase = createClient(
@@ -212,8 +212,8 @@ export default function DailyChallenges({ showCompleted = false }: { showComplet
                     {q.description}
                   </p>
                   <p className="text-xs mt-2 flex items-center justify-center">
-                    <Image src={MinimilesSymbol} alt="" className="mr-1" />
-                    {q.reward_points} MiniMiles
+                    <Image src={akibaMilesSymbol} alt="" className="mr-1" />
+                    {q.reward_points} akibaMiles
                   </p>
                 </div>
               </button>

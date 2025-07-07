@@ -70,7 +70,7 @@ export default function Onboarding() {
     router.push("/")
   }
   const label = isLast
-    ? isMember ? "Finish" : "Claim 100 MiniMiles"
+    ? isMember ? "Finish" : "Claim 100 AkibaMiles"
     : "Next";
   return (
     <div className="relative h-screen font-sterling bg-white">
@@ -128,11 +128,11 @@ export default function Onboarding() {
                   {label}   {/* ← visible text */}
                 </button>  {isLast && (
     <div className="mt-4 flex space-x-4 text-sm text-[#00000080]">
-      <a href="https://www.minimiles.app/terms-of-use" className="hover:underline" target="_blank">
+      <a href="https://www.akibamiles.com/terms-of-use" className="hover:underline" target="_blank">
         Terms of Service
       </a>
       <span>•</span>
-      <a href="https://www.minimiles.app/privacy-policy" className="hover:underline" target="_blank">
+      <a href="https://www.akibamiles.com/privacy-policy" className="hover:underline" target="_blank">
         Privacy Policy
       </a>
     </div>

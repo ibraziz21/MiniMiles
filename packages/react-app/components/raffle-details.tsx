@@ -89,7 +89,7 @@ export const RaffleDetails = ({
             ))}
           </div>
           <p className="text-right text-xs text-gray-500">
-            Balance: {balance} MiniMiles
+            Balance: {balance} akibaMiles
           </p>
 
           <SheetFooter className="mt-6">

@@ -11,7 +11,7 @@ import { fetchTotalMiniMilesEarned } from '@/helpers/historyBalance';
 import { fetchTotalRafflesWon } from '@/helpers/historyRaffleWon';
 import { fetchActiveRaffles, Raffle } from '@/helpers/raffledisplay';
 import { RaffleImg1, RaffleImg2, RaffleImg3, RaffleImg5 } from '@/lib/img';
-import { MinimilesSymbol } from '@/lib/svg';
+import { akibaMilesSymbol } from '@/lib/svg';
 import { StaticImageData } from 'next/image';
 import React, { useEffect, useMemo, useState } from 'react'
 import { useMiniMilesHistory } from '@/helpers/txHistory';
@@ -20,7 +20,7 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   cUSD: RaffleImg1,
   USDT: RaffleImg2,
   Miles: RaffleImg5,
-  default: MinimilesSymbol,
+  default: akibaMilesSymbol,
 };
 
 type SpendRaffle = {
@@ -36,12 +36,12 @@ type SpendRaffle = {
 };
 
 export default function History() {
-  const { address, getMiniMilesBalance } = useWeb3();
+  const { address, getakibaMilesBalance } = useWeb3();
 
   const { data: txHistory = [], isLoading: txLoading } = useMiniMilesHistory();
   const [raffles, setRaffles]         = useState<Raffle[]>([]);
   const [loading, setLoading]         = useState(true);
-  const [miniMilesBalance, setMiniMilesBalance] = useState("0");
+  const [akibaMilesBalance, setakibaMilesBalance] = useState("0");
 
   const [totalEarned, setTotalEarned] = useState("0");
   const [totalWins,  setTotalWins]    = useState("0");
@@ -69,8 +69,8 @@ export default function History() {
     fetchTotalRewardsWon(address).then(({ totalUSD }) =>
       setTotalUSDWon(`$ ${totalUSD.toFixed(2)}`),
     );
-    getMiniMilesBalance().then(setMiniMilesBalance);
-  }, [address, getMiniMilesBalance]);
+    getakibaMilesBalance().then(setakibaMilesBalance);
+  }, [address, getakibaMilesBalance]);
 
   useEffect(() => {
     fetchActiveRaffles()
@@ -91,7 +91,7 @@ export default function History() {
       <div className="px-4 min-h-[110px] flex flex-col justify-around">
         <h1 className="text-2xl font-medium">Your history</h1>
         <h3 className="font-extralight">
-          View your MiniMiles gaming stats &amp; history.
+          View your akibaMiles gaming stats &amp; history.
         </h3>
       </div>
 
@@ -132,9 +132,9 @@ export default function History() {
                       image={r.image ?? RaffleImg1}
                       title={`${r.rewardPool} ${r.symbol} weekly`}
                       endsIn={formatEndsIn(r.ends)}
-                      ticketCost={`${r.ticketCost} MiniMiles for 1 ticket`}
+                      ticketCost={`${r.ticketCost} akibaMiles for 1 ticket`}
                       locked={false}
-                      icon={MinimilesSymbol}
+                      icon={akibaMilesSymbol}
                     />
                   );
                 })}
@@ -146,7 +146,7 @@ export default function History() {
       {/* tx history */}
       <div className="px-4 min-h-[110px] flex flex-col justify-around">
         <h1 className="text-2xl font-medium">Transaction history</h1>
-        <h3 className="font-extralight">View all your MiniMiles activities.</h3>
+        <h3 className="font-extralight">View all your akibaMiles activities.</h3>
       </div>
 
       {txLoading ? (

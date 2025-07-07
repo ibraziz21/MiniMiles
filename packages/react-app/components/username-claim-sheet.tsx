@@ -41,7 +41,7 @@ export default function UsernameClaimSheet({
 
           <h3 className="text-base font-medium">A simplified address</h3>
           <p className="text-sm text-muted-foreground">
-            MiniMiles usernames transform complex&nbsp;0x addresses into
+            akibaMiles usernames transform complex&nbsp;0x addresses into
             readable names. By claiming a&nbsp;
             <span className="font-medium text-primarygreen">.mini</span> you can
             easily send and receive crypto and build out your public profile.

@@ -31,7 +31,7 @@ export default function QuestDetailModal({
           </DialogHeader>
 
           <div className="bg-green-700 text-white rounded-xl py-4 text-center mt-4">
-            <p className="text-2xl font-medium">10 MiniMiles</p>
+            <p className="text-2xl font-medium">10 akibaMiles</p>
           </div>
 
           <div className="mt-6 text-sm space-y-3">

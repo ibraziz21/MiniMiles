@@ -64,8 +64,8 @@ export default function SettingsPage() {
 
       <SettingRow
         icon={<Envelope size={24} color="#219653" />}
-        label="hello@minimiles.app"
-        onCopy={() => handleCopy('hello@minimiles.app')}
+        label="hello@akibamiles.com"
+        onCopy={() => handleCopy('hello@akibamiles.com')}
       />
 
       <SettingRow
@@ -91,11 +91,11 @@ export default function SettingsPage() {
 
       {/* ───── Footer links ───── */}
       <footer className="mt-4 flex space-x-2 text-sm text-[#00000080]">
-        <FooterLink href="https://www.minimiles.app/terms-of-use">
+        <FooterLink href="https://www.akibamiles.com/terms-of-use">
           Terms of Service
         </FooterLink>
         <span>•</span>
-        <FooterLink href="https://www.minimiles.app/privacy-policy">
+        <FooterLink href="https://www.akibamiles.app/privacy-policy">
           Privacy Policy
         </FooterLink>
       </footer>
