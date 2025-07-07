@@ -127,7 +127,7 @@ export default function PartnerQuests({
               {locked && (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="bg-white/90 rounded-full flex items-center p-1">
-                    <Lock size={16} color="#219653" weight="bold" className="mr-1"/>
+                    <Lock size={16} color="#238D9D" weight="bold" className="mr-1" />
                     <span className="text-xs text-[#07955F] font-medium">
                       Coming Soon
                     </span>

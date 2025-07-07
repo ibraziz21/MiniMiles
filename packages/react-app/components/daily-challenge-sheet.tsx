@@ -28,7 +28,7 @@ const DailyChallengeSheet = ({ open, onOpenChange, raffle  }: DailyChallengeShee
                     </div>
                     <h4 className='text-2xl font-medium'>{raffle.description}</h4>
 
-                    <div className="bg-partner-quest bg-[#219653] bg-no-repeat bg-cover text-white text-center rounded-xl py-2">
+                    <div className="bg-partner-quest bg-[#238D9D] bg-no-repeat bg-cover text-white text-center rounded-xl py-2">
                         <div className="flex items-center justify-center my-3">
                             <Image src={MinimilesSymbolAlt} width={32} height={32} alt="" />
                             <p className="text-3xl font-medium pl-2">{raffle.ticketCost}</p>

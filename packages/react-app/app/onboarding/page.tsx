@@ -112,7 +112,7 @@ export default function Onboarding() {
                     {onboardingSource.map((_, j) => (
                       <span
                         key={j}
-                        className={`h-2 w-8 rounded-full ${j === i ? "bg-[#219653]" : "bg-[#07955F4D]"
+                        className={`h-2 w-8 rounded-full ${j === i ? "bg-[#238D9D]" : "bg-[#07955F4D]"
                           }`}
                       />
                     ))}

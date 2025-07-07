@@ -26,14 +26,14 @@ const ContactSheet = () => {
                 <SheetHeader>
                     <SheetTitle>Contact us</SheetTitle>
                     <div className="flex justify-between items-start shadow-lg rounded-xl p-2 text-[#00000080]">
-                        <Envelope size={24} className="mr-2" color="#219653" />
+                        <Envelope size={24} className="mr-2" color="#238D9D" />
                         <div className="flex justify-between items-center w-full">
                             <h2 className="font-medium">support@minimiles.co</h2>
                             <Copy size={24} />
                         </div>
                     </div>
                     <div className="flex justify-between items-start shadow-lg rounded-xl p-2 text-[#00000080]">
-                        <Chats size={24}  className="mr-2" color="#219653" />
+                        <Chats size={24} className="mr-2" color="#238D9D" />
                         <div className="flex justify-between items-center w-full">
                             <h2 className="font-medium">Chat with Us</h2>
                             <Link size={24} />

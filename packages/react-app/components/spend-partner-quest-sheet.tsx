@@ -322,7 +322,7 @@ export default function SpendPartnerQuestSheet({
               ))}
             </div>
             <p className="text-center text-xs text-gray-500 "> Select an amount of tickets to buy </p>
-            <div className="text-center text-xs text-gray-500 flex justify-center items-center"> Balance: <Image src={MinimilesSymbol} alt="" width={16} height={16} className="mr-1" /> <p className="font-medium text-black">{maxTickets}</p> <p className="text-xs mx-1 rounded-full py-1 px-3 flex items-center text-[#219653] bg-[#07955F1A]">
+                <div className="text-center text-xs text-gray-500 flex justify-center items-center"> Balance: <Image src={MinimilesSymbol} alt="" width={16} height={16} className="mr-1" /> <p className="font-medium text-black">{maxTickets}</p> <p className="text-xs mx-1 rounded-full py-1 px-3 flex items-center text-[#238D9D] bg-[#07955F1A]">
               Max
             </p>
             </div>

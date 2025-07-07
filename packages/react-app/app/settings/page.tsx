@@ -45,7 +45,7 @@ const SettingsPage = () => {
             <h3 className='font-medium'>Contact Us</h3>
 
             <div className="flex justify-between items-start shadow-lg rounded-xl p-4 text-[#00000080] my-2 bg-white">
-                <Envelope size={24} className="mr-2" color="#219653" />
+                <Envelope size={24} className="mr-2" color="#238D9D" />
                 <div className="flex justify-between items-center w-full">
                     <h2 className="font-medium text-black">Support@minimiles.co</h2>
                     <Copy size={24} className="cursor-pointer" onClick={() => handleCopy('Support@minimiles.co')} />
@@ -53,7 +53,7 @@ const SettingsPage = () => {
             </div>
 
             <div className="flex justify-between items-start shadow-lg rounded-xl p-4 text-[#00000080] my-2 bg-white">
-                <Chats size={24} className="mr-2" color="#219653" />
+                <Chats size={24} className="mr-2" color="#238D9D" />
                 <div className="flex justify-between items-center w-full">
                     <h2 className="font-medium text-black">Chat with us</h2>
                     <Export size={24} />
@@ -61,7 +61,7 @@ const SettingsPage = () => {
             </div>
 
             <div className="flex justify-between items-start shadow-lg rounded-xl p-4 text-[#00000080] my-2 bg-white">
-                <TwitterLogo size={24} className="mr-2" color="#219653" />
+                <TwitterLogo size={24} className="mr-2" color="#238D9D" />
                 <div className="flex justify-between items-center w-full">
                     <h2 className="font-medium text-black">Message us</h2>
                     <Export size={24} />
@@ -71,7 +71,7 @@ const SettingsPage = () => {
             <h3 className='font-medium'>Source code</h3>
 
             <div className="flex justify-between items-start shadow-lg rounded-xl p-4 text-[#00000080] my-2 bg-white">
-                <GithubLogo size={24} className="mr-2" color="#219653" />
+                <GithubLogo size={24} className="mr-2" color="#238D9D" />
                 <div className="flex justify-between items-center w-full">
                     <h2 className="font-medium text-black">View open source code</h2>
                     <Export size={24} />
