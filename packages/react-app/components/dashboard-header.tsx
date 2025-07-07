@@ -10,7 +10,9 @@ export default function DashboardHeader({ name }: { name: any }) {
       <h1 className="text-xl font-medium">Welcome {name}!</h1>
 
       <div className="flex">
+        <Link href="/settings">
         <Image src={GearSvg} alt="" />
+        </Link>
         <Link href="/onboarding" >
           <Question size={24} color="#238D9D" weight="duotone" />
         </Link>

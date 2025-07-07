@@ -6,7 +6,7 @@ const DST_ROUTER  = "0xb00E0b3a25d3b677c0bF1f9243aeF99bC65D5Dca"; // Alfajores
 const MSG_ID      = "0x000000000000000000000000000000000000000000000000DE41BA4FC9D91AD9";
 const Alf_RPC_URL      = 'https://alfajores-forno.celo-testnet.org';  
 const Sep_RPC_URL = 'https://eth-sepolia.g.alchemy.com/v2/XucMy0SW663XxpBZLQtKH2kvbvydqysK'
-const PRIVATE_KEY  = "f642d744b3e86303d77d2173ba90d7607cc9c41264e98c4466711e6391a6a257";  // owner’s key
+const PRIVATE_KEY  = "";  // owner’s key
 
 
 

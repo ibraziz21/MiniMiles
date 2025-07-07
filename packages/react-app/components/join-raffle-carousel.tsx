@@ -1,7 +1,7 @@
 import { RaffleImg1, RaffleImg3, WinImg } from "@/lib/img";
 import { RaffleCard } from "./raffle-card";
 import Link from "next/link";
-import { MinimilesSymbol } from "@/lib/svg";
+import { akibaMilesSymbol } from "@/lib/svg";
 import { useEffect, useState } from "react";
 
 import { fetchActiveRaffles,Raffle } from "@/helpers/raffledisplay";
@@ -26,7 +26,7 @@ export default function JoinRafflesCarousel() {
             <div className="flex justify-between items-center">
                 <h3 className="text-lg font-medium">Join Raffles</h3>
                 <Link href='/spend'>
-                    <span className="text-sm text-green-600 hover:underline">View more ›</span>
+                    <span className="text-sm text-[#238D9D] hover:underline">View more ›</span>
                 </Link>
             </div>
             <div className="flex gap-3 overflow-x-auto mt-4">
@@ -36,8 +36,8 @@ export default function JoinRafflesCarousel() {
                         image={RaffleImg1}
                         title={raffle.rewardToken}
                         endsIn={raffle.ends.toString()}
-                        ticketCost="10 MiniMiles for 1 ticket"
-                        icon={MinimilesSymbol}
+                        ticketCost="10 akibaMiles for 1 ticket"
+                        icon={akibaMilesSymbol}
                     />
                 })}
             </div>

@@ -1,6 +1,6 @@
 import Cash from "../public/svg/cash.svg";
-import MinimilesSymbol from "../public/svg/minimiles-symbol.svg"
-import MinimilesSymbolAlt from "../public/svg/minimiles-symbol-alt.svg"
+import akibaMilesSymbol from "../public/svg/minimiles-symbol.svg"
+import akibaMilesSymbolAlt from "../public/svg/minimiles-symbol-alt.svg"
 import Door from "../public/svg/door.svg"
 import Celo from "../public/svg/celo.svg";
 import MiniPay from "../public/svg/minipay.svg"
@@ -29,13 +29,13 @@ import MilesRaffleSvg from "../public/svg/miles-cash-raffle.svg"
 
 export {
     Cash,
-    MinimilesSymbol,
+    akibaMilesSymbol,
     Door,
     Celo,
     MiniPay,
     GloDollar,
     Mento,
-    MinimilesSymbolAlt,
+    akibaMilesSymbolAlt,
     Earn,
     Spend,
     User,

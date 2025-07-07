@@ -3,22 +3,22 @@ pragma solidity ^0.8.20;
 
 import "./MiniPoints.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "witnet-solidity-bridge/contracts/interfaces/IWitnetRandomness.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-/**
- * @title Minimiles Raffle – Witnet‑powered randomness version for Celo
- */
-contract MiniRaffle is ReentrancyGuard {
+contract AkibaRaffle is UUPSUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
 
-    address public immutable owner;
-    IMiniPoints public immutable miniPoints;
+    address public owner;
+    IMiniPoints public miniPoints;
     IWitnetRandomness public constant RNG =
         IWitnetRandomness(0xC0FFEE98AD1434aCbDB894BbB752e138c1006fAB);
-    IERC20 public immutable cUSD;
-    IERC20 public immutable cKES;
-    IERC20 public immutable miles;
+
+    IERC20 public cUSD;
+    IERC20 public usdt;
+    IERC20 private miles;
 
     struct RaffleRound {
         uint256 id;
@@ -51,14 +51,26 @@ contract MiniRaffle is ReentrancyGuard {
     );
     event ParticipantJoined(
         uint256 indexed roundId,
-        address indexed participant
+        address indexed participant,
+        uint256 tickets
     );
     event RandomnessRequested(uint256 indexed roundId, uint256 witnetBlock);
-    event WinnerSelected(uint256 indexed roundId, address winner);
+    event WinnerSelected(
+        uint256 indexed roundId,
+        address winner,
+        uint256 reward
+    );
     event RaffleClosed(uint256 indexed roundId);
+
+    error Unauthorized();
+    mapping(address => bool) public minters;
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Raffle: not owner");
+        _;
+    }
+    modifier onlyAllowed() {
+        if (msg.sender != owner && !minters[msg.sender]) revert Unauthorized();
         _;
     }
     modifier roundExists(uint256 _roundId) {
@@ -66,13 +78,25 @@ contract MiniRaffle is ReentrancyGuard {
         _;
     }
 
-    constructor(address _miniPoints, address _cUSD) {
+    function initialize(
+        address _miniPoints,
+        address _cUSD,
+        address _usdt,
+        address _owner
+    ) public initializer {
+        __UUPSUpgradeable_init();
+        __ReentrancyGuard_init();
         require(_miniPoints != address(0), "invalid MiniPoints");
         miniPoints = IMiniPoints(_miniPoints);
         miles = IERC20(_miniPoints);
         cUSD = IERC20(_cUSD);
-        // cKES = IERC20(_cKES);
-        owner = msg.sender;
+        usdt = IERC20(_usdt);
+        owner = _owner;
+    }
+
+    function setMinter(address who, bool enabled) external onlyOwner {
+        require(who != address(0), "Zero addr");
+        minters[who] = enabled;
     }
 
     function createRaffleRound(
@@ -82,11 +106,12 @@ contract MiniRaffle is ReentrancyGuard {
         IERC20 _token,
         uint256 _rewardPool,
         uint256 _ticketCostPoints
-    ) external onlyOwner {
+    ) external onlyAllowed {
         require(_duration > 0 && _maxTickets > 0, "Raffle: bad params");
-        require(_token == cUSD || _token == cKES || _token == miles, "Raffle: unsupported token");
 
-        _token.safeTransferFrom(msg.sender, address(this), _rewardPool);
+        if (_token != miles) {
+            _token.safeTransferFrom(msg.sender, address(this), _rewardPool);
+        }
         roundIdCounter++;
         RaffleRound storage r = rounds[roundIdCounter];
         r.id = roundIdCounter;
@@ -112,7 +137,7 @@ contract MiniRaffle is ReentrancyGuard {
     function joinRaffle(
         uint256 _roundId,
         uint32 _ticketCount
-    ) external roundExists(_roundId) {
+    ) external roundExists(_roundId) nonReentrant {
         RaffleRound storage r = rounds[_roundId];
         require(r.isActive, "Raffle: inactive round");
         require(
@@ -137,7 +162,7 @@ contract MiniRaffle is ReentrancyGuard {
         r.tickets[msg.sender] += _ticketCount;
         r.totalTickets += _ticketCount;
 
-        emit ParticipantJoined(_roundId, msg.sender);
+        emit ParticipantJoined(_roundId, msg.sender, _ticketCount);
     }
 
     function requestRoundRandomness(
@@ -172,11 +197,15 @@ contract MiniRaffle is ReentrancyGuard {
 
         uint256 pick = RNG.random(r.totalTickets, 0, r.randomBlock);
         r.winner = _selectByIndex(r, pick);
-        r.rewardToken.safeTransfer(r.winner, r.rewardPool);
         r.isActive = false;
         r.winnerSelected = true;
+        if (address(r.rewardToken) == address(miles)) {
+            miniPoints.mint(r.winner, r.rewardPool);
+        } else {
+            r.rewardToken.safeTransfer(r.winner, r.rewardPool);
+        }
 
-        emit WinnerSelected(_roundId, r.winner);
+        emit WinnerSelected(_roundId, r.winner, r.rewardPool);
     }
 
     /// @notice Close an under-subscribed raffle after its endTime and refund all MiniPoints.
@@ -195,6 +224,7 @@ contract MiniRaffle is ReentrancyGuard {
         );
 
         // refund each participant their spent points
+        round.isActive = false;
         for (uint256 i = 0; i < round.participants.length; i++) {
             address player = round.participants[i];
             uint32 bought = round.tickets[player];
@@ -208,7 +238,6 @@ contract MiniRaffle is ReentrancyGuard {
         }
 
         // mark closed
-        round.isActive = false;
 
         emit RaffleClosed(_roundId);
     }
@@ -258,4 +287,15 @@ contract MiniRaffle is ReentrancyGuard {
             r.winnerSelected
         );
     }
+
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "Owner: zero addr");
+        owner = newOwner;
+    }
+
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyOwner {}
+
+    uint256[50] private __gap;
 }

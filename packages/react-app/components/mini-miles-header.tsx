@@ -12,8 +12,8 @@ export default function MiniMilesHeader({
 }) {
   return (
     <div className="px-4 pt-4">
-      <h2 className="text-lg font-medium">Mini miles: Earn</h2>
-      <p className="text-xl font-medium mt-2">Total MiniMiles Earned: {total.toLocaleString()}</p>
+      <h2 className="text-lg font-medium">AkibaMiles: Earn</h2>
+      <p className="text-xl font-medium mt-2">Total akibaMiles Earned: {total.toLocaleString()}</p>
 
       <ToggleGroup
         type="single"

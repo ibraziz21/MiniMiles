@@ -29,11 +29,11 @@ export default function ClaimPage() {
                         <Button
                             title="Let's go"
                             widthFull
-                            className="rounded-xl py-6 text-lg font-medium shadow-sm bg-[#07955F] "
+                            className="rounded-xl py-6 text-lg font-medium shadow-sm bg-[#238D9D] "
                             onClick={() => setClaimUsername(true)}
                         />
 
-                        <p className="mt-3 text-center text-xs text-muted-foreground text-[#07955F] font-medium">
+                        <p className="mt-3 text-center text-xs text-muted-foreground text-[#238D9D] font-medium">
                             By proceeding you agree with the <span className="underline">Terms & Conditions</span>
                         </p>
                     </div>

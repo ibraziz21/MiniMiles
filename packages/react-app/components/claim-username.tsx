@@ -63,7 +63,7 @@ export default function ClaimUsernamePage() {
             <main className="flex min-h-dvh flex-col gap-10 px-3 py-10 font-sterling">
 
                 <header className="space-y-1">
-                    <h1 className="text-xl font-medium">Claim your MiniMiles username</h1>
+                    <h1 className="text-xl font-medium">Claim your akibaMiles username</h1>
                     <p className="text-sm text-muted-foreground">
                         Start by claiming your first{" "}
                         <span className="font-medium text-primarygreen">.mini</span>{" "}
@@ -111,7 +111,7 @@ export default function ClaimUsernamePage() {
                     <Button
                         title="Claim username"
                         widthFull
-                        className="rounded-xl py-6 text-lg font-medium shadow-sm bg-[#07955F] "
+                        className="rounded-xl py-6 text-lg font-medium shadow-sm bg-[#238D9D] "
                         disabled={!isClaimable}
                         onClick={() => {setSheetOpen(true)
                             router.push("/")

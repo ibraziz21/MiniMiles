@@ -4,12 +4,12 @@ pragma solidity ^0.8.17;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-contract MiniPoints is ERC20, Ownable {
+contract AkibaMiles is ERC20, Ownable {
     error NullAddress();
     error Unauthorized();
     mapping(address => bool) public minters;
 
-    constructor() ERC20("Minimiles", "Miles") {}
+    constructor() ERC20("AkibaMiles", "Miles") {}
 
     modifier onlyAllowed() {
         if (msg.sender != owner() && !minters[msg.sender])

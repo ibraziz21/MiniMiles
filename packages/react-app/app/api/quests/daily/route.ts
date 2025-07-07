@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js"
 import { createWalletClient, http, createPublicClient, parseUnits } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
-import { sepolia, celoAlfajores } from "viem/chains" // change this to your chain
+import { celo } from "viem/chains" // change this to your chain
 import MiniPointsAbi from "@/contexts/minimiles.json" // adjust path
 import * as dotenv from "dotenv";
 dotenv.config();
@@ -10,7 +10,7 @@ dotenv.config();
 const SUPABASE_URL = process.env.SUPABASE_URL || ""
 const SUPABASE_ANON_KEY = process.env.SUPABASE_SERVICE_KEY || ""
 const PRIVATE_KEY = process.env.PRIVATE_KEY || "" // make sure this is secure
-const CONTRACT_ADDRESS = "0x9a51F81DAcEB772cC195fc8551e7f2fd7c62CD57"
+const CONTRACT_ADDRESS = process.env.MINIPOINTS_ADDRESS || ""
 
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
@@ -18,7 +18,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 const account = privateKeyToAccount(`0x${PRIVATE_KEY}`)
 
 
-const chain = celoAlfajores
+const chain = celo
 const publicClient = createPublicClient({
   chain,
   transport: http(),
@@ -27,7 +27,7 @@ const publicClient = createPublicClient({
 
 const client = createWalletClient({
   account,
-  chain: celoAlfajores, // or your custom config
+  chain: celo, // or your custom config
   transport: http(),
 })
 

@@ -1,0 +1,64 @@
+specVersion: 1.2.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: MiniPoints
+    network: celo
+    source:
+      address: "0xb0012Ff26b6eB4F75d09028233204635c0332050"
+      abi: MiniPoints
+      startBlock: 37634864
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - Approval
+        - OwnershipTransferred
+        - Transfer
+      abis:
+        - name: MiniPoints
+          file: ./abis/MiniPoints.json
+      eventHandlers:
+        - event: Approval(indexed address,indexed address,uint256)
+          handler: handleApproval
+        - event: OwnershipTransferred(indexed address,indexed address)
+          handler: handleOwnershipTransferred
+        - event: Transfer(indexed address,indexed address,uint256)
+          handler: handleTransfer
+      file: ./src/mini-points.ts
+  - kind: ethereum
+    name: MiniRaffle
+    network: celo
+    source:
+      address: "0x46dE92B184776D1BebD7c95D8CC085009280E4f6"
+      abi: MiniRaffle
+      startBlock: 37637461
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - ParticipantJoined
+        - RaffleClosed
+        - RandomnessRequested
+        - RoundCreated
+        - WinnerSelected
+      abis:
+        - name: MiniRaffle
+          file: ./abis/MiniRaffle.json
+      eventHandlers:
+        - event: ParticipantJoined(indexed uint256,indexed address)
+          handler: handleParticipantJoined
+        - event: RaffleClosed(indexed uint256)
+          handler: handleRaffleClosed
+        - event: RandomnessRequested(indexed uint256,uint256)
+          handler: handleRandomnessRequested
+        - event: RoundCreated(indexed uint256,uint256,uint256,uint256,address,uint256,uint256)
+          handler: handleRoundCreated
+        - event: WinnerSelected(indexed uint256,address)
+          handler: handleWinnerSelected
+      file: ./src/mini-raffle.ts

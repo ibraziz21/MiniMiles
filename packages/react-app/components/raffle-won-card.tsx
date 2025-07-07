@@ -19,7 +19,7 @@ export default function RafflesWonCard() {
             <p className="text-xs text-gray-500">You just received $500</p>
           </div>
         </div>
-        <Button title="View" onClick={() => { setOpen(true) }} variant="ghost" className="text-green-600 font-medium">
+        <Button title="View" onClick={() => { setOpen(true) }} variant="ghost" className="text-[#238D9D] font-medium">
           View
         </Button>
       </div>

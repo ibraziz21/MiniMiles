@@ -10,7 +10,7 @@ import { useWeb3 } from "@/contexts/useWeb3";
 import React, { useEffect, useState } from "react";
 
 export default function EarnPage() {
-  const { address, getUserAddress, getMiniMilesBalance } = useWeb3();
+  const { address, getUserAddress, getakibaMilesBalance } = useWeb3();
   const [balance, setBalance] = useState("0");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [quest, setQuest] = useState<any>(null);
@@ -21,18 +21,18 @@ export default function EarnPage() {
   useEffect(() => {
     if (!address) return;
     (async () => {
-      const b = await getMiniMilesBalance();
+      const b = await getakibaMilesBalance();
       setBalance(b);
     })();
-  }, [address, getMiniMilesBalance]);
+  }, [address, getakibaMilesBalance]);
 
   const openQuest = (q: any) => { setQuest(q); setSheetOpen(true); };
 
   return (
     <main className="pb-24 font-sterling">
-      <div className="px-4 min-h-[110px] flex flex-col justify-around">
+      <div className="px-4 flex flex-col justify-around gap-1 mb-4">
         <h1 className="text-2xl font-medium">Earn</h1>
-        <p className="font-poppins">Complete challenges and quests to earn MiniMiles.</p>
+        <p className="font-poppins">Complete challenges and quests to earn akibaMiles.</p>
       </div>
       <MiniPointsCard points={Number(balance)} />
       {/* ── Page-level Active / Completed tabs ───────────── */}
@@ -61,7 +61,10 @@ export default function EarnPage() {
         {/* ── ACTIVE tab ─────────────────────────── */}
         <TabsContent value="active">
           {/* Daily (active only) */}
+          <div className="mx-4 mt-6 gap-1">
           <h3 className="text-lg font-medium mt-6 mb-2">Daily challenges</h3>
+        <p className="text-gray-500">Completed a challenge? Click & claim Miles</p>
+        </div>
           <DailyChallenges />
 
 

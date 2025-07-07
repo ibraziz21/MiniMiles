@@ -30,8 +30,8 @@ export default function QuestDetailModal({
             <DialogTitle className="text-xl font-medium">Swap on ReFi DEX</DialogTitle>
           </DialogHeader>
 
-          <div className="bg-green-700 text-white rounded-xl py-4 text-center mt-4">
-            <p className="text-2xl font-medium">10 MiniMiles</p>
+          <div className="bg-[#238D9D] text-white rounded-xl py-4 text-center mt-4">
+            <p className="text-2xl font-medium">10 akibaMiles</p>
           </div>
 
           <div className="mt-6 text-sm space-y-3">
@@ -44,7 +44,7 @@ export default function QuestDetailModal({
           </div>
 
           <DialogFooter className="mt-6 flex flex-col gap-3">
-            <Button title="Swap & earn 10x" onClick={() => { }} className="w-full bg-green-600 hover:bg-green-700">
+            <Button title="Swap & earn 10x" onClick={() => { }} className="w-full bg-[#238D9D] hover:bg-[#238D9D]">
               
             </Button>
             <p className="text-xs text-gray-500 text-center">Valid until xx/xx/xx. These terms apply.</p>

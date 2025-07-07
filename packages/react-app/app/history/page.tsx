@@ -4,107 +4,156 @@ import HistoryStats from '@/components/history-stats';
 import MiniMilesHistoryCard from '@/components/mini-miles-history-card';
 import { RaffleCard } from '@/components/raffle-card';
 import TransactionHistoryCard from '@/components/transaction-history-card';
+import { useWeb3 } from '@/contexts/useWeb3';
+import { fetchTotalCompletedChallenges } from '@/helpers/fetchTotalCompleteChallenges';
+import { fetchTotalRewardsWon } from '@/helpers/historicRewards';
+import { fetchTotalMiniMilesEarned } from '@/helpers/historyBalance';
+import { fetchTotalRafflesWon } from '@/helpers/historyRaffleWon';
 import { fetchActiveRaffles, Raffle } from '@/helpers/raffledisplay';
-import { RaffleImg1, RaffleImg2, RaffleImg3 } from '@/lib/img';
-import { MinimilesSymbol } from '@/lib/svg';
+import { RaffleImg1, RaffleImg2, RaffleImg3, RaffleImg5 } from '@/lib/img';
+import { akibaMilesSymbol } from '@/lib/svg';
 import { StaticImageData } from 'next/image';
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { useMiniMilesHistory } from '@/helpers/txHistory';
 
 const TOKEN_IMAGES: Record<string, StaticImageData> = {
-    cUSD: RaffleImg1,
-    USDT: RaffleImg2,
-    cKES: RaffleImg3,
-    // default fallback:
-    default: MinimilesSymbol,
-}
-
-// Shape it to what SpendPartnerQuestSheet expects:
-type SpendRaffle = {
-    id: number;
-    title: string;
-    reward: string;
-    prize: string;
-    endDate: string;
-    ticketCost: string;
-    image: StaticImageData;
-    balance: number;
-    symbol: string;
+  cUSD: RaffleImg1,
+  USDT: RaffleImg2,
+  Miles: RaffleImg5,
+  default: akibaMilesSymbol,
 };
 
+type SpendRaffle = {
+  id: number;
+  title: string;
+  reward: string;
+  prize: string;
+  endDate: string;
+  ticketCost: string;
+  image: StaticImageData;
+  balance: number;
+  symbol: string;
+};
 
-const History = () => {
-    const [miniMilesBalance, setMiniMilesBalance] = useState('0');
-    const [raffles, setRaffles] = useState<Raffle[]>([])
-    const [loading, setLoading] = useState(true)
-    const [spendSheetOpen, setSpendSheetOpen] = useState(false);
+export default function History() {
+  const { address, getakibaMilesBalance } = useWeb3();
 
-    const [spendRaffle, setSpendRaffle] = useState<SpendRaffle | null>(null);
+  const { data: txHistory = [], isLoading: txLoading } = useMiniMilesHistory();
+  const [raffles, setRaffles]         = useState<Raffle[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [akibaMilesBalance, setakibaMilesBalance] = useState("0");
 
+  const [totalEarned, setTotalEarned] = useState("0");
+  const [totalWins,  setTotalWins]    = useState("0");
+  const [totalUSDWon, setTotalUSDWon] = useState("$ 0");
+  const [totalChallenges, setTotalChallenges] = useState("0");
 
-    useEffect(() => {
-        fetchActiveRaffles()
-            .then(setRaffles)
-            .catch(console.error)
-            .finally(() => setLoading(false))
-    }, [])
+  /* ── derived: which raffles the wallet joined ───────────────── */
+  const joinedRaffleIds = useMemo(
+    () =>
+      new Set(
+        txHistory
+          .filter((it) => it.type === "RAFFLE_ENTRY")
+          .map((it) => Number(it.roundId)),
+      ),
+    [txHistory],
+  );
 
+  /* ── side-effects: stats, balance, raffles ─────────────────── */
+  useEffect(() => {
+    if (!address) return;
 
-    const formatEndsIn = (ends: number) => {
-        const secondsLeft = ends - Math.floor(Date.now() / 1000);
-        const days = Math.floor(secondsLeft / (60 * 60 * 24));
-        return `${days} days`;
-    };
+    fetchTotalCompletedChallenges(address).then((n) => setTotalChallenges(n.toString()));
+    fetchTotalRafflesWon(address).then((n) => setTotalWins(n.toString()));
+    fetchTotalMiniMilesEarned(address).then((n) => setTotalEarned(n.toFixed(0)));
+    fetchTotalRewardsWon(address).then(({ totalUSD }) =>
+      setTotalUSDWon(`$ ${totalUSD.toFixed(2)}`),
+    );
+    getakibaMilesBalance().then(setakibaMilesBalance);
+  }, [address, getakibaMilesBalance]);
 
-    return (
-        <main className="pb-24 font-sterling bg-onboarding">
-            <div className="px-4 min-h-[110px]  flex flex-col justify-around">
-                <h1 className="text-2xl font-medium">Your history</h1>
-                <h3 className='font-extralight'>View your MiniMiles gaming stats & history.</h3>
-            </div>
-            <MiniMilesHistoryCard points={Number(miniMilesBalance)} />
-            <HistoryStats title='Total Raffles won' stats={"20"} />
-            <HistoryStats title='Total prizes won valued in USD' stats={"$ 2,036.80"} />
-            <HistoryStats title='Total completed challenges' stats={"14"} />
-            <div className="mx-4 mt-6">
-                <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-extrabold mb-2">Digital cash raffles</h3>
-                </div>
-                <div className="flex gap-3 overflow-x-auto">
-                    {raffles.map((r) => (
-                        <RaffleCard
-                            key={r.id}
-                            image={r.image ?? RaffleImg1}
-                            title={`${r.rewardPool} ${r.symbol} weekly`}
-                            endsIn={formatEndsIn(r.ends)}
-                            ticketCost={`${r.ticketCost} MiniMiles for 1 ticket`}
-                            locked={false}
-                            icon={MinimilesSymbol}
-                            onClick={() => {
-                                const img = TOKEN_IMAGES[r.symbol] ?? TOKEN_IMAGES.default
-                                setSpendRaffle({
-                                    id: Number(r.id),
-                                    title: r.description,
-                                    reward: `${r.ticketCost} MiniMiles`,
-                                    prize: r.rewardPool ?? "—",
-                                    endDate: formatEndsIn(r.ends),
-                                    ticketCost: `${r.ticketCost} MiniMiles`,
-                                    image: img as StaticImageData,
-                                    balance: Number(miniMilesBalance),
-                                    symbol: r.symbol
-                                });
-                                setSpendSheetOpen(true);
-                            }}
-                        />
-                    ))}
-                </div>
-            </div>
-            <div className="px-4 min-h-[110px]  flex flex-col justify-around">
-                <h1 className="text-2xl font-medium">Transaction history</h1>
-                <h3 className='font-extralight'>View all your MiniMiles activities.</h3>
-            </div>
-            <TransactionHistoryCard />
-        </main>
-    )
+  useEffect(() => {
+    fetchActiveRaffles()
+      .then(setRaffles)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const formatEndsIn = (ends: number) => {
+    const days = Math.floor((ends - Date.now() / 1000) / 86_400);
+    return `${days} days`;
+  };
+
+  /* ───────────────────────── render ─────────────────────────── */
+  return (
+    <main className="pb-24 font-sterling bg-onboarding">
+      {/* headline */}
+      <div className="px-4 min-h-[110px] flex flex-col justify-around">
+        <h1 className="text-2xl font-medium">Your history</h1>
+        <h3 className="font-extralight">
+          View your akibaMiles gaming stats &amp; history.
+        </h3>
+      </div>
+
+      {/* top stats */}
+      <MiniMilesHistoryCard points={Number(totalEarned)} />
+      <HistoryStats title="Total Raffles won" stats={totalWins} />
+      <HistoryStats title="Total prizes won valued in USD" stats={totalUSDWon} />
+      <HistoryStats title="Total completed challenges" stats={totalChallenges} />
+
+      {/* participating raffles */}
+      <div className="mx-4 mt-6">
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-extrabold mb-2">Participating Raffles</h3>
+        </div>
+
+        {txLoading || loading ? (
+          <p className="text-sm text-gray-500">Loading…</p>
+        ) : (() => {
+            const participating = raffles.filter((r) =>
+              joinedRaffleIds.has(Number(r.id)),
+            );
+
+            if (participating.length === 0) {
+              return (
+                <p className="text-sm text-gray-500">
+                  You haven’t joined any raffles yet.
+                </p>
+              );
+            }
+
+            return (
+              <div className="flex gap-3 overflow-x-auto">
+                {participating.map((r) => {
+                  const img = TOKEN_IMAGES[r.symbol] ?? TOKEN_IMAGES.default;
+                  return (
+                    <RaffleCard
+                      key={r.id}
+                      image={r.image ?? RaffleImg1}
+                      title={`${r.rewardPool} ${r.symbol} weekly`}
+                      endsIn={formatEndsIn(r.ends)}
+                      ticketCost={`${r.ticketCost} akibaMiles for 1 ticket`}
+                      locked={false}
+                      icon={akibaMilesSymbol}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })()}
+      </div>
+
+      {/* tx history */}
+      <div className="px-4 min-h-[110px] flex flex-col justify-around">
+        <h1 className="text-2xl font-medium">Transaction history</h1>
+        <h3 className="font-extralight">View all your akibaMiles activities.</h3>
+      </div>
+
+      {txLoading ? (
+        <p className="mx-4 mt-2 text-sm text-gray-500">Loading…</p>
+      ) : (
+        <TransactionHistoryCard items={txHistory} />
+      )}
+    </main>
+  );
 }
-
-export default History

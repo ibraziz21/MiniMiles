@@ -1,4 +1,4 @@
-import { Cash, Celo, Door, GloDollar, Mento, MinimilesSymbol, MinimilesSymbolAlt, MiniPay } from "@/lib/svg";
+import { Cash, Celo, Door, GloDollar, Mento, akibaMilesSymbol, akibaMilesSymbolAlt, MiniPay } from "@/lib/svg";
 import { Lock } from "@phosphor-icons/react";
 import Image from "next/image";
 import Link from "next/link";
@@ -19,14 +19,14 @@ const quests: Quest[] = [
   {
     id: '99da9e3d-5332-419e-aa40-5cb9d6e3a7ab',
     isLocked: false,
-    img: MinimilesSymbolAlt,
-    title: "MiniMiles",
+    img: akibaMilesSymbolAlt,
+    title: "akibaMiles",
     description: "Follow Us on Twitter",
-    reward: "20 MiniMiles",
+    reward: "20 akibaMiles",
     color: "#B2DEC4",
-    actionLink: "https://twitter.com/minimilesApp",
+    actionLink: "https://twitter.com/akibaMilesApp",
     instructions: [
-      { title: "Open Twitter", text: "Go to our @minimilesApp page." },
+      { title: "Open Twitter", text: "Go to our @akibaMilesApp page." },
       { title: "Follow", text: "Hit the Follow button and confirm." },
     ],
   },
@@ -36,7 +36,7 @@ const quests: Quest[] = [
     img: Celo,
     title: "Celo",
     description: "Stake more than 5 Celo through Mondo.celo.org",
-    reward: "15 MiniMiles",
+    reward: "15 akibaMiles",
     color: "#FFFFD6",
     actionLink: "https://mondo.celo.org",     // <-- where the button should go
     instructions: [
@@ -51,7 +51,7 @@ const quests: Quest[] = [
     img: GloDollar,
     title: "GloDollar",
     description: "Use Pretium to Offramp or make a local payment",
-    reward: "15 MiniMiles",
+    reward: "15 akibaMiles",
     color: "#24E5E033",
     actionLink: "https://twitter.com/pretium",
     instructions: [
@@ -65,11 +65,11 @@ const quests: Quest[] = [
     isLocked: true,
     title: "Mento",
     description: "Swap Between Celo and a Stablecoin",
-    reward: "15 MiniMiles",
-    color: "#07955F1A",
+    reward: "15 akibaMiles",
+    color: "#238D9D1A",
     actionLink: "https://app.mento.org/",
     instructions: [
-      { title: "Open Mento", text: "Go to our @minimilesApp page." },
+      { title: "Open Mento", text: "Go to our @akibaMilesApp page." },
       { title: "Swap", text: "Swap some Celo for any Stablecoin" },
     ],
   },
@@ -113,7 +113,7 @@ export default function PartnerQuests({
                 <p className="text-sm font-medium">{q.title}</p>
                 <p className="text-xs mt-1 flex items-center justify-center font-poppins">
                   <Image
-                    src={MinimilesSymbol}
+                    src={akibaMilesSymbol}
                     alt=""
                     width={16}
                     height={16}
@@ -128,7 +128,7 @@ export default function PartnerQuests({
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="bg-white/90 rounded-full flex items-center p-1">
                     <Lock size={16} color="#238D9D" weight="bold" className="mr-1" />
-                    <span className="text-xs text-[#07955F] font-medium">
+                    <span className="text-xs text-[#238D9D] font-medium">
                       Coming Soon
                     </span>
                   </div>

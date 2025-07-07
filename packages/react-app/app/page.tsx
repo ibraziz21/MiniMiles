@@ -10,7 +10,7 @@ import RafflesWonCard from "@/components/raffle-won-card";
 import { SectionHeading } from "@/components/section-heading";
 import { useWeb3 } from "@/contexts/useWeb3";
 import { RaffleImg1, RaffleImg2, RaffleImg3, WinImg } from "@/lib/img";
-import { Celo, MinimilesSymbol } from "@/lib/svg";
+import { Celo, akibaMilesSymbol } from "@/lib/svg";
 import { useEffect, useState } from "react";
 import { fetchActiveRaffles, Raffle } from "@/helpers/raffledisplay";
 import Link from "next/link";
@@ -32,7 +32,7 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   USDT: RaffleImg2,
   cKES: RaffleImg3,
   // default fallback:
-  default: MinimilesSymbol,
+  default: akibaMilesSymbol,
 }
 
 const upcomingGames = [
@@ -41,8 +41,8 @@ const upcomingGames = [
 ];
 
 export default function Home() {
-  const { address, getUserAddress, getMiniMilesBalance } = useWeb3();
-  const [miniMilesBalance, setMiniMilesBalance] = useState("0");
+  const { address, getUserAddress, getakibaMilesBalance } = useWeb3();
+  const [akibaMilesBalance, setakibaMilesBalance] = useState("0");
   const [showPopup, setShowPopup] = useState(false);
   const [raffles, setRaffles] = useState<Raffle[]>([])
   const [loading, setLoading] = useState(true)
@@ -75,14 +75,14 @@ export default function Home() {
     const fetchBalance = async () => {
       if (!address) return;
       try {
-        const balance = await getMiniMilesBalance();
-        setMiniMilesBalance(balance);
+        const balance = await getakibaMilesBalance();
+        setakibaMilesBalance(balance);
       } catch (error) {
         console.log(error);
       }
     };
     fetchBalance();
-  }, [address, getMiniMilesBalance]);
+  }, [address, getakibaMilesBalance]);
 
   useEffect(() => {
     fetchActiveRaffles()
@@ -102,15 +102,15 @@ export default function Home() {
   return (
     <main className="pb-24 font-sterling">
       <DashboardHeader name={truncateEthAddress(address ?? "")} />
-      <PointsCard points={Number(miniMilesBalance)} />
-      <div className="mx-4 mt-6">
+      <PointsCard points={Number(akibaMilesBalance)} />
+      <div className="mx-4 mt-6 gap-1">
         <div className="flex justify-between items-center my-2">
           <h3 className="text-lg font-medium">Daily challenges</h3>
           <Link href='/earn'>
-            <span className="text-sm text-green-600 hover:underline font-medium">See All ›</span>
+            <span className="text-sm text-[#238D9D] hover:underline font-medium">See All ›</span>
           </Link>
         </div>
-        <p>Completed a challenge? Click on the card and claim Miles</p>
+        <p className="text-gray-500">Completed a challenge? Click on the card and claim Miles</p>
         <div className="flex gap-3 overflow-x-auto">
           <DailyChallenges />
         </div>
@@ -119,7 +119,7 @@ export default function Home() {
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-medium">Join Raffles</h3>
           <Link href='/spend'>
-            <span className="text-sm text-green-600 hover:underline">View more ›</span>
+            <span className="text-sm text-[#238D9D] hover:underline">View more ›</span>
           </Link>
         </div>
         <div className="flex gap-3 overflow-x-auto">
@@ -129,19 +129,19 @@ export default function Home() {
               image={r.image ?? RaffleImg1}
               title={`${r.rewardPool} ${r.symbol} weekly`}
               endsIn={formatEndsIn(r.ends)}
-              ticketCost={`${r.ticketCost} MiniMiles for 1 ticket`}
-              icon={MinimilesSymbol}
+              ticketCost={`${r.ticketCost} akibaMiles for 1 ticket`}
+              icon={akibaMilesSymbol}
               onClick={() => {
                 const img = TOKEN_IMAGES[r.symbol] ?? TOKEN_IMAGES.default
                 setSpendRaffle({
                   id: Number(r.id),
                   title: `${r.symbol} raffle`,
-                  reward: `${r.ticketCost} MiniMiles`,
+                  reward: `${r.ticketCost} akibaMiles`,
                   prize: r.rewardPool ?? "—",
                   endDate: formatEndsIn(r.ends),
-                  ticketCost: `${r.ticketCost} MiniMiles`,
+                  ticketCost: `${r.ticketCost} akibaMiles`,
                   image: img as StaticImageData,
-                  balance: Number(miniMilesBalance),
+                  balance: Number(akibaMilesBalance),
                   symbol: r.symbol
                 });
                 setSpendSheetOpen(true);

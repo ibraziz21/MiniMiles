@@ -11,7 +11,7 @@ import {
   parseEther,
   formatUnits,
 } from "viem";
-import { celoAlfajores } from "viem/chains";
+import { celo } from "viem/chains";
 import StableTokenABI from "@/contexts/cusd-abi.json";
 import MiniMilesAbi from "@/contexts/minimiles.json";
 import raffleAbi from "@/contexts/miniraffle.json";
@@ -26,7 +26,7 @@ export function useWeb3() {
     if (typeof window === "undefined" || !window.ethereum) return;
     const client = createWalletClient({
       transport: custom(window.ethereum),
-      chain: celoAlfajores,
+      chain: celo,
     });
     setWalletClient(client);
 
@@ -38,7 +38,7 @@ export function useWeb3() {
     if (typeof window !== "undefined" && window.ethereum) {
         let walletClient = createWalletClient({
             transport: custom(window.ethereum),
-            chain: celoAlfajores,
+            chain: celo,
         });
 
         let [address] = await walletClient.getAddresses();
@@ -48,17 +48,17 @@ export function useWeb3() {
 };
 
   const publicClient = createPublicClient({
-    chain: celoAlfajores,
+    chain: celo,
     transport: http(),
   });
 
   // 2️⃣ Helpers can now reuse walletClient + publicClient + address
 
-  const getMiniMilesBalance = useCallback(async () => {
+  const getakibaMilesBalance = useCallback(async () => {
     if (!address) throw new Error("Wallet not connected");
     const miniMiles = getContract({
       abi: MiniMilesAbi.abi,
-      address: "0x9a51F81DAcEB772cC195fc8551e7f2fd7c62CD57",
+      address: "0xEeD878017f027FE96316007D0ca5fDA58Ee93a6b",
       client: publicClient,
     });
     const raw: bigint = await miniMiles.read.balanceOf([address]) as bigint;
@@ -87,7 +87,7 @@ export function useWeb3() {
     if (!walletClient || !address) throw new Error("Wallet not connected");
 
     const hash = await walletClient.writeContract({
-      address: '0x8762277745b6f05ceb3F2c2E85FF3062A57482B6',
+      address: '0xD75dfa972C6136f1c594Fec1945302f885E1ab29',
       abi: raffleAbi.abi,
       functionName: "joinRaffle",
       account: address,
@@ -105,7 +105,7 @@ export function useWeb3() {
 
   return {
     address,
-    getMiniMilesBalance,
+    getakibaMilesBalance,
     getUserAddress,
     sendCUSD,
     joinRaffle,

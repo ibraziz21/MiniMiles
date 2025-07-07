@@ -1,13 +1,13 @@
 // src/app/api/spend/join_raffle/route.ts
 import { NextResponse } from "next/server"
 import { createPublicClient, http, type Abi } from "viem"
-import { celoAlfajores } from "viem/chains"
+import { celo } from "viem/chains"
 import raffleAbi from "@/contexts/miniraffle.json"
 
-const RAFFLE_ADDRESS = "0x8762277745b6f05ceb3F2c2E85FF3062A57482B6"
+const RAFFLE_ADDRESS = "0xD75dfa972C6136f1c594Fec1945302f885E1ab29"
 
 const publicClient = createPublicClient({
-  chain: celoAlfajores,
+  chain: celo,
   transport: http(),
 })
 

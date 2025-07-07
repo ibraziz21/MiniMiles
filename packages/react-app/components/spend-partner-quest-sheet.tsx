@@ -13,7 +13,7 @@ import {
 import Image from "next/image";
 import { CaretLeft, Minus, Plus, Share } from "@phosphor-icons/react";
 import { Slider } from "./ui/slider";
-import { Ticket, Successsvg, MinimilesSymbol } from "@/lib/svg";
+import { Ticket, Successsvg, akibaMilesSymbol } from "@/lib/svg";
 import { StaticImageData } from "next/image";
 import { useWeb3 } from "@/contexts/useWeb3";
 import Link from "next/link";
@@ -135,7 +135,7 @@ export default function SpendPartnerQuestSheet({
   };
 
   // Block explorer URL (Alfajores)
-  const explorerBase = "https://alfajores.celoscan.io/tx";
+  const explorerBase = "https://celoscan.io/tx";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -185,7 +185,7 @@ export default function SpendPartnerQuestSheet({
             <div className="flex flex-col justify-center items-center">
               <div className="">
 
-                <h4 className="bg-[#CFF2E5] rounded-full text-[#07955F] px-4 font-semibold">Purchased</h4>
+                <h4 className="bg-[#CFF2E5] rounded-full text-[#238D9D] px-4 font-semibold">Purchased</h4>
               </div>
               {/* <h3 className="">28 May 2025, 14:20</h3> */}
             </div>
@@ -194,14 +194,14 @@ export default function SpendPartnerQuestSheet({
               href={`${explorerBase}/${txHash}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1 font-medium text-[#07955F]"
+              className="flex items-center justify-center gap-1 font-medium text-[#238D9D]"
             >
               View blockchain receipt <Share size={20} />
             </Link>
 
             {/* done button */}
             <Button
-              className="w-full rounded-xl bg-[#07955F1A] text-[#07955F] py-4 font-medium text-lg h-[56px]"
+              className="w-full rounded-xl bg-[#238D9D1A] text-[#238D9D] py-4 font-medium text-lg h-[56px]"
               onClick={() => onOpenChange(false)} title={"Close"}  >
               Close
             </Button>
@@ -230,7 +230,7 @@ export default function SpendPartnerQuestSheet({
                 className={`absolute top-10 right-5 p-2 `}>
                 <p className="font-medium text-white text-3xl">500</p>
                 <p className="text-xs  rounded-full p-1 mt-1 flex items-center text-white">
-                  <Image src={MinimilesSymbol} alt="" width={16} height={16} className="mr-1" />
+                  <Image src={akibaMilesSymbol} alt="" width={16} height={16} className="mr-1" />
                   cUSD
                 </p>
               </div>
@@ -246,12 +246,12 @@ export default function SpendPartnerQuestSheet({
               <div className="flex justify-between">
                 <span className="font-medium">Prize</span>
                 <span className="text-gray-700 flex">
-                  <Image src={MinimilesSymbol} alt="" width={16} height={16} className="mr-1" /> {raffle.prize} {raffle.symbol}
+                  <Image src={akibaMilesSymbol} alt="" width={16} height={16} className="mr-1" /> {raffle.prize} {raffle.symbol}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="font-medium">Price per ticket</span>
-                <span className="text-gray-700 flex "><Image src={MinimilesSymbol} alt="" width={16} height={16} className="mr-1" />{ticketCostNum} MiniMiles</span>
+                <span className="text-gray-700 flex "><Image src={akibaMilesSymbol} alt="" width={16} height={16} className="mr-1" />{ticketCostNum} akibaMiles</span>
               </div>
               <div className="flex justify-between">
                 <span className="font-medium">Draw Date</span>
@@ -264,7 +264,7 @@ export default function SpendPartnerQuestSheet({
             </p>
             <div className="flex items-center justify-center space-x-2 mb-4">
               <Image src={Ticket} alt="Ticket icon" width={32} height={32} />
-              <span className="text-2xl font-medium text-[#07955F]">{count}</span>
+              <span className="text-2xl font-medium text-[#238D9D]">{count}</span>
             </div>
 
             {/* Ticket count controls */}
@@ -274,7 +274,7 @@ export default function SpendPartnerQuestSheet({
                   onClick={() => setCount((c) => Math.max(1, c - 1))}
                   className="p-2 bg-gray-100 rounded-full"
                 >
-                  <Minus size={20} color="#07955F" />
+                  <Minus size={20} color="#238D9D" />
                 </button>
                 <Slider
                   value={[count]}
@@ -288,7 +288,7 @@ export default function SpendPartnerQuestSheet({
                   onClick={() => setCount((c) => Math.min(maxTickets, c + 1))}
                   className="p-2 bg-gray-100 rounded-full"
                 >
-                  <Plus size={20} color="#07955F" />
+                  <Plus size={20} color="#238D9D" />
                 </button>
               </div>
               <div className="flex justify-between text-xs text-gray-500 mt-1">
@@ -305,8 +305,8 @@ export default function SpendPartnerQuestSheet({
                   onClick={() => setCount(Math.min(n, maxTickets))}
                   disabled={n > maxTickets}
                   className={`flex-1 rounded-xl py-2 px-3 font-medium ${count === n
-                    ? "border-[#07955F] bg-[#07955F1A] text-[#07955F] border-2"
-                    : "bg-[#07955F1A] text-[#07955F]"
+                    ? "border-[#238D9D] bg-[#238D9D1A] text-[#238D9D] border-2"
+                    : "bg-[#238D9D1A] text-[#238D9D]"
                     }`}
                 >
                   <div className="flex items-center justify-center space-x-1">
@@ -322,18 +322,18 @@ export default function SpendPartnerQuestSheet({
               ))}
             </div>
             <p className="text-center text-xs text-gray-500 "> Select an amount of tickets to buy </p>
-                <div className="text-center text-xs text-gray-500 flex justify-center items-center"> Balance: <Image src={MinimilesSymbol} alt="" width={16} height={16} className="mr-1" /> <p className="font-medium text-black">{maxTickets}</p> <p className="text-xs mx-1 rounded-full py-1 px-3 flex items-center text-[#238D9D] bg-[#07955F1A]">
+            <div className="text-center text-xs text-gray-500 flex justify-center items-center"> Balance: <Image src={akibaMilesSymbol} alt="" width={16} height={16} className="mr-1" /> <p className="font-medium text-black">{maxTickets}</p> <p className="text-xs mx-1 rounded-full py-1 px-3 flex items-center text-[#219653] bg-[#238D9D1A]">
               Max
             </p>
             </div>
             <p className="text-center text-sm font-medium mb-6">
-              Total cost: {totalCost} MiniMiles
+              Total cost: {totalCost} akibaMiles
             </p>
             <SheetFooter>
               <Button
                 title="Buy"
                 onClick={handleBuy}
-                className="w-full bg-[#07955F] text-white rounded-xl h-[56px] font-medium"
+                className="w-full bg-[#238D9D] text-white rounded-xl h-[56px] font-medium"
               />
             </SheetFooter>
           </div>

@@ -1,85 +1,151 @@
-'use client'
+'use client';
 
-import { Toaster } from '@/components/ui/sonner'
-import { Chats, Copy, Envelope, Export, GithubLogo, TwitterLogo } from '@phosphor-icons/react/dist/ssr'
-import React from 'react'
-import { toast } from 'sonner'
+import { Toaster } from '@/components/ui/sonner';
+import { useWeb3 } from '@/contexts/useWeb3';
+import {
+  Chats,
+  Copy,
+  Envelope,
+  Export,
+  GithubLogo,
+  TwitterLogo,
+} from '@phosphor-icons/react/dist/ssr';
+import Link from 'next/link';
+import React, { useEffect } from 'react';
+import { toast } from 'sonner';
+import truncateEthAddress from 'truncate-eth-address';
 
-const SettingsPage = () => {
-    const handleCopy = (text: string) => {
-        navigator.clipboard.writeText(text).then(() => {
-            toast("Link Copied!")
-        }).catch(() => {
-            toast("Failed to copy");
-        });
-    }
+export default function SettingsPage() {
+  const { address, getUserAddress } = useWeb3();
 
-    return (
-        <div className='p-3 font-sterling'>
-            <div className="min-h-[110px]  flex flex-col justify-around">
-                <h1 className="text-2xl font-medium">Settings</h1>
-                <h3 className='font-extralight'>Your account details</h3>
-            </div>
+  /* copy helper --------------------------------------------------------- */
+  const handleCopy = (text: string) => {
+    navigator.clipboard
+      .writeText(text)
+      .then(() => toast('Link Copied!'))
+      .catch(() => toast('Failed to copy'));
+  };
 
-            <h3 className='font-medium'>Account</h3>
+  /* fetch wallet once on mount ----------------------------------------- */
+  useEffect(() => {
+    getUserAddress();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-            <div className="flex flex-col justify-between items-start shadow-lg rounded-xl p-4 text-[#00000080] my-2 bg-white">
-                <h3 className='font-light text-[#00000080]'>Username</h3>
-                <div className="flex justify-between items-center w-full">
-                    <h2 className="font-medium text-black">username.mini</h2>
-                    <Copy size={24} className="cursor-pointer" onClick={() => handleCopy('username.mini')} />
-                </div>
-            </div>
+  /* -------------------------------------------------------------------- */
+  return (
+    <div
+      className="p-3 font-sterling min-h-screen overflow-y-auto flex flex-col"
+    >
+      <header className="min-h-[110px] flex flex-col justify-around">
+        <h1 className="text-2xl font-medium">Settings</h1>
+        <h3 className="font-extralight">Your account details</h3>
+      </header>
 
-            <div className="flex flex-col justify-between items-start shadow-lg rounded-xl p-4 text-[#00000080] my-2 bg-white">
-                <h3 className='font-light text-[#00000080]'>Paired address</h3>
-                <div className="flex justify-between items-center w-full">
-                    <h2 className="font-medium text-black">0xA56..78E3</h2>
-                    <div className='flex justify-center space-x-2'>
-                        <Copy size={24} className="cursor-pointer" onClick={() => handleCopy('0xA56..78E3')} />
-                        <Export size={24} />
-                    </div>
-                </div>
-            </div>
+      {/* ───── Account ───── */}
+      <h3 className="font-medium">Account</h3>
 
-            <h3 className='font-medium'>Contact Us</h3>
-
-            <div className="flex justify-between items-start shadow-lg rounded-xl p-4 text-[#00000080] my-2 bg-white">
-                <Envelope size={24} className="mr-2" color="#238D9D" />
-                <div className="flex justify-between items-center w-full">
-                    <h2 className="font-medium text-black">Support@minimiles.co</h2>
-                    <Copy size={24} className="cursor-pointer" onClick={() => handleCopy('Support@minimiles.co')} />
-                </div>
-            </div>
-
-            <div className="flex justify-between items-start shadow-lg rounded-xl p-4 text-[#00000080] my-2 bg-white">
-                <Chats size={24} className="mr-2" color="#238D9D" />
-                <div className="flex justify-between items-center w-full">
-                    <h2 className="font-medium text-black">Chat with us</h2>
-                    <Export size={24} />
-                </div>
-            </div>
-
-            <div className="flex justify-between items-start shadow-lg rounded-xl p-4 text-[#00000080] my-2 bg-white">
-                <TwitterLogo size={24} className="mr-2" color="#238D9D" />
-                <div className="flex justify-between items-center w-full">
-                    <h2 className="font-medium text-black">Message us</h2>
-                    <Export size={24} />
-                </div>
-            </div>
-
-            <h3 className='font-medium'>Source code</h3>
-
-            <div className="flex justify-between items-start shadow-lg rounded-xl p-4 text-[#00000080] my-2 bg-white">
-                <GithubLogo size={24} className="mr-2" color="#238D9D" />
-                <div className="flex justify-between items-center w-full">
-                    <h2 className="font-medium text-black">View open source code</h2>
-                    <Export size={24} />
-                </div>
-            </div>
-            <Toaster className='bg-white text-[#17C985]' />
+      <div className="flex flex-col shadow-lg rounded-xl p-4 my-2 bg-white">
+        <span className="text-[#00000080] font-light">Paired address</span>
+        <div className="flex justify-between items-center w-full">
+          <span className="font-medium">
+            {truncateEthAddress(address ?? '')}
+          </span>
+          <Copy
+            size={24}
+            className="cursor-pointer"
+            onClick={() => handleCopy(address ?? '')}
+          />
         </div>
-    )
+      </div>
+
+      {/* ───── Contact Us ───── */}
+      <h3 className="font-medium">Contact Us</h3>
+
+      <SettingRow
+        icon={<Envelope size={24} color="#219653" />}
+        label="hello@akibamiles.com"
+        onCopy={() => handleCopy('hello@akibamiles.com')}
+      />
+
+      <SettingRow
+        icon={<Chats size={24} color="#219653" />}
+        label="Chat with us"
+        link="https://t.me/+oRfjEWyA4zo5NTRk"
+      />
+
+      <SettingRow
+        icon={<TwitterLogo size={24} color="#219653" />}
+        label="Message us"
+        link="https://x.com/minimilesapp"
+      />
+
+      {/* ───── Source code ───── */}
+      <h3 className="font-medium">Source code</h3>
+
+      <SettingRow
+        icon={<GithubLogo size={24} color="#219653" />}
+        label="View open-source code"
+        link="https://github.com/ibraziz21/MiniMiles"
+      />
+
+      {/* ───── Footer links ───── */}
+      <footer className="mt-4 flex space-x-2 text-sm text-[#00000080]">
+        <FooterLink href="https://www.akibamiles.com/terms-of-use">
+          Terms of Service
+        </FooterLink>
+        <span>•</span>
+        <FooterLink href="https://www.akibamiles.app/privacy-policy">
+          Privacy Policy
+        </FooterLink>
+      </footer>
+
+      {/* toast portal */}
+      <Toaster richColors />
+    </div>
+  );
 }
 
-export default SettingsPage
+/* ---------------------------------------------------------------- helpers */
+
+function SettingRow({
+  icon,
+  label,
+  link,
+  onCopy,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  link?: string;
+  onCopy?: () => void;
+}) {
+  return (
+    <div className="flex items-start shadow-lg rounded-xl p-4 my-2 bg-white">
+      <span className="mr-2">{icon}</span>
+      <div className="flex justify-between items-center w-full">
+        <span className="font-medium text-black">{label}</span>
+        {link ? (
+          <Link href={link} target="_blank">
+            <Export size={24} />
+          </Link>
+        ) : (
+          <Copy size={24} className="cursor-pointer" onClick={onCopy} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FooterLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <a href={href} target="_blank" className="hover:underline">
+      {children}
+    </a>
+  );
+}

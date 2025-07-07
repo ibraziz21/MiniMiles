@@ -1,7 +1,7 @@
 import React from 'react'
 import { Button } from './ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet'
-import { Celo, MinimilesSymbolAlt } from '@/lib/svg';
+import { Celo, akibaMilesSymbolAlt } from '@/lib/svg';
 import Image from 'next/image';
 import { Raffle } from '@/helpers/raffledisplay';
 
@@ -30,10 +30,10 @@ const DailyChallengeSheet = ({ open, onOpenChange, raffle  }: DailyChallengeShee
 
                     <div className="bg-partner-quest bg-[#238D9D] bg-no-repeat bg-cover text-white text-center rounded-xl py-2">
                         <div className="flex items-center justify-center my-3">
-                            <Image src={MinimilesSymbolAlt} width={32} height={32} alt="" />
+                            <Image src={akibaMilesSymbolAlt} width={32} height={32} alt="" />
                             <p className="text-3xl font-medium pl-2">{raffle.ticketCost}</p>
                         </div>
-                        <h4>MiniMiles</h4>
+                        <h4>akibaMiles</h4>
                     </div>
 
                     <div className="">
@@ -61,8 +61,8 @@ const DailyChallengeSheet = ({ open, onOpenChange, raffle  }: DailyChallengeShee
                         </ol>
                     </div>
                     <Button title="Swap & earn 10x"
-                        onClick={() => { }} className="w-full rounded-xl py-6 flex items-center justify-center gap-3 font-medium tracking-wide shadow-sm text-white bg-[#07955F] hover:bg-[#07955F]
-                    disabled:bg-[#07955F]">
+                        onClick={() => { }} className="w-full rounded-xl py-6 flex items-center justify-center gap-3 font-medium tracking-wide shadow-sm text-white bg-[#238D9D] hover:bg-[#238D9D]
+                    disabled:bg-[#238D9D]">
                         
                     </Button>
                     <p className="text-center text-[10px] text-gray-400 mt-2">

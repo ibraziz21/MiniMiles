@@ -20,8 +20,8 @@ export default function QuestLoadingModal({
   message?: string;
 }) {
   const iconMap = {
-    loading:    <Loader2   className="h-8 w-8 animate-spin text-green-600 mb-4" />,
-    success:    <CheckCircle2 className="h-8 w-8 text-green-600 mb-4" />,
+    loading: <Loader2 className="h-8 w-8 animate-spin text-[#238D9D] mb-4" />,
+    success: <CheckCircle2 className="h-8 w-8 text-[#238D9D] mb-4" />,
     already:    <CheckCircle2 className="h-8 w-8 text-yellow-500 mb-4" />,  // you can pick an icon you prefer
     ineligible: <XCircle     className="h-8 w-8 text-yellow-500 mb-4" />,
     error:      <XCircle     className="h-8 w-8 text-red-600 mb-4" />,
