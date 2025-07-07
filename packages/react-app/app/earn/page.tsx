@@ -42,7 +42,7 @@ export default function EarnPage() {
             value="active"
             className="bg-[#EBEBEB] text-[#8E8B8B]
                        data-[state=active]:bg-[#66D5754D]
-                       data-[state=active]:text-[#219653]
+                       data-[state=active]:text-[#238D9D]
                        rounded-full font-medium"
           >
             Active
@@ -51,7 +51,7 @@ export default function EarnPage() {
             value="completed"
             className="ml-1 bg-[#EBEBEB] text-[#8E8B8B]
                        data-[state=active]:bg-[#66D5754D]
-                       data-[state=active]:text-[#219653]
+                       data-[state=active]:text-[#238D9D]
                        rounded-full font-medium"
           >
             Completed

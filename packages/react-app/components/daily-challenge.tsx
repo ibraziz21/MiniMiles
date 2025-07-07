@@ -203,7 +203,7 @@ export default function DailyChallenges({ showCompleted = false }: { showComplet
                 className={`flex-none w-44 h-60 rounded-xl p-4 shadow-xl
                   ${showCompleted
                     ? "bg-green-50 opacity-70 cursor-default"
-                    : "bg-white border border-[#07955F4D]"}`}
+                    : "bg-white border border-[#238D9D4D]"}`}
               >
                 <div className="flex flex-col justify-between h-full text-center">
                   <Image src={map.img} alt="" className="mx-auto" />

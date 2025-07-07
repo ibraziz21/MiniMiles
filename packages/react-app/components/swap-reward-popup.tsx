@@ -21,7 +21,7 @@ export default function SwapRewardPopup({ open, onOpenChange }: SwapRewardPopupP
                         </DialogHeader>
                     </div>
 
-                    <div className="bg-green-600 text-white text-center py-8">
+                    <div className="bg-[#238D9D] text-white text-center py-8">
                         <h2 className="text-4xl font-medium">10 MiniMiles</h2>
                     </div>
 
@@ -36,7 +36,7 @@ export default function SwapRewardPopup({ open, onOpenChange }: SwapRewardPopupP
 
                     <div className="px-6 pb-6">
                         <Button title="Close"
-                            onClick={()=>{}} className="w-full bg-green-600 hover:bg-green-700 text-white">
+                            onClick={() => { }} className="w-full bg-[#238D9D] hover:bg-[#238D9D] text-white">
                             Swap & earn 10x
                         </Button>
                         <p className="text-center text-[10px] text-gray-400 mt-2">

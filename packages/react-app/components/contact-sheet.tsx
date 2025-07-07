@@ -26,22 +26,22 @@ const ContactSheet = () => {
                 <SheetHeader>
                     <SheetTitle>Contact us</SheetTitle>
                     <div className="flex justify-between items-start shadow-lg rounded-xl p-2 text-[#00000080]">
-                        <Envelope size={24} className="mr-2" color="#219653" />
+                        <Envelope size={24} className="mr-2" color="#238D9D" />
                         <div className="flex justify-between items-center w-full">
                             <h2 className="font-medium">support@akibaMiles.co</h2>
                             <Copy size={24} />
                         </div>
                     </div>
                     <div className="flex justify-between items-start shadow-lg rounded-xl p-2 text-[#00000080]">
-                        <Chats size={24}  className="mr-2" color="#219653" />
+                        <Chats size={24} className="mr-2" color="#238D9D" />
                         <div className="flex justify-between items-center w-full">
                             <h2 className="font-medium">Chat with Us</h2>
                             <Link size={24} />
                         </div>
                     </div>
                     <div
-                        className="w-full rounded-2xl py-4 flex items-center justify-center gap-3 font-medium tracking-wide shadow-sm text-[#07955F]  bg-[#07955F1A] hover:bg-[#07955F1A]
-                    disabled:bg-[#07955F1A]"
+                        className="w-full rounded-2xl py-4 flex items-center justify-center gap-3 font-medium tracking-wide shadow-sm text-[#238D9D]  bg-[#238D9D1A] hover:bg-[#238D9D1A]
+                    disabled:bg-[#238D9D1A]"
                     >
                         <span>Close</span>
                     </div>

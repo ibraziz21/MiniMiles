@@ -30,13 +30,13 @@
 <stop offset="0.0298615"/>
 <stop offset="0.0689637" stop-color="#05633B"/>
 <stop offset="0.117297" stop-color="#074F30"/>
-<stop offset="0.357888" stop-color="#219653"/>
+<stop offset="0.357888" stop-color="#238D9D"/>
 <stop offset="0.532047" stop-color="#05633B"/>
 <stop offset="0.557944" stop-color="#36DE9D"/>
 <stop offset="0.585383" stop-color="#05633B"/>
 <stop offset="0.625647" stop-color="#074F30"/>
 <stop offset="0.677455" stop-color="#084026"/>
-<stop offset="0.724833" stop-color="#219653"/>
+<stop offset="0.724833" stop-color="#238D9D"/>
 <stop offset="0.765276" stop-color="#5EFFC2"/>
 <stop offset="0.81218" stop-color="#2DD998"/>
 <stop offset="0.831945" stop-color="#BEFFE6"/>
@@ -73,7 +73,7 @@
 <stop offset="0.134042" stop-color="#BEFFE6"/>
 <stop offset="0.331547" stop-color="#8EFFD4"/>
 <stop offset="0.518827" stop-color="#2DD998"/>
-<stop offset="0.716546" stop-color="#07955F"/>
+<stop offset="0.716546" stop-color="#238D9D"/>
 <stop offset="0.887916" stop-color="#0E4023"/>
 <stop offset="1"/>
 </radialGradient>

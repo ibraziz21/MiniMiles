@@ -107,7 +107,7 @@ export default function Home() {
         <div className="flex justify-between items-center my-2">
           <h3 className="text-lg font-medium">Daily challenges</h3>
           <Link href='/earn'>
-            <span className="text-sm text-green-600 hover:underline font-medium">See All ›</span>
+            <span className="text-sm text-[#238D9D] hover:underline font-medium">See All ›</span>
           </Link>
         </div>
         <p className="text-gray-500">Completed a challenge? Click on the card and claim Miles</p>
@@ -119,7 +119,7 @@ export default function Home() {
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-medium">Join Raffles</h3>
           <Link href='/spend'>
-            <span className="text-sm text-green-600 hover:underline">View more ›</span>
+            <span className="text-sm text-[#238D9D] hover:underline">View more ›</span>
           </Link>
         </div>
         <div className="flex gap-3 overflow-x-auto">

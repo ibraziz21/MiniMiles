@@ -14,7 +14,7 @@ export default function DashboardHeader({ name }: { name: any }) {
         <Image src={GearSvg} alt="" />
         </Link>
         <Link href="/onboarding" >
-          <Question size={24} color="#219653" weight="duotone" />
+          <Question size={24} color="#238D9D" weight="duotone" />
         </Link>
       </div>
     </div>

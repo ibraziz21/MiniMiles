@@ -55,7 +55,7 @@ export default function UsernameClaimSheet({
               title="Close"
               widthFull
               variant="secondary"
-              className="bg-[#07955F1A] text-[#07955F] rounded-md"
+              className="bg-[#238D9D1A] text-[#238D9D] rounded-md"
               onClick={() => onOpenChange(false)}
             />
           </SheetClose>

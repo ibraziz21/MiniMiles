@@ -76,7 +76,7 @@ const handleClaim = async () => {
           <p className='text-sm text-gray-500'>{quest.description}</p>
         </div>
 
-        <div className="bg-partner-quest bg-[#219653] rounded-xl p-3 text-center mb-4 text-white">
+        <div className="bg-partner-quest bg-[#238D9D] rounded-xl p-3 text-center mb-4 text-white">
           <div className="flex justify-center items-center mb-1">
             <Image src={quest.img} width={32} height={32} alt={quest.title} />
             <span className="text-3xl font-medium ml-2">{quest.reward.split(' ')[0]}</span>
@@ -96,7 +96,7 @@ const handleClaim = async () => {
         </div>
 
         <Button
-          className="w-full rounded-xl py-6 text-white bg-[#07955F] mb-2"
+          className="w-full rounded-xl py-6 text-white bg-[#238D9D] mb-2"
           title={loading ? 'Processing…' : 'Follow Us'}
           onClick={handleClaim}
           disabled={loading}

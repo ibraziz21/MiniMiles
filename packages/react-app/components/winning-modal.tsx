@@ -60,7 +60,7 @@ export default function WinningModal({
                     <Button
                         title="Close"
                         onClick={() => onOpenChange(false)}
-                        className="w-full bg-green-100 text-green-700 font-medium"
+                        className="w-full bg-green-100 text-[#238D9D] font-medium"
                     >
                         Close
                     </Button>

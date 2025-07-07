@@ -26,7 +26,7 @@ export default function JoinRafflesCarousel() {
             <div className="flex justify-between items-center">
                 <h3 className="text-lg font-medium">Join Raffles</h3>
                 <Link href='/spend'>
-                    <span className="text-sm text-green-600 hover:underline">View more ›</span>
+                    <span className="text-sm text-[#238D9D] hover:underline">View more ›</span>
                 </Link>
             </div>
             <div className="flex gap-3 overflow-x-auto mt-4">

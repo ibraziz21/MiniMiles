@@ -111,7 +111,7 @@ export default function ClaimUsernamePage() {
                     <Button
                         title="Claim username"
                         widthFull
-                        className="rounded-xl py-6 text-lg font-medium shadow-sm bg-[#07955F] "
+                        className="rounded-xl py-6 text-lg font-medium shadow-sm bg-[#238D9D] "
                         disabled={!isClaimable}
                         onClick={() => {setSheetOpen(true)
                             router.push("/")

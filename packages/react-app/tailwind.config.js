@@ -14,7 +14,7 @@ module.exports = {
 			sterling: ['var(--font-sterling)']
 		},
   		colors: {
-			primarygreen:"#219653"
+				primarygreen: "#238D9D"
   		},
 		backgroundImage: {
 			"point-card":"url('/svg/balance-card-bg.svg')",

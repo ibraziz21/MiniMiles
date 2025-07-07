@@ -19,8 +19,8 @@ export const ActionPill = ({
 }: ActionPillProps) => {
     const base =
         "w-full rounded-2xl py-4 flex items-center justify-center gap-3 " +
-        "font-medium tracking-wide shadow-sm text-[#07955F] bg-action-button bg-[#07955F1A] hover:bg-[#07955F1A]" +
-        "disabled:bg-[#07955F1A]";
+        "font-medium tracking-wide shadow-sm text-[#238D9D] bg-action-button bg-[#238D9D1A] hover:bg-[#238D9D1A]" +
+        "disabled:bg-[#238D9D1A]";
 
     return (
         <div
@@ -28,7 +28,7 @@ export const ActionPill = ({
             className={clsx(base, className, disabled && "pointer-events-none")}
             aria-disabled={disabled}
         >
-            <Image src={icon} alt="Chat icon" width={24} height={24} className="text-[#07955F]" />
+            <Image src={icon} alt="Chat icon" width={24} height={24} className="text-[#238D9D]" />
             <span>{label}</span>
         </div>
     )

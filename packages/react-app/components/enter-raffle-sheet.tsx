@@ -16,7 +16,7 @@ const EnterRaffleSheet = () => {
       {/* Tell Radix to use our <button> as the trigger, not wrap it */}
       <SheetTrigger asChild>
         <button
-          className=" w-full p-3 rounded-xl flex items-center justify-center gap-3 font-medium tracking-wide shadow-sm text-[#07955F] bg-[#07955F1A] hover:bg-[#07955F1A] disabled:bg-[#07955F]"
+          className=" w-full p-3 rounded-xl flex items-center justify-center gap-3 font-medium tracking-wide shadow-sm text-[#238D9D] bg-[#238D9D1A] hover:bg-[#238D9D1A] disabled:bg-[#238D9D]"
         >
           <Question size={24} />
           <span>How to enter a raffle?</span>
@@ -38,7 +38,7 @@ const EnterRaffleSheet = () => {
         {/* Use Radix’s SheetClose asChild to turn this into a close button */}
         <SheetClose asChild>
           <button
-            className="mt-6 w-full p-3 rounded-xl flex items-center justify-center gap-3 font-medium tracking-wide shadow-sm text-[#07955F] bg-[#07955F1A] hover:bg-[#07955F1A] disabled:bg-[#07955F]"
+            className="mt-6 w-full p-3 rounded-xl flex items-center justify-center gap-3 font-medium tracking-wide shadow-sm text-[#238D9D] bg-[#238D9D1A] hover:bg-[#238D9D1A] disabled:bg-[#238D9D]"
           >
             Close
           </button>

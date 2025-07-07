@@ -77,7 +77,7 @@ export default function Onboarding() {
       {/* Skip / Skip & Claim */}
       <div className="absolute top-4 right-4 z-10">
         <button
-          className="text-sm font-medium text-green-600 hover:underline"
+          className="text-sm font-medium text-[#238D9D] hover:underline"
           onClick={finish}
         >
           {isMember ? "Skip" : "Skip & Claim"}
@@ -112,7 +112,7 @@ export default function Onboarding() {
                     {onboardingSource.map((_, j) => (
                       <span
                         key={j}
-                        className={`h-2 w-8 rounded-full ${j === i ? "bg-[#219653]" : "bg-[#07955F4D]"
+                        className={`h-2 w-8 rounded-full ${j === i ? "bg-[#238D9D]" : "bg-[#238D9D4D]"
                           }`}
                       />
                     ))}
@@ -121,22 +121,22 @@ export default function Onboarding() {
 
 
                 <button
-                  className="w-full h-[56px] font-medium bg-[#07955F] text-white hover:bg-[#07955F] rounded-2xl"
+                  className="w-full h-[56px] font-medium bg-[#238D9D] text-white hover:bg-[#238D9D] rounded-2xl"
                   onClick={() => (isLast ? finish() : api?.scrollNext())}
                 /* title is optional; you can keep it if you want the hover tooltip */
                 >
                   {label}   {/* ← visible text */}
                 </button>  {isLast && (
-    <div className="mt-4 flex space-x-4 text-sm text-[#00000080]">
-      <a href="https://www.akibamiles.com/terms-of-use" className="hover:underline" target="_blank">
-        Terms of Service
-      </a>
-      <span>•</span>
-      <a href="https://www.akibamiles.com/privacy-policy" className="hover:underline" target="_blank">
-        Privacy Policy
-      </a>
-    </div>
-  )}
+                  <div className="mt-4 flex space-x-4 text-sm text-[#00000080]">
+                    <a href="https://www.akibamiles.com/terms-of-use" className="hover:underline" target="_blank">
+                      Terms of Service
+                    </a>
+                    <span>•</span>
+                    <a href="https://www.akibamiles.com/privacy-policy" className="hover:underline" target="_blank">
+                      Privacy Policy
+                    </a>
+                  </div>
+                )}
 
 
 

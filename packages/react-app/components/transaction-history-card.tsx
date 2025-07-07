@@ -12,7 +12,7 @@ export default function TransactionHistoryCard({ items }: Props) {
     <div className="space-y-3 mx-4">
       {items.map(it => (
         <div key={it.id}
-             className="p-3 flex justify-between border border-[#07955F4D] font-sterling rounded-3xl bg-white">
+             className="p-3 flex justify-between border border-[#238D9D4D] font-sterling rounded-3xl bg-white">
           <div className="flex flex-col">
             <div className="flex gap-1 items-center">
               <h3 className="font-medium">

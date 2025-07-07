@@ -13,7 +13,7 @@ export const BottomNav = () => {
 
       {/* Home */}
       <Link href="/" className="flex flex-col items-center">
-        <div className="bg-white border-4 border-green-300 p-3 rounded-full text-green-600">
+        <div className="bg-white border-4 border-[#238D9D] p-3 rounded-full text-[#238D9D]">
           <Home className="h-5 w-5" />
         </div>
         <span className="text-xs mt-1">Home</span>
