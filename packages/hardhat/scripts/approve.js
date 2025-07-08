@@ -1,14 +1,14 @@
 const  ethers =  require("ethers");
-const raffleAbi = require("../artifacts/contracts/MiniRaffle.sol/MiniRaffle.json") 
-const milesAbi = require("../artifacts/contracts/MiniPoints.sol/MiniPoints.json")
+const raffleAbi = require("../artifacts/contracts/MiniRaffle.sol/AkibaRaffle.json") 
+const milesAbi = require("../artifacts/contracts/MiniPoints.sol/AkibaMiles.json")
 require("dotenv").config();
 // ─── ENV & CONSTANTS ──────────────────────────────────────────────
 const RPC_URL      = 'https://forno.celo.org';      // e.g. "https://sepolia.optimism.io"
 const PRIVATE_KEY  = process.env.PRIVATE_KEY;  // 
 console.log(PRIVATE_KEY)
-const RAFFLE_ADDR  = "0xFCbb70095bCCe24Bc26cfb1ff88E2a2120ffe821";
+const RAFFLE_ADDR  = "0xD75dfa972C6136f1c594Fec1945302f885E1ab29";
 const cUSD   = "0x765de816845861e75a25fca122bb6898b8b1282a";
-const MiniPoints = '0xb0012Ff26b6eB4F75d09028233204635c0332050'
+const MiniPoints = '0xEeD878017f027FE96316007D0ca5fDA58Ee93a6b'
 // test‑net USDC
 const BENEFICIARY  = "";      // replace
 
@@ -27,12 +27,11 @@ const miles   = new ethers.Contract(MiniPoints, milesAbi.abi,        ownerSigner
 // ─── MAIN LOGIC ───────────────────────────────────────────────────
 async function main() {
 
-  // const allowRaffle = await miles.setMinter('0x46dE92B184776D1BebD7c95D8CC085009280E4f6', true);
-  // await allowRaffle.wait()
-  // console.log("Tx Hash: ", allowRaffle.hash)
+  const allowRaffle = await miles.setMinter('0xF20a5e1a4ca28D64f2C4A90998A41E8045288F48', true);
+  await allowRaffle.wait()
+  console.log("Tx Hash: ", allowRaffle.hash)
 
- //npx hardhat verify 0x9a9808Df68255c0EB0771814C9Bf5d6c7784091b 84628191486477406120341082024507574697055389208972799154939633540122731552071 0x787d74caea10b2b357790d5b5247c2f63d1d91572a9846f780606e4d953677ae 0x779877A7B0D9E8603169DdbD7836e478b4624789 0xa29dAcE44cEE5Aa2B143981031DafdEc5c09dBA5 --network sepolia
-  const rewardPool = ethers.utils.parseUnits("100", 18);  // 100 USDC (6 dec)
+  const rewardPool = ethers.utils.parseUnits("10000", 18);  // 100 USDC (6 dec)
   const approveTx  = await miles.approve(RAFFLE_ADDR, rewardPool);
   await approveTx.wait();
   console.log(`✅ Approved ${ethers.utils.formatUnits(rewardPool,18 )} USDC`);

@@ -9,7 +9,7 @@ import { RaffleCard } from "@/components/raffle-card";
 import RafflesWonCard from "@/components/raffle-won-card";
 import { SectionHeading } from "@/components/section-heading";
 import { useWeb3 } from "@/contexts/useWeb3";
-import { RaffleImg1, RaffleImg2, RaffleImg3, WinImg } from "@/lib/img";
+import { RaffleImg1, RaffleImg2, RaffleImg5, WinImg } from "@/lib/img";
 import { Celo, akibaMilesSymbol } from "@/lib/svg";
 import { useEffect, useState } from "react";
 import { fetchActiveRaffles, Raffle } from "@/helpers/raffledisplay";
@@ -30,7 +30,7 @@ const SpendPartnerQuestSheet = dynamic(
 const TOKEN_IMAGES: Record<string, StaticImageData> = {
   cUSD: RaffleImg1,
   USDT: RaffleImg2,
-  cKES: RaffleImg3,
+  Miles: RaffleImg5,
   // default fallback:
   default: akibaMilesSymbol,
 }
@@ -126,7 +126,7 @@ export default function Home() {
           {raffles.map((r) => (
             <RaffleCard
               key={r.id}
-              image={r.image ?? RaffleImg1}
+              image={r.image ?? RaffleImg5}
               title={`${r.rewardPool} ${r.symbol} weekly`}
               endsIn={formatEndsIn(r.ends)}
               ticketCost={`${r.ticketCost} akibaMiles for 1 ticket`}

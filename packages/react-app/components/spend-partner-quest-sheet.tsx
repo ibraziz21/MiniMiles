@@ -228,10 +228,10 @@ export default function SpendPartnerQuestSheet({
               />
               <div
                 className={`absolute top-10 right-5 p-2 `}>
-                <p className="font-medium text-white text-3xl">500</p>
+                <p className="font-medium text-white text-3xl"></p>
                 <p className="text-xs  rounded-full p-1 mt-1 flex items-center text-white">
-                  <Image src={akibaMilesSymbol} alt="" width={16} height={16} className="mr-1" />
-                  cUSD
+                  {/* <Image src={akibaMilesSymbol} alt="" width={16} height={16} className="mr-1" /> */}
+                  
                 </p>
               </div>
             </div>
