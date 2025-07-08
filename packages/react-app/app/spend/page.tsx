@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
 import { fetchActiveRaffles, Raffle } from '@/helpers/raffledisplay';
-import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2 } from '@/lib/img';
+import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5 } from '@/lib/img';
 import { Coin, akibaMilesSymbol } from '@/lib/svg';
 import { Question } from '@phosphor-icons/react';
 import { StaticImageData } from 'next/image';
@@ -25,7 +25,7 @@ import React, { useEffect, useState } from 'react';
 const TOKEN_IMAGES: Record<string, StaticImageData> = {
   cUSD: RaffleImg1,
   USDT: RaffleImg2,
-  cKES: RaffleImg3,
+  Miles: RaffleImg5,
   // default fallback:
   default: akibaMilesSymbol,
 }
@@ -133,8 +133,8 @@ const Page = () => {
           {raffles.map((r) => (
             <RaffleCard
               key={r.id}
-              image={r.image ?? RaffleImg1}
-              title={`${r.rewardPool} ${r.symbol} weekly`}
+              image={r.image ?? RaffleImg5}
+              title={`${r.rewardPool} ${r.symbol} Monthly`}
               endsIn={formatEndsIn(r.ends)}
               ticketCost={`${r.ticketCost} akibaMiles for 1 ticket`}
               locked={false}

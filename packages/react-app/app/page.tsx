@@ -127,7 +127,7 @@ export default function Home() {
             <RaffleCard
               key={r.id}
               image={r.image ?? RaffleImg5}
-              title={`${r.rewardPool} ${r.symbol} weekly`}
+              title={`${r.rewardPool} ${r.symbol} Monthly`}
               endsIn={formatEndsIn(r.ends)}
               ticketCost={`${r.ticketCost} akibaMiles for 1 ticket`}
               icon={akibaMilesSymbol}
