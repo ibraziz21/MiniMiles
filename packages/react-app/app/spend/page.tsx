@@ -161,7 +161,7 @@ const Page = () => {
 
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-medium mb-2">Physical goods raffles</h3>
+          <h3 className="text-lg font-extrabold mb-2">Physical goods raffles</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
           {physicalGoodsRaffles.map((raffle, idx) => (
@@ -193,7 +193,7 @@ const Page = () => {
       </div>
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-medium mb-2">NFT raffles</h3>
+          <h3 className="text-lg font-extrabold mb-2">NFT raffles</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
           {nftRaffles.map((raffle, idx) => (

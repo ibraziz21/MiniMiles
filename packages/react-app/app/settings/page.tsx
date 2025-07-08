@@ -63,28 +63,28 @@ export default function SettingsPage() {
       <h3 className="font-medium">Contact Us</h3>
 
       <SettingRow
-        icon={<Envelope size={24} color="#219653" />}
+        icon={<Envelope size={24} color="#238D9D" />}
         label="hello@akibamiles.com"
         onCopy={() => handleCopy('hello@akibamiles.com')}
       />
 
       <SettingRow
-        icon={<Chats size={24} color="#219653" />}
+        icon={<Chats size={24} color="#238D9D" />}
         label="Chat with us"
         link="https://t.me/+oRfjEWyA4zo5NTRk"
       />
 
       <SettingRow
-        icon={<TwitterLogo size={24} color="#219653" />}
+        icon={<TwitterLogo size={24} color="#238D9D" />}
         label="Message us"
-        link="https://x.com/minimilesapp"
+        link="https://x.com/Akibamiles"
       />
 
       {/* ───── Source code ───── */}
       <h3 className="font-medium">Source code</h3>
 
       <SettingRow
-        icon={<GithubLogo size={24} color="#219653" />}
+        icon={<GithubLogo size={24} color="#238D9D" />}
         label="View open-source code"
         link="https://github.com/ibraziz21/MiniMiles"
       />
