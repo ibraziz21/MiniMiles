@@ -77,10 +77,10 @@
          orderBy: blockTimestamp
          orderDirection: desc
        ) {
-         id
+         
          roundId
          blockTimestamp
-         # tickets                         # add back if available
+        tickets                         # add back if available
        }
      }
    `;
