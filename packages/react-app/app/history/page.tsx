@@ -129,7 +129,7 @@ export default function History() {
                   return (
                     <RaffleCard
                       key={r.id}
-                      image={r.image ?? RaffleImg1}
+                      image={r.image ?? RaffleImg5}
                       title={`${r.rewardPool} ${r.symbol} weekly`}
                       endsIn={formatEndsIn(r.ends)}
                       ticketCost={`${r.ticketCost} akibaMiles for 1 ticket`}
