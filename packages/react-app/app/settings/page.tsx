@@ -2,6 +2,7 @@
 
 import { Toaster } from '@/components/ui/sonner';
 import { useWeb3 } from '@/contexts/useWeb3';
+import { BookOpen } from '@phosphor-icons/react';
 import {
   Chats,
   Copy,
@@ -81,8 +82,20 @@ export default function SettingsPage() {
       />
 
       {/* ───── Source code ───── */}
-      <h3 className="font-medium">Source code</h3>
+  
 
+      
+       <SettingRow
+        icon={<BookOpen size={24} color="#238D9D" />}
+        label="View Terms of Service"
+        link="https://www.akibamiles.com/terms-of-use"
+      />
+       <SettingRow
+        icon={<BookOpen size={24} color="#238D9D" />}
+        label="View Privacy Policy"
+        link="https://www.akibamiles.app/privacy-policy"
+      />
+          <h3 className="font-medium">Source code</h3>
       <SettingRow
         icon={<GithubLogo size={24} color="#238D9D" />}
         label="View open-source code"
@@ -90,7 +103,7 @@ export default function SettingsPage() {
       />
 
       {/* ───── Footer links ───── */}
-      <footer className="mt-4 flex space-x-2 text-sm text-[#00000080]">
+      {/* <footer className="mt-4 flex space-x-2 text-sm text-[#00000080]">
         <FooterLink href="https://www.akibamiles.com/terms-of-use">
           Terms of Service
         </FooterLink>
@@ -98,7 +111,7 @@ export default function SettingsPage() {
         <FooterLink href="https://www.akibamiles.app/privacy-policy">
           Privacy Policy
         </FooterLink>
-      </footer>
+      </footer> */}
 
       {/* toast portal */}
       <Toaster richColors />
