@@ -25,7 +25,7 @@ export default function TransactionHistoryCard({ items }: Props) {
             </div>
             <p className="text-gray-500 font-light">{it.note}</p>
           </div>
-          {/* <button className="text-[#219653] bg-[#66D5754D] rounded-full px-3">View</button> */}
+          {/* <button className="text-[#219653] bg-[#ADF4FF80] rounded-full px-3">View</button> */}
         </div>
       ))}
     </div>

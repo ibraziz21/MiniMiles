@@ -8,7 +8,7 @@ type GameCardProps = {
 };
 
 export const GameCard = ({ name, date, image }: GameCardProps) => (
-  <div className="relative rounded-xl overflow-hidden bg-black max-w-[160px]">
+  <div className="relative rounded-xl overflow-hidden bg-black max-w-[160px] border-2 border-[#ADF4FF80]">
     <Image src={image} alt={name} width={160} height={160} className="opacity-70 blur-sm" />
     <div className="absolute inset-0 flex flex-col items-center justify-center text-white text-center">
       <div className="bg-white/90 rounded-full flex items-center p-1">

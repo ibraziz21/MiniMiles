@@ -41,7 +41,7 @@ export default function EarnPage() {
           <TabsTrigger
             value="active"
             className="bg-[#EBEBEB] text-[#8E8B8B]
-                       data-[state=active]:bg-[#66D5754D]
+                       data-[state=active]:bg-[#ADF4FF80]
                        data-[state=active]:text-[#238D9D]
                        rounded-full font-medium"
           >
@@ -50,7 +50,7 @@ export default function EarnPage() {
           <TabsTrigger
             value="completed"
             className="ml-1 bg-[#EBEBEB] text-[#8E8B8B]
-                       data-[state=active]:bg-[#66D5754D]
+                       data-[state=active]:bg-[#ADF4FF80]
                        data-[state=active]:text-[#238D9D]
                        rounded-full font-medium"
           >
@@ -61,7 +61,7 @@ export default function EarnPage() {
         {/* ── ACTIVE tab ─────────────────────────── */}
         <TabsContent value="active">
           {/* Daily (active only) */}
-          <div className="mx-4 mt-6 gap-1">
+          <div className=" mt-6 gap-1">
           <h3 className="text-lg font-medium mt-6 mb-2">Daily challenges</h3>
         <p className="text-gray-500">Completed a challenge? Click & claim Miles</p>
         </div>
