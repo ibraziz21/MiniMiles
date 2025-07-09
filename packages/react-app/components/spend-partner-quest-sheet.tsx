@@ -185,7 +185,7 @@ export default function SpendPartnerQuestSheet({
             <div className="flex flex-col justify-center items-center">
               <div className="">
 
-                <h4 className="bg-[#CFF2E5] rounded-full text-[#238D9D] px-4 font-semibold">Purchased</h4>
+                  <h4 className="bg-[#ADF4FF] rounded-full text-[#238D9D] px-4 font-semibold">Purchased</h4>
               </div>
               {/* <h3 className="">28 May 2025, 14:20</h3> */}
             </div>

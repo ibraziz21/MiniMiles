@@ -23,7 +23,7 @@ const quests: Quest[] = [
     title: "akibaMiles",
     description: "Follow Us on Twitter",
     reward: "20 akibaMiles",
-    color: "#B2DEC4",
+    color: "#CFF2E5",
     actionLink: "https://twitter.com/akibaMilesApp",
     instructions: [
       { title: "Open Twitter", text: "Go to our @akibaMilesApp page." },
