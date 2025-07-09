@@ -153,6 +153,7 @@ export default function SpendPartnerQuestSheet({
   const explorerBase = "https://celoscan.io/tx";
 
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
@@ -360,5 +361,19 @@ export default function SpendPartnerQuestSheet({
         )}
       </SheetContent>
     </Sheet>
+    {errorModal && (
+       <FeedbackDialog
+        open={true}
+          title={errorModal.title}
+         description={errorModal.desc}
+         onClose={() => setErrorModal(null)}
+       />
+    )}
+    </>
   );
+ 
+
+  
+
+
 }
