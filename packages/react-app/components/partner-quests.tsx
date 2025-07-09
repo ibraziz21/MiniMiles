@@ -1,7 +1,11 @@
 import { Cash, Celo, Door, GloDollar, Mento, akibaMilesSymbol, akibaMilesSymbolAlt, MiniPay } from "@/lib/svg";
-import { Lock } from "@phosphor-icons/react";
+import { Check, Lock } from "@phosphor-icons/react";
 import Image from "next/image";
 import Link from "next/link";
+import cn from 'clsx'
+import { createClient } from "@supabase/supabase-js";
+import { useQuery } from "@tanstack/react-query";
+import { useWeb3 } from "@/contexts/useWeb3";
 // components/DailyChallenges.tsx
 export interface Quest {
   id: string;
@@ -23,8 +27,8 @@ const quests: Quest[] = [
     title: "akibaMiles",
     description: "Follow Us on Twitter",
     reward: "20 akibaMiles",
-    color: "#CFF2E5",
-    actionLink: "https://twitter.com/akibaMilesApp",
+    color: "#238D9D",
+    actionLink: "https://twitter.com/akibamiles",
     instructions: [
       { title: "Open Twitter", text: "Go to our @akibaMilesApp page." },
       { title: "Follow", text: "Hit the Follow button and confirm." },
@@ -75,43 +79,75 @@ const quests: Quest[] = [
   },
 ];
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY!,
+);
+
+function useClaimedQuestIds(address?: string) {
+  return useQuery<string[]>({
+    enabled: !!address,
+    queryKey: ['partner-claimed', address],
+    queryFn: async () => {
+      if (!address) return []
+      const { data } = await supabase
+        .from('partner_engagements')
+        .select('partner_quest_id')
+        .eq('user_address', address)
+      return data?.map((d) => d.partner_quest_id) ?? []
+    },
+  })
+}
+
 export default function PartnerQuests({
   openPopup,
 }: {
-  openPopup: (q: Quest) => void;
+  openPopup: (q: Quest) => void
 }) {
+  const { address } = useWeb3()
+  const { data: claimedIds = [] } = useClaimedQuestIds(address!)
+  const claimedSet = new Set(claimedIds)
+
   return (
     <div className="mt-6">
       <h3 className="text-lg font-medium mb-3">Partner Quests</h3>
 
       <div className="grid grid-cols-2 gap-2">
         {quests.map((q) => {
-          const locked = q.isLocked;
+          const locked     = q.isLocked
+          let completed
+          if(!locked){
+           completed  = claimedSet.has(q.id)
+          }
+
+          /* card click only when active */
+          const clickable = !locked && !completed
 
           return (
             <div
               key={q.id}
-              onClick={() => !locked && openPopup(q)}
+              onClick={() => clickable && openPopup(q)}
               style={{ backgroundColor: q.color }}
-              className={`relative rounded-xl p-4 h-[180px] flex flex-col items-center justify-between ${
-                locked ? "cursor-not-allowed opacity-80" : "cursor-pointer"
-              }`}
+              className={cn(
+                'relative flex h-[180px] flex-col items-center justify-between rounded-xl p-4',
+                clickable ? 'cursor-pointer' : 'cursor-default',
+                locked || completed ? 'opacity-80' : '',
+              )}
             >
-
-              {/* title + reward, blurred only when locked */}
+              {/* inner content (blurred if locked) */}
               <div
-                className={`flex flex-col items-center justify-around text-center h-full ${
-                  locked ? "blur-sm" : ""
-                }`}
+                className={cn(
+                  'flex h-full flex-col items-center justify-around text-center transition',
+                  locked ? 'blur-sm' : '',
+                )}
               >
-                {/* logo */}
                 <Image
                   src={q.img}
                   alt={q.title}
-                  className={`h-[64px] w-[64px]`}
+                  className="h-[64px] w-[64px]"
                 />
                 <p className="text-sm font-medium">{q.title}</p>
-                <p className="text-xs mt-1 flex items-center justify-center font-poppins">
+                <p className="mt-1 flex items-center justify-center text-xs font-poppins">
                   <Image
                     src={akibaMilesSymbol}
                     alt=""
@@ -123,21 +159,43 @@ export default function PartnerQuests({
                 </p>
               </div>
 
-              {/* locked overlay */}
+              {/* overlay – locked */}
               {locked && (
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="bg-white/90 rounded-full flex items-center p-1">
-                    <Lock size={16} color="#238D9D" weight="bold" className="mr-1" />
-                    <span className="text-xs text-[#238D9D] font-medium">
+                  <div className="flex items-center rounded-full bg-white/90 p-1">
+                    <Lock
+                      size={16}
+                      color="#238D9D"
+                      weight="bold"
+                      className="mr-1"
+                    />
+                    <span className="text-xs font-medium text-[#238D9D]">
                       Coming Soon
                     </span>
                   </div>
                 </div>
               )}
+
+              {/* overlay – completed */}
+              {completed && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="flex items-center rounded-full bg-white/90 p-1">
+                    <Check
+                      size={16}
+                      color="#16a34a"
+                      weight="bold"
+                      className="mr-1"
+                    />
+                    <span className="text-xs font-medium text-[#16a34a]">
+                      Completed
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
-          );
+          )
         })}
       </div>
     </div>
-  );
+  )
 }
