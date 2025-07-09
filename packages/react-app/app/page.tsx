@@ -123,31 +123,42 @@ export default function Home() {
           </Link>
         </div>
         <div className="flex gap-3 overflow-x-auto">
-          {raffles.map((r) => (
-            <RaffleCard
-              key={r.id}
-              image={r.image ?? RaffleImg5}
-              title={`${r.rewardPool} ${r.symbol} Monthly`}
-              endsIn={formatEndsIn(r.ends)}
-              ticketCost={`${r.ticketCost} akibaMiles for 1 ticket`}
-              icon={akibaMilesSymbol}
-              onClick={() => {
-                const img = TOKEN_IMAGES[r.symbol] ?? TOKEN_IMAGES.default
-                setSpendRaffle({
-                  id: Number(r.id),
-                  title: `${r.symbol} raffle`,
-                  reward: `${r.ticketCost} akibaMiles`,
-                  prize: r.rewardPool ?? "—",
-                  endDate: formatEndsIn(r.ends),
-                  ticketCost: `${r.ticketCost} akibaMiles`,
-                  image: img as StaticImageData,
-                  balance: Number(akibaMilesBalance),
-                  symbol: r.symbol
-                });
-                setSpendSheetOpen(true);
-              }}
-            />
-          ))}
+        {raffles.map((r) => {
+    /* pick image in priority order:
+       1) subgraph-supplied r.image
+       2) symbol-based fallback from TOKEN_IMAGES
+       3) generic default */
+    const cardImg =
+      r.image ??
+      TOKEN_IMAGES[r.symbol] ??
+      TOKEN_IMAGES.default;
+
+    return (
+      <RaffleCard
+        key={r.id}
+        image={cardImg}
+        title={`${r.rewardPool} ${r.symbol}`}
+        endsIn={formatEndsIn(r.ends)}
+        ticketCost={`${r.ticketCost} akibaMiles for 1 ticket`}
+        locked={false}
+        icon={akibaMilesSymbol}
+        onClick={() => {
+          setSpendRaffle({
+            id: Number(r.id),
+            title: r.description,
+            reward: `${r.ticketCost} akibaMiles`,
+            prize: r.rewardPool ?? "—",
+            endDate: formatEndsIn(r.ends),
+            ticketCost: `${r.ticketCost} akibaMiles`,
+            image: cardImg,
+            balance: Number(akibaMilesBalance),
+            symbol: r.symbol,
+          });
+          setSpendSheetOpen(true);
+        }}
+      />
+    );
+  })}
         </div>
       </div>
       {hasMounted && (<SpendPartnerQuestSheet
