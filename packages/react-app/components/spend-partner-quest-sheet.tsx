@@ -11,6 +11,7 @@ import {
   SheetFooter,
 } from "./ui/sheet";
 import Image from "next/image";
+import FeedbackDialog from './FeedbackDialog'
 import { CaretLeft, Minus, Plus, Share } from "@phosphor-icons/react";
 import { Slider } from "./ui/slider";
 import { Ticket, Successsvg, akibaMilesSymbol } from "@/lib/svg";
@@ -18,6 +19,8 @@ import { StaticImageData } from "next/image";
 import { useWeb3 } from "@/contexts/useWeb3";
 import Link from "next/link";
 import posthog from "posthog-js";
+import { UserRejectedRequestError } from "viem";
+import { toast } from "sonner";
 
 interface SpendRaffle {
   id: number;
@@ -49,6 +52,7 @@ export default function SpendPartnerQuestSheet({
   const [processing, setProcessing] = useState(false);
   const [joined, setJoined] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [errorModal, setErrorModal] = useState<{title: string; desc?: string} | null>(null)
 
   const { joinRaffle, address, getUserAddress } = useWeb3();
 
@@ -58,10 +62,8 @@ export default function SpendPartnerQuestSheet({
 
   // Derive numeric values
   const ticketCostNum = Number(raffle?.ticketCost.replace(/\D/g, "")) || 1;
-  const maxTickets = Math.max(
-    Math.floor((raffle?.balance ?? 1) / ticketCostNum),
-    1
-  );
+  const maxTickets = Math.floor((raffle?.balance ?? 0) / ticketCostNum)
+  const notEnough  = (raffle?.balance ?? 0) < ticketCostNum
   const totalCost = count * ticketCostNum;
 
   // Reset when raffle changes
@@ -74,6 +76,10 @@ export default function SpendPartnerQuestSheet({
 
   // Clamp count
   useEffect(() => {
+        if (maxTickets === 0) {
+            if (count !== 0) setCount(0)
+            return
+         }
     if (count < 1) setCount(1);
     else if (count > maxTickets) setCount(maxTickets);
   }, [count, maxTickets]);
@@ -107,14 +113,9 @@ export default function SpendPartnerQuestSheet({
       setTxHash(hash);
       console.log("Tx Hash", hash)
 
-      // 3️⃣ Wait for confirmation ─ either:
-      //    a) the receipt (preferred – no magic numbers), OR
-      //    b) a 6 s fallback if you don’t want an extra RPC call
+  
       try {
-        // If you already have a viem publicClient in scope, use it:
-        // await publicClient.waitForTransactionReceipt({ hash });
-        //
-        // Otherwise, keep the simple timeout:
+       
         await new Promise((res) => setTimeout(res, 6_000));
       } catch {
         /* ignore wait errors – we’ll still show success after the timeout */
@@ -126,8 +127,22 @@ export default function SpendPartnerQuestSheet({
       posthog.capture("buy-button-press-error", {
         err: err
       })
-      console.error("Join raffle failed:", err);
-      alert(err?.message ?? "Failed to join raffle");
+      const rejected =
+      err instanceof UserRejectedRequestError ||
+      /user rejected/i.test(err?.message ?? '')
+
+      if (rejected) {
+        setErrorModal({
+          title: 'Transaction cancelled',
+          desc:  'You closed the wallet popup.',
+        })
+      } else {
+        setErrorModal({
+          title: 'Transaction failed',
+          desc:  err?.message ?? 'Something went wrong.',
+        })
+      }
+  
     } finally {
       // 5️⃣ Always stop spinner
       setProcessing(false);
@@ -333,8 +348,13 @@ export default function SpendPartnerQuestSheet({
               <Button
                 title="Buy"
                 onClick={handleBuy}
+                disabled={  notEnough || count === 0}
                 className="w-full bg-[#238D9D] text-white rounded-xl h-[56px] font-medium"
-              />
+              />{notEnough && (
+                   <p className="mt-2 text-center text-sm text-red-600">
+                    You don’t have enough akibaMiles to buy a ticket.
+                  </p>
+                 )}
             </SheetFooter>
           </div>
         )}
