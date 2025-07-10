@@ -93,7 +93,7 @@ export default function SettingsPage() {
        <SettingRow
         icon={<BookOpen size={24} color="#238D9D" />}
         label="View Privacy Policy"
-        link="https://www.akibamiles.app/privacy-policy"
+        link="https://www.akibamiles.com/privacy-policy"
       />
           <h3 className="font-medium">Source code</h3>
       <SettingRow
