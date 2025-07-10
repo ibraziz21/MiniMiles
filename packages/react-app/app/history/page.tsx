@@ -91,7 +91,7 @@ export default function History() {
       <div className="px-4 min-h-[110px] flex flex-col justify-around">
         <h1 className="text-2xl font-medium">Your history</h1>
         <h3 className="font-extralight">
-          View your akibaMiles gaming stats &amp; history.
+          View your AkibaMiles gaming stats &amp; history.
         </h3>
       </div>
 
@@ -132,7 +132,7 @@ export default function History() {
                       image={r.image ?? RaffleImg5}
                       title={`${r.rewardPool} ${r.symbol} weekly`}
                       endsIn={formatEndsIn(r.ends)}
-                      ticketCost={`${r.ticketCost} akibaMiles for 1 ticket`}
+                      ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
                       locked={false}
                       icon={akibaMilesSymbol}
                     />
@@ -146,7 +146,7 @@ export default function History() {
       {/* tx history */}
       <div className="px-4 min-h-[110px] flex flex-col justify-around">
         <h1 className="text-2xl font-medium">Transaction history</h1>
-        <h3 className="font-extralight">View all your akibaMiles activities.</h3>
+        <h3 className="font-extralight">View all your AkibaMiles activities.</h3>
       </div>
 
       {txLoading ? (

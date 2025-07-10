@@ -138,7 +138,7 @@ export default function PartnerQuests({
               <div
                 className={cn(
                   'flex h-full flex-col items-center justify-around text-center transition',
-                  locked ? 'blur-sm' : '',
+                  locked || completed ? 'blur-sm' : '',
                 )}
               >
                 <Image

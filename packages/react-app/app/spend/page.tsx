@@ -46,19 +46,19 @@ type SpendRaffle = {
 
 
 const digitalCashRaffles = [
-  { image: RaffleImg1, title: "500 USDT weekly", endsIn: 2, ticketCost: "10 akibaMiles for 1 ticket" },
+  { image: RaffleImg1, title: "500 USDT weekly", endsIn: 2, ticketCost: "10 AkibaMiles for 1 ticket" },
   { image: RaffleImg2, title: "250 USDT", endsIn: 5, ticketCost: "6 points for 1 ticket" },
 ];
 
 const physicalGoodsRaffles = [
-  { image: airpods, title: "Airpods 2", endsIn: 6, ticketCost: "3 akibaMiles for 1 ticket" },
+  { image: airpods, title: "Airpods 2", endsIn: 6, ticketCost: "3 AkibaMiles for 1 ticket" },
   { image: laptop, title: "Laptop", endsIn: 4, ticketCost: "50 tickets by brand" },
   { image: bicycle, title: "Bicycle", endsIn: 4, ticketCost: "50 tickets by brand" }
 ];
 
 const nftRaffles = [
-  { image: nft1, title: "BoredApe #567", endsIn: 7, ticketCost: "10 akibaMiles for 1 ticket" },
-  { image: nft2, title: "CryptoPunk #789", endsIn: 3, ticketCost: "12 akibaMiles" },
+  { image: nft1, title: "BoredApe #567", endsIn: 7, ticketCost: "10 AkibaMiles for 1 ticket" },
+  { image: nft2, title: "CryptoPunk #789", endsIn: 3, ticketCost: "12 AkibaMiles" },
 ];
 
 const upcomingGames = [
@@ -146,17 +146,17 @@ const Page = () => {
         image={cardImg}
         title={`${r.rewardPool} ${r.symbol}`}
         endsIn={formatEndsIn(r.ends)}
-        ticketCost={`${r.ticketCost} akibaMiles for 1 ticket`}
+        ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
         locked={false}
         icon={akibaMilesSymbol}
         onClick={() => {
           setSpendRaffle({
             id: Number(r.id),
             title: r.description,
-            reward: `${r.ticketCost} akibaMiles`,
+            reward: `${r.ticketCost} AkibaMiles`,
             prize: r.rewardPool ?? "—",
             endDate: formatEndsIn(r.ends),
-            ticketCost: `${r.ticketCost} akibaMiles`,
+            ticketCost: `${r.ticketCost} AkibaMiles`,
             image: cardImg,
             balance: Number(akibaMilesBalance),
             symbol: r.symbol,
@@ -193,7 +193,7 @@ const Page = () => {
                   ticketCost: raffle.ticketCost,
                   image: raffle.image,
                   balance: Number(akibaMilesBalance),
-                  symbol: 'akibaMiles'
+                  symbol: 'AkibaMiles'
                 });
                 setSpendSheetOpen(true);
               }}
@@ -225,7 +225,7 @@ const Page = () => {
                   ticketCost: raffle.ticketCost,
                   image: raffle.image,
                   balance: Number(akibaMilesBalance),
-                  symbol: 'akibaMiles'
+                  symbol: 'AkibaMiles'
                 });
                 setSpendSheetOpen(true);
               }}

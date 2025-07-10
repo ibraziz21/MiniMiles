@@ -110,7 +110,7 @@ export default function Home() {
             <span className="text-sm text-[#238D9D] hover:underline font-medium">See All ›</span>
           </Link>
         </div>
-        <p className="text-gray-500">Completed a challenge? Click on the card and claim Miles</p>
+        <p className="text-gray-500">Completed a challenge? Click & claim Miles</p>
         <div className="flex gap-3 overflow-x-auto">
           <DailyChallenges />
         </div>
@@ -139,17 +139,17 @@ export default function Home() {
         image={cardImg}
         title={`${r.rewardPool} ${r.symbol}`}
         endsIn={formatEndsIn(r.ends)}
-        ticketCost={`${r.ticketCost} akibaMiles for 1 ticket`}
+        ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
         locked={false}
         icon={akibaMilesSymbol}
         onClick={() => {
           setSpendRaffle({
             id: Number(r.id),
             title: r.description,
-            reward: `${r.ticketCost} akibaMiles`,
+            reward: `${r.ticketCost} AkibaMiles`,
             prize: r.rewardPool ?? "—",
             endDate: formatEndsIn(r.ends),
-            ticketCost: `${r.ticketCost} akibaMiles`,
+            ticketCost: `${r.ticketCost} AkibaMiles`,
             image: cardImg,
             balance: Number(akibaMilesBalance),
             symbol: r.symbol,
@@ -166,7 +166,10 @@ export default function Home() {
         onOpenChange={setSpendSheetOpen}
         raffle={spendRaffle}
       />)}
+
+       
     </main>
+    
 
   );
 }

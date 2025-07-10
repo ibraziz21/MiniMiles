@@ -202,7 +202,7 @@ export default function DailyChallenges({ showCompleted = false }: { showComplet
                 onClick={() => runQuest(q)}
                 className={`flex-none w-44 h-60 rounded-xl p-4 shadow-xl
                   ${showCompleted
-                    ? "bg-green-50 opacity-70 cursor-default"
+                    ? "bg-blue-50 opacity-70 cursor-default"
                     : "bg-white border border-[#238D9D4D]"}`}
               >
                 <div className="flex flex-col justify-between h-full text-center">
@@ -213,7 +213,7 @@ export default function DailyChallenges({ showCompleted = false }: { showComplet
                   </p>
                   <p className="text-xs mt-2 flex items-center justify-center">
                     <Image src={akibaMilesSymbol} alt="" className="mr-1" />
-                    {q.reward_points} akibaMiles
+                    {q.reward_points} AkibaMiles
                   </p>
                 </div>
               </button>

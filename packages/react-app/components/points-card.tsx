@@ -8,7 +8,7 @@ export default function PointsCard({ points }: { points: number }) {
     return (
         <div className="bg-point-card bg-[#238D9D] bg-no-repeat bg-contain  text-white rounded-2xl pt-4 px-2 mx-4 mt-4 space-y-4">
             <div className="p-3 flex flex-col justify-between">
-                <h3 className="">Total akibaMiles</h3>
+                <h3 className="">Total AkibaMiles</h3>
                 <div className="flex items-center justify-start my-3">
                     <Image src={akibaMilesSymbolAlt} width={32} height={32} alt="" />
                     <p className="text-3xl font-medium pl-2">{points.toLocaleString()}</p>

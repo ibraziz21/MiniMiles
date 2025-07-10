@@ -66,6 +66,13 @@ export default function SpendPartnerQuestSheet({
   const notEnough  = (raffle?.balance ?? 0) < ticketCostNum
   const totalCost = count * ticketCostNum;
 
+  let milesSymbol
+  if(raffle?.symbol ==="Miles"){
+    milesSymbol = "AkibaMiles"
+  }else{
+    milesSymbol = raffle?.symbol
+  }
+
   // Reset when raffle changes
   useEffect(() => {
     setCount(1);
@@ -254,7 +261,7 @@ export default function SpendPartnerQuestSheet({
 
             <div className="text-gray-500 rounded-xl py-3 text-center mb-4">
               <p className="text-sm">
-                Join our raffle for {raffle.prize} {raffle.symbol} and win big!
+                Join our raffle for {raffle.prize} {milesSymbol} and win big!
               </p>
             </div>
 
@@ -262,12 +269,12 @@ export default function SpendPartnerQuestSheet({
               <div className="flex justify-between">
                 <span className="font-medium">Prize</span>
                 <span className="text-gray-700 flex">
-                  <Image src={akibaMilesSymbol} alt="" width={16} height={16} className="mr-1" /> {raffle.prize} {raffle.symbol}
+                  <Image src={akibaMilesSymbol} alt="" width={16} height={16} className="mr-1" /> {raffle.prize} {milesSymbol}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="font-medium">Price per ticket</span>
-                <span className="text-gray-700 flex "><Image src={akibaMilesSymbol} alt="" width={16} height={16} className="mr-1" />{ticketCostNum} akibaMiles</span>
+                <span className="text-gray-700 flex "><Image src={akibaMilesSymbol} alt="" width={16} height={16} className="mr-1" />{ticketCostNum} AkibaMiles</span>
               </div>
               <div className="flex justify-between">
                 <span className="font-medium">Draw Date</span>
@@ -343,7 +350,7 @@ export default function SpendPartnerQuestSheet({
             </p>
             </div>
             <p className="text-center text-sm font-medium mb-6">
-              Total cost: {totalCost} akibaMiles
+              Total cost: {totalCost} AkibaMiles
             </p>
             <SheetFooter>
               <Button
@@ -353,7 +360,7 @@ export default function SpendPartnerQuestSheet({
                 className="w-full bg-[#238D9D] text-white rounded-xl h-[56px] font-medium"
               />{notEnough && (
                    <p className="mt-2 text-center text-sm text-red-600">
-                    You don’t have enough akibaMiles to buy a ticket.
+                    You don’t have enough AkibaMiles to buy a ticket.
                   </p>
                  )}
             </SheetFooter>
