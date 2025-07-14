@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Quest } from './partner-quests';
 import { claimPartnerQuest } from '@/helpers/partnerQuests';
 import { useWeb3 } from '@/contexts/useWeb3';
+import { Cash, Celo, Door, GloDollar, Mento, akibaMilesSymbol, akibaMilesSymbolAlt, MiniPay, W3MLogo  } from "@/lib/svg";
 
 interface PartnerQuestSheetProps {
   open: boolean;
@@ -66,7 +67,7 @@ const handleClaim = async () => {
       <SheetContent side="bottom" className="bg-white rounded-t-xl font-sterling p-4">
         <div className="flex justify-start items-center mb-2">
           <div className={`rounded-full mr-2`} style={{backgroundColor: quest.color}}>
-            <Image src={quest.img} alt='' className='h-[20px]' />
+            <Image src={akibaMilesSymbol} alt='' className='h-[20px]' />
           </div>
           <h3 className='text-sm font-medium bg-[#24E5E033] text-[#1E8C89] rounded-full px-3 '>Partner Quest</h3>
         </div>
@@ -78,7 +79,7 @@ const handleClaim = async () => {
 
         <div className="bg-partner-quest bg-[#238D9D] rounded-xl p-3 text-center mb-4 text-white">
           <div className="flex justify-center items-center mb-1">
-            <Image src={quest.img} width={32} height={32} alt={quest.title} />
+            <Image src={akibaMilesSymbol} width={32} height={32} alt={quest.title} />
             <span className="text-3xl font-medium ml-2">{quest.reward.split(' ')[0]}</span>
           </div>
           <span className="text-sm uppercase">akibaMiles</span>

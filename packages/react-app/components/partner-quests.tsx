@@ -1,4 +1,4 @@
-import { Cash, Celo, Door, GloDollar, Mento, akibaMilesSymbol, akibaMilesSymbolAlt, MiniPay } from "@/lib/svg";
+import { Cash, Celo, Door, GloDollar, Mento, akibaMilesSymbol, akibaMilesSymbolAlt, MiniPay, W3MLogo  } from "@/lib/svg";
 import { Check, Lock } from "@phosphor-icons/react";
 import Image from "next/image";
 import Link from "next/link";
@@ -35,6 +35,20 @@ const quests: Quest[] = [
     ],
   },
   {
+    id: '5cb7f990-1db6-4c99-8236-804b78dadb63',
+    isLocked: false,
+    img: W3MLogo,
+    title: "Web3 Mashinani",
+    description: "Follow Us on Twitter",
+    reward: "20 akibaMiles",
+    color: "#f7f5f2",
+    actionLink: "https://twitter.com/web3mashinani",
+    instructions: [
+      { title: "Open Twitter", text: "Go to our @web3mashinani page." },
+      { title: "Follow", text: "Hit the Follow button and confirm." },
+    ],
+  },
+  {
     id: '8d5a7766-4d2a-4bff-ac97-6b03fd5b570f',
     isLocked: true,
     img: Celo,
@@ -49,20 +63,20 @@ const quests: Quest[] = [
     ],
   },
 
-  {
-    id: '8d8ae13c-a4b0-47fa-aa30-4fdfc6d3032e',
-    isLocked: true,
-    img: GloDollar,
-    title: "GloDollar",
-    description: "Use Pretium to Offramp or make a local payment",
-    reward: "15 akibaMiles",
-    color: "#24E5E033",
-    actionLink: "https://twitter.com/pretium",
-    instructions: [
-      { title: "Open Pretium", text: "Open Pretium in your Minipay Mini Apps" },
-      { title: "Offramp", text: "Buy Airtime, or make a local payment" },
-    ],
-  },
+  // {
+  //   id: '8d8ae13c-a4b0-47fa-aa30-4fdfc6d3032e',
+  //   isLocked: true,
+  //   img: GloDollar,
+  //   title: "GloDollar",
+  //   description: "Use Pretium to Offramp or make a local payment",
+  //   reward: "15 akibaMiles",
+  //   color: "#24E5E033",
+  //   actionLink: "https://twitter.com/pretium",
+  //   instructions: [
+  //     { title: "Open Pretium", text: "Open Pretium in your Minipay Mini Apps" },
+  //     { title: "Offramp", text: "Buy Airtime, or make a local payment" },
+  //   ],
+  // },
   {
     id: 'a487d06b-fe99-4f4f-91bb-532f1647a86c',
     img: Mento,

@@ -26,6 +26,7 @@ import CeloRaffleSvg from "../public/svg/celo-cash-raffle.svg"
 import CkesRaffleSvg from "../public/svg/ckes-cash-raffle.svg"
 import CusdRaffleSvg from "../public/svg/cusd-cash-raffle.svg"
 import MilesRaffleSvg from "../public/svg/miles-cash-raffle.svg"
+import W3MLogo from '../public/img/socials.jpg'
 
 export {
     Cash,
@@ -56,4 +57,5 @@ export {
     CkesRaffleSvg,
     CusdRaffleSvg,
     MilesRaffleSvg,
+    W3MLogo
 }

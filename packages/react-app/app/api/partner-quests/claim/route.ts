@@ -11,6 +11,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 
 import MiniPointsAbi from "@/contexts/minimiles.json";
+import { useQuery } from "@tanstack/react-query";
 
 /* ─── env / clients ─────────────────────────────────────── */
 
@@ -18,6 +19,8 @@ const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_KEY!,
 );
+
+
 
 const account = privateKeyToAccount(`0x${process.env.PRIVATE_KEY!}`);
 
@@ -32,7 +35,7 @@ const walletClient = createWalletClient({
   transport: http("https://forno.celo.org"),
 });
 
-const CONTRACT_ADDRESS = "0xb0012Ff26b6eB4F75d09028233204635c0332050";
+const CONTRACT_ADDRESS = "0xEeD878017f027FE96316007D0ca5fDA58Ee93a6b";
 
 /* ─── POST ──────────────────────────────────────────────── */
 
