@@ -18,7 +18,7 @@ export default function Footer() {
         <span className="font-sterling text-[16px]">Earn</span>
       </Link>
 
-      <Link href="/" className={`flex flex-col items-center relative bottom-[10px] border-4 border-white p-6 rounded-full bg-[#238D9D] ${pathname === "/" ? "border-[#ADF4FF]" : ""}`}>
+      <Link href="/" className={`flex flex-col items-center relative bottom-[10px] border-4 p-6 rounded-full bg-[#238D9D] ${pathname === "/" ? "border-[#ADF4FF]" : "border-white"}`}>
         <Image src={HomeSvg} alt="" className="w-[36px] h-[36px]" />
       </Link>
 
