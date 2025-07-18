@@ -32,6 +32,8 @@ interface SpendRaffle {
   image: StaticImageData;
   balance: number;    // user balance in MiniMiles
   symbol: string;
+  totalTickets: number;
+  maxTickets: number;
 }
 
 interface SpendPartnerQuestSheetProps {
@@ -63,7 +65,12 @@ export default function SpendPartnerQuestSheet({
   // Derive numeric values
   const ticketCostNum = Number(raffle?.ticketCost.replace(/\D/g, "")) || 1;
   const maxTickets = Math.floor((raffle?.balance ?? 0) / ticketCostNum)
+  const affordable     = Math.floor((raffle?.balance ?? 0) / ticketCostNum);
   const notEnough  = (raffle?.balance ?? 0) < ticketCostNum
+
+  const soldOut = raffle
+  ? raffle.totalTickets >= raffle.maxTickets   // no more tickets in the pool
+  : false;
   const totalCost = count * ticketCostNum;
 
   let milesSymbol
@@ -81,15 +88,26 @@ export default function SpendPartnerQuestSheet({
     setTxHash(null);
   }, [raffle]);
 
+  useEffect(() => {
+    setCount(soldOut ? 0 : 1);   // NEW – default to 0 if sold out
+    setProcessing(false);
+    setJoined(false);
+    setTxHash(null);
+  }, [raffle, soldOut]);
+
   // Clamp count
   useEffect(() => {
-        if (maxTickets === 0) {
-            if (count !== 0) setCount(0)
-            return
-         }
+    if (soldOut) {                // NEW – nothing selectable
+      if (count !== 0) setCount(0);
+      return;
+    }
+    if (affordable === 0) {
+      if (count !== 0) setCount(0);
+      return;
+    }
     if (count < 1) setCount(1);
-    else if (count > maxTickets) setCount(maxTickets);
-  }, [count, maxTickets]);
+    else if (count > affordable) setCount(affordable);
+  }, [count, affordable, soldOut]);
 
   if (!raffle) return null;
 
@@ -352,18 +370,26 @@ export default function SpendPartnerQuestSheet({
             <p className="text-center text-sm font-medium mb-6">
               Total cost: {totalCost} AkibaMiles
             </p>
-            <SheetFooter>
-              <Button
-                title="Buy"
-                onClick={handleBuy}
-                disabled={  notEnough || count === 0}
-                className="w-full bg-[#238D9D] text-white rounded-xl h-[56px] font-medium"
-              />{notEnough && (
-                   <p className="mt-2 text-center text-sm text-red-600">
-                    You don’t have enough AkibaMiles to buy a ticket.
-                  </p>
-                 )}
-            </SheetFooter>
+            <SheetFooter className="flex flex-col w-full space-y-2">
+  {/* primary action */}
+  <Button
+                      onClick={handleBuy}
+                      disabled={soldOut || notEnough || count === 0}
+                      className="w-full bg-[#238D9D] text-white rounded-xl h-[56px] font-medium" title={"Buy Ticket"}  >
+    Buy
+  </Button>
+
+  {/* helper message */}
+  {soldOut ? (
+    <p className="text-center text-sm font-semibold text-gray-500">
+      All tickets have been sold&nbsp;🎉
+    </p>
+  ) : notEnough ? (
+    <p className="text-center text-sm text-red-600">
+      You don’t have enough AkibaMiles to buy a ticket.
+    </p>
+  ) : null}
+</SheetFooter>
           </div>
         )}
       </SheetContent>

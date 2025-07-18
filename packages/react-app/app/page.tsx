@@ -64,6 +64,8 @@ export default function Home() {
     image: StaticImageData;
     balance: number;
     symbol: string;
+    totalTickets: number;
+    maxTickets: number;
   };
 
 
@@ -153,6 +155,8 @@ export default function Home() {
             image: cardImg,
             balance: Number(akibaMilesBalance),
             symbol: r.symbol,
+            maxTickets: r.maxTickets,
+            totalTickets: r.totalTickets!
           });
           setSpendSheetOpen(true);
         }}

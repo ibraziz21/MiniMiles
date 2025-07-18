@@ -41,6 +41,8 @@ type SpendRaffle = {
   image: StaticImageData;
   balance: number;
   symbol: string;
+  totalTickets: number;
+  maxTickets: number;
 };
 
 
@@ -160,6 +162,8 @@ const Page = () => {
             image: cardImg,
             balance: Number(akibaMilesBalance),
             symbol: r.symbol,
+            maxTickets: r.maxTickets,
+            totalTickets: r.totalTickets!
           });
           setSpendSheetOpen(true);
         }}
@@ -193,7 +197,9 @@ const Page = () => {
                   ticketCost: raffle.ticketCost,
                   image: raffle.image,
                   balance: Number(akibaMilesBalance),
-                  symbol: 'AkibaMiles'
+                  symbol: 'AkibaMiles',
+                  maxTickets: 0,
+                  totalTickets: 0
                 });
                 setSpendSheetOpen(true);
               }}
@@ -225,7 +231,9 @@ const Page = () => {
                   ticketCost: raffle.ticketCost,
                   image: raffle.image,
                   balance: Number(akibaMilesBalance),
-                  symbol: 'AkibaMiles'
+                  symbol: 'AkibaMiles',
+                  maxTickets: 0,
+                  totalTickets: 0
                 });
                 setSpendSheetOpen(true);
               }}
