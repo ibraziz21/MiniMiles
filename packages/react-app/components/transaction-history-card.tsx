@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { HistoryItem } from '@/helpers/txHistory';
+import { HistoryItem } from '@/types/history';
 
 interface Props { items: HistoryItem[]; }
 
