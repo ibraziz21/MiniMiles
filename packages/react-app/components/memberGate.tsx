@@ -1,36 +1,82 @@
+/* --------------------------------------------------------------------------
+ * components/MemberGate.tsx
+ * Global membership guard – sessionStorage “justJoined” flag version
+ * -------------------------------------------------------------------------- */
 "use client";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+
+import { useEffect, useRef, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { useMembership } from "@/helpers/useMembership";
 
 interface Props {
   address?: string | null;
   children: React.ReactNode;
+  /** routes that never trigger a redirect */
   exemptPaths?: string[];
 }
 
-export function MemberGate({ address, children, exemptPaths = ["/onboarding"] }: Props) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const search = useSearchParams();
-  const justJoined = search.get("justJoined") === "1";
+export function MemberGate({
+  address,
+  children,
+  exemptPaths = ["/onboarding"],
+}: Props) {
+  const router               = useRouter();
+  const pathname             = usePathname();
   const { isMember, loading, error } = useMembership(address);
 
-  const exempt = exemptPaths.some(p => pathname.startsWith(p));
+  /* ---------- local flags ---------- */
+  const [justJoined, setJustJoined]       = useState(false);
+  const [suppressRedirect, setSuppressRedirect] = useState(true); // block redirects until first mount
+  const mounted = useRef(false);
 
-  // Redirect only after we *know* they are not a member
+  const exempt = exemptPaths.some((p) => pathname.startsWith(p));
+
+  /* ---------- read "justJoined" flag once (client only) ---------- */
   useEffect(() => {
-    if (!loading && !exempt && !justJoined && isMember === false && address) {
+    mounted.current = true;
+    try {
+      if (typeof window !== "undefined" && sessionStorage.getItem("justJoined") === "1") {
+        setJustJoined(true);
+      }
+    } catch {
+      /* ignore private-mode or disabled storage */
+    }
+  }, []);
+
+  /* ---------- allow redirect only after first membership result ---------- */
+  useEffect(() => {
+    if (!mounted.current) return;
+    if (!loading) {
+      // defer one micro-task so justJoined state is set
+      const t = setTimeout(() => setSuppressRedirect(false), 0);
+      return () => clearTimeout(t);
+    }
+  }, [loading]);
+
+  /* ---------- redirect logic ---------- */
+  useEffect(() => {
+    if (
+      !suppressRedirect &&      // guard released
+      !exempt &&                // not on onboarding/claim
+      isMember === false &&     // definitely not a member
+      address &&                // have wallet
+      !justJoined               // not fresh join
+    ) {
       router.replace("/onboarding");
     }
-  }, [loading, isMember, exempt, justJoined, address, router]);
+  }, [suppressRedirect, exempt, isMember, address, justJoined, router]);
 
-   useEffect(() => {
-       if (justJoined && isMember === true) {
-        router.replace("/", { scroll: false });
-       }
-     }, [justJoined, isMember, router]);
+  /* ---------- clear flag after confirmed ---------- */
+  useEffect(() => {
+    if (justJoined && isMember === true) {
+      try {
+        sessionStorage.removeItem("justJoined");
+      } catch {}
+      setJustJoined(false); // no longer needed
+    }
+  }, [justJoined, isMember]);
 
+  /* ---------- render states ---------- */
   if (exempt) return <>{children}</>;
 
   if (!address) {
@@ -41,7 +87,7 @@ export function MemberGate({ address, children, exemptPaths = ["/onboarding"] }:
     );
   }
 
-  if (loading) {
+  if (loading || suppressRedirect) {
     return (
       <div className="p-6 animate-pulse text-sm text-gray-600">
         Checking membership…
@@ -63,8 +109,8 @@ export function MemberGate({ address, children, exemptPaths = ["/onboarding"] }:
     );
   }
 
-  // If they are NOT member, we are already redirecting — brief placeholder:
-  if (isMember === false) {
+  if (isMember === false && !justJoined) {
+    // redirect effect will fire; placeholder splash
     return <div className="p-6 text-sm text-gray-600">Redirecting…</div>;
   }
 
