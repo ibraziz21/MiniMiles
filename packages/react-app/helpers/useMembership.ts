@@ -1,36 +1,17 @@
-"use client";
-import { useEffect, useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useWeb3 } from "@/contexts/useWeb3";
 
-export function useMembership(address?: string | null) {
-  const [isMember, setIsMember] = useState<boolean | null>(null);
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState<string | null>(null);
+export function useMembership() {
+  const { address } = useWeb3();
 
-  const fetchFlag = useCallback(async (addr: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const r = await fetch(`/api/users/${addr}`);
-      const j = await r.json();
-      setIsMember(!!j.isMember);
-    } catch {
-      setError("Failed to fetch membership");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!address) {
-      setIsMember(null);
-      return;
-    }
-    fetchFlag(address);
-  }, [address, fetchFlag]);
-
-  const refetch = useCallback(() => {
-    if (address) fetchFlag(address);
-  }, [address, fetchFlag]);
-
-  return { isMember, loading, error, refetch };
+  return useQuery({
+    queryKey: ["isMember", address?.toLowerCase()],
+    enabled: !!address,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const res = await fetch(`/api/users/${address}`);
+      const { isMember } = await res.json();
+      return !!isMember;
+    },
+  });
 }
