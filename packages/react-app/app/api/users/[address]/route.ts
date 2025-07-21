@@ -1,5 +1,5 @@
 // app/api/users/[address]/route.ts
-import { NextResponse } from "next/server";
+import {  NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -7,8 +7,8 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY!
 );
 
-export async function GET(_: Request, { params }: { params: { address: string } }) {
-  const address = params.address?.toLowerCase();
+export async function GET(  _req: Request, context: any) {
+  const address = context.params.address?.toLowerCase();
   if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
     return NextResponse.json({ error: "Bad address" }, { status: 400 });
   }
