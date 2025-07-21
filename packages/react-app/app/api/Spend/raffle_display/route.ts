@@ -14,6 +14,8 @@ const publicClient = createPublicClient({
 })
 
 export async function GET() {
+  const PRIORITY_TOKEN =
+  '0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e'.toLowerCase();
   try {
     // 1️⃣ Read total rounds
     const roundCountBN = await publicClient.readContract({
@@ -61,6 +63,7 @@ export async function GET() {
 
       const now = BigInt(Math.floor(Date.now() / 1000));
       if (r[2] /* endTime */ <= now) return null;  
+      const decimal = r[5] == '0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e'? 6 : 18
 
       return {
         id:            Number(r[0]),
@@ -69,7 +72,7 @@ export async function GET() {
         maxTickets:    Number(r[3]),
         totalTickets:  Number(r[4]),
         rewardToken:   r[5],
-        rewardPool:    formatUnits(r[6], 18),
+        rewardPool:    formatUnits(r[6],decimal),
         ticketCost:    formatUnits(r[7],18),
         winnersSelected: r[8],
       }
@@ -89,6 +92,15 @@ export async function GET() {
         return { ...rf, symbol }
       })
     )
+    raffles.sort((a, b) => {
+      const aIsPriority = a.rewardToken.toLowerCase() === PRIORITY_TOKEN;
+      const bIsPriority = b.rewardToken.toLowerCase() === PRIORITY_TOKEN;
+      if (aIsPriority && !bIsPriority) return -1;  // a first
+      if (!aIsPriority && bIsPriority) return  1;  // b first
+      return 0;                                   // keep relative order
+    });
+    
+    return NextResponse.json({ raffles });
   
 
     return NextResponse.json({ raffles })

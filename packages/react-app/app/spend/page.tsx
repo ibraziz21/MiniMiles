@@ -27,7 +27,7 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   USDT: RaffleImg2,
   Miles: RaffleImg5,
   // default fallback:
-  default: akibaMilesSymbol,
+  default: RaffleImg3,
 }
 
 // Shape it to what SpendPartnerQuestSheet expects:
