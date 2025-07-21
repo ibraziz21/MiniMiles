@@ -2,11 +2,11 @@
 'use client';
 import { useQuery } from '@tanstack/react-query';
 import { useWeb3 } from '@/contexts/useWeb3';
-import type { HistoryBundle } from '@/types/history';
+import type { HistoryBundle, RaffleResultItem } from '@/types/history';
 
 export function useHistoryBundle() {
   const { address } = useWeb3();
-  return useQuery<HistoryBundle & { ok: boolean; meta: any }>({
+  return useQuery<HistoryBundle & { ok: boolean; raffleResults: RaffleResultItem[]; meta: any }>({
     queryKey: ['historyBundle', address?.toLowerCase()],
     enabled: !!address,
     staleTime: 30_000,

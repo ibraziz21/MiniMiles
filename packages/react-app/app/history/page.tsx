@@ -5,6 +5,7 @@ import HistoryStats from '@/components/history-stats';
 import MiniMilesHistoryCard from '@/components/mini-miles-history-card';
 import TransactionHistoryCard from '@/components/transaction-history-card';
 import { RaffleCard } from '@/components/raffle-card';
+import { RaffleResultCard } from '@/components/raffle-result-card';
 
 import { useWeb3 } from '@/contexts/useWeb3';
 import { useHistoryBundle } from '@/helpers/useHistoryBundle'; // adjust path if different
@@ -14,6 +15,7 @@ import { fetchTotalCompletedChallenges } from '@/helpers/fetchTotalCompleteChall
 import { akibaMilesSymbol } from '@/lib/svg';
 import { RaffleImg1, RaffleImg2, RaffleImg5 } from '@/lib/img';
 import { StaticImageData } from 'next/image';
+import dayjs from 'dayjs';
 
 const TOKEN_IMAGES: Record<string, StaticImageData> = {
   cUSD: RaffleImg1,
@@ -74,6 +76,7 @@ export default function HistoryPage() {
   /* -------------------------------------------------- derive data with safe guards */
   const stats = bundle?.stats; // may be undefined if API error or still loading
   const historyItems = bundle?.history ?? [];
+  const raffleResults = bundle?.raffleResults ?? [];
 
   const totalEarned = stats?.totalEarned ?? 0;
   const totalWins = stats?.totalRafflesWon ?? 0;
@@ -90,8 +93,20 @@ export default function HistoryPage() {
   const overallLoading = bundleLoading || rafflesLoading;
 
   const formatEndsIn = (ends: number) => {
-    const days = Math.floor((ends - Date.now() / 1000) / 86_400);
-    return `${days} days`;
+    const nowSec      = Math.floor(Date.now() / 1000);
+    let   secondsLeft = ends - nowSec;
+  
+    if (secondsLeft <= 0) return 'Ended';
+  
+    const days = Math.floor(secondsLeft / 86_400); // 24 h
+    if (days >= 1) return `${days}d`;
+  
+    const hours = Math.floor(secondsLeft / 3_600);
+    secondsLeft -= hours * 3_600;
+    const mins  = Math.floor(secondsLeft / 60);
+  
+    // “4h 0m” looks odd → show just hours if minutes = 0
+    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
   };
 
   /* -------------------------------------------------- render */
@@ -116,6 +131,48 @@ export default function HistoryPage() {
         title="Total completed challenges"
         stats={totalChallengesLabel}
       />
+
+{/* ─── Recent raffle results ───────────────────────────── */}
+<div className="mx-4 mt-6">
+  <div className="flex justify-between items-center">
+    <h3 className="text-lg font-extrabold mb-2">Recent raffle results</h3>
+  </div>
+
+  {bundleLoading ? (
+    <p className="text-sm text-gray-500">Loading…</p>
+  ) : raffleResults.length === 0 ? (
+    <p className="text-sm text-gray-500">No raffle results yet.</p>
+  ) : (
+    <div className="flex gap-3 overflow-x-auto">
+      {raffleResults.map(r => {
+        const img = TOKEN_IMAGES[r.symbol] ?? TOKEN_IMAGES.default;
+
+        return (
+          <RaffleResultCard
+            key={r.id}
+            image={img}
+            roundId={r.roundId}
+            ts={r.ts}
+            winner={`${r.winner.slice(0, 6)}…${r.winner.slice(-4)}`}
+            prize={
+              r.rewardPool
+                ? `${Number(r.rewardPool) / 1e18} ${r.symbol}`
+                : r.symbol
+            }
+            onClick={() =>
+              window.open(
+                `https://celoscan.io/tx/${r.id}`,
+                "_blank",
+                "noopener,noreferrer"
+              )
+            }
+          />
+        );
+      })}
+    </div>
+  )}
+</div>
+
 
       {/* Participating Raffles */}
       <div className="mx-4 mt-6">

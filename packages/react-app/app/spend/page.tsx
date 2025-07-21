@@ -111,9 +111,20 @@ const Page = () => {
   }, [])
 
   const formatEndsIn = (ends: number) => {
-    const secondsLeft = ends - Math.floor(Date.now() / 1000);
-    const days = Math.floor(secondsLeft / (60 * 60 * 24));
-    return `${days} days`;
+    const nowSec      = Math.floor(Date.now() / 1000);
+    let   secondsLeft = ends - nowSec;
+  
+    if (secondsLeft <= 0) return 'Ended';
+  
+    const days = Math.floor(secondsLeft / 86_400); // 24 h
+    if (days >= 1) return `${days}d`;
+  
+    const hours = Math.floor(secondsLeft / 3_600);
+    secondsLeft -= hours * 3_600;
+    const mins  = Math.floor(secondsLeft / 60);
+  
+    // “4h 0m” looks odd → show just hours if minutes = 0
+    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
   };
 
 

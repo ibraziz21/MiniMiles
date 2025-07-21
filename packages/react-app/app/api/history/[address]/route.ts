@@ -1,5 +1,18 @@
 // app/api/history/[address]/route.ts
 import { NextResponse } from 'next/server';
+import {
+  createPublicClient,
+  http,
+  type Address,
+  type Abi,
+} from 'viem';
+import { celo } from 'viem/chains';
+import erc20Abi from '@/contexts/cusd-abi.json';   // has `symbol()` ABI
+
+const publicClient = createPublicClient({
+  chain: celo,
+  transport: http(),
+});
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,31 +26,43 @@ const TTL_MS = 30_000;
 const USE_CACHE = true;
 
 const FULL_QUERY = /* GraphQL */ `
-  query Full($user: Bytes!) {
-    mints: transfers(
-      where: { to: $user, from: "0x0000000000000000000000000000000000000000" }
-      orderBy: blockTimestamp
-      orderDirection: desc
-    ) { id value blockTimestamp }
+  # --- FULL_QUERY (replace the block entirely) ---
+query Full($user: Bytes!) {
+  mints: transfers(
+    where: { to: $user, from: "0x0000000000000000000000000000000000000000" }
+    orderBy: blockTimestamp
+    orderDirection: desc
+  ) { id value blockTimestamp }
 
-    spends: transfers(
-      where: { from: $user }
-      orderBy: blockTimestamp
-      orderDirection: desc
-    ) { id value blockTimestamp }
+  spends: transfers(
+    where: { from: $user }
+    orderBy: blockTimestamp
+    orderDirection: desc
+  ) { id value blockTimestamp }
 
-    joins: participantJoineds(
-      where: { participant: $user }
-      orderBy: blockTimestamp
-      orderDirection: desc
-    ) { id roundId blockTimestamp }
+  joins: participantJoineds(
+    where: { participant: $user }
+    orderBy: blockTimestamp
+    orderDirection: desc
+  ) { id roundId blockTimestamp }
 
-    wins: winnerSelecteds(
-      where: { winner: $user }
-      orderBy: blockTimestamp
-      orderDirection: desc
-    ) { id roundId reward blockTimestamp }  
+  raffleResults: winnerSelecteds(          # <-- keep this name
+    orderBy: blockTimestamp
+    orderDirection: desc
+    first: 50
+  ) { id roundId reward blockTimestamp winner }
+
+  rounds: roundCreateds(                   # <-- now inside same query
+    orderBy: blockTimestamp
+    orderDirection: desc
+    first: 50
+  ) {
+    roundId
+    rewardToken
+    rewardPool
   }
+}
+
 `;
 
 function isAddress(a: string) {
@@ -113,7 +138,12 @@ export async function GET(_req: Request, context: any) {
   const spends = Array.isArray(d.spends) ? d.spends : [];
   const joins  = Array.isArray(d.joins)  ? d.joins  : [];
   const wins   = Array.isArray(d.wins)   ? d.wins   : [];
-
+   const raffleResults = Array.isArray(d.raffleResults) ? d.raffleResults : [];
+  const rounds        = Array.isArray(d.rounds)        ? d.rounds        : [];
+  
+  // Build lookup: roundId → roundMeta
+  const roundById: Record<string, any> = {};
+  for (const r of rounds) roundById[r.roundId] = r;
   const earnItems = mints.map((t: any) => {
     const amt = Number(t.value) / 1e18;
     return {
@@ -124,6 +154,31 @@ export async function GET(_req: Request, context: any) {
       note: `You earned ${amt.toFixed(0)} MiniMiles`
     };
   });
+
+  // Build addr → symbol map (with in‑memory cache)
+const symbolCache: Record<string, string> = {};
+
+async function loadSymbols(addrs: Address[]) {
+  const unique = addrs.filter(a => a && !symbolCache[a.toLowerCase()]);
+  if (!unique.length) return;
+
+  const calls = unique.map(addr => ({
+    address: addr,
+    abi: erc20Abi.abi as Abi,
+    functionName: 'symbol',
+  }));
+
+  const res = await publicClient.multicall({ contracts: calls, allowFailure: true });
+
+  unique.forEach((addr, i) => {
+    const out = res[i];
+    if (out.status === 'success') {
+      symbolCache[addr.toLowerCase()] = out.result as string;
+    } else {
+      symbolCache[addr.toLowerCase()] = '???';
+    }
+  });
+}
 
   const spendItems = spends.map((t: any) => {
     const amt = Number(t.value) / 1e18;
@@ -152,7 +207,35 @@ export async function GET(_req: Request, context: any) {
     note: `🎉 Won raffle #${w.roundId}`
   }));
 
-  const history = [...earnItems, ...spendItems, ...joinItems, ...winItems]
+  const rewardTokens: Address[] = rounds
+  .map((r: any) => r.rewardToken as Address)
+  .filter(Boolean);
+
+await loadSymbols(rewardTokens);
+
+const resultItems = raffleResults.map((w: any) => {
+  const meta = roundById[w.roundId] || {};
+  const tokenAddr = (meta.rewardToken || '0x').toLowerCase();
+  const symbol = symbolCache[tokenAddr] || '???';
+
+  return {
+    id: w.id,
+    ts: +w.blockTimestamp,
+    type: 'RAFFLE_RESULT' as const,
+    roundId: w.roundId,
+    winner: w.winner,
+    rewardToken: tokenAddr,
+    symbol,
+    rewardPool: meta.rewardPool ?? null,
+    image: meta.image ?? null,
+    note: `Won ${Number(w.reward) / 1e18} ${symbol}`,
+  };
+});
+
+
+  
+
+  const history = [...earnItems, ...spendItems, ...joinItems, ...winItems ]
     .sort((a, b) => b.ts - a.ts);
 
   const totalEarned     = earnItems.reduce((s: number, i: { amount: any; }) => s + Number(i.amount), 0);
@@ -164,6 +247,7 @@ export async function GET(_req: Request, context: any) {
 
   const payload = {
     history,
+    raffleResults: resultItems, 
     stats: { totalEarned, totalRafflesWon, totalUSDWon },
     participatingRaffles,
     meta: {
