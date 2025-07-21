@@ -14,8 +14,7 @@ export interface RaffleResultCardProps {
   winner: string;
   /** Human‑readable prize label, e.g. “500 USDT” */
   prize: string;
-  /** optional click ‑ open block explorer, etc. */
-  onClick?: () => void;
+
 }
 
 export const RaffleResultCard: React.FC<RaffleResultCardProps> = ({
@@ -24,11 +23,10 @@ export const RaffleResultCard: React.FC<RaffleResultCardProps> = ({
   ts,
   winner,
   prize,
-  onClick,
+
 }) => (
   <div
     className="rounded-xl bg-white shadow-md min-w-[240px] min-h-[240px] relative overflow-hidden cursor-pointer"
-    onClick={onClick}
   >
     {/* banner */}
     <Image

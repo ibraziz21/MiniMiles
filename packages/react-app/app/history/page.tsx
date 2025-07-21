@@ -146,6 +146,10 @@ export default function HistoryPage() {
     <div className="flex gap-3 overflow-x-auto">
       {raffleResults.map(r => {
         const img = TOKEN_IMAGES[r.symbol] ?? TOKEN_IMAGES.default;
+        const winnerText =
+        address && r.winner.toLowerCase() === address.toLowerCase()
+          ? 'You won!'
+          : `Winner: ${r.winner.slice(0, 6)}…${r.winner.slice(-4)}`
 
         return (
           <RaffleResultCard
@@ -153,18 +157,11 @@ export default function HistoryPage() {
             image={img}
             roundId={r.roundId}
             ts={r.ts}
-            winner={`${r.winner.slice(0, 6)}…${r.winner.slice(-4)}`}
+            winner={winnerText}
             prize={
               r.rewardPool
                 ? `${Number(r.rewardPool) / 1e18} ${r.symbol}`
                 : r.symbol
-            }
-            onClick={() =>
-              window.open(
-                `https://celoscan.io/tx/${r.id}`,
-                "_blank",
-                "noopener,noreferrer"
-              )
             }
           />
         );
