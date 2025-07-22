@@ -63,6 +63,7 @@ export async function GET() {
 
       const now = BigInt(Math.floor(Date.now() / 1000));
       if (r[2] /* endTime */ <= now) return null;  
+      if (r[6] === 0n) return null;  
       const decimal = r[5] == '0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e'? 6 : 18
 
       return {
@@ -103,7 +104,6 @@ export async function GET() {
     return NextResponse.json({ raffles });
   
 
-    return NextResponse.json({ raffles })
   } catch (err) {
     console.error('[raffle_display] error:', err)
     return NextResponse.json(
