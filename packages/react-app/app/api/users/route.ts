@@ -7,11 +7,13 @@ import {
   http,
   parseUnits,
   type Abi,
+  getAddress,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 import MiniPointsAbi from "@/contexts/minimiles.json";
 
+/* ── setup ───────────────────────────────────────────────────────── */
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY!
@@ -21,98 +23,136 @@ const account = privateKeyToAccount(`0x${process.env.PRIVATE_KEY!}`);
 const publicClient = createPublicClient({ chain: celo, transport: http() });
 const walletClient = createWalletClient({ account, chain: celo, transport: http() });
 
-/* ── reward config (fallbacks if env missing) ─────────────────────────── */
-const BASE_REWARD = process.env.REF_BASE_REWARD ?? "100"; // new user default
-const NEW_USER_BONUS = process.env.REF_NEW_BONUS ?? "50";  // extra if used a code
-const REFERRER_BONUS = process.env.REF_REFERRER_BONUS ?? "50";  // reward to inviter
+const TOKEN = process.env.MINIPOINTS_ADDRESS as `0x${string}`;
 
-/* helper: single mint */
-async function mint(to: string, amountStr: string) {
-  const { request } = await publicClient.simulateContract({
-    address: process.env.MINIPOINTS_ADDRESS as `0x${string}`,
-    abi: MiniPointsAbi.abi as Abi,
-    functionName: "mint",
-    args: [to, parseUnits(amountStr, 18)],
-    account,
-  });
-  const hash =await walletClient.writeContract(request);
-  await publicClient.waitForTransactionReceipt({ hash });
-  return hash;
+/* rewards (strings -> numbers) */
+const BASE_REWARD = Number(process.env.REF_BASE_REWARD ?? "100");
+const NEW_USER_BONUS = Number(process.env.REF_NEW_BONUS ?? "50");
+const REFERRER_BONUS = Number(process.env.REF_REFERRER_BONUS ?? "50");
+
+/* ── helpers ─────────────────────────────────────────────────────── */
+type MintTarget = { to: `0x${string}`; amount: bigint };
+
+async function simulateAll(mints: MintTarget[]) {
+  return Promise.all(
+    mints.map(({ to, amount }) =>
+      publicClient.simulateContract({
+        address: TOKEN,
+        abi: MiniPointsAbi.abi as Abi,
+        functionName: "mint",
+        args: [to, amount],
+        account,
+      })
+    )
+  );
 }
 
-export async function POST(req: Request) {
-  const { userAddress } = await req.json().catch(() => ({}));
-  const address = (userAddress as string | undefined)?.toLowerCase();
+async function executeAll(simResults: Awaited<ReturnType<typeof simulateAll>>) {
+  const hashes: string[] = [];
+  for (const { request } of simResults) {
+    const hash = await walletClient.writeContract(request);
+    await publicClient.waitForTransactionReceipt({ hash });
+    hashes.push(hash);
+  }
+  return hashes;
+}
 
-  if (!address) {
-    return NextResponse.json({ error: "userAddress is required" }, { status: 400 });
+/* ── route ───────────────────────────────────────────────────────── */
+export async function POST(req: Request) {
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  /* 1) check membership */
+  const raw = body?.userAddress;
+  if (!raw) return NextResponse.json({ error: "userAddress is required" }, { status: 400 });
+
+  let userAddr: `0x${string}`;
+  try {
+    userAddr = getAddress(raw);
+  } catch {
+    return NextResponse.json({ error: "Invalid address" }, { status: 400 });
+  }
+
+  /* 1) membership check */
   const { data: userRow, error: userErr } = await supabase
     .from("users")
     .select("is_member")
-    .eq("user_address", address)
+    .eq("user_address", userAddr.toLowerCase())
     .single();
 
-  if (userErr) {
+  if (userErr && userErr.code !== "PGRST116") {
     console.error(userErr);
     return NextResponse.json({ error: "DB error" }, { status: 500 });
   }
+  if (userRow?.is_member) return NextResponse.json({ success: true, already: true });
 
-  if (userRow?.is_member) {
-    return NextResponse.json({ success: true, already: true });
-  }
-
-  /* 2) check if this wallet redeemed a referral code */
+  /* 2) referral check */
   const { data: refRow, error: refErr } = await supabase
     .from("referrals")
     .select("referrer_address")
-    .eq("referred_address", address)
+    .eq("referred_address", userAddr.toLowerCase())
     .maybeSingle();
 
-  if (refErr) {
-    console.error(refErr);
-    // still proceed without bonus
+  if (refErr) console.error(refErr);
+
+  let refAddr: `0x${string}` | null = null;
+  if (refRow?.referrer_address) {
+    try {
+      const candidate = getAddress(refRow.referrer_address);
+      if (candidate !== userAddr) refAddr = candidate;
+    } catch {
+      /* ignore bad stored address */
+    }
   }
 
-  /* determine amounts */
-  const newUserAmount = refRow
-    ? (Number(BASE_REWARD) + Number(NEW_USER_BONUS)).toString()
+  /* 3) determine amounts */
+  const newUserAmountNum = refAddr
+    ? BASE_REWARD + NEW_USER_BONUS
     : BASE_REWARD;
 
-  try {
-    /* 3) mint to new user */
-    await mint(address, newUserAmount);
+  const mints: MintTarget[] = [
+    { to: userAddr, amount: parseUnits(newUserAmountNum.toString(), 18) },
+  ];
+  if (refAddr) {
+    mints.push({ to: refAddr, amount: parseUnits(REFERRER_BONUS.toString(), 18) });
+  }
 
-    /* 4) mint to referrer if applicable */
-    if (refRow?.referrer_address) {
-      try {
-        await mint(refRow.referrer_address.toLowerCase(), REFERRER_BONUS);
-      } catch (e) {
-        console.error("referrer mint failed:", e);
-        // do not fail the whole request; just log
-      }
-    }
+  /* 4) pre-flight simulate BOTH */
+  let sims;
+  try {
+    sims = await simulateAll(mints);
+  } catch (e) {
+    console.error("simulate failed:", e);
+    return NextResponse.json({ error: "Simulation failed" }, { status: 500 });
+  }
+
+  /* 5) execute */
+  let txHashes: string[] = [];
+  try {
+    txHashes = await executeAll(sims);
   } catch (e) {
     console.error("mint failed:", e);
     return NextResponse.json({ error: "Mint failed" }, { status: 500 });
   }
 
-  /* 5) mark as member */
+  /* 6) mark as member (even if DB fails, on-chain is final) */
   const { error: upErr } = await supabase
     .from("users")
-    .upsert({ user_address: address, is_member: true }, { onConflict: "user_address" });
-
-  if (upErr) {
-    console.error(upErr);
-    // token mint is irreversible; still return success
-  }
+    .upsert(
+      { user_address: userAddr.toLowerCase(), is_member: true },
+      { onConflict: "user_address" }
+    );
+  if (upErr) console.error("upsert users err:", upErr);
 
   return NextResponse.json({
     success: true,
     already: false,
-    awarded: newUserAmount,
-    referrerRewarded: !!refRow?.referrer_address,
+    awarded: newUserAmountNum.toString(),
+    referrerRewarded: Boolean(refAddr),
+    txHashes,
   });
 }
+

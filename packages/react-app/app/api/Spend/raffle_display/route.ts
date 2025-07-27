@@ -61,6 +61,7 @@ export async function GET() {
 
       const now = BigInt(Math.floor(Date.now() / 1000));
       if (r[2] /* endTime */ <= now) return null;  
+      if (r[6] == BigInt(0)) return null;
 
       return {
         id:            Number(r[0]),

@@ -75,8 +75,8 @@ export default function ReferDialog({ open, onOpenChange, code }: Props) {
           </div>
 
           {/* Code block */}
-          <div className="mt-6">
-            <p className="text-sm text-gray-600 mb-2">Your code</p>
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600 mb-2 ">Your code</p>
             <Input
               ref={inputRef}
               readOnly
@@ -89,11 +89,11 @@ export default function ReferDialog({ open, onOpenChange, code }: Props) {
           {/* How it works */}
           <div className="mt-6 text-sm space-y-2 text-gray-700">
             <p className="font-semibold">How it works</p>
-            <ul className="list-disc list-inside space-y-1">
+            <ol className="list-decimal list-inside space-y-1">
               <li>Share this code with a friend.</li>
               <li>They paste it during onboarding before claiming Miles.</li>
               <li>Both of you instantly receive +50 AkibaMiles.</li>
-            </ul>
+            </ol>
           </div>
 
           <DialogFooter className="mt-6 flex flex-col gap-3">

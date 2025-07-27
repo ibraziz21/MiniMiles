@@ -10,7 +10,7 @@ import { RaffleCard } from "@/components/raffle-card";
 import RafflesWonCard from "@/components/raffle-won-card";
 import { SectionHeading } from "@/components/section-heading";
 import { useWeb3 } from "@/contexts/useWeb3";
-import { RaffleImg1, RaffleImg2, RaffleImg5, WinImg } from "@/lib/img";
+import { RaffleImg1, RaffleImg2, RaffleImg3, RaffleImg5, WinImg } from "@/lib/img";
 import { Celo, akibaMilesSymbol } from "@/lib/svg";
 import { useEffect, useState } from "react";
 import { fetchActiveRaffles, Raffle } from "@/helpers/raffledisplay";
@@ -33,7 +33,7 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   USDT: RaffleImg2,
   Miles: RaffleImg5,
   // default fallback:
-  default: akibaMilesSymbol,
+  default: RaffleImg3,
 }
 
 const upcomingGames = [
