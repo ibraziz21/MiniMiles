@@ -1,5 +1,6 @@
 "use client";
 
+import ReferFab from "@/components/refer-fab";
 import DailyChallenges from "@/components/daily-challenge";
 import DashboardHeader from "@/components/dashboard-header";
 import { GameCard } from "@/components/game-card";
@@ -181,7 +182,7 @@ export default function Home() {
         onOpenChange={setSpendSheetOpen}
         raffle={spendRaffle}
       />)}
-
+    <ReferFab />
        
     </main>
     
