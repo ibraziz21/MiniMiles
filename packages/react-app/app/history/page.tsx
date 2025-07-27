@@ -13,7 +13,7 @@ import { fetchActiveRaffles, Raffle } from '@/helpers/raffledisplay';
 import { fetchTotalCompletedChallenges } from '@/helpers/fetchTotalCompleteChallenges';
 
 import { akibaMilesSymbol } from '@/lib/svg';
-import { RaffleImg1, RaffleImg2, RaffleImg5 } from '@/lib/img';
+import { RaffleImg1, RaffleImg2, RaffleImg3, RaffleImg5 } from '@/lib/img';
 import { StaticImageData } from 'next/image';
 import dayjs from 'dayjs';
 
@@ -21,7 +21,7 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   cUSD: RaffleImg1,
   USDT: RaffleImg2,
   Miles: RaffleImg5,
-  default: akibaMilesSymbol,
+  default: RaffleImg3,
 };
 
 export default function HistoryPage() {
