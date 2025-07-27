@@ -69,7 +69,7 @@ export default function ReferDialog({ open, onOpenChange, code }: Props) {
           </DialogHeader>
 
           {/* Reward info banner */}
-          <div className="bg-[#238D9D] text-white rounded-xl py-4 text-center mt-4">
+          <div className="bg-point-card bg-[#238D9D] text-white rounded-xl py-4 text-center mt-4">
             <p className="text-sm opacity-80">Bonus</p>
             <p className="text-2xl font-medium">+50 AkibaMiles each</p>
           </div>
