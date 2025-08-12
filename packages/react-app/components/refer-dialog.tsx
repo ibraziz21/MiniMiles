@@ -71,7 +71,7 @@ export default function ReferDialog({ open, onOpenChange, code }: Props) {
           {/* Reward info banner */}
           <div className="bg-point-card bg-[#238D9D] text-white rounded-xl py-4 text-center mt-4">
             <p className="text-sm opacity-80">Bonus</p>
-            <p className="text-2xl font-medium">+50 AkibaMiles each</p>
+            <p className="text-2xl font-medium">+100 AkibaMiles each</p>
           </div>
 
           {/* Code block */}
@@ -92,7 +92,7 @@ export default function ReferDialog({ open, onOpenChange, code }: Props) {
             <ol className="list-decimal list-inside space-y-1">
               <li>Share this code with a friend.</li>
               <li>They paste it during onboarding before claiming Miles.</li>
-              <li>Both of you instantly receive +50 AkibaMiles.</li>
+              <li>Both of you instantly receive +100 AkibaMiles.</li>
             </ol>
           </div>
 

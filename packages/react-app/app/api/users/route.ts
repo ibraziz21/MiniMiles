@@ -27,8 +27,8 @@ const TOKEN = process.env.MINIPOINTS_ADDRESS as `0x${string}`;
 
 /* rewards (strings -> numbers) */
 const BASE_REWARD = Number(process.env.REF_BASE_REWARD ?? "100");
-const NEW_USER_BONUS = Number(process.env.REF_NEW_BONUS ?? "50");
-const REFERRER_BONUS = Number(process.env.REF_REFERRER_BONUS ?? "50");
+const NEW_USER_BONUS = Number(process.env.REF_NEW_BONUS ?? "100");
+const REFERRER_BONUS = Number(process.env.REF_REFERRER_BONUS ?? "100");
 
 /* ── helpers ─────────────────────────────────────────────────────── */
 type MintTarget = { to: `0x${string}`; amount: bigint };
