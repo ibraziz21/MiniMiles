@@ -18,7 +18,7 @@ import raffleAbi from "@/contexts/miniraffle.json";
 import posthog from "posthog-js";
 
 export function useWeb3() {
-  const [address, setAddress]         = useState<string | null>(null);
+  const [address, setAddress] = useState<string | null>(null);
   const [walletClient, setWalletClient] = useState<any>(null);
 
   // 1️⃣ instantiate once on mount
@@ -36,16 +36,16 @@ export function useWeb3() {
 
   const getUserAddress = async () => {
     if (typeof window !== "undefined" && window.ethereum) {
-        let walletClient = createWalletClient({
-            transport: custom(window.ethereum),
-            chain: celo,
-        });
+      let walletClient = createWalletClient({
+        transport: custom(window.ethereum),
+        chain: celo,
+      });
 
-        let [address] = await walletClient.getAddresses();
-        setAddress(address);
-        posthog.identify(address)
+      let [address] = await walletClient.getAddresses();
+      setAddress(address);
+      posthog.identify(address)
     }
-};
+  };
 
   const publicClient = createPublicClient({
     chain: celo,
@@ -80,28 +80,28 @@ export function useWeb3() {
     [walletClient, address, publicClient]
   );
 
- // in src/contexts/useWeb3.ts
- // 2️⃣ joinRaffle writes directly
- const joinRaffle = useCallback(
-  async (roundId: number, ticketCount: number) => {
-    if (!walletClient || !address) throw new Error("Wallet not connected");
+  // in src/contexts/useWeb3.ts
+  // 2️⃣ joinRaffle writes directly
+  const joinRaffle = useCallback(
+    async (roundId: number, ticketCount: number) => {
+      if (!walletClient || !address) throw new Error("Wallet not connected");
 
-    const hash = await walletClient.writeContract({
-      address: '0xD75dfa972C6136f1c594Fec1945302f885E1ab29',
-      abi: raffleAbi.abi,
-      functionName: "joinRaffle",
-      account: address,
-      args: [BigInt(roundId), BigInt(ticketCount)]
-    });
+      const hash = await walletClient.writeContract({
+        address: '0xD75dfa972C6136f1c594Fec1945302f885E1ab29',
+        abi: raffleAbi.abi,
+        functionName: "joinRaffle",
+        account: address,
+        args: [BigInt(roundId), BigInt(ticketCount)]
+      });
 
-    // wait until it’s mined (optional-but-nice UX)
-    await publicClient.waitForTransactionReceipt({ hash });
+      // wait until it’s mined (optional-but-nice UX)
+      await publicClient.waitForTransactionReceipt({ hash });
 
-    return hash;          // <- RETURN THE HASH STRING
-  },
-  [walletClient, address, publicClient]
-);
-  
+      return hash;          // <- RETURN THE HASH STRING
+    },
+    [walletClient, address, publicClient]
+  );
+
 
   return {
     address,
