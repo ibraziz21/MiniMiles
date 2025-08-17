@@ -16,11 +16,11 @@ const Layout: FC<Props> = ({ children }) => {
 
   /* MiniPay detection */
   const [isMiniPay, setIsMiniPay] = useState(true);
-  // useEffect(() => {
-  //   if (typeof window !== 'undefined' && (window as any).ethereum?.isMiniPay) {
-  //     setIsMiniPay(true);
-  //   }
-  // }, []);
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window as any).ethereum?.isMiniPay) {
+      setIsMiniPay(true);
+    }
+  }, []);
 
   /* load wallet */
   useEffect(() => { getUserAddress(); }, [getUserAddress]);
@@ -33,15 +33,15 @@ const Layout: FC<Props> = ({ children }) => {
   const isClaim      = pathname.startsWith('/claim');
 
   /* redirect if new user */
-  // useEffect(() => {
-  //   if (!isFetched) return;
-  //   if (!isMember && !isOnboarding && !isClaim) {
-  //     router.replace('/onboarding');
-  //   }
-  // }, [isMember, isFetched, isOnboarding, isClaim, router]);
+  useEffect(() => {
+    if (!isFetched) return;
+    if (!isMember && !isOnboarding && !isClaim) {
+      router.replace('/onboarding');
+    }
+  }, [isMember, isFetched, isOnboarding, isClaim, router]);
 
-  // /* wait for flag */
-  // if (!isFetched) return null;
+  /* wait for flag */
+  if (!isFetched) return null;
 
   return (
     <div className="bg-gypsum overflow-hidden flex flex-col min-h-screen">
