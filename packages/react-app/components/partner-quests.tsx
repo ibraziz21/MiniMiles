@@ -34,34 +34,34 @@ const quests: Quest[] = [
       { title: "Follow", text: "Hit the Follow button and confirm." },
     ],
   },
-  // {
-  //   id: '5cb7f990-1db6-4c99-8236-804b78dadb63',
-  //   isLocked: false,
-  //   img: W3MLogo,
-  //   title: "Web3 Mashinani",
-  //   description: "Follow Us on Twitter",
-  //   reward: "20 akibaMiles",
-  //   color: "#f7f5f2",
-  //   actionLink: "https://twitter.com/web3mashinani",
-  //   instructions: [
-  //     { title: "Open Twitter", text: "Go to our @web3mashinani page." },
-  //     { title: "Follow", text: "Hit the Follow button and confirm." },
-  //   ],
-  // },
   {
-    id: 'd41e652b-8aa3-469c-9957-b7d6b6b6e182',
+    id: '5cb7f990-1db6-4c99-8236-804b78dadb63',
     isLocked: false,
-    img: SYR,
-    title: "SuperYLDR",
-    description: "Follow SuperYield-R on Twitter",
+    img: W3MLogo,
+    title: "Web3 Mashinani",
+    description: "Follow Us on Twitter",
     reward: "20 akibaMiles",
-    color: "#c1f5f5",
-    actionLink: "https://x.com/superyldr",     // <-- where the button should go
+    color: "#f7f5f2",
+    actionLink: "https://twitter.com/web3mashinani",
     instructions: [
-      { title: "Open Twitter", text: "Go to our @superYLDR page." },
+      { title: "Open Twitter", text: "Go to our @web3mashinani page." },
       { title: "Follow", text: "Hit the Follow button and confirm." },
     ],
   },
+  // {
+  //   id: 'd41e652b-8aa3-469c-9957-b7d6b6b6e182',
+  //   isLocked: false,
+  //   img: SYR,
+  //   title: "SuperYLDR",
+  //   description: "Follow SuperYield-R on Twitter",
+  //   reward: "20 akibaMiles",
+  //   color: "#c1f5f5",
+  //   actionLink: "https://x.com/superyldr",     // <-- where the button should go
+  //   instructions: [
+  //     { title: "Open Twitter", text: "Go to our @superYLDR page." },
+  //     { title: "Follow", text: "Hit the Follow button and confirm." },
+  //   ],
+  // },
 
   {
     id: '8d5a7766-4d2a-4bff-ac97-6b03fd5b570f',
