@@ -18,11 +18,12 @@ import { useRouter } from "next/navigation";
 export default function EarnPage() {
   // ✅ one call
   const web3 = useWeb3() as any;
-  const { address, getUserAddress, getakibaMilesBalance } = web3;
+  const { address, getUserAddress, getakibaMilesBalance, getUserVaultBalance } = web3;
 
   const [balance, setBalance] = useState("0");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [vaultHelp, setVaultHelp] = useState(false);
+  const [currentDeposit, setCurrentDeposit] = useState<number>(0);
   const [quest, setQuest] = useState<any>(null);
   const [success, setSuccess] = useState(false);
   const [vaultDeposit, setVaultDeposit] = useState<number>(0);
@@ -30,6 +31,16 @@ export default function EarnPage() {
   const router = useRouter();
 
   useEffect(() => { getUserAddress?.(); }, [getUserAddress]);
+  useEffect(() => {
+    const fetchBalance = async () => {
+      if (!address) return;
+      try {
+        const balance = await getUserVaultBalance();
+        setCurrentDeposit(balance); // ← number
+      } catch (e) { console.log(e); }
+    };
+    fetchBalance();
+  }, [address, getUserVaultBalance]);
 
   useEffect(() => {
     if (!address) return;
@@ -46,7 +57,7 @@ export default function EarnPage() {
 
   const goDeposit = () => router.push("/vaults");
   const goWithdraw = () => router.push("/vaults/withdraw");
-  const hasDeposit = useMemo(() => vaultDeposit > 0, [vaultDeposit]);
+  const hasDeposit = currentDeposit > 0;
 
   return (
     <main className="pb-24 font-sterling">
@@ -70,7 +81,7 @@ export default function EarnPage() {
             <h4>My Deposit(USDT)</h4>
             <div className="flex ">
               <Image src={USDT} alt="" />
-              <h3 className="mx-2">{vaultDeposit.toFixed(2)}</h3>
+              <h3 className="mx-2">{currentDeposit}</h3>
             </div>
             {hasDeposit && (
               <p className="mt-2 text-xs text-[#238D9D] font-semibold">

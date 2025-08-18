@@ -13,7 +13,7 @@ const WithdrawPage = () => {
 
   // ✅ Call once
   const web3 = useWeb3() as any;
-  const { address, getUserAddress } = web3;
+  const { address, getUserAddress, getUserVaultBalance, withdraw } = web3;
 
   const [currentDeposit, setCurrentDeposit] = useState<number>(0);
   const [amount, setAmount] = useState<string>("");
@@ -28,6 +28,18 @@ const WithdrawPage = () => {
   const withinDeposit = numericAmount > 0 && numericAmount <= currentDeposit;
 
   useEffect(() => { getUserAddress?.(); }, [getUserAddress]);
+
+
+  useEffect(() => {
+    const fetchBalance = async () => {
+      if (!address) return;
+      try {
+        const balance = await getUserVaultBalance();
+        setCurrentDeposit(balance); // ← number
+      } catch (e) { console.log(e); }
+    };
+    fetchBalance();
+  }, [address, getUserVaultBalance]);
 
   useEffect(() => {
     if (!address) return;
@@ -51,7 +63,7 @@ const WithdrawPage = () => {
     if (!withinDeposit) return;
     setLoadingWithdraw(true);
     try {
-      const res = await web3?.withdrawFromVault?.(String(numericAmount));
+      const res = await withdraw(String(numericAmount));
       if (res?.txHash) setTxHash(res.txHash);
 
       setCurrentDeposit((d) => Math.max(0, d - numericAmount));
@@ -84,7 +96,7 @@ const WithdrawPage = () => {
         <h4>My Deposit(USDT)</h4>
         <div className="flex border border-[#238D9D4D] rounded-xl p-4">
           <Image src={USDT} alt="" />
-          <h3 className="mx-2">{currentDeposit.toFixed(2)}</h3>
+          <h3 className="mx-2">{currentDeposit}</h3>
         </div>
       </div>
 
@@ -104,7 +116,7 @@ const WithdrawPage = () => {
           <div className='flex justify-between w-full'>
             <h4>Available:</h4>
             <div className="flex ">
-              <h4>{currentDeposit.toFixed(2)}</h4>
+              <h4>{currentDeposit}</h4>
               <button
                 onClick={setMax}
                 className="rounded-full px-2 text-[#238D9D] font-semibold bg-[#F0FDFF]"
@@ -138,13 +150,13 @@ const WithdrawPage = () => {
           <div className="w-full rounded-t-2xl bg-white p-5">
             <h3 className="text-lg font-semibold">Withdrawal Successful!</h3>
             <p className="mt-1">
-              {numericAmount.toFixed(2)} USDT has been sent to your wallet.
+              {numericAmount} USDT has been sent to your wallet.
             </p>
             <div className="mt-4 border border-[#238D9D4D] bg-[#F0FDFF] rounded-xl p-4">
               <p className="text-sm">Updated Vault Balance (USDT)</p>
               <div className="flex items-center mt-2">
                 <Image src={USDT} alt="" />
-                <h3 className="mx-2">{(currentDeposit).toFixed(2)}</h3>
+                <h3 className="mx-2">{(currentDeposit)}</h3>
               </div>
             </div>
             <div className="flex items-center justify-between mt-4">

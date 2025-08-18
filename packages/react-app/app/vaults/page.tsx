@@ -13,12 +13,11 @@ const VaultPage = () => {
 
   // ✅ Call the hook once, at top-level
   const web3 = useWeb3() as any;
-  const { address, getUserAddress, getakibaMilesBalance } = web3;
+  const { address, getUserAddress, getakibaMilesBalance, getUSDTBalance,getUserVaultBalance, approveVault, deposit, hasAllowance } = web3;
 
   // balances
-  const [available, setAvailable] = useState<number>(100);   // fallback
+  const [available, setAvailable] = useState<number>(0);
   const [currentDeposit, setCurrentDeposit] = useState<number>(0);
-
   // input + state
   const [amount, setAmount] = useState<string>("");
   const [approved, setApproved] = useState(false);
@@ -37,17 +36,45 @@ const VaultPage = () => {
   useEffect(() => { getUserAddress?.(); }, [getUserAddress]);
 
   useEffect(() => {
-    if (!address) return;
+    let cancelled = false;
     (async () => {
-      // ✅ use the same web3 object (no new hook calls)
-      const [bal, dep] = await Promise.all([
-        web3?.getUsdtBalance?.().catch(() => null),
-        web3?.getVaultDeposit?.().catch(() => null),
-      ]);
-      if (bal != null) setAvailable(Number(bal));
-      if (dep != null) setCurrentDeposit(Number(dep));
+      // Only check when user has typed a valid minimum amount
+      if (!address || !minOK) {
+        if (!cancelled) setApproved(false);
+        return;
+      }
+      try {
+        const ok = await hasAllowance(String(numericAmount));
+        if (!cancelled) setApproved(ok);
+      } catch {
+        if (!cancelled) setApproved(false);
+      }
     })();
-  }, [address, web3]);
+    return () => { cancelled = true; };
+  }, [address, minOK, numericAmount, hasAllowance]);
+
+
+  useEffect(() => {
+    const fetchBalance = async () => {
+      if (!address) return;
+      try {
+        const balance = await getUSDTBalance();
+        setAvailable(balance); // ← number
+      } catch (e) { console.log(e); }
+    };
+    fetchBalance();
+  }, [address, getUSDTBalance]);
+  
+  useEffect(() => {
+    const fetchBalance = async () => {
+      if (!address) return;
+      try {
+        const balance = await getUserVaultBalance();
+        setCurrentDeposit(balance); // ← number
+      } catch (e) { console.log(e); }
+    };
+    fetchBalance();
+  }, [address, getUserVaultBalance]);
 
   const setMax = () => setAmount(String(available || 0));
 
@@ -63,9 +90,9 @@ const VaultPage = () => {
     if (!minOK || !withinBal || approved) return;
     setLoadingApprove(true);
     try {
-      const res = await web3?.approveUsdt?.(String(numericAmount));
-      if (res?.txHash) setTxHash(res.txHash);
-      setApproved(true);
+      const { hash, receipt } = await approveVault(String(numericAmount));
+      setTxHash(hash);               // ← use returned hash
+      setApproved(true);             // (or re-check via hasAllowance)
     } catch (e) {
       console.error(e);
       setApproved(false);
@@ -78,13 +105,13 @@ const VaultPage = () => {
     if (!approved || !minOK || !withinBal) return;
     setLoadingDeposit(true);
     try {
-      const res = await web3?.depositToVault?.(String(numericAmount));
-      if (res?.txHash) setTxHash(res.txHash);
-
+      const { hash } = await deposit(String(numericAmount)); // ← correct fn name
+      setTxHash(hash);
+  
       // optimistic update
       setAvailable((b) => Math.max(0, b - numericAmount));
       setCurrentDeposit((d) => d + numericAmount);
-
+  
       setSuccessOpen(true);
       await getakibaMilesBalance?.().catch(() => {});
     } catch (e) {
@@ -115,7 +142,7 @@ const VaultPage = () => {
         <h4>My Deposit(USDT)</h4>
         <div className="flex border border-[#238D9D4D] rounded-xl p-4">
           <Image src={USDT} alt="" />
-          <h3 className="mx-2">{currentDeposit.toFixed(2)}</h3>
+          <h3 className="mx-2">{currentDeposit}</h3>
         </div>
       </div>
 
@@ -135,7 +162,7 @@ const VaultPage = () => {
           <div className='flex justify-between w-full'>
             <h4>Available:</h4>
             <div className="flex ">
-              <h4>{available.toFixed(2)}</h4>
+              <h4>{available}</h4>
               <button
                 onClick={setMax}
                 className="rounded-full px-2 text-[#238D9D] font-semibold bg-[#F0FDFF]"
@@ -183,14 +210,14 @@ const VaultPage = () => {
           <div className="w-full rounded-t-2xl bg-white p-5">
             <h3 className="text-lg font-semibold">Deposit Successful!</h3>
             <p className="mt-1">
-              You added {numericAmount.toFixed(2)} USDT to the Akiba Vault.
+              You added {numericAmount} USDT to the Akiba Vault.
               Rewards will be included in the next daily payout.
             </p>
             <div className="mt-4 border border-[#238D9D4D] bg-[#F0FDFF] rounded-xl p-4">
               <p className="text-sm">Updated Vault Balance (USDT)</p>
               <div className="flex items-center mt-2">
                 <Image src={USDT} alt="" />
-                <h3 className="mx-2">{(currentDeposit).toFixed(2)}</h3>
+                <h3 className="mx-2">{(currentDeposit)}</h3>
               </div>
             </div>
             <div className="flex items-center justify-between mt-4">
