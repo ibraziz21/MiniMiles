@@ -171,7 +171,7 @@ const WithdrawPage = () => {
               <Button
                 title="Close"
                 onClick={closeSuccess}
-                className="rounded-2xl py-2 px-4 bg-[#238D9D] text-white hover:bg-[#238D9D]"
+                className="rounded-xl py-2 px-6 bg-[#238D9D] text-white hover:bg-[#238D9D]"
               />
             </div>
           </div>
