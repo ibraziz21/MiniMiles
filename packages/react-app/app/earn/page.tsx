@@ -85,7 +85,7 @@ export default function EarnPage() {
             </div>
             {hasDeposit && (
               <p className="mt-2 text-xs text-[#238D9D] font-semibold">
-                200 AkibaMiles earned
+                0 AkibaMiles earned
               </p>
             )}
           </div>

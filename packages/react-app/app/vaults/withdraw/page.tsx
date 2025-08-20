@@ -162,7 +162,7 @@ const WithdrawPage = () => {
             <div className="flex items-center justify-between mt-4">
               <a
                 className="text-[#238D9D] underline"
-                href={txHash ? `https://etherscan.io/tx/${txHash}` : "#"}
+                href={txHash ? `https://celoscan.io/tx/${txHash}` : "#"}
                 target="_blank"
                 rel="noreferrer"
               >
