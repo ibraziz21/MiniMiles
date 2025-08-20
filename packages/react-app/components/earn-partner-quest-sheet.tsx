@@ -33,25 +33,25 @@ const handleClaim = async () => {
       return;
     }
   
-    /* ---------- decide how to open the partner app ---------- */
-    const isMiniPay = typeof window !== "undefined" && (window as any).ethereum?.isMiniPay;
+    // /* ---------- decide how to open the partner app ---------- */
+    // const isMiniPay = typeof window !== "undefined" && (window as any).ethereum?.isMiniPay;
   
-    // Build a deep-link for Twitter quests
-    let destination = quest.actionLink;
-    if (quest.title.toLowerCase().includes("twitter")) {
-      // open the Twitter app if installed, else fall back to web
-      destination = isMiniPay
-        ? "twitter://user?screen_name=akibaMilesApp"
-        : "https://twitter.com/akibaMilesApp";
-    }
+    // // Build a deep-link for Twitter quests
+    // let destination = quest.actionLink;
+    // if (quest.title.toLowerCase().includes("twitter")) {
+    //   // open the Twitter app if installed, else fall back to web
+    //   destination = isMiniPay
+    //     ? "twitter://user?screen_name=akibaMilesApp"
+    //     : "https://twitter.com/akibaMilesApp";
+    // }
   
-    if (isMiniPay) {
-      // leave MiniPay completely (opens external browser / app)
-      window.location.href = destination;
-    } else {
-      // normal browsers → new tab
-      window.open(destination, "_blank", "noopener,noreferrer");
-    }
+    // if (isMiniPay) {
+    //   // leave MiniPay completely (opens external browser / app)
+    //   window.location.href = destination;
+    // } else {
+    //   // normal browsers → new tab
+    //   window.open(destination, "_blank", "noopener,noreferrer");
+    // }
   
     /* ---------- mint later (same as before) ---------- */
     setLoading(true);
