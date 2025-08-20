@@ -18,7 +18,7 @@ contract AkibaRaffle is UUPSUpgradeable, ReentrancyGuardUpgradeable {
 
     IERC20 public cUSD;
     IERC20 public usdt;
-    IERC20 private miles;
+    IERC20 public miles;
 
     struct RaffleRound {
         uint256 id;
@@ -38,7 +38,7 @@ contract AkibaRaffle is UUPSUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     uint256 public roundIdCounter;
-    mapping(uint256 => RaffleRound) private rounds;
+    mapping(uint256 => RaffleRound) public rounds;
 
     event RoundCreated(
         uint256 indexed roundId,
@@ -180,7 +180,7 @@ contract AkibaRaffle is UUPSUpgradeable, ReentrancyGuardUpgradeable {
 
     function drawWinner(
         uint256 _roundId
-    ) external nonReentrant roundExists(_roundId) {
+    ) external nonReentrant virtual roundExists(_roundId) {
         RaffleRound storage r = rounds[_roundId];
         require(r.isActive, "Raffle: inactive round");
         require(!r.winnerSelected, "Raffle: already drawn");
@@ -212,7 +212,7 @@ contract AkibaRaffle is UUPSUpgradeable, ReentrancyGuardUpgradeable {
     /// @dev Anyone can call once time has passed; requires <60% tickets sold.
     function closeRaffle(
         uint256 _roundId
-    ) external nonReentrant roundExists(_roundId) {
+    ) external nonReentrant virtual roundExists(_roundId) {
         RaffleRound storage round = rounds[_roundId];
         require(round.isActive, "Raffle: inactive");
         require(block.timestamp > round.endTime, "Raffle: not ended");

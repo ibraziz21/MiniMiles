@@ -11,12 +11,12 @@ export default function Header() {
   const [hideConnectBtn, setHideConnectBtn] = useState(false);
   const { connect } = useConnect();
 
-  useEffect(() => {
-    if (window.ethereum && window.ethereum.isMiniPay) {
-      setHideConnectBtn(true);
-      connect({ connector: injected({ target: "metaMask" }) });
-    }
-  }, []);
+  // useEffect(() => {
+  //   if (window.ethereum && window.ethereum.isMiniPay) {
+  //     setHideConnectBtn(true);
+  //     connect({ connector: injected({ target: "metaMask" }) });
+  //   }
+  // }, []);
 
   return (
     <Disclosure as="nav" className="border-b border-black">

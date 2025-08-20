@@ -127,7 +127,7 @@ const VaultPage = () => {
   };
 
   return (
-    <main className="px-4 flex flex-col justify-around h-[calc(100vh-100px)]">
+    <main className="px-4 flex flex-col justify-around h-[calc(100vh-100px)] font-sterling">
       <div>
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-medium">Deposit into Vault</h3>
@@ -135,21 +135,21 @@ const VaultPage = () => {
             <XCircleIcon />
           </button>
         </div>
-        <p>Earn 1 AkibaMile per day for every 1 USDT you deposit. Rewards are sent to your balance every 24 hours.</p>
+        <p className="font-light text-[#525252]">Earn 1 AkibaMile per day for every 1 USDT you deposit. Rewards are sent to your balance every 24 hours.</p>
       </div>
 
       <div className="flex flex-col justify-center  p-5 border border-[#238D9D4D] bg-white rounded-xl">
-        <h4>My Deposit(USDT)</h4>
+        <h4 className="my-3 text-[#817E7E]">My Deposit(USDT)</h4>
         <div className="flex border border-[#238D9D4D] rounded-xl p-4">
           <Image src={USDT} alt="" />
           <h3 className="mx-2">{currentDeposit}</h3>
         </div>
       </div>
 
-      <div className="border border-[#238D9D4D] bg-gradient-to-bl from-[#76E0F0] to-[#F0FDFF] rounded-xl p-4">
-        <h4 className='my-2'>New Deposit(USDT)</h4>
+      <div className="border border-[#238D9D4D] bg-gradient-to-bl from-[#76E0F020] to-[#F0FDFF] rounded-xl p-4">
+        <h4 className='my-2 text-[#817E7E]'>New Deposit(USDT)</h4>
         <div className="flex flex-col justify-center items-start p-5 border border-[#238D9D4D] bg-white rounded-xl">
-          <div className="flex items-center w-full">
+          <div className="flex items-center justify-around w-full">
             <Image src={USDT} alt="" />
             <input
               value={amount}
@@ -159,7 +159,7 @@ const VaultPage = () => {
               className="mx-2 w-full outline-none"
             />
           </div>
-          <div className='flex justify-between w-full'>
+          <div className='flex justify-between w-full mt-6'>
             <h4>Available:</h4>
             <div className="flex ">
               <h4>{available}</h4>
@@ -181,10 +181,6 @@ const VaultPage = () => {
         </div>
       </div>
 
-      <div className='flex flex-col items-center'>
-        <h4>Min. Deposit 1 USDT</h4>
-      </div>
-
       {!approved ? (
         <Button
           title={loadingApprove ? "Approving USDT..." : "Approve USDT"}
@@ -192,7 +188,7 @@ const VaultPage = () => {
           widthFull
           loading={loadingApprove}
           disabled={!minOK || !withinBal}
-          className="w-full rounded-2xl mt-5 py-4 flex items-center justify-center gap-3 font-medium tracking-wide shadow-sm text-white bg-[#238D9D] hover:bg-[#238D9D] disabled:bg-[#238D9D]"
+          className="w-full rounded-xl mt-5 py-6 flex items-center justify-center gap-3 font-medium tracking-wide shadow-sm text-white bg-[#238D9D] hover:bg-[#238D9D] disabled:bg-[#238D9D]"
         />
       ) : (
         <Button
@@ -201,7 +197,7 @@ const VaultPage = () => {
           widthFull
           loading={loadingDeposit}
           disabled={!minOK || !withinBal}
-          className="w-full rounded-2xl mt-5 py-4 flex items-center justify-center gap-3 font-medium tracking-wide shadow-sm text-white bg-[#238D9D] hover:bg-[#238D9D] disabled:bg-[#238D9D]"
+          className="w-full rounded-xl mt-5 py-6 flex items-center justify-center gap-3 font-medium tracking-wide shadow-sm text-white bg-[#238D9D] hover:bg-[#238D9D] disabled:bg-[#238D9D]"
         />
       )}
 

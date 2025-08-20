@@ -1,34 +1,33 @@
 import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
 import { ethers } from "ethers";
 
-const MiniRaffleModule = buildModule("MiniRaffleFinal", (m) => {
+const MiniRaffleModule = buildModule("MilesVault", (m) => {
   /*************
    *  CONFIG   *
    *************/
   // <<< fill in real addresses before running >>>
  
-  const cUSD   = "0x765de816845861e75a25fca122bb6898b8b1282a";
+  const aCelUSDT   = "0xDeE98402A302e4D707fB9bf2bac66fAEEc31e8Df";
    const usdt = '0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e'
-  const miniPoints = '0xEeD878017f027FE96316007D0ca5fDA58Ee93a6b'
-  const owner = '0xf20a5e1a4ca28d64f2c4a90998a41e8045288f48'
+  const vaultToken = '0x9eF834341C0aaE253206e838c37518d1E1927716'
+  const pool = '0x3E59A31363E2ad014dcbc521c4a0d5757d9f3402'
+  const safe = '0x9E621004591Fa0224182083D535ACBee90914e63'
+  const referralCode = 0;
 
 
   /*************
    * 1. Deploy implementation
    *************/
-  const implementation = m.contract("AkibaRaffle", [], { id: "akiba_impl" });
+  const implementation = m.contract("AkibaMilesVaultUUPS", [], { id: "akiba_impl" });
 
   /*************
    * 2. Encode initializer data
    *************/
   const iface = new ethers.utils.Interface([
-    "function initialize(address,address,address,address)"
+    "function initialize(address,address,address,address, address, uint16)"
   ]);
   const initData = iface.encodeFunctionData("initialize", [
-    miniPoints,
-    cUSD,
-    usdt,
-    owner,
+    usdt, aCelUSDT, pool,vaultToken,safe,referralCode
   ]);
 
   /*************

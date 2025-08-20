@@ -76,9 +76,9 @@ export default function EarnPage() {
           <p className="text-gray-500">Deposit USDT to earn akibaMiles daily.</p>
         </div>
 
-        <div className="border border-[#238D9D4D] bg-gradient-to-bl from-[#76E0F0] to-[#F0FDFF] rounded-xl p-4">
-          <div className="flex flex-col justify-center items-center p-5 border border-[#238D9D4D] bg-white rounded-xl">
-            <h4>My Deposit(USDT)</h4>
+        <div className="border border-[#238D9D4D] bg-gradient-to-bl from-[#76E0F020] to-[#F0FDFF] rounded-xl p-4 shadow-lg h-[200px]">
+          <div className="flex flex-col justify-center items-center p-5 border border-[#238D9D4D] bg-white rounded-xl h-[100px]">
+            <h4 className="text-[#817E7E] font-light">My Deposit(USDT)</h4>
             <div className="flex ">
               <Image src={USDT} alt="" />
               <h3 className="mx-2">{currentDeposit}</h3>
@@ -94,14 +94,14 @@ export default function EarnPage() {
               title="Deposit"
               onClick={goDeposit}
               widthFull
-              className="w-full rounded-2xl mt-5 py-4 flex items-center justify-center gap-3 font-medium tracking-wide shadow-sm text-white bg-[#238D9D] hover:bg-[#238D9D] disabled:bg-[#238D9D]"
+              className="w-full rounded-xl mt-5 py-6 flex items-center justify-center gap-3 font-medium tracking-wide shadow-sm text-white bg-[#238D9D] hover:bg-[#238D9D] disabled:bg-[#238D9D]"
             />
             <Button
               title="Withdraw"
               onClick={goWithdraw}
               widthFull
               disabled={!hasDeposit}
-              className="w-full rounded-2xl mt-5 py-4 flex items-center justify-center gap-3 font-medium tracking-wide shadow-sm bg-[#238D9D1A] text-[#238D9D]"
+              className="w-full rounded-xl mt-5 py-6 flex items-center justify-center gap-3 font-medium tracking-wide shadow-sm bg-[#238D9D1A] text-[#238D9D]"
             />
           </div>
         </div>
@@ -131,7 +131,7 @@ export default function EarnPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="active" className="mx-4">
+      <Tabs defaultValue="active" className="mt-6 mx-4">
         <TabsList>
           <TabsTrigger
             value="active"
