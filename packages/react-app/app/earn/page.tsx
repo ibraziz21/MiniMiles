@@ -14,6 +14,7 @@ import { Sheet, SheetClose, SheetContent, SheetFooter } from "@/components/ui/sh
 import { Download, Question } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
+import { formatUnits } from "viem";
 
 export default function EarnPage() {
   // ✅ one call
@@ -27,8 +28,35 @@ export default function EarnPage() {
   const [quest, setQuest] = useState<any>(null);
   const [success, setSuccess] = useState(false);
   const [vaultDeposit, setVaultDeposit] = useState<number>(0);
+  const [vaultMilesEarned, setVaultMilesEarned] = useState<string | null>(null);
+  const [vaultMilesLoading, setVaultMilesLoading] = useState(false);
+
 
   const router = useRouter();
+
+
+  useEffect(() => {
+    let aborted = false;
+    const load = async () => {
+      if (!address) return;
+      setVaultMilesLoading(true);
+      try {
+        const base = process.env.NEXT_PUBLIC_REWARDS_URL!;
+        const res = await fetch(`${base}/vault/earned/${address}`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(await res.text());
+        const { earnedWei } = await res.json();
+        const pretty = Number(formatUnits(BigInt(earnedWei ?? '0'), 18))
+          .toLocaleString(undefined, { maximumFractionDigits: 4 });
+        if (!aborted) setVaultMilesEarned(pretty);
+      } catch {
+        if (!aborted) setVaultMilesEarned(null);
+      } finally {
+        if (!aborted) setVaultMilesLoading(false);
+      }
+    };
+    load();
+    return () => { aborted = true; };
+  }, [address, success]);
 
   useEffect(() => { getUserAddress?.(); }, [getUserAddress]);
   useEffect(() => {
@@ -85,7 +113,7 @@ export default function EarnPage() {
             </div>
             {hasDeposit && (
               <p className="mt-2 text-xs text-[#238D9D] font-semibold">
-                0 AkibaMiles earned
+                {vaultMilesLoading ? '…' : (vaultMilesEarned ?? '0')} AkibaMiles earned
               </p>
             )}
           </div>
@@ -159,7 +187,7 @@ export default function EarnPage() {
             <p className="text-gray-500">Completed a challenge? Click & claim Miles</p>
           </div>
           <DailyChallenges />
-          <PartnerQuests openPopup={(q:any)=>{ setQuest(q); setSheetOpen(true); }} />
+          <PartnerQuests openPopup={(q: any) => { setQuest(q); setSheetOpen(true); }} />
         </TabsContent>
 
         <TabsContent value="completed">
