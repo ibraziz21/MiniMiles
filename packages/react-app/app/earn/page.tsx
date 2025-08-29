@@ -132,6 +132,10 @@ export default function EarnPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="active" className="mt-6 mx-4">
+        <div className=" mt-6 gap-1">
+          <h3 className="text-lg font-medium mt-6 mb-2">Daily challenges</h3>
+          <p className="text-gray-500">Completed a challenge? Click & claim Miles</p>
+        </div>
         <TabsList>
           <TabsTrigger
             value="active"
@@ -154,17 +158,14 @@ export default function EarnPage() {
         </TabsList>
 
         <TabsContent value="active">
-          <div className=" mt-6 gap-1">
-            <h3 className="text-lg font-medium mt-6 mb-2">Daily challenges</h3>
-            <p className="text-gray-500">Completed a challenge? Click & claim Miles</p>
-          </div>
-          <DailyChallenges />
-          <PartnerQuests openPopup={(q:any)=>{ setQuest(q); setSheetOpen(true); }} />
+
+          <DailyChallenges showCompleted={false} />
+          <PartnerQuests openPopup={(q: any) => { setQuest(q); setSheetOpen(true); }} />
         </TabsContent>
 
         <TabsContent value="completed">
           <h3 className="text-lg font-medium mt-6 mb-2">Completed today</h3>
-          <DailyChallenges showCompleted />
+          <DailyChallenges showCompleted={true} />
         </TabsContent>
       </Tabs>
 

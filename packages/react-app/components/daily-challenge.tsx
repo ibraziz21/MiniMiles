@@ -89,7 +89,7 @@ const ACTION_BY_ID: Record<string, QuestHandler> = {
 };
 
 /* ────────────────────────────────────────────────────────── */
-export default function DailyChallenges({ showCompleted = false }: { showCompleted?: boolean }) {
+export default function DailyChallenges({ showCompleted }: { showCompleted?: boolean }) {
   const { address, getUserAddress } = useWeb3();
 
   const [active, setActive] = useState<QuestRow[]>([]);
