@@ -213,13 +213,13 @@ const VaultPage = () => {
               <p className="text-sm">Updated Vault Balance (USDT)</p>
               <div className="flex items-center mt-2">
                 <Image src={USDT} alt="" />
-                <h3 className="mx-2">{(currentDeposit)}</h3>
+                <h3 className="mx-2">{(currentDeposit + numericAmount)}</h3>
               </div>
             </div>
             <div className="flex items-center justify-between mt-4">
               <a
                 className="text-[#238D9D] underline"
-                href={txHash ? `https://etherscan.io/tx/${txHash}` : "#"}
+                href={txHash ? `https://celoscan.io/tx/${txHash}` : "#"}
                 target="_blank"
                 rel="noreferrer"
               >
