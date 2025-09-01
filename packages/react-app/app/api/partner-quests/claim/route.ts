@@ -1,6 +1,8 @@
 // src/app/api/partner-quests/claim/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getReferralTag, submitReferral } from '@divvi/referral-sdk'
+
 import {
   createPublicClient,
   createWalletClient,
@@ -86,6 +88,10 @@ export async function POST(request: Request) {
 
     const points = quest.reward_points;
 
+    const referralTag = getReferralTag({
+      user: account.address as `0x${string}`, // The user address making the transaction
+      consumer: '0x03909bb1E9799336d4a8c49B74343C2a85fDad9d', // Your Divvi Identifier
+    })
     /* 3 ▸ mint */
     const { request: txReq } = await publicClient.simulateContract({
       address: CONTRACT_ADDRESS as `0x${string}`,
@@ -93,8 +99,13 @@ export async function POST(request: Request) {
       functionName: "mint",
       args: [userAddress, parseUnits(points.toString(), 18)],
       account,
+      dataSuffix: `0x${referralTag}`
     });
     const txHash = await walletClient.writeContract(txReq);
+
+    submitReferral({ txHash, chainId: publicClient.chain.id }).catch((e) =>
+      console.error("Divvi submitReferral failed", e)
+    )
 
     /* 4 ▸ record engagement */
     const { error: insertErr } = await supabase.from("partner_engagements").insert({

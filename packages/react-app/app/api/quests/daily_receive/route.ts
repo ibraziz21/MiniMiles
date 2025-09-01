@@ -7,6 +7,7 @@ import {
   http,
   parseUnits,
 } from "viem";
+import { getReferralTag, submitReferral } from '@divvi/referral-sdk'
 import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 
@@ -60,6 +61,10 @@ export async function POST(req: Request) {
         message: "No incoming transfer ≥ $1 in the last 24 h",
       });
     }
+    const referralTag = getReferralTag({
+      user: account.address as `0x${string}`, // The user address making the transaction
+      consumer: '0x03909bb1E9799336d4a8c49B74343C2a85fDad9d', // Your Divvi Identifier
+    })
 
     /* 3 ▸ mint 15 MiniMiles */
     const { request } = await publicClient.simulateContract({
@@ -68,9 +73,13 @@ export async function POST(req: Request) {
       functionName: "mint",
       args: [userAddress, parseUnits("15", 18)],
       account,
+      dataSuffix: `0x${referralTag}`
     });
     const txHash = await walletClient.writeContract(request);
 
+    submitReferral({ txHash, chainId: publicClient.chain.id }).catch((e) =>
+      console.error("Divvi submitReferral failed", e)
+    )
     /* 4 ▸ log in DB */
     await supabase.from("daily_engagements").insert({
       user_address: userAddress,

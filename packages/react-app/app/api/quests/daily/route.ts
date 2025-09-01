@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
+import { getReferralTag, submitReferral } from '@divvi/referral-sdk'
 import { createWalletClient, http, createPublicClient, parseUnits } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 import { celo } from "viem/chains" // change this to your chain
@@ -33,7 +34,7 @@ const client = createWalletClient({
 
 export async function POST(req: Request) {
   const { userAddress, questId } = await req.json()
- 
+
 
   const today = new Date().toISOString().slice(0, 10) // e.g., 2025-04-15
   // Check Supabase: already claimed?
@@ -49,18 +50,27 @@ export async function POST(req: Request) {
     return Response.json({ success: false, message: "Already claimed today" })
   }
 
+  const referralTag = getReferralTag({
+    user: account.address as `0x${string}`, // The user address making the transaction
+    consumer: '0x03909bb1E9799336d4a8c49B74343C2a85fDad9d', // Your Divvi Identifier
+  })
   try {
     // Call mintPoints(userAddress, 5)
     const { request } = await publicClient.simulateContract({
       address: CONTRACT_ADDRESS as `0x${string}`,
       abi: MiniPointsAbi.abi,
       functionName: "mint",
-      args: [userAddress, parseUnits("10",18)],
+      args: [userAddress, parseUnits("10", 18)],
       account,
+      dataSuffix: `0x${referralTag}`
     })
 
     const txHash = await client.writeContract(request)
 
+    // 4) Non-blocking Divvi attribution
+    submitReferral({ txHash, chainId: chain.id }).catch((e) =>
+      console.error("Divvi submitReferral failed", e)
+    )
     // Log claim in Supabase
     await supabase.from("daily_engagements").insert({
       user_address: userAddress,

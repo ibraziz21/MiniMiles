@@ -54,10 +54,6 @@ export function useWeb3() {
     transport: http(),
   });
 
-  const referralTag = getReferralTag({
-    user: address as `0x${string}`, // The user address making the transaction
-    consumer: '0x03909bb1E9799336d4a8c49B74343C2a85fDad9d', // Your Divvi Identifier
-  })
 
   // 2️⃣ Helpers can now reuse walletClient + publicClient + address
 
@@ -93,6 +89,14 @@ export function useWeb3() {
   async (roundId: number, ticketCount: number) => {
     if (!walletClient || !address) throw new Error("Wallet not connected");
 
+    
+  const referralTag = getReferralTag({
+    user: address as `0x${string}`, // The user address making the transaction
+    consumer: '0x03909bb1E9799336d4a8c49B74343C2a85fDad9d', // Your Divvi Identifier
+  }) 
+
+    console.log("Divvi Tag: ", referralTag);
+
     const hash = await walletClient.writeContract({
       address: '0xD75dfa972C6136f1c594Fec1945302f885E1ab29',
       abi: raffleAbi.abi,
@@ -101,6 +105,7 @@ export function useWeb3() {
       args: [BigInt(roundId), BigInt(ticketCount)],
       dataSuffix: `0x${referralTag}`,
     });
+
 
     // wait until it’s mined (optional-but-nice UX)
     await publicClient.waitForTransactionReceipt({ hash });
