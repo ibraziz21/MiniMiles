@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@divvi/referral-sdk": "^2.3.0",
     "@headlessui/react": "^2.1.10",
     "@heroicons/react": "^2.1.5",
     "@lottiefiles/react-lottie-player": "^3.6.0",

@@ -1,6 +1,8 @@
 // src/contexts/useWeb3.ts
 "use client";
 
+
+import { getReferralTag, submitReferral } from '@divvi/referral-sdk'
 import { useState, useEffect, useCallback } from "react";
 import {
   createPublicClient,
@@ -52,6 +54,11 @@ export function useWeb3() {
     transport: http(),
   });
 
+  const referralTag = getReferralTag({
+    user: address as `0x${string}`, // The user address making the transaction
+    consumer: '0x03909bb1E9799336d4a8c49B74343C2a85fDad9d', // Your Divvi Identifier
+  })
+
   // 2️⃣ Helpers can now reuse walletClient + publicClient + address
 
   const getakibaMilesBalance = useCallback(async () => {
@@ -91,11 +98,22 @@ export function useWeb3() {
       abi: raffleAbi.abi,
       functionName: "joinRaffle",
       account: address,
-      args: [BigInt(roundId), BigInt(ticketCount)]
+      args: [BigInt(roundId), BigInt(ticketCount)],
+      dataSuffix: `0x${referralTag}`,
     });
 
     // wait until it’s mined (optional-but-nice UX)
     await publicClient.waitForTransactionReceipt({ hash });
+
+    // 3) Report to Divvi so attribution is recorded
+    try {
+      const chainId = await walletClient.getChainId();
+      await submitReferral({ txHash: hash, chainId });
+    } catch (e) {
+      console.error('Divvi submitReferral failed', e);
+      // don’t block the user flow if the reporting call fails
+    }
+
 
     return hash;          // <- RETURN THE HASH STRING
   },
