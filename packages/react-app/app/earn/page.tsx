@@ -11,7 +11,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { USDT } from "@/lib/svg";
 import Image from "next/image";
 import { Sheet, SheetClose, SheetContent, SheetFooter } from "@/components/ui/sheet";
-import { Download, Question } from "@phosphor-icons/react";
+import { ArrowDown, ArrowUp, Download, Gift, Question } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { formatUnits } from "viem";
@@ -97,11 +97,11 @@ export default function EarnPage() {
 
       <div className="px-4 ">
         <div className="mt-6 gap-1">
-          <div className="flex justify-between items-center my-2">
+          <div className="flex justify-start items-center my-1">
             <h3 className="text-lg font-medium">Akiba Vault</h3>
-            <Question size={20} onClick={() => setVaultHelp(true)} />
+            <Question className="mx-1" weight="duotone" color="#238D9D" size={20} onClick={() => setVaultHelp(true)} />
           </div>
-          <p className="text-gray-500">Deposit USDT to earn akibaMiles daily.</p>
+          <p className="text-gray-500 mb-1">Deposit USDT to earn akibaMiles daily.</p>
         </div>
 
         <div className="border border-[#238D9D4D] bg-gradient-to-bl from-[#76E0F020] to-[#F0FDFF] rounded-xl p-4 shadow-lg h-[200px]">
@@ -135,12 +135,33 @@ export default function EarnPage() {
         </div>
 
         <Sheet open={vaultHelp} onOpenChange={setVaultHelp}>
-          <SheetContent side={"bottom"} className="bg-white">
-            <div className="flex gap-3 items-start">
-              <Download />
+          <SheetContent side={"bottom"} className="bg-white flex flex-col justify-between rounded-t-xl">
+            <div className="flex gap-3 items-start font-sterling">
+              <div className="rounded-full p-2 bg-[#F0FDFF]">
+                <ArrowDown width={20} height={20} color="#238D9D" />
+              </div>
               <div>
                 <h2 className="font-semibold">Deposit USDT</h2>
-                <p>Deposit USDT into the Akiba Vault and earn 1 AkibaMile per day for every 1 USDT you hold.</p>
+                <p className="text-[#525252] font-light">Deposit USDT into the Akiba Vault and earn 1 AkibaMile per day for every 1 USDT you hold.</p>
+              </div>
+            </div>
+            <div className="flex gap-3 items-start font-sterling">
+              <div className="rounded-full p-2 bg-[#F0FDFF]">
+                <Gift width={20} height={20} color="#238D9D" />
+              </div>
+              <div>
+                <h2 className="font-semibold">Earn Rewards</h2>
+                <p className="text-[#525252] font-light">AkibaMiles are automatically added to your balance during the daily payout every 24 hours.
+                  0.00</p>
+              </div>
+            </div>
+            <div className="flex gap-3 items-start font-sterling">
+              <div className="rounded-full p-2 bg-[#F0FDFF]">
+                <ArrowUp width={20} height={20} color="#238D9D" />
+              </div>
+              <div>
+                <h2 className="font-semibold">Withdraw Anytime</h2>
+                <p className="text-[#525252] font-light">You can withdraw anytime and your miles are yours to keep.</p>
               </div>
             </div>
             <SheetFooter className="mt-8">
@@ -149,7 +170,7 @@ export default function EarnPage() {
                   title="Close"
                   widthFull
                   variant="secondary"
-                  className="bg-[#238D9D1A] text-[#238D9D] rounded-md"
+                  className="bg-[#238D9D1A] text-[#238D9D] rounded-md py-4 text-bold"
                   onClick={() => setVaultHelp(false)}
                 />
               </SheetClose>
