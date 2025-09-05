@@ -9,7 +9,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-contract AkibaRaffle is UUPSUpgradeable, ReentrancyGuardUpgradeable {
+contract AkibaRaffleV3 is UUPSUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
 
 
@@ -106,6 +106,7 @@ contract AkibaRaffle is UUPSUpgradeable, ReentrancyGuardUpgradeable {
         address _miniPoints,
         address _cUSD,
         address _usdt,
+        address prize,
         address _owner
     ) public initializer {
         __UUPSUpgradeable_init();
@@ -115,6 +116,7 @@ contract AkibaRaffle is UUPSUpgradeable, ReentrancyGuardUpgradeable {
         miles = IERC20(_miniPoints);
         cUSD = IERC20(_cUSD);
         usdt = IERC20(_usdt);
+        prizeNFT = prize;
         owner = _owner;
     }
 
@@ -127,7 +129,7 @@ contract AkibaRaffle is UUPSUpgradeable, ReentrancyGuardUpgradeable {
         uint256 _startTime,
         uint256 _duration,
         uint32 _maxTickets,
-        IERC20 _token,
+        address _token,
         uint8 _raffleType,
         uint256 _rewardPool,
         uint256 _ticketCostPoints, 
@@ -142,8 +144,8 @@ contract AkibaRaffle is UUPSUpgradeable, ReentrancyGuardUpgradeable {
             revert("Raffle: 0 Rewards for Digital Cash/Miles Raffle");
       
 
-        if (_token != miles) {
-            _token.safeTransferFrom(msg.sender, address(this), _rewardPool);
+        if (_token != address(miles) && _token !=prizeNFT) {
+           IERC20(_token).safeTransferFrom(msg.sender, address(this), _rewardPool);
             _reserved[address(_token)] += _rewardPool;
         }
         roundIdCounter++;
@@ -152,7 +154,12 @@ contract AkibaRaffle is UUPSUpgradeable, ReentrancyGuardUpgradeable {
         r.startTime = _startTime;
         r.endTime = _startTime + _duration;
         r.maxTickets = _maxTickets;
-        r.rewardToken = _token;
+        if(_token != prizeNFT){
+        r.rewardToken = IERC20(_token);
+        }
+        else{
+            r.rewardToken = IERC20(address(0)); // dummy placeholder for physical prize
+        }
         r.rewardPool = _rewardPool;
         r.ticketCostPoints = _ticketCostPoints;
         r.isActive = true;

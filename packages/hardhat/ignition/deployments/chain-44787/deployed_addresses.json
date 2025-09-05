@@ -9,5 +9,11 @@
   "MiniRaffles#MiniRaffle": "0xA1F1Cd3b90f49c9d44ed324C69869df139616d55",
   "MiniRafflesForNiko#MiniRaffle": "0x8762277745b6f05ceb3F2c2E85FF3062A57482B6",
   "MiniRaffleModule#MiniRaffle": "0xA678CaCD19485f37ebe886a5fbE2cE94E0994497",
-  "MiniRaffleModule#ERC1967Proxy": "0x917124eea88426c9D66c21bA155b925E8F38f8aA"
+  "MiniRaffleModule#ERC1967Proxy": "0x917124eea88426c9D66c21bA155b925E8F38f8aA",
+  "Physical#PhysicalPrizeNFT": "0x8F60907f41593d4B41f5e0cEa48415cd61854a79",
+  "points#AkibaMiles": "0xd59AE111d976342ff58c6dE2B6f2b002415825C1",
+  "AMilesV3#akiba_impl": "0x10EA378Ea0429c27A892d9349C0cC5fC373bd9cb",
+  "AMilesV3#akiba_proxy": "0x72fEFD4e943475c5cB7Cf11753fE60d04aEb7ff0",
+  "AkibaRaffleV3_Upgrade#AkibaRaffleV3": "0x72fEFD4e943475c5cB7Cf11753fE60d04aEb7ff0",
+  "AkibaRaffleV3_Upgrade#akiba_impl_vNext": "0xb533CB94DeaBDd37F870E47510a03539C413CEFF"
 }

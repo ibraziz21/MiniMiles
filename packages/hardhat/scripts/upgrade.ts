@@ -1,7 +1,7 @@
 import { ethers } from "hardhat";
 
 async function upgrade() {
-  const proxyAddress = "0xD75dfa972C6136f1c594Fec1945302f885E1ab29";
+  const proxyAddress = "0x72fEFD4e943475c5cB7Cf11753fE60d04aEb7ff0";
   const newImplementation = "0x1A73B6603ae2944F8683624D052d951Bd608D80b"; // deployed via Ignition
   const [deployer] = await ethers.getSigners();
 

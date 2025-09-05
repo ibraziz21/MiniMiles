@@ -51,7 +51,17 @@ const config: HardhatUserConfig = {
   sourcify: {
     enabled: false,
   },
-  solidity: '0.8.24',
+  solidity:{
+    version: '0.8.24',
+  settings: {
+    // These three are the big wins for code size
+    optimizer: { enabled: true, runs: 200 }, // try 200, 1, or 800 depending on size vs. runtime gas
+    viaIR: true,                              // IR pipeline shrinks bytecode a lot
+    metadata: { bytecodeHash: "none" },       // smaller deploy bytecode (runtime size is the EIP-170 limit)
+    // evmVersion: "paris", // uncomment if you want to pin EVM version
+  },
+}
+
 };
 
 export default config;
