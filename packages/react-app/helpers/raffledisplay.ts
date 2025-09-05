@@ -1,36 +1,41 @@
 // helpers/raffle.ts
 
 import { StaticImageData } from "next/image"
+import { Address } from "viem"
 
-export interface Raffle {
-  symbol: any;
-  id: string;
-  starts: number;
-  ends: number; // changed from string
-  maxTickets: number;
-  image: StaticImageData;
-  totalTickets?: number;
-  rewardToken: string;
-  rewardPool?: string;
-  ticketCost: number; // changed from string
-  winnersSelected?: boolean;
-  ticketsSold: number;
-  description: string;
-  status: string;
+
+
+export type TokenRaffle = {
+  id: number
+  starts: number
+  ends: number
+  maxTickets: number
+  totalTickets: number
+  token: { address: Address; symbol: string; decimals: number }
+  rewardPool: string        // formatted
+  ticketCost: string        // formatted (18d)
+  image?: string            // optional if you attach one later
+  description?: string
 }
 
-  export async function fetchActiveRaffles(): Promise<Raffle[]> {
-    const res = await fetch('/api/Spend/raffle_display', {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    })
-  
-    if (!res.ok) {
-      const err = await res.text()
-      throw new Error(`Failed to load raffles: ${err}`)
-    }
-  
-    const json = (await res.json()) as { raffles: Raffle[] }
-    return json.raffles
-  }
+export type PhysicalRaffle = {
+  id: number
+  starts: number
+  ends: number
+  maxTickets: number
+  totalTickets: number
+  prizeNFT?: Address
+  ticketCost: string        // formatted (18d)
+  rewardURI?: string        // if you later expose it
+}
+
+export async function fetchActiveRaffles(): Promise<{
+  tokenRaffles: TokenRaffle[]
+  physicalRaffles: PhysicalRaffle[]
+}> {
+  const res = await fetch('/api/Spend/raffle_display', { cache: 'no-store' })
+  if (!res.ok) throw new Error('Failed to fetch raffles')
+  return res.json()
+}
+
   

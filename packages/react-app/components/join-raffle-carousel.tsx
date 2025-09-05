@@ -4,17 +4,17 @@ import Link from "next/link";
 import { akibaMilesSymbol } from "@/lib/svg";
 import { useEffect, useState } from "react";
 
-import { fetchActiveRaffles,Raffle } from "@/helpers/raffledisplay";
+import { fetchActiveRaffles,TokenRaffle } from "@/helpers/raffledisplay";
 
 
 export default function JoinRafflesCarousel() {
-    const [raffles, setRaffles] = useState<Raffle[]>([])
+    const [raffles, setRaffles] = useState<TokenRaffle[]>([])
     const [loading, setLoading] = useState(true)
   const [showPopup, setShowPopup] = useState(false);
 
   useEffect(() => {
     fetchActiveRaffles()
-      .then(setRaffles)
+      .then(({ tokenRaffles }) => setRaffles(tokenRaffles))
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
@@ -34,7 +34,7 @@ export default function JoinRafflesCarousel() {
                     return <RaffleCard
                         key={ind}
                         image={RaffleImg1}
-                        title={raffle.rewardToken}
+                        title={raffle.token.symbol}
                         endsIn={raffle.ends.toString()}
                         ticketCost="10 akibaMiles for 1 ticket"
                         icon={akibaMilesSymbol}

@@ -9,7 +9,7 @@ import { RaffleResultCard } from '@/components/raffle-result-card';
 
 import { useWeb3 } from '@/contexts/useWeb3';
 import { useHistoryBundle } from '@/helpers/useHistoryBundle'; // adjust path if different
-import { fetchActiveRaffles, Raffle } from '@/helpers/raffledisplay';
+import { fetchActiveRaffles, type TokenRaffle } from '@/helpers/raffledisplay';
 import { fetchTotalCompletedChallenges } from '@/helpers/fetchTotalCompleteChallenges';
 
 import { akibaMilesSymbol } from '@/lib/svg';
@@ -36,7 +36,7 @@ export default function HistoryPage() {
   } = useHistoryBundle();
 
   /* -------------------------------------------------- local state */
-  const [raffles, setRaffles] = useState<Raffle[]>([]);
+  const [raffles, setRaffles] = useState<TokenRaffle[]>([]);
   const [rafflesLoading, setRafflesLoading] = useState(true);
 
   const [akibaMilesBalance, setAkibaMilesBalance] = useState('0'); // if you display later
@@ -45,7 +45,7 @@ export default function HistoryPage() {
   /* -------------------------------------------------- load raffles */
   useEffect(() => {
     fetchActiveRaffles()
-      .then(setRaffles)
+      .then(({ tokenRaffles }) => setRaffles(tokenRaffles))
       .catch(console.error)
       .finally(() => setRafflesLoading(false));
   }, []);
@@ -197,12 +197,12 @@ export default function HistoryPage() {
             return (
               <div className="flex gap-3 overflow-x-auto">
                 {participated.map(r => {
-                  const img = TOKEN_IMAGES[r.symbol] ?? TOKEN_IMAGES.default;
+                  const img = TOKEN_IMAGES[r.token.symbol] ?? TOKEN_IMAGES.default;
                   return (
                     <RaffleCard
                       key={r.id}
-                      image={r.image ?? img}
-                      title={`${r.rewardPool} ${r.symbol} weekly`}
+                      image={img}
+                      title={`${r.rewardPool} ${r.token.symbol} weekly`}
                       endsIn={formatEndsIn(r.ends)}
                       ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
                       locked={false}
