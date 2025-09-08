@@ -85,46 +85,52 @@ export function useWeb3() {
 
  // in src/contexts/useWeb3.ts
  // 2️⃣ joinRaffle writes directly
- const joinRaffle = useCallback(
-  async (roundId: number, ticketCount: number) => {
-    if (!walletClient || !address) throw new Error("Wallet not connected");
+ const joinRaffle = useCallback(async (roundId: number, ticketCount: number) => {
+  if (!walletClient || !address) throw new Error('Wallet not connected')
 
-    
+  const chainId = await walletClient.getChainId()
+  if (publicClient?.chain?.id !== chainId) throw new Error('Wrong network')
+
   const referralTag = getReferralTag({
-    user: address as `0x${string}`, // The user address making the transaction
-    consumer: '0x03909bb1E9799336d4a8c49B74343C2a85fDad9d', // Your Divvi Identifier
-  }) 
+    user: address as `0x${string}`,
+    consumer: '0x03909bb1E9799336d4a8c49B74343C2a85fDad9d',
+  })
 
-    console.log("Divvi Tag: ", referralTag);
+  const hash = await walletClient.writeContract({
+    chain: walletClient.chain,
+    address: '0xD75dfa972C6136f1c594Fec1945302f885E1ab29',
+    abi: raffleAbi.abi,
+    functionName: 'joinRaffle',
+    account: address as `0x${string}`,
+    args: [BigInt(roundId), BigInt(ticketCount)],
+    dataSuffix: `0x${referralTag.replace(/^0x/, '')}`, // ensure no double 0x
+  })
 
-    const hash = await walletClient.writeContract({
-      address: '0xD75dfa972C6136f1c594Fec1945302f885E1ab29',
-      abi: raffleAbi.abi,
-      functionName: "joinRaffle",
-      account: address,
-      args: [BigInt(roundId), BigInt(ticketCount)],
-      dataSuffix: `0x${referralTag}`,
-    });
-
-
-    // wait until it’s mined (optional-but-nice UX)
-    await publicClient.waitForTransactionReceipt({ hash });
-
-    // 3) Report to Divvi so attribution is recorded
-    try {
-      const chainId = await walletClient.getChainId();
-      await submitReferral({ txHash: hash, chainId });
-    } catch (e) {
-      console.error('Divvi submitReferral failed', e);
-      // don’t block the user flow if the reporting call fails
+  // Soft wait for 1 conf; swallow provider range quirks
+  try {
+    await publicClient.waitForTransactionReceipt({
+      hash,
+      confirmations: 1,
+      timeout: 120_000,
+    })
+  } catch (err: any) {
+    const m = String(err?.message || '')
+    if (/(block.*out of range|header not found|query timeout)/i.test(m)) {
+      console.warn('Ignoring provider range error while waiting for receipt:', err)
+    } else {
+      throw err
     }
+  }
 
+  // Attribution (don’t block UX)
+  try {
+    await submitReferral({ txHash: hash, chainId })
+  } catch (e) {
+    console.error('Divvi submitReferral failed', e)
+  }
 
-    return hash;          // <- RETURN THE HASH STRING
-  },
-  [walletClient, address, publicClient]
-);
-  
+  return hash
+}, [walletClient, publicClient, address])
 
   return {
     address,
