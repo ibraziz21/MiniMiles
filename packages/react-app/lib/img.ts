@@ -10,6 +10,7 @@ import bicycle from "../public/img/bicycle.png"
 import airpods from "../public/img/airpods.png"
 import nft1 from "../public/img/nft-1.png"
 import nft2 from "../public/img/nft2.png"
+import powerbank from "../public/img/powerbank.jpg"
 
 
 export {
@@ -24,5 +25,5 @@ export {
   bicycle,
   airpods,
   nft1,
-  nft2
+  nft2, powerbank
 };

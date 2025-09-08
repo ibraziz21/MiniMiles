@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
 import type { Address } from 'viem'
 import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
-import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5 } from '@/lib/img';
+import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5, powerbank } from '@/lib/img';
 import { Coin, akibaMilesSymbol } from '@/lib/svg';
 import { Question } from '@phosphor-icons/react';
 import { StaticImageData } from 'next/image';
@@ -65,6 +65,7 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   USDT: RaffleImg2,
   Miles: RaffleImg5,
   // default fallback:
+  physicalDefault: powerbank,
   default: RaffleImg3,
 }
 
@@ -242,7 +243,7 @@ const Page = () => {
     <RaffleCard
       key={r.id}
       image={cardImg}
-      title={`Physical prize${r.prizeNFT ? '' : ''}`}
+      title={`Physical prize: Powerbank`}
       endsIn={formatEndsIn(r.ends)}
       ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
       icon={akibaMilesSymbol}
@@ -251,7 +252,7 @@ const Page = () => {
         setSpendRaffle(null);
         setPhysicalRaffle({
           id: r.id,
-          title: 'Physical prize',
+          title: 'PowerBank',
           endDate: formatEndsIn(r.ends),
           ticketCost: r.ticketCost,
           image: cardImg,
