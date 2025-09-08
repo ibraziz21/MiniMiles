@@ -242,7 +242,7 @@ const Page = () => {
   return (
     <RaffleCard
       key={r.id}
-      image={cardImg}
+      image={powerbank}
       title={`Physical prize: Powerbank`}
       endsIn={formatEndsIn(r.ends)}
       ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
@@ -255,7 +255,7 @@ const Page = () => {
           title: 'PowerBank',
           endDate: formatEndsIn(r.ends),
           ticketCost: r.ticketCost,
-          image: cardImg,
+          image: powerbank,
           balance: Number(akibaMilesBalance),
           totalTickets: r.totalTickets,
           maxTickets: r.maxTickets,
