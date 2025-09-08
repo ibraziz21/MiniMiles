@@ -1,5 +1,5 @@
 "use client";
-
+import dynamic from 'next/dynamic';
 import DailyChallenges from '@/components/daily-challenge';
 import EnterRaffleSheet from '@/components/enter-raffle-sheet';
 import { GameCard } from '@/components/game-card';
@@ -13,13 +13,51 @@ import SuccessModal from '@/components/success-modal';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
-import { fetchActiveRaffles, Raffle } from '@/helpers/raffledisplay';
+import type { Address } from 'viem'
+import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
 import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5 } from '@/lib/img';
 import { Coin, akibaMilesSymbol } from '@/lib/svg';
 import { Question } from '@phosphor-icons/react';
 import { StaticImageData } from 'next/image';
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
+const PhysicalRaffleSheet = dynamic(() => import('@/components/physical-raffle-sheet'), { ssr: false });
+
+export type TokenRaffle = {
+  id: number
+  starts: number
+  ends: number
+  maxTickets: number
+  totalTickets: number
+  token: { address: Address; symbol: string; decimals: number }
+  rewardPool: string        // formatted
+  ticketCost: string        // formatted (18d)
+  image?: string            // optional if you attach one later
+  description?: string
+}
+
+export type PhysicalRaffle = {
+  id: number
+  starts: number
+  ends: number
+  maxTickets: number
+  totalTickets: number
+  prizeNFT?: Address
+  ticketCost: string        // formatted (18d)
+  rewardURI?: string        // if you later expose it
+}
+
+async function fetchActiveRaffles(): Promise<{
+  tokenRaffles: TokenRaffle[]
+  physicalRaffles: PhysicalRaffle[]
+}> {
+  const res = await fetch('/api/Spend/raffle_display', { cache: 'no-store' })
+  if (!res.ok) throw new Error('Failed to fetch raffles')
+  return res.json()
+}
+
+
+
 
 
 const TOKEN_IMAGES: Record<string, StaticImageData> = {
@@ -76,11 +114,14 @@ const Page = () => {
   const [selectedRaffle, setSelectedRaffle] = useState<any>(null);
   const [raffleSheetOpen, setRaffleSheetOpen] = useState(false);
   const [loading, setLoading] = useState(true)
-  const [raffles, setRaffles] = useState<Raffle[]>([])
-  const [spendSheetOpen, setSpendSheetOpen] = useState(false);
+  const [tokenRaffles, setTokenRaffles] = useState<TokenRaffle[]>([])
+  const [physicalRaffles, setPhysicalRaffles] = useState<PhysicalRaffle[]>([])
+  const [activeSheet, setActiveSheet] = useState<null | "token" | "physical">(null);
+  const [physicalRaffle, setPhysicalRaffle] = useState<PhysicalSpendRaffle | null>(null);
   const [spendRaffle, setSpendRaffle] = useState<SpendRaffle | null>(null);
   const [hasMounted, setHasMounted] = useState(false);
   const [openSuccess, setOpenSuccess] = useState(false);
+
 
   useEffect(() => {
     setHasMounted(true);
@@ -105,28 +146,36 @@ const Page = () => {
 
   useEffect(() => {
     fetchActiveRaffles()
-      .then(setRaffles)
+      .then(({ tokenRaffles, physicalRaffles }) => {
+        setTokenRaffles(tokenRaffles)
+        setPhysicalRaffles(physicalRaffles)
+      })
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
 
   const formatEndsIn = (ends: number) => {
-    const nowSec      = Math.floor(Date.now() / 1000);
-    let   secondsLeft = ends - nowSec;
-  
+    const nowSec = Math.floor(Date.now() / 1000);
+    let secondsLeft = ends - nowSec;
+
     if (secondsLeft <= 0) return 'Ended';
-  
+
     const days = Math.floor(secondsLeft / 86_400); // 24 h
     if (days >= 1) return `${days}d`;
-  
+
     const hours = Math.floor(secondsLeft / 3_600);
     secondsLeft -= hours * 3_600;
-    const mins  = Math.floor(secondsLeft / 60);
-  
+    const mins = Math.floor(secondsLeft / 60);
+
     // “4h 0m” looks odd → show just hours if minutes = 0
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
   };
 
+
+  const pickPhysicalImage = (raffle: PhysicalRaffle) => {
+    // If you later expose rewardURI metadata, map keywords -> images here
+    return RaffleImg3 // fallback image for physicals
+  }
 
   return (
     <main className="pb-24 font-sterling bg-onboarding">
@@ -143,81 +192,86 @@ const Page = () => {
           <h3 className="text-lg font-extrabold mb-2">Digital cash raffles</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
-        {raffles.map((r) => {
-    /* pick image in priority order:
-       1) subgraph-supplied r.image
-       2) symbol-based fallback from TOKEN_IMAGES
-       3) generic default */
-    const cardImg =
-      r.image ??
-      TOKEN_IMAGES[r.symbol] ??
-      TOKEN_IMAGES.default;
+        {tokenRaffles.map((r) => {
+  const cardImg =
+    (r as any).image ??
+    TOKEN_IMAGES[r.token.symbol] ??
+    TOKEN_IMAGES.default;
 
-    return (
-      <RaffleCard
-        key={r.id}
-        image={cardImg}
-        title={`${r.rewardPool} ${r.symbol}`}
-        endsIn={formatEndsIn(r.ends)}
-        ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
-        locked={false}
-        icon={akibaMilesSymbol}
-        onClick={() => {
-          setSpendRaffle({
-            id: Number(r.id),
-            title: r.description,
-            reward: `${r.ticketCost} AkibaMiles`,
-            prize: r.rewardPool ?? "—",
-            endDate: formatEndsIn(r.ends),
-            ticketCost: `${r.ticketCost} AkibaMiles`,
-            image: cardImg,
-            balance: Number(akibaMilesBalance),
-            symbol: r.symbol,
-            maxTickets: r.maxTickets,
-            totalTickets: r.totalTickets!
-          });
-          setSpendSheetOpen(true);
-        }}
-      />
-    );
-  })}
+  return (
+    <RaffleCard
+      key={r.id}
+      image={cardImg}
+      title={`${r.rewardPool} ${r.token.symbol}`}
+      endsIn={formatEndsIn(r.ends)}
+      ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
+      locked={false}
+      icon={akibaMilesSymbol}
+      onClick={() => {
+        setPhysicalRaffle(null);
+        setSpendRaffle({
+          id: r.id,
+          title: r.description ?? `${r.rewardPool} ${r.token.symbol}`,
+          reward: `${r.rewardPool} ${r.token.symbol}`,
+          prize: `${r.rewardPool} ${r.token.symbol}`,
+          endDate: formatEndsIn(r.ends),
+          ticketCost: `${r.ticketCost} AkibaMiles`,
+          image: cardImg,
+          balance: Number(akibaMilesBalance),
+          symbol: r.token.symbol,
+          maxTickets: r.maxTickets,
+          totalTickets: r.totalTickets,
+        });
+        setActiveSheet("token");     // <-- only this one opens
+      }}
+    />
+  )
+})}
         </div>
       </div>
 
-      <div className="mx-4 mt-6">
+       {/* PHYSICAL */}
+       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-extrabold mb-2">Physical goods raffles</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
-          {physicalGoodsRaffles.map((raffle, idx) => (
-            <RaffleCard
-              key={idx}
-              image={raffle.image}
-              title={raffle.title}
-              endsIn={`${raffle.endsIn} days` }
-              ticketCost={raffle.ticketCost}
-              icon={akibaMilesSymbol}
-              locked={true}
-              onClick={() => {
-                setSpendRaffle({
-                  id: idx,
-                  title: raffle.title,
-                  reward: raffle.ticketCost,
-                  prize: raffle.title,
-                  endDate: `${raffle.endsIn} days`,
-                  ticketCost: raffle.ticketCost,
-                  image: raffle.image,
-                  balance: Number(akibaMilesBalance),
-                  symbol: 'AkibaMiles',
-                  maxTickets: 0,
-                  totalTickets: 0
-                });
-                setSpendSheetOpen(true);
-              }}
-            />
-          ))}
+        {physicalRaffles.map((r) => {
+  const cardImg = pickPhysicalImage(r);
+  return (
+    <RaffleCard
+      key={r.id}
+      image={cardImg}
+      title={`Physical prize${r.prizeNFT ? '' : ''}`}
+      endsIn={formatEndsIn(r.ends)}
+      ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
+      icon={akibaMilesSymbol}
+      locked={false}
+      onClick={() => {
+        setSpendRaffle(null);
+        setPhysicalRaffle({
+          id: r.id,
+          title: 'Physical prize',
+          endDate: formatEndsIn(r.ends),
+          ticketCost: r.ticketCost,
+          image: cardImg,
+          balance: Number(akibaMilesBalance),
+          totalTickets: r.totalTickets,
+          maxTickets: r.maxTickets,
+        });
+        setActiveSheet("physical");  // <-- only this one opens
+      }}
+    />
+  )
+})}
+
+          {physicalRaffles.length === 0 && (
+            <div className="text-sm opacity-70 px-2 py-4">No physical raffles live right now.</div>
+          )}
         </div>
       </div>
+
+      {/* NFT (static demo) */}
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-extrabold mb-2">NFT raffles</h3>
@@ -228,7 +282,7 @@ const Page = () => {
               key={idx}
               image={raffle.image}
               title={raffle.title}
-              endsIn={`${raffle.endsIn} days` }
+              endsIn={`${raffle.endsIn} days`}
               ticketCost={raffle.ticketCost}
               icon={akibaMilesSymbol}
               locked={true}
@@ -246,13 +300,11 @@ const Page = () => {
                   maxTickets: 0,
                   totalTickets: 0
                 });
-                setSpendSheetOpen(true);
               }}
             />
           ))}
         </div>
       </div>
-
 
       <div>
         <SectionHeading title="Upcoming games" />
@@ -263,12 +315,22 @@ const Page = () => {
         </div>
       </div>
 
-      {/*      <SpendPartnerQuestSheet open={showPopup} onOpenChange={setSpendSheetOpen} raffle={selectedRaffle} />*/}
-      {hasMounted && (<SpendPartnerQuestSheet
-        open={spendSheetOpen}
-        onOpenChange={setSpendSheetOpen}
-        raffle={spendRaffle}
-      />)}  </main>
+      <PhysicalRaffleSheet
+  open={activeSheet === "physical"}
+  onOpenChange={(o) => setActiveSheet(o ? "physical" : null)}
+  raffle={physicalRaffle}
+/>
+
+{hasMounted && (
+  <SpendPartnerQuestSheet
+    open={activeSheet === "token"}
+    onOpenChange={(o) => setActiveSheet(o ? "token" : null)}
+    raffle={spendRaffle}
+  />
+)}
+
+
+    </main>
   );
 }
 

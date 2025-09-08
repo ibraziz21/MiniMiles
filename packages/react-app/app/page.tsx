@@ -13,7 +13,7 @@ import { useWeb3 } from "@/contexts/useWeb3";
 import { RaffleImg1, RaffleImg2, RaffleImg3, RaffleImg5, WinImg } from "@/lib/img";
 import { Celo, akibaMilesSymbol } from "@/lib/svg";
 import { useEffect, useState } from "react";
-import { fetchActiveRaffles, Raffle } from "@/helpers/raffledisplay";
+import { fetchActiveRaffles, type TokenRaffle } from "@/helpers/raffledisplay";
 import Link from "next/link";
 // import SpendPartnerQuestSheet from '@/components/spend-partner-quest-sheet';
 import { StaticImageData } from "next/image";
@@ -45,7 +45,7 @@ export default function Home() {
   const { address, getUserAddress, getakibaMilesBalance } = useWeb3();
   const [akibaMilesBalance, setakibaMilesBalance] = useState("0");
   const [showPopup, setShowPopup] = useState(false);
-  const [raffles, setRaffles] = useState<Raffle[]>([])
+  const [tokenRaffles, setTokenRaffles] = useState<TokenRaffle[]>([])
   const [loading, setLoading] = useState(true)
   const [spendSheetOpen, setSpendSheetOpen] = useState(false);
   const [spendRaffle, setSpendRaffle] = useState<SpendRaffle | null>(null);
@@ -89,7 +89,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchActiveRaffles()
-      .then(setRaffles)
+      .then(({ tokenRaffles }) => setTokenRaffles(tokenRaffles ?? []))
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
@@ -137,45 +137,44 @@ export default function Home() {
           </Link>
         </div>
         <div className="flex gap-3 overflow-x-auto">
-        {raffles.map((r) => {
-    /* pick image in priority order:
-       1) subgraph-supplied r.image
-       2) symbol-based fallback from TOKEN_IMAGES
-       3) generic default */
+  {tokenRaffles.map((r) => {
     const cardImg =
-      r.image ??
-      TOKEN_IMAGES[r.symbol] ??
+      (r as any).image ??
+      TOKEN_IMAGES[r.token.symbol] ??
       TOKEN_IMAGES.default;
 
     return (
       <RaffleCard
         key={r.id}
         image={cardImg}
-        title={`${r.rewardPool} ${r.symbol}`}
+        title={`${r.rewardPool} ${r.token.symbol}`}
         endsIn={formatEndsIn(r.ends)}
         ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
         locked={false}
         icon={akibaMilesSymbol}
         onClick={() => {
           setSpendRaffle({
-            id: Number(r.id),
-            title: r.description,
-            reward: `${r.ticketCost} AkibaMiles`,
-            prize: r.rewardPool ?? "—",
+            id: r.id,
+            title: r.description ?? `${r.rewardPool} ${r.token.symbol}`,
+            reward: `${r.rewardPool} ${r.token.symbol}`,
+            prize: `${r.rewardPool} ${r.token.symbol}`,
             endDate: formatEndsIn(r.ends),
             ticketCost: `${r.ticketCost} AkibaMiles`,
             image: cardImg,
             balance: Number(akibaMilesBalance),
-            symbol: r.symbol,
+            symbol: r.token.symbol,
             maxTickets: r.maxTickets,
-            totalTickets: r.totalTickets!
+            totalTickets: r.totalTickets,
           });
           setSpendSheetOpen(true);
         }}
       />
     );
   })}
-        </div>
+  {tokenRaffles.length === 0 && (
+    <div className="text-sm opacity-70 px-2 py-4">No raffles live right now.</div>
+  )}
+</div>
       </div>
       {hasMounted && (<SpendPartnerQuestSheet
         open={spendSheetOpen}

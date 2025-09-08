@@ -3,12 +3,12 @@ import { Button } from './ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet'
 import { Celo, akibaMilesSymbolAlt } from '@/lib/svg';
 import Image from 'next/image';
-import { Raffle } from '@/helpers/raffledisplay';
+import { TokenRaffle } from '@/helpers/raffledisplay';
 
 interface DailyChallengeSheetProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    raffle: Raffle | null;
+    raffle: TokenRaffle | null;
 }
 
 const DailyChallengeSheet = ({ open, onOpenChange, raffle  }: DailyChallengeSheetProps) => {
