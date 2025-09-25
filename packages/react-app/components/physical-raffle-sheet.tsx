@@ -39,6 +39,9 @@ type Props = {
 const PRESETS = [1, 5, 10, 25, 50];
 const explorerBase = "https://celoscan.io/tx";
 
+const emailLooksValid = (s: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+
 export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Props) {
   const { address, getUserAddress, joinRaffle } = useWeb3();
 
@@ -50,7 +53,7 @@ export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Prop
 
   // new fields
   const [twitter, setTwitter] = useState<string>("");
-  const [entryCode, setEntryCode] = useState<string>("");
+  const [email, setEmail] = useState<string>("");
   const [verified, setVerified] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
@@ -78,7 +81,7 @@ export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Prop
     setJoined(false);
     setTxHash(null);
     setTwitter("");
-    setEntryCode("");
+    setEmail("");
     setVerified(false);
     setVerifying(false);
   }, [raffle, soldOut]);
@@ -104,8 +107,8 @@ export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Prop
       setErrorModal({ title: "Twitter required", desc: "Please enter your Twitter username." });
       return;
     }
-    if (!entryCode || !entryCode.trim()) {
-      setErrorModal({ title: "Entry code required", desc: "Please enter the room entry code." });
+    if (!email || !emailLooksValid(email)) {
+      setErrorModal({ title: "Valid email required", desc: "Please enter a valid email address." });
       return;
     }
     if (soldOut) {
@@ -127,14 +130,14 @@ export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Prop
           raffleId: raffle.id,
           address,
           twitter,
-          code: entryCode,
+          email,
           tickets: count,
         }),
       });
 
       const json = await res.json();
       if (!res.ok || json?.ok !== true) {
-        const reason = json?.reason || json?.error || "Invalid code or verification failed.";
+        const reason = json?.reason || json?.error || "Email verification failed.";
         setErrorModal({ title: "Verification failed", desc: String(reason) });
         setVerified(false);
         return;
@@ -150,7 +153,7 @@ export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Prop
 
   const handleBuy = async () => {
     if (!verified) {
-      setErrorModal({ title: "Not verified", desc: "Please verify the entry code first." });
+      setErrorModal({ title: "Not verified", desc: "Please verify your email first." });
       return;
     }
     if (!address) {
@@ -254,11 +257,9 @@ export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Prop
                   Physical raffle
                 </h3>
                 <div className="flex w-full items-center gap-2">
-  <h3 className="text-lg font-medium">{raffle.title}</h3>
-  <h3 className="ml-auto text-sm text-[#238D9D]">
-    by CeloPG ›
-  </h3>
-</div>
+                  <h3 className="text-lg font-medium">{raffle.title}</h3>
+                  <h3 className="ml-auto text-sm text-[#238D9D]">by CeloPG ›</h3>
+                </div>
               </div>
 
               <div className="relative w-full h-40 rounded-xl overflow-hidden mb-4">
@@ -284,7 +285,7 @@ export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Prop
                 </div>
               </div>
 
-              {/* NEW: Twitter + Entry Code */}
+              {/* NEW: Twitter + Email */}
               <div className="mb-4 space-y-3">
                 <div>
                   <label className="block text-sm font-medium mb-1">Twitter username</label>
@@ -299,26 +300,27 @@ export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Prop
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Entry code</label>
+                  <label className="block text-sm font-medium mb-1">Email address</label>
                   <input
-                    value={entryCode}
-                    onChange={(e) => setEntryCode(e.target.value)}
-                    placeholder="Enter the room code"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    inputMode="email"
                     className="w-full border rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#238D9D]"
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    For this demo, only people in the room can enter.
+                    We’ll contact winners via this email.
                   </p>
                 </div>
                 <Button
                   onClick={handleVerify}
                   disabled={verifying || verified || soldOut || notEnough}
-                  title={verified ? "Verified ✓" : verifying ? "Verifying…" : "Verify entry code"}
+                  title={verified ? "Verified ✓" : verifying ? "Verifying…" : "Verify email"}
                   className={`w-full rounded-xl h-[48px] font-medium ${
                     verified ? "bg-[#18a34a] hover:bg-[#169343]" : "bg-[#238D9D] hover:bg-[#1f7b89]"
                   } text-white`}
                 >
-                  {verified ? "Verified ✓" : verifying ? "Verifying…" : "Verify entry code"}
+                  {verified ? "Verified ✓" : verifying ? "Verifying…" : "Verify email"}
                 </Button>
               </div>
 
@@ -390,7 +392,7 @@ export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Prop
                   </p>
                 ) : !verified ? (
                   <p className="text-center text-sm text-gray-600">
-                    Verify the entry code to enable buying.
+                    Verify your email to enable buying.
                   </p>
                 ) : null}
               </SheetFooter>

@@ -4,42 +4,60 @@ import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY!; // server-side only
-const ENTRY_CODE = (process.env.PHYSICAL_ENTRY_CODE || "").trim().toLowerCase();
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   auth: { persistSession: false },
 });
 
+const emailLooksValid = (s: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s ?? "").trim());
+
 export async function POST(req: Request) {
   try {
-    const { raffleId, address, twitter, code, tickets } = await req.json();
+    const { raffleId, address, twitter, email, tickets } = await req.json();
 
-    if (!raffleId || !address || !twitter || !code || !tickets) {
+    if (!raffleId || !address || !twitter || !email || !tickets) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
-
-    // simple code compare for demo
-    if (ENTRY_CODE.length === 0) {
-      return NextResponse.json({ error: "Server not configured with entry code" }, { status: 500 });
-    }
-    if (String(code).trim().toLowerCase() !== ENTRY_CODE) {
-      return NextResponse.json({ ok: false, reason: "Invalid entry code" }, { status: 403 });
+    if (!emailLooksValid(email)) {
+      return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
     }
 
-    // upsert twitter handle into users table (by wallet address)
+    const wallet = String(address).toLowerCase();
+
+    // upsert twitter + email into users table (by wallet address)
     await supabase
       .from("users")
-      .update({ twitter_handle: twitter })
-      .eq("wallet", address.toLowerCase());
+      .update({ twitter_handle: twitter, email })
+      .eq("wallet", wallet);
 
-    // log entry for audit
-    await supabase.from("physical_raffle_entries").insert({
-      raffle_id: raffleId,
-      user_address: address.toLowerCase(),
-      tickets: Number(tickets),
-      twitter_handle: twitter,
-      entry_code: String(code),
-    });
+    // avoid duplicate rows per (raffle_id, user_address) if already exists
+    const { data: existing } = await supabase
+      .from("physical_raffle_entries")
+      .select("id")
+      .eq("raffle_id", raffleId)
+      .eq("user_address", wallet)
+      .maybeSingle();
+
+    if (existing?.id) {
+      await supabase
+        .from("physical_raffle_entries")
+        .update({
+          tickets: Number(tickets),
+          twitter_handle: twitter,
+          email,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id);
+    } else {
+      await supabase.from("physical_raffle_entries").insert({
+        raffle_id: raffleId,
+        user_address: wallet,
+        tickets: Number(tickets),
+        twitter_handle: twitter,
+        email,
+      });
+    }
 
     return NextResponse.json({ ok: true });
   } catch (e: any) {
