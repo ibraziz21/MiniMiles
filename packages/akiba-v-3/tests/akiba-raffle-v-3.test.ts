@@ -5,27 +5,26 @@ import {
   clearStore,
   beforeAll,
   afterAll
-} from "matchstick-as"
-import { BigInt, Address } from "@graphprotocol/graph-ts"
-import { ParticipantJoined } from "../generated/schema"
-import { ParticipantJoined as ParticipantJoinedEvent } from "../generated/MiniRaffle/MiniRaffle"
-import { handleParticipantJoined } from "../src/mini-raffle"
-import { createParticipantJoinedEvent } from "./mini-raffle-utils"
+} from "matchstick-as/assembly/index"
+import { Address, BigInt } from "@graphprotocol/graph-ts"
+import { AdminChanged } from "../generated/schema"
+import { AdminChanged as AdminChangedEvent } from "../generated/AkibaRaffleV3/AkibaRaffleV3"
+import { handleAdminChanged } from "../src/akiba-raffle-v-3"
+import { createAdminChangedEvent } from "./akiba-raffle-v-3-utils"
 
 // Tests structure (matchstick-as >=0.5.0)
 // https://thegraph.com/docs/en/developer/matchstick/#tests-structure-0-5-0
 
 describe("Describe entity assertions", () => {
   beforeAll(() => {
-    let roundId = BigInt.fromI32(234)
-    let participant = Address.fromString(
+    let previousAdmin = Address.fromString(
       "0x0000000000000000000000000000000000000001"
     )
-    let newParticipantJoinedEvent = createParticipantJoinedEvent(
-      roundId,
-      participant
+    let newAdmin = Address.fromString(
+      "0x0000000000000000000000000000000000000001"
     )
-    handleParticipantJoined(newParticipantJoinedEvent)
+    let newAdminChangedEvent = createAdminChangedEvent(previousAdmin, newAdmin)
+    handleAdminChanged(newAdminChangedEvent)
   })
 
   afterAll(() => {
@@ -35,20 +34,20 @@ describe("Describe entity assertions", () => {
   // For more test scenarios, see:
   // https://thegraph.com/docs/en/developer/matchstick/#write-a-unit-test
 
-  test("ParticipantJoined created and stored", () => {
-    assert.entityCount("ParticipantJoined", 1)
+  test("AdminChanged created and stored", () => {
+    assert.entityCount("AdminChanged", 1)
 
     // 0xa16081f360e3847006db660bae1c6d1b2e17ec2a is the default address used in newMockEvent() function
     assert.fieldEquals(
-      "ParticipantJoined",
+      "AdminChanged",
       "0xa16081f360e3847006db660bae1c6d1b2e17ec2a-1",
-      "roundId",
-      "234"
+      "previousAdmin",
+      "0x0000000000000000000000000000000000000001"
     )
     assert.fieldEquals(
-      "ParticipantJoined",
+      "AdminChanged",
       "0xa16081f360e3847006db660bae1c6d1b2e17ec2a-1",
-      "participant",
+      "newAdmin",
       "0x0000000000000000000000000000000000000001"
     )
 
