@@ -11,41 +11,35 @@ function isEthAddress(s: string | undefined) {
   return typeof s === "string" && /^0x[a-fA-F0-9]{40}$/.test(s);
 }
 
-export async function GET(_req: Request, context: any) {
-  const address = String(context.params.address || "").toLowerCase();
-  if (!isEthAddress(address)) {
+export async function GET(  _req: Request, context: any) {
+  const address = context.params.address?.toLowerCase();
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
     return NextResponse.json({ error: "Bad address" }, { status: 400 });
   }
 
-  // 1) ensure stub row exists (ignore duplicates)
-  const { error: upErr } = await supabase
-    .from("users")
-    .upsert({ user_address: address }, { onConflict: "user_address", ignoreDuplicates: true });
-  if (upErr) {
-    console.error(upErr);
-    return NextResponse.json({ error: "DB error" }, { status: 500 });
-  }
+  // 1) ensure the stub row exists (ignore duplicate conflicts)
+const { error: upErr } = await supabase
+.from('users')
+.upsert({ user_address: address }, { onConflict: 'user_address', ignoreDuplicates: true });
 
-  // 2) fetch profile fields
-  const { data, error } = await supabase
-    .from("users")
-    .select("is_member, email, twitter_handle, phone")
-    .eq("user_address", address)
-    .single();
+if (upErr) {
+console.error(upErr);
+return NextResponse.json({ error: 'DB error' }, { status: 500 });
+}
 
-  if (error) {
-    console.error(error);
-    return NextResponse.json({ error: "DB error" }, { status: 500 });
-  }
+// 2) fetch the flag
+const { data, error } = await supabase
+.from('users')
+.select('is_member')
+.eq('user_address', address)
+.single();
 
-  return NextResponse.json({
-    user: {
-      is_member: data?.is_member === true,
-      email: data?.email ?? null,
-      twitter_handle: data?.twitter_handle ?? null,
-      phone: data?.phone ?? null,
-    },
-  });
+if (error) {
+console.error(error);
+return NextResponse.json({ error: 'DB error' }, { status: 500 });
+}
+
+return NextResponse.json({ isMember: data.is_member === true });
 }
 
 export async function PATCH(req: Request, context: any) {

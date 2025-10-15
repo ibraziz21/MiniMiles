@@ -23,7 +23,7 @@ export async function GET() {
       functionName: 'roundIdCounter',
     })
     const total = Number(roundCountBN)
-    console.log("total rounds:", total)
+
     if (total === 0) {
       return NextResponse.json({ tokenRaffles: [], physicalRaffles: [] })
     }
@@ -42,7 +42,6 @@ export async function GET() {
       allowFailure: true,
     })
 
-    console.log("ROUNDS: ",roundsRaw)
 
     // 3) Unwrap successful + still-active (endTime > now)
     interface RawResp { status: 'success' | 'failure'; result: unknown[] }
