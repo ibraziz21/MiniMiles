@@ -131,7 +131,7 @@ export default function Home() {
       </div>
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-medium">Join Raffles</h3>
+          <h3 className="text-lg font-medium">Join Lucky Draws</h3>
           <Link href='/spend'>
             <span className="text-sm text-[#238D9D] hover:underline">View more ›</span>
           </Link>
@@ -172,7 +172,7 @@ export default function Home() {
     );
   })}
   {tokenRaffles.length === 0 && (
-    <div className="text-sm opacity-70 px-2 py-4">No raffles live right now.</div>
+    <div className="text-sm opacity-70 px-2 py-4">No lucky draw live right now.</div>
   )}
 </div>
       </div>

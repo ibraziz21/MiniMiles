@@ -19,7 +19,7 @@ const EnterRaffleSheet = () => {
           className=" w-full p-3 rounded-xl flex items-center justify-center gap-3 font-medium tracking-wide shadow-sm text-[#238D9D] bg-[#238D9D1A] hover:bg-[#238D9D1A] disabled:bg-[#238D9D]"
         >
           <Question size={24} />
-          <span>How to enter a raffle?</span>
+          <span>How to enter a Lucky Draw?</span>
         </button>
       </SheetTrigger>
 
@@ -28,9 +28,9 @@ const EnterRaffleSheet = () => {
         className="bg-white rounded-t-xl font-sterling p-4"
       >
         <SheetHeader>
-          <SheetTitle>How to enter raffles</SheetTitle>
+          <SheetTitle>How to enter Lucky Draws</SheetTitle>
           <p className="text-[#00000080] mt-2">
-            With your earned akibaMiles you can buy tickets of raffles. The more
+            With your earned akibaMiles you can buy tickets for Lucky Draws. The more
             tickets you buy the higher your chances are to win big.
           </p>
         </SheetHeader>

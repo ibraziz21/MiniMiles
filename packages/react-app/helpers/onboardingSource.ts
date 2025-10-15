@@ -11,7 +11,7 @@ export const onboardingSource = [
   {
     img: OnboardingImgTwo,
     title: "Spend Miles",
-    subtitle: "Spend your AkibaMiles on exclusive rewards like raffles, deals and prizes.",
+    subtitle: "Spend your AkibaMiles on exclusive rewards like lucky draws, deals and prizes.",
     line: "150px",
     buttonText: "Next"
   },

@@ -206,7 +206,7 @@ export default function SpendPartnerQuestSheet({
             </div>
 
             <div className="flex justify-center">
-              <h3 className="font-bold text-lg text-center">Your raffle tickets have been successfully purchased!</h3>
+              <h3 className="font-bold text-lg text-center">Your lucky draw tickets have been successfully purchased!</h3>
             </div>
 
             {/* image + badge */}
@@ -256,8 +256,8 @@ export default function SpendPartnerQuestSheet({
             </SheetHeader>
 
             <div className="flex flex-col justify-start items-start mb-2">
-              <h3 className='text-sm font-medium bg-[#24E5E033] text-[#1E8C89] rounded-full px-3 '>Digital cash raffle</h3>
-              <h2 className="text-black font-medium text-3xl my-2">Weekly Raffle</h2>
+              <h3 className='text-sm font-medium bg-[#24E5E033] text-[#1E8C89] rounded-full px-3 '>Digital cash</h3>
+              <h2 className="text-black font-medium text-3xl my-2">Weekly Lucky Draw</h2>
             </div>
 
             <div className="relative w-full h-40 rounded-xl overflow-hidden mb-4">
@@ -279,7 +279,7 @@ export default function SpendPartnerQuestSheet({
 
             <div className="text-gray-500 rounded-xl py-3 text-center mb-4">
               <p className="text-sm">
-                Join our raffle for {raffle.prize} {milesSymbol} and win big!
+                Join our lucky draw for {raffle.prize} and win big!
               </p>
             </div>
 
@@ -287,7 +287,7 @@ export default function SpendPartnerQuestSheet({
               <div className="flex justify-between">
                 <span className="font-medium">Prize</span>
                 <span className="text-gray-700 flex">
-                  <Image src={akibaMilesSymbol} alt="" width={16} height={16} className="mr-1" /> {raffle.prize} {milesSymbol}
+                  <Image src={akibaMilesSymbol} alt="" width={16} height={16} className="mr-1" /> {raffle.prize} 
                 </span>
               </div>
               <div className="flex justify-between">
