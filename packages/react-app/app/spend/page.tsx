@@ -182,7 +182,7 @@ const Page = () => {
     <main className="pb-24 font-sterling bg-onboarding">
       <div className="px-4 flex flex-col justify-around gap-1 mb-4">
         <h1 className="text-2xl font-medium">Spend</h1>
-        <h3 className='font-poppins'>Win big by entering our Lucky Draws</h3>
+        <h3 className='font-poppins'>Win big by entering our Rewards</h3>
       </div>
       <MiniPointsCard points={Number(akibaMilesBalance)} />
       <div className="mx-3">
@@ -190,7 +190,7 @@ const Page = () => {
       </div>
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-extrabold mb-2">Digital Cash Lucky Draws</h3>
+          <h3 className="text-lg font-extrabold mb-2">Digital Cash Rewards</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
         {tokenRaffles.map((r) => {
@@ -234,7 +234,7 @@ const Page = () => {
        {/* PHYSICAL */}
        <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-extrabold mb-2">Physical goods Lucky Draws</h3>
+          <h3 className="text-lg font-extrabold mb-2">Physical Goods Rewards</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
         {physicalRaffles.map((r) => {
@@ -267,7 +267,7 @@ const Page = () => {
 })}
 
           {physicalRaffles.length === 0 && (
-            <div className="text-sm opacity-70 px-2 py-4">No physical lucky draw live right now.</div>
+            <div className="text-sm opacity-70 px-2 py-4">No physical Reward live right now.</div>
           )}
         </div>
       </div>
@@ -275,7 +275,7 @@ const Page = () => {
       {/* NFT (static demo) */}
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-extrabold mb-2">NFT Lucky Draws</h3>
+          <h3 className="text-lg font-extrabold mb-2">NFTRewards</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
           {nftRaffles.map((raffle, idx) => (

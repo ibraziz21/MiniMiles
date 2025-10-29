@@ -287,7 +287,7 @@ export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Prop
 
               <div className="flex flex-col items-start mb-2">
                 <h3 className="text-sm font-medium bg-[#24E5E033] text-[#1E8C89] rounded-full px-3">
-                  Physical Lucky Draw
+                  Physical Reward
                 </h3>
                 <div className="flex w-full items-center gap-2">
                   <h3 className="text-lg font-medium">{raffle.title}</h3>
