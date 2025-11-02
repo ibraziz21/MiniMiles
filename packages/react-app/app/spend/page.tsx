@@ -231,8 +231,8 @@ const Page = () => {
         </div>
       </div>
 
-       {/* PHYSICAL */}
-       <div className="mx-4 mt-6">
+     
+       {/* <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-extrabold mb-2">Physical Goods Rewards</h3>
         </div>
@@ -270,7 +270,7 @@ const Page = () => {
             <div className="text-sm opacity-70 px-2 py-4">No physical Reward live right now.</div>
           )}
         </div>
-      </div>
+      </div> */}
 
       {/* NFT (static demo) */}
       <div className="mx-4 mt-6">
