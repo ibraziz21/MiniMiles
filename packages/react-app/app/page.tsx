@@ -165,7 +165,7 @@ export default function Home() {
         {/* PHYSICAL */}
         <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-extrabold mb-2">Akibamiles x Minipay Physical Rewards</h3>
+          <h3 className="text-lg font-extrabold mb-2">Physical Rewards</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
         {physicalRaffles.map((r) => {
@@ -201,7 +201,7 @@ export default function Home() {
 
 
           {physicalRaffles.length === 0 && (
-            <div className="text-sm opacity-70 px-2 py-4">No physical raffles live right now.</div>
+            <div className="text-sm opacity-70 px-2 py-4">No physical rewards live right now.</div>
           )}
         </div>
       </div>
@@ -249,7 +249,7 @@ export default function Home() {
     );
   })}
   {tokenRaffles.length === 0 && (
-    <div className="text-sm opacity-70 px-2 py-4">No lucky draw live right now.</div>
+    <div className="text-sm opacity-70 px-2 py-4">No Rewards live right now.</div>
   )}
 </div>
       </div>

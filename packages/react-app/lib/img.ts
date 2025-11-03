@@ -10,10 +10,12 @@ import bicycle from "../public/img/bicycle.png"
 import airpods from "../public/img/airpods.png"
 import nft1 from "../public/img/nft-1.png"
 import nft2 from "../public/img/nft2.png"
-import solar from "../public/img/solar.png"
-import speaker from "../public/img/speaker.png"
-import hplaptop from "../public/img/hplaptop.png"
-import sambuds from "../public/img/sambuds.png"
+import solar from "../public/img/solar.jpg"
+import speaker from "../public/img/speaker.jpg"
+import hplaptop from "../public/img/hplaptop.jpg"
+import sambuds from "../public/img/sambuds.jpg"
+import credo from "../public/img/credo.jpg"
+
 
 export {
   WinImg,
@@ -31,5 +33,6 @@ export {
   solar,
   speaker,
   sambuds,
-  hplaptop
+  hplaptop,
+  credo
 };
