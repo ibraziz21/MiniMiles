@@ -253,11 +253,20 @@ export default function Home() {
   )}
 </div>
       </div>
-      {hasMounted && (<SpendPartnerQuestSheet
-        open={spendSheetOpen}
-        onOpenChange={setSpendSheetOpen}
-        raffle={spendRaffle}
-      />)}
+      <PhysicalRaffleSheet
+  open={activeSheet === "physical"}
+  onOpenChange={(o) => setActiveSheet(o ? "physical" : null)}
+  raffle={physicalRaffle}
+/>
+
+{hasMounted && (
+  <SpendPartnerQuestSheet
+    open={activeSheet === "token"}
+    onOpenChange={(o) => setActiveSheet(o ? "token" : null)}
+    raffle={spendRaffle}
+  />
+)}
+
     <ReferFab />
        
     </main>
