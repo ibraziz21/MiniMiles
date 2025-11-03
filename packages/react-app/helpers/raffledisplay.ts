@@ -16,6 +16,7 @@ export type TokenRaffle = {
   ticketCost: string        // formatted (18d)
   image?: string            // optional if you attach one later
   description?: string
+  winners?: number
 }
 
 export type PhysicalRaffle = {
