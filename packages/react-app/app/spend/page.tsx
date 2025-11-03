@@ -68,17 +68,17 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   default: RaffleImg3,
 }
 const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
-  67: speaker,
-  68: solar,
-  69: hplaptop,
-  70: sambuds,           // default/fallback you wanted
+  68: speaker,
+  69: solar,
+  70: hplaptop,
+  71: sambuds,           // default/fallback you wanted
 };
 
 const PHYSICAL_TITLES: Record<number, string> = {
-  67: 'Bluetooth Speakers HIFI Boomboxes For Laptop,TV',
-  68: 'Outdoor Portable Solar Charger',
-  69: `HP EliteBook 840 G1 Intel Core I5 14" Inch 4GB RAM`,
-  70: 'Samsung Buds 2 Pro True Wireless Bluetooth Earbuds',
+  68: 'Bluetooth Speakers HIFI Boomboxes For Laptop,TV',
+  69: 'Outdoor Portable Solar Charger',
+  70: `HP EliteBook 840 G1 Intel Core I5 14" Inch 4GB RAM`,
+  71: 'Samsung Buds 2 Pro True Wireless Bluetooth Earbuds',
 };
 
 const pickPhysicalImage = (raffle: PhysicalRaffle) =>
