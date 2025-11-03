@@ -15,6 +15,7 @@ import speaker from "../public/img/speaker.jpg"
 import hplaptop from "../public/img/hplaptop.jpg"
 import sambuds from "../public/img/sambuds.jpg"
 import credo from "../public/img/credo.jpg"
+import promo from "../public/img/promo.png"
 
 
 export {
@@ -34,5 +35,6 @@ export {
   speaker,
   sambuds,
   hplaptop,
-  credo
+  credo,
+  promo,
 };

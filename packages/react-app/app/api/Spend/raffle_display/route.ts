@@ -9,6 +9,12 @@ const RAFFLE: Address = '0xd75dfa972c6136f1c594fec1945302f885e1ab29'
 const ZERO_ADDR = '0x0000000000000000000000000000000000000000'
 const PRIORITY_TOKEN = '0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e'.toLowerCase() // USDT on Alfajores
 
+// Optional: per-round winners override (token raffles)
+// Add more if you need: { [roundId]: winnersCount }
+const WINNERS_BY_ROUND: Record<number, number> = {
+  73: 5,
+}
+
 const publicClient = createPublicClient({
   chain: celo,
   transport: http(),
@@ -28,8 +34,6 @@ export async function GET() {
       return NextResponse.json({ tokenRaffles: [], physicalRaffles: [] })
     }
 
-
-
     // 2) Fetch each as "active" (allow failures for inactive/expired)
     const roundIds = [...Array(total).keys()].map(i => BigInt(i + 1))
     const roundsRaw: any[] = await publicClient.multicall({
@@ -41,7 +45,6 @@ export async function GET() {
       })),
       allowFailure: true,
     })
-
 
     // 3) Unwrap successful + still-active (endTime > now)
     interface RawResp { status: 'success' | 'failure'; result: unknown[] }
@@ -119,6 +122,9 @@ export async function GET() {
           }) as string
         } catch { /* keep fallback */ }
 
+        // winners override (only for token raffles)
+        const winnersOverride = WINNERS_BY_ROUND[rf.id]
+
         return {
           id: rf.id,
           starts: rf.starts,
@@ -133,7 +139,8 @@ export async function GET() {
           },
           rewardPool: formatUnits(rf.rewardPoolRaw, decimals),
           ticketCost: formatUnits(rf.ticketCostRaw, 18), // MiniPoints assumed 18d
-          raffleType: 'token', // 0/1/2
+          raffleType: 'token',
+          ...(typeof winnersOverride === 'number' ? { winners: winnersOverride } : {}),
         }
       })
     )
@@ -147,7 +154,7 @@ export async function GET() {
       return 0
     })
 
-    // 6) Shape physical raffles (no ERC-20 metadata; rewardPool is 0 by construction)
+    // 6) Shape physical raffles
     const physicalRaffles = physicalBase.map((rf) => ({
       id: rf.id,
       starts: rf.starts,
@@ -157,7 +164,7 @@ export async function GET() {
       winnersSelected: rf.winnersSelected,
       prizeNFT: prizeNFT,                 // may be undefined if getter not available
       ticketCost: formatUnits(rf.ticketCostRaw, 18),
-      raffleType: 'physical',             // == 3
+      raffleType: 'physical',
     }))
 
     return NextResponse.json({ tokenRaffles, physicalRaffles })
