@@ -1,7 +1,7 @@
 // components/physical-raffle-sheet.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Image, { type StaticImageData } from "next/image";
 import Link from "next/link";
 import { Button } from "./ui/button";
@@ -36,17 +36,12 @@ type Props = {
   raffle: PhysicalSpendRaffle | null;
 };
 
-const PRESETS = [1, 5, 10, 25, 50];
 const explorerBase = "https://celoscan.io/tx";
 
-const emailLooksValid = (s: string) =>
-  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
-
-const phoneLooksValid = (s: string) => {
-  const t = String(s || "").trim();
-  // allow E.164 like +2547..., or local digits 9–15 chars
-  return /^\+?[0-9]{9,15}$/.test(t);
-};
+const emailLooksValid = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+// Kenyan phone UI piece: exactly 9 digits after +254 (e.g. 7xxxxxxxx)
+const phoneSuffixLooksValid = (s: string) => /^\d{9}$/.test((s || "").trim());
+const toE164254 = (suffix9: string) => `+254${suffix9}`;
 
 export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Props) {
   const { address, getUserAddress, joinRaffle } = useWeb3();
@@ -57,20 +52,22 @@ export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Prop
   const [txHash, setTxHash] = useState<string | null>(null);
   const [errorModal, setErrorModal] = useState<{ title: string; desc?: string } | null>(null);
 
-  // profile fields
+  // profile + verify
   const [twitter, setTwitter] = useState<string>("");
   const [email, setEmail] = useState<string>("");
-  const [phone, setPhone] = useState<string>("");
+  const [phone9, setPhone9] = useState<string>(""); // REQUIRED, 9 digits after +254
 
-  // saved flag
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verified, setVerified] = useState(false);
+
+  // prevent double auto-verify on rapid re-renders
+  const autoVerifyTried = useRef(false);
 
   useEffect(() => {
     getUserAddress();
   }, [getUserAddress]);
 
-  // prefill user profile when modal opens + address available
+  // Prefill user profile when modal opens + address available
   useEffect(() => {
     async function loadProfile() {
       if (!open || !address) return;
@@ -81,19 +78,56 @@ export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Prop
           const u = json?.user || {};
           setTwitter(u?.twitter_handle || "");
           setEmail(u?.email || "");
-          setPhone(u?.phone || "");
-          // consider “saved” true if all required present
-          setSaved(Boolean(u?.email && u?.twitter_handle && u?.phone));
-        } else {
-          // not fatal — user might be new
-          setSaved(false);
+          const saved = String(u?.phone || "");
+          if (saved.startsWith("+254") && saved.length === 13) setPhone9(saved.slice(4));
         }
       } catch {
-        setSaved(false);
+        // ignore prefill errors
       }
     }
     loadProfile();
   }, [open, address]);
+
+  // Auto-verify ONLY if twitter+email+phone9 (valid) are already present
+  useEffect(() => {
+    const canAutoverify =
+      open &&
+      address &&
+      !verified &&
+      !autoVerifyTried.current &&
+      twitter.trim() &&
+      emailLooksValid(email) &&
+      phoneSuffixLooksValid(phone9) && // ← phone now REQUIRED
+      raffle;
+
+    if (!canAutoverify) return;
+
+    (async () => {
+      autoVerifyTried.current = true;
+      try {
+        setVerifying(true);
+        const res = await fetch("/api/raffles/validate-physical", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+          // tickets omitted → geo-check + upsert profile only
+          body: JSON.stringify({
+            raffleId: raffle!.id,
+            address,
+            twitter: twitter.trim(),
+            email: email.trim(),
+            phone: toE164254(phone9),
+          }),
+        });
+        const json = await res.json();
+        if (res.ok && json?.ok) setVerified(true);
+      } catch {
+        // silent — user can still press Verify manually
+      } finally {
+        setVerifying(false);
+      }
+    })();
+  }, [open, address, twitter, email, phone9, raffle, verified]);
 
   // Parse numeric ticket cost from string (supports "5" or "5 AkibaMiles")
   const ticketCostNum = useMemo(() => {
@@ -108,15 +142,16 @@ export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Prop
   const maxTickets = affordable;
   const totalCost = count * ticketCostNum;
 
-  // Reset when raffle changes
+  // Reset when raffle changes / sheet reopens
   useEffect(() => {
     setCount(soldOut ? 0 : 1);
     setProcessing(false);
     setJoined(false);
     setTxHash(null);
-    setSaved(false);
-    setSaving(false);
-  }, [raffle, soldOut]);
+    setVerified(false);
+    setVerifying(false);
+    autoVerifyTried.current = false;
+  }, [raffle, soldOut, open]);
 
   // Clamp count based on balance/soldOut
   useEffect(() => {
@@ -130,7 +165,16 @@ export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Prop
 
   if (!raffle) return null;
 
-  const handleSaveDetails = async () => {
+  // lock +254 UI: accept digits only, max 9
+  const onPhone9Change = (v: string) => {
+    const digits = v.replace(/\D/g, "").slice(0, 9);
+    setPhone9(digits);
+    // allow auto-verify again if user fixes phone
+    autoVerifyTried.current = false;
+    setVerified(false);
+  };
+
+  const handleVerify = async () => {
     if (!address) {
       setErrorModal({ title: "Connect wallet", desc: "Please connect your wallet first." });
       return;
@@ -143,46 +187,12 @@ export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Prop
       setErrorModal({ title: "Valid email required", desc: "Please enter a valid email address." });
       return;
     }
-    if (!phoneLooksValid(phone)) {
-      setErrorModal({ title: "Valid phone required", desc: "Enter a valid phone number (e.g., +2547XXXXXXX)." });
-      return;
-    }
-
-    try {
-      setSaving(true);
-      const res = await fetch(`/api/users/${address}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        cache: "no-store",
-        body: JSON.stringify({
-          twitter_handle: twitter.trim(),
-          email: email.trim(),
-          phone: phone.trim(),
-        }),
+    // PHONE NOW REQUIRED
+    if (!phoneSuffixLooksValid(phone9)) {
+      setErrorModal({
+        title: "Kenyan phone required",
+        desc: "Enter 9 digits after +254 (e.g. 7xxxxxxxx).",
       });
-      const json = await res.json();
-      if (!res.ok || json?.ok !== true) {
-        const reason = json?.error || "Could not save your details.";
-        setErrorModal({ title: "Save failed", desc: String(reason) });
-        setSaved(false);
-        return;
-      }
-      setSaved(true);
-    } catch (e: any) {
-      setErrorModal({ title: "Save error", desc: e?.message ?? String(e) });
-      setSaved(false);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleBuy = async () => {
-    if (!saved) {
-      setErrorModal({ title: "Details required", desc: "Please save your details first." });
-      return;
-    }
-    if (!address) {
-      setErrorModal({ title: "Connect wallet", desc: "Please connect your wallet first." });
       return;
     }
     if (soldOut) {
@@ -195,6 +205,48 @@ export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Prop
     }
 
     try {
+      setVerifying(true);
+      const res = await fetch("/api/raffles/validate-physical", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({
+          raffleId: raffle.id,
+          address,
+          twitter: twitter.trim(),
+          email: email.trim(),
+          phone: toE164254(phone9),
+          tickets: count, // log participation intent with ticket count
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || json?.ok !== true) {
+        const reason = json?.reason || json?.error || "Verification failed.";
+        setErrorModal({ title: "Verification failed", desc: String(reason) });
+        setVerified(false);
+        return;
+      }
+      setVerified(true);
+    } catch (e: any) {
+      setErrorModal({ title: "Verification error", desc: e?.message ?? String(e) });
+      setVerified(false);
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleBuy = async () => {
+    if (!verified) {
+      setErrorModal({ title: "Not verified", desc: "Please verify your location first." });
+      return;
+    }
+    if (!address) {
+      setErrorModal({ title: "Connect wallet", desc: "Please connect your wallet first." });
+      return;
+    }
+
+    try {
       setProcessing(true);
       setJoined(false);
       setTxHash(null);
@@ -203,13 +255,11 @@ export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Prop
       setTxHash(hash);
 
       try { await new Promise((r) => setTimeout(r, 3000)); } catch {}
-
       setJoined(true);
     } catch (err: any) {
       const rejected =
         err instanceof UserRejectedRequestError ||
         /user rejected/i.test(err?.message ?? "");
-
       if (rejected) {
         setErrorModal({ title: "Transaction cancelled", desc: "You closed the wallet popup." });
       } else {
@@ -291,7 +341,7 @@ export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Prop
                 </h3>
                 <div className="flex w-full items-center gap-2">
                   <h3 className="text-lg font-medium">{raffle.title}</h3>
-                  <h3 className="ml-auto text-sm text-[#238D9D]">by CeloPG ›</h3>
+                  <h3 className="ml-auto text-sm text-[#238D9D]">by Minipay ›</h3>
                 </div>
               </div>
 
@@ -316,65 +366,73 @@ export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Prop
                   <span className="font-medium">Draw Date</span>
                   <span className="text-gray-700">{raffle.endDate}</span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Eligible Location</span>
+                  <span className="text-gray-700">Kenya</span>
+                </div>
               </div>
 
-              {/* Profile details (Twitter + Email + Phone) */}
+              {/* Twitter + Email + REQUIRED +254 Phone (no OTP) */}
               <div className="mb-4 space-y-3">
                 <div>
                   <label className="block text-sm font-medium mb-1">Twitter username</label>
                   <input
                     value={twitter}
-                    onChange={(e) => setTwitter(e.target.value)}
+                    onChange={(e) => { setTwitter(e.target.value); autoVerifyTried.current = false; setVerified(false); }}
                     placeholder="@yourhandle"
                     className="w-full border rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#238D9D]"
                   />
                   <p className="text-xs text-gray-500 mt-1">Used to publicly announce winners.</p>
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium mb-1">Email address</label>
                   <input
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => { setEmail(e.target.value); autoVerifyTried.current = false; setVerified(false); }}
                     placeholder="you@example.com"
                     inputMode="email"
                     className="w-full border rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#238D9D]"
                   />
                   <p className="text-xs text-gray-500 mt-1">We’ll contact winners via this email.</p>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium mb-1">Phone number</label>
-                  <input
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+2547XXXXXXX"
-                    inputMode="tel"
-                    className="w-full border rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#238D9D]"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Optional WhatsApp follow-up if needed.</p>
+                  <label className="block text-sm font-medium mb-1">Kenyan phone (required)</label>
+                  <div className="flex items-center border rounded-xl overflow-hidden">
+                    <span className="px-3 py-2 bg-gray-50 text-gray-700 select-none">+254</span>
+                    <input
+                      value={phone9}
+                      onChange={(e) => onPhone9Change(e.target.value)}
+                      placeholder="7xxxxxxxx"
+                      inputMode="numeric"
+                      pattern="\d*"
+                      maxLength={9}
+                      className="w-full px-3 py-2 focus:outline-none"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Enter 9 digits after +254 (e.g. 7xxxxxxxx).
+                  </p>
                 </div>
 
-                {/* Terms */}
+                <Button
+                  onClick={handleVerify}
+                  disabled={verifying || verified || soldOut || notEnough}
+                  title={verified ? "Verified ✓" : verifying ? "Verifying…" : "Verify location"}
+                  className={`w-full rounded-xl h-[48px] font-medium ${
+                    verified ? "bg-[#18a34a] hover:bg-[#169343]" : "bg-[#238D9D] hover:bg-[#1f7b89]"
+                  } text-white`}
+                >
+                  {verified ? "Verified ✓" : verifying ? "Verifying…" : "Verify location"}
+                </Button>
+
                 <p className="text-xs text-gray-500">
-                  By submitting this, you agree to the{" "}
-                  <Link
-                    href="/terms"
-                    target="_blank"
-                    className="text-[#238D9D] underline underline-offset-2"
-                  >
+                  By verifying, you agree to the{" "}
+                  <Link href="https://docs.google.com/document/d/1TbZl6gZxT67njFyEWnIfcdne5oFtFrwKEyWi76O3310/edit?usp=sharing" target="_blank" className="text-[#238D9D] underline underline-offset-2">
                     terms and conditions
                   </Link>.
                 </p>
-
-                <Button
-                  onClick={handleSaveDetails}
-                  disabled={saving || soldOut || notEnough}
-                  title={saved ? "Saved ✓" : saving ? "Saving…" : "Save details"}
-                  className={`w-full rounded-xl h-[48px] font-medium ${
-                    saved ? "bg-[#18a34a] hover:bg-[#169343]" : "bg-[#238D9D] hover:bg-[#1f7b89]"
-                  } text-white`}
-                >
-                  {saved ? "Saved ✓" : saving ? "Saving…" : "Save details"}
-                </Button>
               </div>
 
               {/* Tickets */}
@@ -429,7 +487,7 @@ export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Prop
               <SheetFooter className="flex flex-col w-full space-y-2">
                 <Button
                   onClick={handleBuy}
-                  disabled={soldOut || notEnough || count === 0 || !saved}
+                  disabled={soldOut || notEnough || count === 0 || !verified}
                   className="w-full bg-[#238D9D] text-white rounded-xl h-[56px] font-medium"
                   title="Buy Ticket"
                 >
@@ -443,9 +501,9 @@ export default function PhysicalRaffleSheet({ open, onOpenChange, raffle }: Prop
                   <p className="text-center text-sm text-red-600">
                     You don’t have enough AkibaMiles to buy a ticket.
                   </p>
-                ) : !saved ? (
+                ) : !verified ? (
                   <p className="text-center text-sm text-gray-600">
-                    Save your details to enable buying.
+                    Verify your location to enable buying.
                   </p>
                 ) : null}
               </SheetFooter>

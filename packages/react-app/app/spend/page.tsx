@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
 import type { Address } from 'viem'
 import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
-import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5, powerbank } from '@/lib/img';
+import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5, speaker, solar, hplaptop, sambuds } from '@/lib/img';
 import { Coin, akibaMilesSymbol } from '@/lib/svg';
 import { Question } from '@phosphor-icons/react';
 import { StaticImageData } from 'next/image';
@@ -65,9 +65,27 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   USDT: RaffleImg2,
   Miles: RaffleImg5,
   // default fallback:
-  physicalDefault: powerbank,
   default: RaffleImg3,
 }
+const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
+  67: speaker,
+  68: solar,
+  69: hplaptop,
+  70: sambuds,           // default/fallback you wanted
+};
+
+const PHYSICAL_TITLES: Record<number, string> = {
+  67: 'Bluetooth Speakers HIFI Boomboxes For Laptop,TV',
+  68: 'Outdoor Portable Solar Charger',
+  69: `HP EliteBook 840 G1 Intel Core I5 14" Inch 4GB RAM`,
+  70: 'Samsung Buds 2 Pro True Wireless Bluetooth Earbuds',
+};
+
+const pickPhysicalImage = (raffle: PhysicalRaffle) =>
+  PHYSICAL_IMAGES[raffle.id] ?? sambuds;
+
+const physicalTitle = (raffle: PhysicalRaffle) =>
+  PHYSICAL_TITLES[raffle.id] ?? 'Physical prize';
 
 // Shape it to what SpendPartnerQuestSheet expects:
 type SpendRaffle = {
@@ -172,17 +190,11 @@ const Page = () => {
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
   };
 
-
-  const pickPhysicalImage = (raffle: PhysicalRaffle) => {
-    // If you later expose rewardURI metadata, map keywords -> images here
-    return RaffleImg3 // fallback image for physicals
-  }
-
   return (
     <main className="pb-24 font-sterling bg-onboarding">
       <div className="px-4 flex flex-col justify-around gap-1 mb-4">
         <h1 className="text-2xl font-medium">Spend</h1>
-        <h3 className='font-poppins'>Win big by entering our Rewards</h3>
+        <h3 className='font-poppins'>Win big by entering our Raffles</h3>
       </div>
       <MiniPointsCard points={Number(akibaMilesBalance)} />
       <div className="mx-3">
@@ -190,7 +202,7 @@ const Page = () => {
       </div>
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-extrabold mb-2">Digital Cash Rewards</h3>
+          <h3 className="text-lg font-extrabold mb-2">Digital cash raffles</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
         {tokenRaffles.map((r) => {
@@ -231,19 +243,21 @@ const Page = () => {
         </div>
       </div>
 
-     
-       {/* <div className="mx-4 mt-6">
+       {/* PHYSICAL */}
+       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-extrabold mb-2">Physical Goods Rewards</h3>
+          <h3 className="text-lg font-extrabold mb-2">Physical goods raffles</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
         {physicalRaffles.map((r) => {
   const cardImg = pickPhysicalImage(r);
+  const title = physicalTitle(r);
+
   return (
     <RaffleCard
       key={r.id}
-      image={powerbank}
-      title={`Physical prize: Powerbank`}
+      image={cardImg}
+      title={title}
       endsIn={formatEndsIn(r.ends)}
       ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
       icon={akibaMilesSymbol}
@@ -252,30 +266,31 @@ const Page = () => {
         setSpendRaffle(null);
         setPhysicalRaffle({
           id: r.id,
-          title: 'PowerBank',
+          title,
           endDate: formatEndsIn(r.ends),
           ticketCost: r.ticketCost,
-          image: powerbank,
+          image: cardImg,
           balance: Number(akibaMilesBalance),
           totalTickets: r.totalTickets,
           maxTickets: r.maxTickets,
         });
-        setActiveSheet("physical");  // <-- only this one opens
+        setActiveSheet("physical");
       }}
     />
-  )
+  );
 })}
 
+
           {physicalRaffles.length === 0 && (
-            <div className="text-sm opacity-70 px-2 py-4">No physical Reward live right now.</div>
+            <div className="text-sm opacity-70 px-2 py-4">No physical raffles live right now.</div>
           )}
         </div>
-      </div> */}
+      </div>
 
       {/* NFT (static demo) */}
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-extrabold mb-2">NFTRewards</h3>
+          <h3 className="text-lg font-extrabold mb-2">NFT raffles</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto">
           {nftRaffles.map((raffle, idx) => (
