@@ -98,7 +98,7 @@ const handleClaim = async () => {
 
         <Button
           className="w-full rounded-xl py-6 text-white bg-[#238D9D] mb-2"
-          title={loading ? 'Processing…' : 'Follow Us'}
+          title={loading ? 'Processing…' :'Complete & Earn'}
           onClick={handleClaim}
           disabled={loading}
         />
