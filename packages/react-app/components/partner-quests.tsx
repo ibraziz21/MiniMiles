@@ -38,7 +38,7 @@ const quests: Quest[] = [
     id: '1b15ef82-3a72-45c9-979a-2dbf317e8b26',
     isLocked: false,
     img: MiniPay,
-    title: "Minipay",
+    title: "MiniPay",
     description: "Subscribe to the Minipay Youtube Channel",
     reward: "25 akibaMiles",
     color: "#B3DEC5",
