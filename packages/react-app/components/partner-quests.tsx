@@ -56,7 +56,7 @@ const quests: Quest[] = [
     title: "AkibaMiles",
     description: "Like and Retweet Post on X",
     reward: "20 akibaMiles",
-    color: "#c1f5f5",
+    color: "#238D9D",
     actionLink: "https://x.com/akibamiles/status/1986001780065321411?s=46&t=U7dlAHF6-1TyB1lygfLqNA",     // <-- where the button should go
     instructions: [
       { title: "Open Twitter", text: "Go to our pinned post" },
@@ -146,8 +146,7 @@ export default function PartnerQuests({
     // Start from a copy
     const list = [...quests]
 
-    // If user completed "Follow Us on Twitter", replace that card with SuperYield-R,
-    // and remove the original SuperYield-R entry to avoid duplicates.
+   
     if (claimedSet.has(FOLLOW_ID)) {
       const followIdx = list.findIndex(q => q.id === FOLLOW_ID)
       const superIdx  = list.findIndex(q => q.id === SUPER_ID)
