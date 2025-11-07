@@ -65,7 +65,7 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   USDT: RaffleImg2,
   Miles: RaffleImg5,
   // default fallback:
-  default: promo,
+  default: RaffleImg2,
 }
 const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
   68: speaker,
