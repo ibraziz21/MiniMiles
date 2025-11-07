@@ -23,19 +23,7 @@ const phoneIsE164254 = (s: string) =>
 export async function POST(req: Request) {
   try {
     // Geo from headers (Vercel sets these in prod)
-    const headers = req.headers;
-    const country = (headers.get("x-vercel-ip-country") || "XX").toUpperCase();
-    const region = headers.get("x-vercel-ip-country-region") || null;
-    const city = headers.get("x-vercel-ip-city") || null;
-    const ip = (headers.get("x-forwarded-for") || "").split(",")[0]?.trim() || null;
-
-    // Kenya-only in production
-    if (process.env.NODE_ENV === "production" && !ALLOWED_COUNTRIES.includes(country)) {
-      return NextResponse.json(
-        { ok: false, reason: "Kenya-only raffle. Not available in your region." },
-        { status: 403 }
-      );
-    }
+  
 
     const body = await req.json();
     const { raffleId, address, twitter, email, phone } = body;
@@ -94,10 +82,6 @@ export async function POST(req: Request) {
         twitter_handle: twitter,
         email,
         phone: phone ?? null,
-        country_code: country,
-        region,
-        city,
-        ip_addr: ip,
         updated_at: new Date().toISOString(),
       };
 
