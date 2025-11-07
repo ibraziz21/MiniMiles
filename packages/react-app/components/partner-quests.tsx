@@ -6,6 +6,7 @@ import cn from 'clsx'
 import { createClient } from "@supabase/supabase-js";
 import { useQuery } from "@tanstack/react-query";
 import { useWeb3 } from "@/contexts/useWeb3";
+import { useMemo } from "react";
 // components/DailyChallenges.tsx
 export interface Quest {
   id: string;
@@ -48,20 +49,20 @@ const quests: Quest[] = [
       { title: "Subscribe", text: "Hit the subscribe button and confirm." },
     ],
   },
-  // {
-  //   id: 'd41e652b-8aa3-469c-9957-b7d6b6b6e182',
-  //   isLocked: false,
-  //   img: SYR,
-  //   title: "SuperYLDR",
-  //   description: "Follow SuperYield-R on Twitter",
-  //   reward: "20 akibaMiles",
-  //   color: "#c1f5f5",
-  //   actionLink: "https://x.com/superyldr",     // <-- where the button should go
-  //   instructions: [
-  //     { title: "Open Twitter", text: "Go to our @superYLDR page." },
-  //     { title: "Follow", text: "Hit the Follow button and confirm." },
-  //   ],
-  // },
+  {
+    id: '2fc86078-d506-4ef8-8cf2-ea79df5cb554',
+    isLocked: false,
+    img: akibaMilesSymbolAlt,
+    title: "AkibaMiles",
+    description: "Like and Retweet Post on X",
+    reward: "20 akibaMiles",
+    color: "#c1f5f5",
+    actionLink: "https://x.com/akibamiles/status/1986001780065321411?s=46&t=U7dlAHF6-1TyB1lygfLqNA",     // <-- where the button should go
+    instructions: [
+      { title: "Open Twitter", text: "Go to our pinned post" },
+      { title: "Like & Retweet", text: "Hit the Follow button and confirm." },
+    ],
+  },
 
   {
     id: '8d5a7766-4d2a-4bff-ac97-6b03fd5b570f',
@@ -137,19 +138,39 @@ export default function PartnerQuests({
   const { data: claimedIds = [] } = useClaimedQuestIds(address!)
   const claimedSet = new Set(claimedIds)
 
+  // ⬇️ NEW: compute what to display based on whether the Follow quest is completed
+  const displayQuests = useMemo(() => {
+    const FOLLOW_ID = '99da9e3d-5332-419e-aa40-5cb9d6e3a7ab'
+    const SUPER_ID  = '2fc86078-d506-4ef8-8cf2-ea79df5cb554'
+
+    // Start from a copy
+    const list = [...quests]
+
+    // If user completed "Follow Us on Twitter", replace that card with SuperYield-R,
+    // and remove the original SuperYield-R entry to avoid duplicates.
+    if (claimedSet.has(FOLLOW_ID)) {
+      const followIdx = list.findIndex(q => q.id === FOLLOW_ID)
+      const superIdx  = list.findIndex(q => q.id === SUPER_ID)
+      if (followIdx !== -1 && superIdx !== -1) {
+        list[followIdx] = list[superIdx]
+        list.splice(superIdx, 1) // remove the original SuperYield-R card
+      }
+    }
+    return list
+  }, [claimedSet])
+
   return (
     <div className="mt-6">
       <h3 className="text-lg font-medium mb-3">Partner Quests</h3>
 
       <div className="grid grid-cols-2 gap-2">
-        {quests.map((q) => {
-          const locked     = q.isLocked
+        {displayQuests.map((q: Quest) => {  {/* ⬅️ use displayQuests here */}
+          const locked = q.isLocked
           let completed
-          if(!locked){
-           completed  = claimedSet.has(q.id)
+          if (!locked) {
+            completed = claimedSet.has(q.id)
           }
 
-          /* card click only when active */
           const clickable = !locked && !completed
 
           return (
