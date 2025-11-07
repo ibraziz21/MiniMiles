@@ -47,7 +47,7 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   cUSD: RaffleImg1,
   USDT: RaffleImg2,
   Miles: RaffleImg5,
-  default: RaffleImg2,
+  default: RaffleImg3,
 };
 
 /** ───────────────── Physical raffle helpers ─────────────── */
