@@ -130,7 +130,7 @@ export async function POST(req: Request) {
       address: MINIPOINTS_ADDRESS as `0x${string}`,
       abi: MiniPointsAbi.abi,
       functionName: "mint",
-      args: [userAddress, parseUnits("20", 18)],
+      args: [userAddress, parseUnits("50", 18)],
       account,
       dataSuffix: `0x${referralTag}`
     });
@@ -145,7 +145,7 @@ export async function POST(req: Request) {
       user_address: userAddress,
       quest_id: questId,
       claimed_at: today,
-      points_awarded: 20,
+      points_awarded: 50,
     });
 
     return NextResponse.json({ success: true, txHash });
