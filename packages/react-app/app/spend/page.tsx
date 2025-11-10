@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
 import type { Address } from 'viem'
 import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
-import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5, speaker, solar, hplaptop, sambuds, credo, promo } from '@/lib/img';
+import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5, spk, vitron, power, sambuds, credo, promo } from '@/lib/img';
 import { Coin, akibaMilesSymbol } from '@/lib/svg';
 import { Question } from '@phosphor-icons/react';
 import { StaticImageData } from 'next/image';
@@ -68,19 +68,16 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   default: RaffleImg3,
 }
 const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
-  68: speaker,
-  69: solar,
-  70: hplaptop,
-  71: sambuds,  
-  72: credo,         // default/fallback you wanted
+  76: spk,
+  77: vitron,
+  78: power,
+  79: credo,
 };
-
 const PHYSICAL_TITLES: Record<number, string> = {
-  68: 'Bluetooth Speakers HIFI Boomboxes For Laptop,TV',
-  69: 'Outdoor Portable Solar Charger',
-  70: `HP EliteBook 840 G1 Intel Core I5 14" Inch 4GB RAM`,
-  71: 'Samsung Buds 2 Pro True Wireless Bluetooth Earbuds',
-  72: 'KES 500 Airtime Reward, '
+  76: "Bluetooth Speakers HIFI Boomboxes For Laptop,TV",
+  77: "Vitron HTC3200S, 32 Smart Frameless Android LED TV",
+  78: `VIC 40000mAh Power Bank`,
+  79: 'KES 500 Airtime Reward, '
 };
 
 const pickPhysicalImage = (raffle: PhysicalRaffle) =>

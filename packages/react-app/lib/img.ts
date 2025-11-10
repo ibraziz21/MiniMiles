@@ -16,6 +16,9 @@ import hplaptop from "../public/img/hplaptop.jpg"
 import sambuds from "../public/img/sambuds.jpg"
 import credo from "../public/img/credo.jpg"
 import promo from "../public/img/promo.png"
+import power from "../public/img/power.jpg"
+import vitron from "../public/img/vitron.jpg"
+import spk from "../public/img/spk.jpg"
 
 
 export {
@@ -37,4 +40,5 @@ export {
   hplaptop,
   credo,
   promo,
+  vitron, spk, power
 };

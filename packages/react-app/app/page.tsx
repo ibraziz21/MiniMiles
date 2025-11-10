@@ -19,6 +19,9 @@ import {
   sambuds,
   promo,
   credo,
+  spk,
+  vitron,
+  power
 } from "@/lib/img";
 import { akibaMilesSymbol } from "@/lib/svg";
 import { useEffect, useState } from "react";
@@ -52,18 +55,16 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
 
 /** ───────────────── Physical raffle helpers ─────────────── */
 const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
-  68: speaker,
-  69: solar,
-  70: hplaptop,
-  71: sambuds,
-  72: credo,
+  76: spk,
+  77: vitron,
+  78: power,
+  79: credo,
 };
 const PHYSICAL_TITLES: Record<number, string> = {
-  68: "Bluetooth Speakers HIFI Boomboxes For Laptop,TV",
-  69: "Outdoor Portable Solar Charger",
-  70: `HP EliteBook 840 G1 Intel Core I5 14" Inch 4GB RAM`,
-  71: "Samsung Buds 2 Pro True Wireless Bluetooth Earbuds",
-  72: 'KES 500 Airtime Reward, '
+  76: "Bluetooth Speakers HIFI Boomboxes For Laptop,TV",
+  77: "Vitron HTC3200S, 32 Smart Frameless Android LED TV",
+  78: `VIC 40000mAh Power Bank`,
+  79: 'KES 500 Airtime Reward, '
 };
 const pickPhysicalImage = (raffle: PhysicalRaffle) =>
   PHYSICAL_IMAGES[raffle.id] ?? sambuds;
