@@ -132,7 +132,7 @@ export default function Home() {
         // ⬇︎ Add winners: round 73 → 5, others → 1
         const withWinners: TokenRaffleWithWinners[] = tokenRaffles.map((r) => ({
           ...r,
-          winners: r.id === 73 ? 5 : 1,
+          winners: r.id === 80 ? 5 : 1,
         }));
 
         setTokenRaffles(withWinners);
