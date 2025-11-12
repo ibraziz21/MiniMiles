@@ -35,6 +35,7 @@ import type { StaticImageData } from "next/image";
 import dynamic from "next/dynamic";
 import truncateEthAddress from "truncate-eth-address";
 import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
+import { useRouter } from "next/navigation";
 
 const PhysicalRaffleSheet = dynamic(
   () => import("@/components/physical-raffle-sheet"),
@@ -42,6 +43,10 @@ const PhysicalRaffleSheet = dynamic(
 );
 const SpendPartnerQuestSheet = dynamic(
   () => import("@/components/spend-partner-quest-sheet"),
+  { ssr: false }
+);
+const WinningModal = dynamic(
+  () => import("@/components/winning-modal"),
   { ssr: false }
 );
 
@@ -87,13 +92,14 @@ export type SpendRaffle = {
   symbol: string;
   totalTickets: number;
   maxTickets: number;
-  winners?: number  // add if/when your sheet wants it
+  winners?: number
 };
 
 export default function Home() {
+  const router = useRouter();
   const { address, getUserAddress, getakibaMilesBalance } = useWeb3();
   const [akibaMilesBalance, setakibaMilesBalance] = useState("0");
-
+  const [winnerOpen, setWinnerOpen] = useState(false);
   const [tokenRaffles, setTokenRaffles] = useState<TokenRaffleWithWinners[]>(
     []
   );
@@ -129,7 +135,7 @@ export default function Home() {
   useEffect(() => {
     fetchActiveRaffles()
       .then(({ tokenRaffles, physicalRaffles }) => {
-        // ⬇︎ Add winners: round 73 → 5, others → 1
+        // ⬇︎ Add winners: id 80 → 5, others → 1
         const withWinners: TokenRaffleWithWinners[] = tokenRaffles.map((r) => ({
           ...r,
           winners: r.id === 80 ? 5 : 1,
@@ -162,7 +168,13 @@ export default function Home() {
 
   return (
     <main className="pb-24 font-sterling">
-      <DashboardHeader name={truncateEthAddress(address ?? "")} />
+      {/* 🔔 Auto winner popup — shows once per browser if last draw < 72h */}
+      <WinningModal open={winnerOpen} onOpenChange={setWinnerOpen} />
+
+      <DashboardHeader
+        name={truncateEthAddress(address ?? "")}
+        onOpenWinners={() => setWinnerOpen(true)}
+      />
       <PointsCard points={Number(akibaMilesBalance)} />
 
       {/* Daily challenges */}
@@ -228,62 +240,63 @@ export default function Home() {
         </div>
       </div>
 
-    {/* TOKEN / Join Rewards */}
-<div className="mx-4 mt-6">
-  <div className="flex justify-between items-center">
-    <h3 className="text-lg font-medium">Join Rewards</h3>
-    <Link href="/spend">
-      <span className="text-sm text-[#238D9D] hover:underline">
-        View more ›
-      </span>
-    </Link>
-  </div>
+      {/* TOKEN / Join Rewards */}
+      <div className="mx-4 mt-6">
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-medium">Join Rewards</h3>
+          <Link href="/spend">
+            <span className="text-sm text-[#238D9D] hover:underline">
+              View more ›
+            </span>
+          </Link>
+        </div>
 
-  <div className="flex gap-3 overflow-x-auto">
-    {tokenRaffles.map((r) => {
-      const cardImg =
-        (r as any).image ??
-        TOKEN_IMAGES[r.token.symbol] ??
-        TOKEN_IMAGES.default;
+        <div className="flex gap-3 overflow-x-auto">
+          {tokenRaffles.map((r) => {
+            const cardImg =
+              (r as any).image ??
+              TOKEN_IMAGES[r.token.symbol] ??
+              TOKEN_IMAGES.default;
 
-      return (
-        <RaffleCard
-          key={r.id}
-          image={cardImg}
-          title={`${r.rewardPool} ${r.token.symbol}`}
-          endsIn={formatEndsIn(r.ends)}
-          ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
-          icon={akibaMilesSymbol}
-          winners={r.winners}   // ✅ MUST be passed to show the badge
-          locked={false}
-          onClick={() => {
-            setSpendRaffle({
-              id: r.id,
-              title: r.description ?? `${r.rewardPool} ${r.token.symbol}`,
-              reward: `${r.rewardPool} ${r.token.symbol}`,
-              prize: `${r.rewardPool} ${r.token.symbol}`,
-              endDate: formatEndsIn(r.ends),
-              ticketCost: `${r.ticketCost} AkibaMiles`,
-              image: cardImg,
-              balance: Number(akibaMilesBalance),
-              symbol: r.token.symbol,
-              maxTickets: r.maxTickets,
-              totalTickets: r.totalTickets,
-              winners: r.winners,
-            });
-            setActiveSheet("token");
-          }}
-        />
-      );
-    })}
+            return (
+              <RaffleCard
+                key={r.id}
+                image={cardImg}
+                title={`${r.rewardPool} ${r.token.symbol}`}
+                endsIn={formatEndsIn(r.ends)}
+                ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
+                icon={akibaMilesSymbol}
+                winners={r.winners}
+                locked={false}
+                onClick={() => {
+                  setSpendRaffle({
+                    id: r.id,
+                    title: r.description ?? `${r.rewardPool} ${r.token.symbol}`,
+                    reward: `${r.rewardPool} ${r.token.symbol}`,
+                    prize: `${r.rewardPool} ${r.token.symbol}`,
+                    endDate: formatEndsIn(r.ends),
+                    ticketCost: `${r.ticketCost} AkibaMiles`,
+                    image: cardImg,
+                    balance: Number(akibaMilesBalance),
+                    symbol: r.token.symbol,
+                    maxTickets: r.maxTickets,
+                    totalTickets: r.totalTickets,
+                    winners: r.winners,
+                  });
+                  setActiveSheet("token");
+                }}
+              />
+            );
+          })}
 
-    {tokenRaffles.length === 0 && (
-      <div className="text-sm opacity-70 px-2 py-4">
-        No Rewards live right now.
+          {tokenRaffles.length === 0 && (
+            <div className="text-sm opacity-70 px-2 py-4">
+              No Rewards live right now.
+            </div>
+          )}
+        </div>
       </div>
-    )}
-  </div>
-</div>
+
       {/* Sheets */}
       <PhysicalRaffleSheet
         open={activeSheet === "physical"}
