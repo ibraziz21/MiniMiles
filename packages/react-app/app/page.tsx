@@ -168,13 +168,15 @@ export default function Home() {
 
   return (
     <main className="pb-24 font-sterling">
-      {/* 🔔 Auto winner popup — shows once per browser if last draw < 72h */}
+        {/* 🏆 Winner modal only mounts when user opens from the header icon */}
+    {winnerOpen && (
       <WinningModal open={winnerOpen} onOpenChange={setWinnerOpen} />
+    )}
 
-      <DashboardHeader
-        name={truncateEthAddress(address ?? "")}
-        onOpenWinners={() => setWinnerOpen(true)}
-      />
+    <DashboardHeader
+      name={truncateEthAddress(address ?? "")}
+      onOpenWinners={() => setWinnerOpen(true)}
+    />
       <PointsCard points={Number(akibaMilesBalance)} />
 
       {/* Daily challenges */}
