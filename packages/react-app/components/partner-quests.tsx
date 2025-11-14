@@ -141,7 +141,7 @@ export default function PartnerQuests({
   // ⬇️ NEW: compute what to display based on whether the Follow quest is completed
   const displayQuests = useMemo(() => {
     const FOLLOW_ID = '99da9e3d-5332-419e-aa40-5cb9d6e3a7ab'
-    const SUPER_ID  = '2fc86078-d506-4ef8-8cf2-ea79df5cb554'
+    const SUPER_ID  = '2679ab21-f8cf-446f-8efb-36b549f73fa0'
 
     // Start from a copy
     const list = [...quests]
