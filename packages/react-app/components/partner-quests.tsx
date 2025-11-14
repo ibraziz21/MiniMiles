@@ -50,17 +50,17 @@ const quests: Quest[] = [
     ],
   },
   {
-    id: '2fc86078-d506-4ef8-8cf2-ea79df5cb554',
+    id: '2679ab21-f8cf-446f-8efb-36b549f73fa0',
     isLocked: false,
     img: akibaMilesSymbolAlt,
     title: "AkibaMiles",
-    description: "Like and Retweet Post on X",
+    description: "Join the Telegram Group",
     reward: "20 akibaMiles",
     color: "#238D9D",
-    actionLink: "https://x.com/akibamiles/status/1986001780065321411?s=46&t=U7dlAHF6-1TyB1lygfLqNA",     // <-- where the button should go
+    actionLink: "https://t.me/+kAqhzNJmBCZmYTZk",     // <-- where the button should go
     instructions: [
-      { title: "Open Twitter", text: "Go to our pinned post" },
-      { title: "Like & Retweet", text: "Hit the Follow button and confirm." },
+      { title: "Open Telegram", text: "Open the Telegram App" },
+      { title: "Join Group", text: "Hit the Join Group button" },
     ],
   },
 
