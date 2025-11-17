@@ -19,7 +19,9 @@ import promo from "../public/img/promo.png"
 import power from "../public/img/power.jpg"
 import vitron from "../public/img/vitron.jpg"
 import spk from "../public/img/spk.jpg"
-
+import amaya from "../public/img/amaya.jpg"
+import itel from "../public/img/itel.jpg"
+import jbl from "../public/img/jbl.jpg"
 
 export {
   WinImg,
@@ -40,5 +42,6 @@ export {
   hplaptop,
   credo,
   promo,
-  vitron, spk, power
+  vitron, spk, power,
+  amaya, jbl,itel
 };

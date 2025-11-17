@@ -13,9 +13,7 @@ import {
   RaffleImg2,
   RaffleImg3,
   RaffleImg5,
-  speaker,
-  solar,
-  hplaptop,
+  jbl, amaya, itel,
   sambuds,
   promo,
   credo,
@@ -60,16 +58,16 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
 
 /** ───────────────── Physical raffle helpers ─────────────── */
 const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
-  76: spk,
-  77: vitron,
-  78: power,
-  79: credo,
+  84: itel,
+  85: jbl,
+  86: amaya,
+  87: credo,
 };
 const PHYSICAL_TITLES: Record<number, string> = {
-  76: "Bluetooth Speakers HIFI Boomboxes For Laptop,TV",
-  77: "Vitron HTC3200S, 32 Smart Frameless Android LED TV",
-  78: `VIC 40000mAh Power Bank`,
-  79: 'KES 500 Airtime Reward, '
+  84: "Itel A50, 6.6'', 64GB + 2GB RAM (Dual SIM), 4G, 5000mAh, Black",
+  85: "JBL Tune 700BT Wireless Over-Ear Bluetooth Headphones",
+  86: `Amaya APB-04 Power Bank - PowerBox - 40000mAh 22.5W`,
+  87: 'KES 500 Airtime Reward, '
 };
 const pickPhysicalImage = (raffle: PhysicalRaffle) =>
   PHYSICAL_IMAGES[raffle.id] ?? sambuds;

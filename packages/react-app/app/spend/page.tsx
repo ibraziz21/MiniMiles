@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
 import type { Address } from 'viem'
 import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
-import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5, spk, vitron, power, sambuds, credo, promo } from '@/lib/img';
+import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5, spk, vitron, power, sambuds, credo, promo, itel, amaya, jbl } from '@/lib/img';
 import { Coin, akibaMilesSymbol } from '@/lib/svg';
 import { Question } from '@phosphor-icons/react';
 import { StaticImageData } from 'next/image';
@@ -68,16 +68,16 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   default: RaffleImg3,
 }
 const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
-  76: spk,
-  77: vitron,
-  78: power,
-  79: credo,
+  84: itel,
+  85: jbl,
+  86: amaya,
+  87: credo,
 };
 const PHYSICAL_TITLES: Record<number, string> = {
-  76: "Bluetooth Speakers HIFI Boomboxes For Laptop,TV",
-  77: "Vitron HTC3200S, 32 Smart Frameless Android LED TV",
-  78: `VIC 40000mAh Power Bank`,
-  79: 'KES 500 Airtime Reward, '
+  84: "Itel A50, 6.6'', 64GB + 2GB RAM (Dual SIM), 4G, 5000mAh, Black",
+  85: "JBL Tune 700BT Wireless Over-Ear Bluetooth Headphones",
+  86: `Amaya APB-04 Power Bank - PowerBox - 40000mAh 22.5W`,
+  87: 'KES 500 Airtime Reward, '
 };
 
 const pickPhysicalImage = (raffle: PhysicalRaffle) =>
