@@ -11,6 +11,7 @@ import { claimDailyQuest }  from "@/helpers/claimDaily";
 import { claimFiveTransfers } from "@/helpers/claimFiveTransfers";
 import { claimTwentyTransfers } from "@/helpers/claimTwentyTransfers";
 import { claimTenTransfers } from "@/helpers/claimTenTransfers";
+import { claimSevenDayStreak } from "@/helpers/claimSevenDayStreak";
 
 import { Cash, Door, akibaMilesSymbol } from "@/lib/svg";
 
@@ -70,6 +71,8 @@ const ACTION_BY_ID: Record<string, QuestHandler> = {
 
   /* F. Send 20 transfers */
   "60320fa4-1681-4795-8818-429f11afe784": { action: claimTwentyTransfers, img: Cash },
+
+  "6ddc811a-1a4d-4e57-871d-836f07486531": {action: claimSevenDayStreak, img: Cash },
 };
 
 /* Desired visual order: Check-in → $1 Send → $1 Receive → 5 TXs → 10 TXs → 20 TXs */
@@ -77,6 +80,7 @@ const ORDERED_IDS = [
   "a9c68150-7db8-4555-b87f-5e9117b43a08",
   "383eaa90-75aa-4592-a783-ad9126e8f04d",
   "c6b14ae1-66e9-4777-9c9f-65e57b091b16",
+  "6ddc811a-1a4d-4e57-871d-836f07486531",
   "f6d027d2-bf52-4768-a87f-2be00a5b03a0",
   "ea001296-2405-451b-a590-941af22a8df1",
   "60320fa4-1681-4795-8818-429f11afe784",
