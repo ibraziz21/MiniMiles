@@ -68,16 +68,16 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   default: RaffleImg3,
 }
 const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
-  84: itel,
-  85: jbl,
-  86: amaya,
-  87: credo,
+  85: itel,
+  86: jbl,
+  87: amaya,
+  88: credo,
 };
 const PHYSICAL_TITLES: Record<number, string> = {
-  84: "Itel A50, 6.6'', 64GB + 2GB RAM (Dual SIM), 4G, 5000mAh, Black",
-  85: "JBL Tune 700BT Wireless Over-Ear Bluetooth Headphones",
-  86: `Amaya APB-04 Power Bank - PowerBox - 40000mAh 22.5W`,
-  87: 'KES 500 Airtime Reward, '
+  85: "Itel A50, 6.6'', 64GB + 2GB RAM (Dual SIM), 4G, 5000mAh, Black",
+  86: "JBL Tune 700BT Wireless Over-Ear Bluetooth Headphones",
+  87: `Amaya APB-04 Power Bank - PowerBox - 40000mAh 22.5W`,
+  88: 'KES 500 Airtime Reward, '
 };
 
 const pickPhysicalImage = (raffle: PhysicalRaffle) =>
