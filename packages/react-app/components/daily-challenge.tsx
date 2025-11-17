@@ -11,7 +11,7 @@ import { claimDailyQuest }  from "@/helpers/claimDaily";
 import { claimFiveTransfers } from "@/helpers/claimFiveTransfers";
 import { claimTwentyTransfers } from "@/helpers/claimTwentyTransfers";
 import { claimTenTransfers } from "@/helpers/claimTenTransfers";
-import { claimSevenDayStreak } from "@/helpers/claimSevenDayStreak";
+
 
 import { Cash, Door, akibaMilesSymbol } from "@/lib/svg";
 
@@ -22,6 +22,18 @@ const supabase = createClient(
 );
 
 /* ─── tiny wrappers to hit your existing API routes ─────── */
+
+async function claimSevenDayStreak(addr: string) {
+  const res = await fetch("/api/quests/seven_day_streak", {
+    method: "POST",
+    body: JSON.stringify({
+      userAddress: addr,
+      questId: "6ddc811a-1a4d-4e57-871d-836f07486531", // 👈 create this quest in Supabase with this id
+    }),
+  }).then((r) => r.json());
+  return res;
+}
+
 async function claimSendDollar(addr: string) {
   const res = await fetch("/api/quests/daily_transfer", {
     method: "POST",
