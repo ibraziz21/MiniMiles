@@ -23,31 +23,27 @@ const config: HardhatUserConfig = {
     
   },
   etherscan: {
-    apiKey: {
-      alfajores: process.env.CELOSCAN_API_KEY ?? '',
-      celo: process.env.CELOSCAN_API_KEY ?? '',
-      sepolia: 'GG98NBUZX46RSPK26MDUA76KSVWIHHDPHI'
-    },
+    apiKey: process.env.CELOSCAN_API_KEY ?? '',
+  
     customChains: [
       {
-        chainId: 44_787,
         network: 'alfajores',
+        chainId: 44787,
         urls: {
-          apiURL: 'https://api-alfajores.celoscan.io/api',
+          apiURL: 'https://api-alfajores.celoscan.io/api', // CeloScan supports Etherscan-compatible API
           browserURL: 'https://alfajores.celoscan.io',
         },
       },
       {
-        chainId: 42_220,
         network: 'celo',
+        chainId: 42220,
         urls: {
           apiURL: 'https://api.celoscan.io/api',
-          browserURL: 'https://celoscan.io/',
+          browserURL: 'https://celoscan.io',
         },
       },
-    
     ],
-  },
+  },  
   sourcify: {
     enabled: false,
   },
