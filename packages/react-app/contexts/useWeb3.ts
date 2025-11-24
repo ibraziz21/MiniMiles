@@ -17,6 +17,7 @@ import { celo } from "viem/chains";
 import StableTokenABI from "@/contexts/cusd-abi.json";
 import MiniMilesAbi from "@/contexts/minimiles.json";
 import raffleAbi from "@/contexts/miniraffle.json";
+import diceAbi from "@/contexts/akibadice.json";
 import posthog from "posthog-js";
 
 export function useWeb3() {

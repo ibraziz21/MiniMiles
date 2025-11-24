@@ -7,31 +7,24 @@ dotEnvConfig();
 
 const config: HardhatUserConfig = {
   networks: {
-    alfajores: {
+    celoSepolia: {
       accounts: [process.env.PRIVATE_KEY ?? '0x0'],
-      url: 'https://alfajores-forno.celo-testnet.org',
+      url: 'https://forno.celo-sepolia.celo-testnet.org',
     },
     celo: {
       accounts: [process.env.PRIVATE_KEY ?? '0x0'],
       url: 'https://forno.celo.org',
     },
-    sepolia:{
 
-    accounts: [process.env.PRIVATE_KEY ?? '0x0'],
-    url: 'https://eth-sepolia.g.alchemy.com/v2/XucMy0SW663XxpBZLQtKH2kvbvydqysK'
-    }
     
   },
   etherscan: {
-    apiKey: {
-      alfajores: process.env.CELOSCAN_API_KEY ?? '',
-      celo: process.env.CELOSCAN_API_KEY ?? '',
-      sepolia: 'GG98NBUZX46RSPK26MDUA76KSVWIHHDPHI'
-    },
+    apiKey:  process.env.CELOSCAN_API_KEY ?? '',
+     
     customChains: [
       {
-        chainId: 44_787,
-        network: 'alfajores',
+        chainId: 11142220,
+        network: 'celoSepolia',
         urls: {
           apiURL: 'https://api-alfajores.celoscan.io/api',
           browserURL: 'https://alfajores.celoscan.io',
