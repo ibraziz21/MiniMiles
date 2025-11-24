@@ -64,13 +64,13 @@ const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
   93: oraimo,
   94: smartwatch,
   95: speaker,
-  96: credo,
+  97: credo,
 };
 const PHYSICAL_TITLES: Record<number, string> = {
 93: 'Oraimo SpaceBuds Neo',
 94: 'Samsung Watch 5 40mm Bluetooth Smartwatch - Black',
 95: 'Bluetooth Speakers HIFI Boomboxes For Laptop,TV',
-96: 'KES 500 Airtime Reward'
+97: 'KES 500 Airtime Reward'
 };
 const pickPhysicalImage = (raffle: PhysicalRaffle) =>
   PHYSICAL_IMAGES[raffle.id] ?? sambuds;
