@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
 import type { Address } from 'viem'
 import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
-import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5, spk, vitron, power, sambuds, credo, promo, itel, amaya, jbl } from '@/lib/img';
+import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5, oraimo, smartwatch, speaker, sambuds, credo, promo, itel, amaya, jbl } from '@/lib/img';
 import { Coin, akibaMilesSymbol } from '@/lib/svg';
 import { Question } from '@phosphor-icons/react';
 import { StaticImageData } from 'next/image';
@@ -68,16 +68,16 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   default: RaffleImg3,
 }
 const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
-  85: itel,
-  86: jbl,
-  87: amaya,
-  88: credo,
+  93: oraimo,
+  94: smartwatch,
+  95: speaker,
+  96: credo,
 };
 const PHYSICAL_TITLES: Record<number, string> = {
-  85: "Itel A50, 6.6'', 64GB + 2GB RAM (Dual SIM), 4G, 5000mAh, Black",
-  86: "JBL Tune 700BT Wireless Over-Ear Bluetooth Headphones",
-  87: `Amaya APB-04 Power Bank - PowerBox - 40000mAh 22.5W`,
-  88: 'KES 500 Airtime Reward'
+93: 'Oraimo SpaceBuds Neo',
+94: 'Samsung Watch 5 40mm Bluetooth Smartwatch - Black',
+95: 'Bluetooth Speakers HIFI Boomboxes For Laptop,TV',
+96: 'KES 500 Airtime Reward'
 };
 
 const pickPhysicalImage = (raffle: PhysicalRaffle) =>
