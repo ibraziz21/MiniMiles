@@ -7,6 +7,7 @@ import {
   createWalletClient,
   http,
   parseUnits,
+  getAddress,           // ⬅️ NEW: normalize addresses
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
@@ -45,12 +46,6 @@ const USERNAME_QUEST_ID = "f18818cf-eec4-412e-8311-22e09a1332db";
 // 50 akibaMiles for setting username
 const USERNAME_REWARD_POINTS = 50;
 
-/* ────────────────────────────────────────────────────────── */
-/* Exported helper: safe mint with nonce/gas race retries    */
-/* Reuse this in other claim APIs                            */
-/* ────────────────────────────────────────────────────────── */
-
-
 /* ─── POST ──────────────────────────────────────────────── */
 
 export async function POST(request: Request) {
@@ -67,13 +62,23 @@ export async function POST(request: Request) {
       );
     }
 
-    const addr = userAddress as `0x${string}`;
+    // ⬇️ Normalize address once
+    let checksumAddr: `0x${string}`;
+    try {
+      checksumAddr = getAddress(userAddress as `0x${string}`);
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid userAddress" },
+        { status: 400 },
+      );
+    }
+    const dbAddr = checksumAddr.toLowerCase(); // ⬅️ always lowercase in DB
 
     /* 1 ▸ one-time check in partner_engagements */
     const { data: existing, error: checkErr } = await supabase
       .from("partner_engagements")
       .select("id", { count: "exact" })
-      .eq("user_address", addr)
+      .eq("user_address", dbAddr)
       .eq("partner_quest_id", USERNAME_QUEST_ID)
       .limit(1);
 
@@ -94,7 +99,7 @@ export async function POST(request: Request) {
       .from("users")
       .upsert(
         {
-          user_address: addr,
+          user_address: dbAddr,           // ⬅️ lowercase address
           username: username.trim(),
         },
         { onConflict: "user_address" },
@@ -109,7 +114,7 @@ export async function POST(request: Request) {
     const points = USERNAME_REWARD_POINTS;
 
     const txHash = await safeMintMiniPoints({
-      to: addr,
+      to: checksumAddr,           // ⬅️ checksummed address for chain
       points,
       reason: "username-quest",
     });
@@ -118,7 +123,7 @@ export async function POST(request: Request) {
     const { error: insertEngagementErr } = await supabase
       .from("partner_engagements")
       .insert({
-        user_address: addr,
+        user_address: dbAddr,              // ⬅️ lowercase in DB
         partner_quest_id: USERNAME_QUEST_ID,
         claimed_at: new Date().toISOString(),
         points_awarded: points,
@@ -134,7 +139,12 @@ export async function POST(request: Request) {
 
     /* 5 ▸ done */
     return NextResponse.json(
-      { minted: points, txHash, username: username.trim() },
+      {
+        minted: points,
+        txHash,
+        username: username.trim(),
+        userAddress: checksumAddr,
+      },
       { status: 200 },
     );
   } catch (err: any) {
