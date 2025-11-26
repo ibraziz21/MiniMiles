@@ -12,6 +12,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 
 import MiniPointsAbi from "@/contexts/minimiles.json";
+import { safeMintMiniPoints } from "@/lib/minipoints";
 
 /* ─── env / clients ─────────────────────────────────────── */
 
@@ -49,73 +50,6 @@ const USERNAME_REWARD_POINTS = 50;
 /* Reuse this in other claim APIs                            */
 /* ────────────────────────────────────────────────────────── */
 
-export async function safeMintMiniPoints(params: {
-  to: `0x${string}`;
-  points: number;
-  reason?: string; // for logging, e.g. "username-quest"
-}): Promise<`0x${string}`> {
-  const { to, points, reason } = params;
-
-  const referralTag = getReferralTag({
-    user: account.address as `0x${string}`,
-    consumer: DIVVI_CONSUMER,
-  });
-
-  let lastError: any = null;
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      // Always grab the latest pending nonce
-      const nonce = await publicClient.getTransactionCount({
-        address: account.address,
-        blockTag: "pending",
-      });
-
-      const txHash = await walletClient.writeContract({
-        address: CONTRACT_ADDRESS,
-        abi: MiniPointsAbi.abi,
-        functionName: "mint",
-        args: [to, parseUnits(points.toString(), 18)],
-        account,
-        dataSuffix: `0x${referralTag}`,
-        nonce,
-      });
-
-      // Fire-and-forget Divvi tracking
-      submitReferral({ txHash, chainId: publicClient.chain.id }).catch((e) =>
-        console.error("[safeMintMiniPoints] Divvi submitReferral failed", e),
-      );
-
-      return txHash as `0x${string}`;
-    } catch (err: any) {
-      lastError = err;
-      const msg = (err?.shortMessage || err?.message || "").toLowerCase();
-
-      const isNonceOrGasRace =
-        msg.includes("nonce too low") ||
-        msg.includes("replacement transaction underpriced");
-
-      if (!isNonceOrGasRace) {
-        // Different error → bail out immediately
-        throw err;
-      }
-
-      console.warn(
-        `[safeMintMiniPoints] nonce/gas race${
-          reason ? ` for ${reason}` : ""
-        } on attempt ${attempt + 1}, retrying…`,
-        msg,
-      );
-
-      // tiny jitter so concurrent requests de-sync a bit
-      await new Promise((r) =>
-        setTimeout(r, 150 + Math.random() * 250),
-      );
-    }
-  }
-
-  throw lastError ?? new Error("mint failed after nonce/gas retries");
-}
 
 /* ─── POST ──────────────────────────────────────────────── */
 

@@ -1,6 +1,6 @@
 // e.g. src/app/api/quests/daily/route.ts
 import { createClient } from "@supabase/supabase-js";
-import { safeMintMiniPoints } from "@/app/api/partner-quests/username/route";
+import { safeMintMiniPoints } from "@/lib/minipoints";
 
 // ENVIRONMENT VARIABLES
 const SUPABASE_URL = process.env.SUPABASE_URL || "";

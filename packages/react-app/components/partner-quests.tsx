@@ -33,7 +33,7 @@ const quests: Quest[] = [
     title: "akibaMiles",
     description: "Follow Us on Twitter",
     reward: "20 akibaMiles",
-    color: "#238D9D",
+    color: "#238D9D1A",
     actionLink: "https://twitter.com/akibamiles",
     instructions: [
       { title: "Open Twitter", text: "Go to our @akibaMilesApp page." },
@@ -61,7 +61,7 @@ const quests: Quest[] = [
     title: "AkibaMiles",
     description: "Join the Telegram Group",
     reward: "20 akibaMiles",
-    color: "#238D9D",
+    color: "#238D9D1A",
     actionLink: "https://t.me/+kAqhzNJmBCZmYTZk",
     instructions: [
       { title: "Open Telegram", text: "Open the Telegram App" },
