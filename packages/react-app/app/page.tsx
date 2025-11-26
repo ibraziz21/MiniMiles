@@ -37,6 +37,13 @@ import dynamic from "next/dynamic";
 import truncateEthAddress from "truncate-eth-address";
 import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
 import { useRouter } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
+
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const SUPABASE_SERVICE_KEY = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || "";
+
+export const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 const PhysicalRaffleSheet = dynamic(
   () => import("@/components/physical-raffle-sheet"),
@@ -115,6 +122,8 @@ export default function Home() {
   );
   const [hasMounted, setHasMounted] = useState(false);
 
+  const [displayName, setDisplayName] = useState<string>(""); // ⬅️ NEW
+
   useEffect(() => setHasMounted(true), []);
   useEffect(() => {
     getUserAddress();
@@ -133,13 +142,48 @@ export default function Home() {
     fetchBalance();
   }, [address, getakibaMilesBalance]);
 
+   /** ───────── fetch username (if set) ───────── */
+   useEffect(() => {
+    if (!address) {
+      setDisplayName("");
+      return;
+    }
+
+    const loadUsername = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("users")
+          .select("username")
+          .eq("user_address", address.toLowerCase())
+          .maybeSingle();
+
+        if (error) {
+          console.error("[Home] fetch username error:", error);
+          setDisplayName(truncateEthAddress(address));
+          return;
+        }
+
+        if (data?.username) {
+          setDisplayName(data.username as string);
+        } else {
+          setDisplayName(truncateEthAddress(address));
+        }
+      } catch (e) {
+        console.error("[Home] username fetch exception:", e);
+        setDisplayName(truncateEthAddress(address));
+      }
+    };
+
+    loadUsername();
+  }, [address]);
+
   useEffect(() => {
     fetchActiveRaffles()
       .then(({ tokenRaffles, physicalRaffles }) => {
         // ⬇︎ Add winners: id 80 → 5, others → 1
         const withWinners: TokenRaffleWithWinners[] = tokenRaffles.map((r) => ({
           ...r,
-          winners: r.id === 89 ? 5 : 1,
+          winners: r.id === 96 ? 5 : 1,
         }));
 
         setTokenRaffles(withWinners);
@@ -167,6 +211,9 @@ export default function Home() {
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
   };
 
+  const headerName =
+  displayName || (address ? truncateEthAddress(address) : ""); // ⬅️ NEW
+
   return (
     <main className="pb-24 font-sterling">
         {/* 🏆 Winner modal only mounts when user opens from the header icon */}
@@ -175,7 +222,7 @@ export default function Home() {
     )}
 
     <DashboardHeader
-      name={truncateEthAddress(address ?? "")}
+      name={headerName}
       onOpenWinners={() => setWinnerOpen(true)}
     />
       <PointsCard points={Number(akibaMilesBalance)} />
