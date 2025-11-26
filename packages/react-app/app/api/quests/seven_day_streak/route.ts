@@ -40,7 +40,7 @@ const walletClient = createWalletClient({
 const DAILY_SEND_QUEST_ID = "383eaa90-75aa-4592-a783-ad9126e8f04d";
 
 // This must match the ID used in DailyChallenges.tsx
-const SEVEN_DAY_STREAK_QUEST_ID = "7d3bcfd1-4f39-4c6d-9e1b-7c1f77c0abcd";
+const SEVEN_DAY_STREAK_QUEST_ID = "6ddc811a-1a4d-4e57-871d-836f07486531";
 
 // Reward for completing the 7-day streak
 const STREAK_REWARD_POINTS = 200;

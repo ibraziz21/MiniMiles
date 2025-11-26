@@ -33,13 +33,89 @@ const walletClient = createWalletClient({
   transport: http("https://forno.celo.org"),
 });
 
-const CONTRACT_ADDRESS = "0xEeD878017f027FE96316007D0ca5fDA58Ee93a6b";
+const CONTRACT_ADDRESS =
+  "0xEeD878017f027FE96316007D0ca5fDA58Ee93a6b" as `0x${string}`;
+const DIVVI_CONSUMER =
+  "0x03909bb1E9799336d4a8c49B74343C2a85fDad9d" as `0x${string}`;
 
 // must match partner_quests.id and the Quest in partner-quests.tsx
 const USERNAME_QUEST_ID = "f18818cf-eec4-412e-8311-22e09a1332db";
 
 // 50 akibaMiles for setting username
 const USERNAME_REWARD_POINTS = 50;
+
+/* ────────────────────────────────────────────────────────── */
+/* Exported helper: safe mint with nonce/gas race retries    */
+/* Reuse this in other claim APIs                            */
+/* ────────────────────────────────────────────────────────── */
+
+export async function safeMintMiniPoints(params: {
+  to: `0x${string}`;
+  points: number;
+  reason?: string; // for logging, e.g. "username-quest"
+}): Promise<`0x${string}`> {
+  const { to, points, reason } = params;
+
+  const referralTag = getReferralTag({
+    user: account.address as `0x${string}`,
+    consumer: DIVVI_CONSUMER,
+  });
+
+  let lastError: any = null;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      // Always grab the latest pending nonce
+      const nonce = await publicClient.getTransactionCount({
+        address: account.address,
+        blockTag: "pending",
+      });
+
+      const txHash = await walletClient.writeContract({
+        address: CONTRACT_ADDRESS,
+        abi: MiniPointsAbi.abi,
+        functionName: "mint",
+        args: [to, parseUnits(points.toString(), 18)],
+        account,
+        dataSuffix: `0x${referralTag}`,
+        nonce,
+      });
+
+      // Fire-and-forget Divvi tracking
+      submitReferral({ txHash, chainId: publicClient.chain.id }).catch((e) =>
+        console.error("[safeMintMiniPoints] Divvi submitReferral failed", e),
+      );
+
+      return txHash as `0x${string}`;
+    } catch (err: any) {
+      lastError = err;
+      const msg = (err?.shortMessage || err?.message || "").toLowerCase();
+
+      const isNonceOrGasRace =
+        msg.includes("nonce too low") ||
+        msg.includes("replacement transaction underpriced");
+
+      if (!isNonceOrGasRace) {
+        // Different error → bail out immediately
+        throw err;
+      }
+
+      console.warn(
+        `[safeMintMiniPoints] nonce/gas race${
+          reason ? ` for ${reason}` : ""
+        } on attempt ${attempt + 1}, retrying…`,
+        msg,
+      );
+
+      // tiny jitter so concurrent requests de-sync a bit
+      await new Promise((r) =>
+        setTimeout(r, 150 + Math.random() * 250),
+      );
+    }
+  }
+
+  throw lastError ?? new Error("mint failed after nonce/gas retries");
+}
 
 /* ─── POST ──────────────────────────────────────────────── */
 
@@ -80,7 +156,6 @@ export async function POST(request: Request) {
     }
 
     /* 2 ▸ upsert username into users table */
-    // assumes "user_address" is unique or primary key in users table
     const { error: upsertErr } = await supabase
       .from("users")
       .upsert(
@@ -96,28 +171,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "db-error" }, { status: 500 });
     }
 
-    /* 3 ▸ mint 50 points via MiniPoints contract (same pattern as claim route) */
+    /* 3 ▸ mint 50 points via shared helper */
     const points = USERNAME_REWARD_POINTS;
 
-    const referralTag = getReferralTag({
-      user: account.address as `0x${string}`, // The address making the transaction
-      consumer: "0x03909bb1E9799336d4a8c49B74343C2a85fDad9d", // Your Divvi Identifier
+    const txHash = await safeMintMiniPoints({
+      to: addr,
+      points,
+      reason: "username-quest",
     });
-
-    const { request: txReq } = await publicClient.simulateContract({
-      address: CONTRACT_ADDRESS as `0x${string}`,
-      abi: MiniPointsAbi.abi,
-      functionName: "mint",
-      args: [addr, parseUnits(points.toString(), 18)],
-      account,
-      dataSuffix: `0x${referralTag}`,
-    });
-
-    const txHash = await walletClient.writeContract(txReq);
-
-    submitReferral({ txHash, chainId: publicClient.chain.id }).catch((e) =>
-      console.error("[username-quest] Divvi submitReferral failed", e),
-    );
 
     /* 4 ▸ record engagement so quest becomes 'Completed' */
     const { error: insertEngagementErr } = await supabase
@@ -142,8 +203,14 @@ export async function POST(request: Request) {
       { minted: points, txHash, username: username.trim() },
       { status: 200 },
     );
-  } catch (err) {
+  } catch (err: any) {
     console.error("[username-quest] unexpected:", err);
-    return NextResponse.json({ error: "server-error" }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: "server-error",
+        message: err?.shortMessage ?? err?.message ?? "Unexpected error",
+      },
+      { status: 500 },
+    );
   }
 }
