@@ -7,12 +7,14 @@ import Header from './Header';
 import { useWeb3 } from '@/contexts/useWeb3';
 import { useMembership } from '@/helpers/useMembership';
 
-interface Props { children: ReactNode }
+interface Props {
+  children: ReactNode;
+}
 
 const Layout: FC<Props> = ({ children }) => {
   const router   = useRouter();
   const pathname = usePathname();
-  const { getUserAddress } = useWeb3();
+  const { address, getUserAddress } = useWeb3();
 
   /* MiniPay detection */
   const [isMiniPay, setIsMiniPay] = useState(false);
@@ -22,8 +24,10 @@ const Layout: FC<Props> = ({ children }) => {
     }
   }, []);
 
-  /* load wallet */
-  useEffect(() => { getUserAddress(); }, [getUserAddress]);
+  /* load wallet (MiniPay / injected) */
+  useEffect(() => {
+    getUserAddress?.();
+  }, [getUserAddress]);
 
   /* membership flag */
   const { data: isMember, isFetched } = useMembership();
@@ -32,19 +36,38 @@ const Layout: FC<Props> = ({ children }) => {
   const isOnboarding = pathname.startsWith('/onboarding');
   const isClaim      = pathname.startsWith('/claim');
 
-  /* redirect if new user */
+  /**
+   * We only want to *force* onboarding when:
+   *  - we’re inside MiniPay (in-app flow), AND
+   *  - we actually have a wallet address, AND
+   *  - membership has finished loading.
+   *
+   * On desktop (no MiniPay) we let the user roam freely and only
+   * gate on specific pages if you want, not globally here.
+   */
+  const shouldGateWithMembership = isMiniPay && !!address;
+
   useEffect(() => {
+    if (!shouldGateWithMembership) return; // don’t gate desktop / no-address users
     if (!isFetched) return;
+
     if (!isMember && !isOnboarding && !isClaim) {
       router.replace('/onboarding');
     }
-  }, [isMember, isFetched, isOnboarding, isClaim, router]);
+  }, [shouldGateWithMembership, isMember, isFetched, isOnboarding, isClaim, router]);
 
-  /* wait for flag */
-  if (!isFetched) return null;
+  /**
+   * While membership is loading, only block rendering
+   * when we’re actually gating (MiniPay + address).
+   * On PC, just render normally.
+   */
+  if (shouldGateWithMembership && !isFetched) {
+    return null;
+  }
 
   return (
     <div className="bg-gypsum overflow-hidden flex flex-col min-h-screen">
+      {/* In MiniPay you might want a tighter chrome; on desktop show header as usual */}
       {!isOnboarding && !isClaim && !isMiniPay && <Header />}
 
       <div className="flex-grow bg-app">
