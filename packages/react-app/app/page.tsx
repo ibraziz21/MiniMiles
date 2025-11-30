@@ -7,48 +7,37 @@ import DashboardHeader from "@/components/dashboard-header";
 import { RaffleCard } from "@/components/raffle-card";
 import PointsCard from "@/components/points-card";
 import { SectionHeading } from "@/components/section-heading";
+import { GameCard } from "@/components/game-card"; // ⬅️ NEW
 import { useWeb3 } from "@/contexts/useWeb3";
 import {
   RaffleImg1,
   RaffleImg2,
   RaffleImg3,
   RaffleImg5,
-  jbl, amaya, itel,
-  sambuds,
   promo,
   credo,
   spk,
-  vitron,
-  power,
-  speaker,
-  oraimo,
-  smartwatch
+  Dice
 } from "@/lib/img";
 import { akibaMilesSymbol } from "@/lib/svg";
 import { useEffect, useState } from "react";
 import {
   fetchActiveRaffles,
-  PhysicalRaffle,
   type TokenRaffle,
 } from "@/helpers/raffledisplay";
 import Link from "next/link";
 import type { StaticImageData } from "next/image";
 import dynamic from "next/dynamic";
 import truncateEthAddress from "truncate-eth-address";
-import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
-
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const SUPABASE_SERVICE_KEY = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || "";
+const SUPABASE_SERVICE_KEY =
+  process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || "";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-const PhysicalRaffleSheet = dynamic(
-  () => import("@/components/physical-raffle-sheet"),
-  { ssr: false }
-);
 const SpendPartnerQuestSheet = dynamic(
   () => import("@/components/spend-partner-quest-sheet"),
   { ssr: false }
@@ -66,24 +55,6 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   default: RaffleImg3,
 };
 
-/** ───────────────── Physical raffle helpers ─────────────── */
-const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
-  93: oraimo,
-  94: smartwatch,
-  95: speaker,
-  97: credo,
-};
-const PHYSICAL_TITLES: Record<number, string> = {
-93: 'Oraimo SpaceBuds Neo',
-94: 'Samsung Watch 5 40mm Bluetooth Smartwatch - Black',
-95: 'Bluetooth Speakers HIFI Boomboxes For Laptop,TV',
-97: 'KES 500 Airtime Reward'
-};
-const pickPhysicalImage = (raffle: PhysicalRaffle) =>
-  PHYSICAL_IMAGES[raffle.id] ?? sambuds;
-const physicalTitle = (raffle: PhysicalRaffle) =>
-  PHYSICAL_TITLES[raffle.id] ?? "Physical prize";
-
 /** ─────────────── Extend TokenRaffle with winners ────────── */
 export type TokenRaffleWithWinners = TokenRaffle & { winners: number };
 
@@ -100,8 +71,24 @@ export type SpendRaffle = {
   symbol: string;
   totalTickets: number;
   maxTickets: number;
-  winners?: number
+  winners?: number;
 };
+
+/** ───────────────── Upcoming games config ────────────────── */
+const upcomingGames: {
+  name: string;
+  date: string;
+  image: StaticImageData;
+  isNew?: boolean;
+}[] = [
+  {
+    name: "Dice",
+    date: "Now live",
+    image: Dice,
+    isNew: true,
+  },
+
+];
 
 export default function Home() {
   const router = useRouter();
@@ -111,20 +98,16 @@ export default function Home() {
   const [tokenRaffles, setTokenRaffles] = useState<TokenRaffleWithWinners[]>(
     []
   );
-  const [physicalRaffles, setPhysicalRaffles] = useState<PhysicalRaffle[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [spendRaffle, setSpendRaffle] = useState<SpendRaffle | null>(null);
-  const [physicalRaffle, setPhysicalRaffle] =
-    useState<PhysicalSpendRaffle | null>(null);
-  const [activeSheet, setActiveSheet] = useState<null | "token" | "physical">(
-    null
-  );
+  const [activeSheet, setActiveSheet] = useState<null | "token">(null);
   const [hasMounted, setHasMounted] = useState(false);
 
-  const [displayName, setDisplayName] = useState<string>(""); // ⬅️ NEW
+  const [displayName, setDisplayName] = useState<string>("");
 
   useEffect(() => setHasMounted(true), []);
+
   useEffect(() => {
     getUserAddress();
   }, [getUserAddress]);
@@ -142,8 +125,8 @@ export default function Home() {
     fetchBalance();
   }, [address, getakibaMilesBalance]);
 
-   /** ───────── fetch username (if set) ───────── */
-   useEffect(() => {
+  /** ───────── fetch username (if set) ───────── */
+  useEffect(() => {
     if (!address) {
       setDisplayName("");
       return;
@@ -179,15 +162,14 @@ export default function Home() {
 
   useEffect(() => {
     fetchActiveRaffles()
-      .then(({ tokenRaffles, physicalRaffles }) => {
-        // ⬇︎ Add winners: id 80 → 5, others → 1
+      .then(({ tokenRaffles }) => {
+        // Add winners: e.g. id 96 → 5, others → 1
         const withWinners: TokenRaffleWithWinners[] = tokenRaffles.map((r) => ({
           ...r,
           winners: r.id === 96 ? 5 : 1,
         }));
 
         setTokenRaffles(withWinners);
-        setPhysicalRaffles(physicalRaffles);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -212,19 +194,20 @@ export default function Home() {
   };
 
   const headerName =
-  displayName || (address ? truncateEthAddress(address) : ""); // ⬅️ NEW
+    displayName || (address ? truncateEthAddress(address) : "");
 
   return (
     <main className="pb-24 font-sterling">
-        {/* 🏆 Winner modal only mounts when user opens from the header icon */}
-    {winnerOpen && (
-      <WinningModal open={winnerOpen} onOpenChange={setWinnerOpen} />
-    )}
+      {/* 🏆 Winner modal only mounts when user opens from the header icon */}
+      {winnerOpen && (
+        <WinningModal open={winnerOpen} onOpenChange={setWinnerOpen} />
+      )}
 
-    <DashboardHeader
-      name={headerName}
-      onOpenWinners={() => setWinnerOpen(true)}
-    />
+      <DashboardHeader
+        name={headerName}
+        onOpenWinners={() => setWinnerOpen(true)}
+      />
+
       <PointsCard points={Number(akibaMilesBalance)} />
 
       {/* Daily challenges */}
@@ -245,48 +228,52 @@ export default function Home() {
         </div>
       </div>
 
-      {/* PHYSICAL */}
-      <div className="mx-4 mt-6">
-        <div className="flex justify-between items-center">
-          <h3 className="text-lg font-extrabold mb-2">Physical Rewards</h3>
+      {/* 🎮 Games (replaces Physical Rewards) */}
+      <div className="mx-4 mt-8">
+        <div className="flex items-center justify-between">
+          <SectionHeading title="Games" />
+          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            New
+          </span>
         </div>
-        <div className="flex gap-3 overflow-x-auto">
-          {physicalRaffles.map((r) => {
-            const cardImg = pickPhysicalImage(r);
-            const title = physicalTitle(r);
+        <p className="mt-1 text-[12px] text-slate-500">
+          Dice is now live. More AkibaMiles games are on the way.
+        </p>
 
-            return (
-              <RaffleCard
-                key={r.id}
-                image={cardImg}
-                title={title}
-                endsIn={formatEndsIn(r.ends)}
-                ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
-                icon={akibaMilesSymbol}
-                locked={false}
-                onClick={() => {
-                  setSpendRaffle(null);
-                  setPhysicalRaffle({
-                    id: r.id,
-                    title,
-                    endDate: formatEndsIn(r.ends),
-                    ticketCost: r.ticketCost,
-                    image: cardImg,
-                    balance: Number(akibaMilesBalance),
-                    totalTickets: r.totalTickets,
-                    maxTickets: r.maxTickets,
-                  });
-                  setActiveSheet("physical");
-                }}
+        <div className="mt-3 flex space-x-3 overflow-x-auto px-0 pb-2">
+          {upcomingGames.map((game, idx) => {
+            const locked = game.name !== "Dice"; // Dice is live, others locked
+
+            const card = (
+              <GameCard
+                key={game.name}
+                name={game.name}
+                date={game.date}
+                image={game.image}
+                locked={locked}
+                isNew={game.isNew && !locked}
               />
             );
-          })}
 
-          {physicalRaffles.length === 0 && (
-            <div className="text-sm opacity-70 px-2 py-4">
-              No physical rewards live right now.
-            </div>
-          )}
+            if (!locked && game.name === "Dice") {
+              return (
+                <Link
+                  key={idx}
+                  href="/dice"
+                  className="shrink-0"
+                >
+                  {card}
+                </Link>
+              );
+            }
+
+            return (
+              <div key={idx} className="shrink-0">
+                {card}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -348,12 +335,6 @@ export default function Home() {
       </div>
 
       {/* Sheets */}
-      <PhysicalRaffleSheet
-        open={activeSheet === "physical"}
-        onOpenChange={(o) => setActiveSheet(o ? "physical" : null)}
-        raffle={physicalRaffle}
-      />
-
       {hasMounted && (
         <SpendPartnerQuestSheet
           open={activeSheet === "token"}
