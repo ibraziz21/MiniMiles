@@ -35,7 +35,10 @@ export default function DicePage() {
         joinDice,
         getDiceTierStats,
         getDicePlayerStats,
-    } = useWeb3();
+        getLastResolvedRoundForPlayer, // if you need it
+        getUserAddress,                // ⬅️ add this
+      } = useWeb3();
+      
 
     const [selectedTier, setSelectedTier] = useState<DiceTier>(10);
 
@@ -136,6 +139,15 @@ export default function DicePage() {
     useEffect(() => {
         loadRound(selectedTier);
     }, [selectedTier, loadRound]);
+
+    useEffect(() => {
+        if (!address && getUserAddress) {
+          getUserAddress().catch((err) =>
+            console.warn("getUserAddress failed on Dice page:", err)
+          );
+        }
+      }, [address, getUserAddress]);
+      
 
     // Poll every 15s so state stays fresh
     useEffect(() => {
