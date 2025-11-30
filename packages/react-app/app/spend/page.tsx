@@ -324,11 +324,40 @@ const Page = () => {
       <div>
         <SectionHeading title="Upcoming games" />
         <div className="flex space-x-3 overflow-x-auto px-4">
-          {upcomingGames.map((game, idx) => (
-            <GameCard key={idx} name={game.name} date={game.date} image={game.image} />
-          ))}
-        </div>
+  {upcomingGames.map((game, idx) => {
+    const locked = game.name !== 'Dice'; // Dice is live, others locked
+
+    const card = (
+      <GameCard
+        name={game.name}
+        date={game.date}
+        image={game.image}
+        locked={locked}
+      />
+    );
+
+    if (!locked && game.name === 'Dice') {
+      // Dice is live → clickable
+      return (
+        <Link
+          key={idx}
+          href="/dice"
+          className="shrink-0"
+        >
+          {card}
+        </Link>
+      );
+    }
+
+    // Locked previews (non-clickable)
+    return (
+      <div key={idx} className="shrink-0">
+        {card}
       </div>
+    );
+  })}
+</div>
+</div>
 
       <PhysicalRaffleSheet
   open={activeSheet === "physical"}
