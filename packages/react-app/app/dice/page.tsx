@@ -139,14 +139,6 @@ export default function DicePage() {
     useEffect(() => {
         loadRound(selectedTier);
     }, [selectedTier, loadRound]);
-
-    useEffect(() => {
-        if (!address && getUserAddress) {
-          getUserAddress().catch((err) =>
-            console.warn("getUserAddress failed on Dice page:", err)
-          );
-        }
-      }, [address, getUserAddress]);
       
 
     // Poll every 15s so state stays fresh
@@ -256,71 +248,62 @@ export default function DicePage() {
     const isFinishedOrNoRound = !round || isFinished;
 
     const canJoin =
-        !!address &&
-        !!selectedNumber &&
-        !isJoining &&
-        // if finished, new pot will be opened on-chain on next join
-        (isFinishedOrNoRound || round.filledSlots < 6);
+  !!selectedNumber &&
+  !isJoining &&
+  (isFinishedOrNoRound || round?.filledSlots! < 6);
 
-    async function handleJoin() {
-        if (!selectedNumber || !canJoin) return;
-        if (!address) return;
 
+  async function handleJoin() {
+    if (!selectedNumber || !canJoin) return;
+  
+    try {
+      setIsJoining(true);
+  
+      // 🔁 behave like joinRaffle – let joinDice throw if wallet not connected
+      await joinDice(selectedTier, selectedNumber);
+  
+      const updated = (await fetchDiceRound(selectedTier)) as DiceRoundView;
+      setRound(updated);
+      setSelectedNumber(updated.myNumber ?? selectedNumber);
+  
+      if (
+        updated.filledSlots === 1 &&
+        updated.randomBlock === 0n &&
+        !updated.winner
+      ) {
         try {
-            setIsJoining(true);
-
-            // 1) Send tx
-            await joinDice(selectedTier, selectedNumber);
-
-            // 2) Refresh round view
-            const updated = (await fetchDiceRound(
-                selectedTier
-            )) as DiceRoundView;
-            setRound(updated);
-            setSelectedNumber(updated.myNumber ?? selectedNumber);
-
-            // 3) If this is the FIRST player, request randomness early.
-            //    (filledSlots == 1 and no randomBlock yet)
-            if (
-                updated.filledSlots === 1 &&
-                updated.randomBlock === 0n &&
-                !updated.winner
-            ) {
-                try {
-                    await fetch("/api/dice/randomness", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            roundId: updated.roundId.toString(),
-                            tier: selectedTier,
-                        }),
-                    });
-                } catch (e) {
-                    console.error("request randomness failed", e);
-                }
-            }
-
-            // 4) Refresh stats async (don’t block UX)
-            // 4) Refresh stats async (don’t block UX)
-            getDiceTierStats(selectedTier)
-                .then((stats) =>
-                    setTierStatsByTier((prev) => ({
-                        ...prev,
-                        [selectedTier]: stats,
-                    }))
-                )
-                .catch(console.error);
-
-            getDicePlayerStats()
-                .then(setPlayerStats)
-                .catch(console.error);
-
+          await fetch("/api/dice/randomness", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              roundId: updated.roundId.toString(),
+              tier: selectedTier,
+            }),
+          });
         } catch (e) {
-            console.error(e);
-        } finally {
-            setIsJoining(false);
+          console.error("request randomness failed", e);
         }
+      }
+  
+      getDiceTierStats(selectedTier)
+        .then((stats) =>
+          setTierStatsByTier((prev) => ({
+            ...prev,
+            [selectedTier]: stats,
+          })),
+        )
+        .catch(console.error);
+  
+      getDicePlayerStats()
+        .then(setPlayerStats)
+        .catch(console.error);
+    } catch (e) {
+      console.error("joinDice failed:", e);
+    } finally {
+      setIsJoining(false);
     }
+  }
+  
 
     /* ────────────────────────────────────────────────────────────── */
     /* Render                                                        */
