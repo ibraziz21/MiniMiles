@@ -1,13 +1,25 @@
-import { Cash, Celo, Door, GloDollar, SYR, Mento, akibaMilesSymbol, akibaMilesSymbolAlt, MiniPay, W3MLogo } from "@/lib/svg";
-import { Check, Lock } from "@phosphor-icons/react";
-import Image from "next/image";
-import cn from "clsx";
-import { createClient } from "@supabase/supabase-js";
-import { useQuery } from "@tanstack/react-query";
-import { useWeb3 } from "@/contexts/useWeb3";
-import { useMemo } from "react";
+'use client';
 
-// components/DailyChallenges.tsx
+import {
+  Cash,
+  Celo,
+  Door,
+  GloDollar,
+  SYR,
+  Mento,
+  akibaMilesSymbol,
+  akibaMilesSymbolAlt,
+  MiniPay,
+  W3MLogo,
+} from '@/lib/svg';
+import { Check, Lock } from '@phosphor-icons/react';
+import Image from 'next/image';
+import cn from 'clsx';
+import { createClient } from '@supabase/supabase-js';
+import { useQuery } from '@tanstack/react-query';
+import { useWeb3 } from '@/contexts/useWeb3';
+import { useMemo } from 'react';
+
 export interface Quest {
   id: string;
   img: any;
@@ -21,51 +33,51 @@ export interface Quest {
 }
 
 /* ─── Akiba quest IDs (3-step flow) ──────────────────────── */
-const FOLLOW_ID   = "99da9e3d-5332-419e-aa40-5cb9d6e3a7ab"; // Follow Twitter
-const TELEGRAM_ID = "2679ab21-f8cf-446f-8efb-36b549f73fa0"; // Join Telegram
-const USERNAME_ID = "f18818cf-eec4-412e-8311-22e09a1332db"; // Set username
+const FOLLOW_ID = '99da9e3d-5332-419e-aa40-5cb9d6e3a7ab'; // Follow Twitter
+const TELEGRAM_ID = '2679ab21-f8cf-446f-8efb-36b549f73fa0'; // Join Telegram
+const USERNAME_ID = 'f18818cf-eec4-412e-8311-22e09a1332db'; // Set username
 
 const quests: Quest[] = [
   {
     id: FOLLOW_ID,
     isLocked: false,
     img: akibaMilesSymbolAlt,
-    title: "akibaMiles",
-    description: "Follow Us on Twitter",
-    reward: "20 akibaMiles",
-    color: "#238D9D1A",
-    actionLink: "https://twitter.com/akibamiles",
+    title: 'akibaMiles',
+    description: 'Follow Us on Twitter',
+    reward: '20 akibaMiles',
+    color: '#238D9D1A',
+    actionLink: 'https://twitter.com/akibamiles',
     instructions: [
-      { title: "Open Twitter", text: "Go to our @akibaMilesApp page." },
-      { title: "Follow", text: "Hit the Follow button and confirm." },
+      { title: 'Open Twitter', text: 'Go to our @akibaMilesApp page.' },
+      { title: 'Follow', text: 'Hit the Follow button and confirm.' },
     ],
   },
   {
-    id: "1b15ef82-3a72-45c9-979a-2dbf317e8b26",
+    id: '1b15ef82-3a72-45c9-979a-2dbf317e8b26',
     isLocked: false,
     img: MiniPay,
-    title: "MiniPay",
-    description: "Subscribe to the Minipay Youtube Channel",
-    reward: "25 akibaMiles",
-    color: "#B3DEC5",
-    actionLink: "https://www.youtube.com/@MiniPay_wallet",
+    title: 'MiniPay',
+    description: 'Subscribe to the Minipay Youtube Channel',
+    reward: '25 akibaMiles',
+    color: '#B3DEC5',
+    actionLink: 'https://www.youtube.com/@MiniPay_wallet',
     instructions: [
-      { title: "Open Youtube", text: "Go to the Minipay Youtube Channel." },
-      { title: "Subscribe", text: "Hit the subscribe button and confirm." },
+      { title: 'Open Youtube', text: 'Go to the Minipay Youtube Channel.' },
+      { title: 'Subscribe', text: 'Hit the subscribe button and confirm.' },
     ],
   },
   {
     id: TELEGRAM_ID,
     isLocked: false,
     img: akibaMilesSymbolAlt,
-    title: "AkibaMiles",
-    description: "Join the Telegram Group",
-    reward: "20 akibaMiles",
-    color: "#238D9D1A",
-    actionLink: "https://t.me/+kAqhzNJmBCZmYTZk",
+    title: 'AkibaMiles',
+    description: 'Join the Telegram Group',
+    reward: '20 akibaMiles',
+    color: '#238D9D1A',
+    actionLink: 'https://t.me/+kAqhzNJmBCZmYTZk',
     instructions: [
-      { title: "Open Telegram", text: "Open the Telegram App" },
-      { title: "Join Group", text: "Hit the Join Group button" },
+      { title: 'Open Telegram', text: 'Open the Telegram App' },
+      { title: 'Join Group', text: 'Hit the Join Group button' },
     ],
   },
   // 👇 username quest – part of the same Akiba slot (3rd step)
@@ -73,39 +85,39 @@ const quests: Quest[] = [
     id: USERNAME_ID,
     isLocked: false,
     img: akibaMilesSymbolAlt,
-    title: "AkibaMiles",
-    description: "Set your Akiba username",
-    reward: "50 akibaMiles",
-    color: "#238D9D1A",
-    actionLink: "", // handled inside sheet – no external link
+    title: 'AkibaMiles',
+    description: 'Set your Akiba username',
+    reward: '50 akibaMiles',
+    color: '#238D9D1A',
+    actionLink: '', // handled inside sheet – no external link
     instructions: [], // we ignore instructions for this one in the sheet
   },
   {
-    id: "8d5a7766-4d2a-4bff-ac97-6b03fd5b570f",
+    id: '8d5a7766-4d2a-4bff-ac97-6b03fd5b570f',
     isLocked: true,
     img: Celo,
-    title: "Celo",
-    description: "Stake more than 5 Celo through Mondo.celo.org",
-    reward: "15 akibaMiles",
-    color: "#FFFFD6",
-    actionLink: "https://mondo.celo.org",
+    title: 'Celo',
+    description: 'Stake more than 5 Celo through Mondo.celo.org',
+    reward: '15 akibaMiles',
+    color: '#FFFFD6',
+    actionLink: 'https://mondo.celo.org',
     instructions: [
-      { title: "Connect Wallet", text: "Open your wallet and select Celo network." },
-      { title: "Stake", text: "Go to Mondo.celo.org and stake ≥ 5 CELO." },
+      { title: 'Connect Wallet', text: 'Open your wallet and select Celo network.' },
+      { title: 'Stake', text: 'Go to Mondo.celo.org and stake ≥ 5 CELO.' },
     ],
   },
   {
-    id: "a487d06b-fe99-4f4f-91bb-532f1647a86c",
+    id: 'a487d06b-fe99-4f4f-91bb-532f1647a86c',
     img: Mento,
     isLocked: true,
-    title: "Mento",
-    description: "Swap Between Celo and a Stablecoin",
-    reward: "15 akibaMiles",
-    color: "#238D9D1A",
-    actionLink: "https://app.mento.org/",
+    title: 'Mento',
+    description: 'Swap Between Celo and a Stablecoin',
+    reward: '15 akibaMiles',
+    color: '#238D9D1A',
+    actionLink: 'https://app.mento.org/',
     instructions: [
-      { title: "Open Mento", text: "Go to our @akibaMilesApp page." },
-      { title: "Swap", text: "Swap some Celo for any Stablecoin" },
+      { title: 'Open Mento', text: 'Go to the Mento app.' },
+      { title: 'Swap', text: 'Swap some Celo for any Stablecoin.' },
     ],
   },
 ];
@@ -118,13 +130,13 @@ const supabase = createClient(
 function useClaimedQuestIds(address?: string) {
   return useQuery<string[]>({
     enabled: !!address,
-    queryKey: ["partner-claimed", address],
+    queryKey: ['partner-claimed', address],
     queryFn: async () => {
       if (!address) return [];
       const { data } = await supabase
-        .from("partner_engagements")
-        .select("partner_quest_id")
-        .eq("user_address", address);
+        .from('partner_engagements')
+        .select('partner_quest_id')
+        .eq('user_address', address);
       return data?.map((d) => d.partner_quest_id) ?? [];
     },
   });
@@ -147,7 +159,7 @@ export default function PartnerQuests({
 
     // Find the index of the FIRST Akiba card in the list – this slot will be reused
     const baseIdx = list.findIndex((q) => akibaIds.includes(q.id));
-    if (baseIdx === -1) return list; // shouldn't happen, but safe guard
+    if (baseIdx === -1) return list; // safeguard
 
     // Decide which Akiba quest to show in that slot:
     // - if Follow not done → show Follow
@@ -195,23 +207,19 @@ export default function PartnerQuests({
               onClick={() => clickable && openPopup(q)}
               style={{ backgroundColor: q.color }}
               className={cn(
-                "relative flex h-[180px] flex-col items-center justify-between rounded-xl p-4",
-                clickable ? "cursor-pointer" : "cursor-default",
-                locked || completed ? "opacity-80" : "",
+                'relative flex h-[180px] flex-col items-center justify-between rounded-xl p-4',
+                clickable ? 'cursor-pointer' : 'cursor-default',
+                locked || completed ? 'opacity-80' : '',
               )}
             >
               {/* inner content (blurred if locked or completed) */}
               <div
                 className={cn(
-                  "flex h-full flex-col items-center justify-around text-center transition",
-                  locked || completed ? "blur-sm" : "",
+                  'flex h-full flex-col items-center justify-around text-center transition',
+                  locked || completed ? 'blur-sm' : '',
                 )}
               >
-                <Image
-                  src={q.img}
-                  alt={q.title}
-                  className="h-[64px] w-[64px]"
-                />
+                <Image src={q.img} alt={q.title} className="h-[64px] w-[64px]" />
                 <p className="text-sm font-medium">{q.title}</p>
                 <p className="mt-1 flex items-center justify-center text-xs font-poppins">
                   <Image
