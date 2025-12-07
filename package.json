@@ -28,7 +28,7 @@
     "celo"
   ],
   "dependencies": {
-    "posthog-js": "^1.248.1",
+    "posthog-js": "^1.302.2",
     "truncate-eth-address": "^1.0.2"
   }
 }
