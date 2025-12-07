@@ -44,7 +44,7 @@ const DIVVI_CONSUMER =
 const USERNAME_QUEST_ID = "f18818cf-eec4-412e-8311-22e09a1332db";
 
 // 50 akibaMiles for setting username
-const USERNAME_REWARD_POINTS = 50;
+const USERNAME_REWARD_POINTS = 10;
 
 /* ─── POST ──────────────────────────────────────────────── */
 

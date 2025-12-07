@@ -87,7 +87,7 @@ const quests: Quest[] = [
     img: akibaMilesSymbolAlt,
     title: 'AkibaMiles',
     description: 'Set your Akiba username',
-    reward: '50 akibaMiles',
+    reward: '10 akibaMiles',
     color: '#238D9D1A',
     actionLink: '', // handled inside sheet – no external link
     instructions: [], // we ignore instructions for this one in the sheet
