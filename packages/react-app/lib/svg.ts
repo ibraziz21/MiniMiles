@@ -28,6 +28,15 @@ import CusdRaffleSvg from "../public/svg/cusd-cash-raffle.svg"
 import MilesRaffleSvg from "../public/svg/miles-cash-raffle.svg"
 import W3MLogo from '../public/img/socials.jpg'
 import SYR from '../public/svg/SYR.svg'
+import RefreshSvg from "../public/svg/refresh.svg"
+import AkibaGamesDisabled from "../public/svg/akibamiles-games-disabled.svg"
+import AkibaGames from "../public/svg/akibamiles-games.svg";
+import CeloL2TxnDisabled from "../public/svg/celo-l2-txns-disabled.svg"
+import CeloL2Txn from "../public/svg/celo-l2-txns.svg"
+import LifeAkibaEarned from "../public/svg/lifetime-akibamiles-earned.svg"
+import LifeAkibaEarnedDisabled from "../public/svg/lifetime-akibamiles-earned-disabled.svg"
+import SeasonOneTxnDisabled from "../public/svg/season-one-txs-disabled.svg"
+import SeasonOneTxn from "../public/svg/season-one-txs.svg"
 
 
 export {
@@ -60,5 +69,14 @@ export {
     CusdRaffleSvg,
     MilesRaffleSvg,
     W3MLogo, 
-    SYR
+    SYR,
+    RefreshSvg,
+    AkibaGamesDisabled,
+    AkibaGames,
+    CeloL2TxnDisabled,
+    CeloL2Txn,
+    LifeAkibaEarned,
+    LifeAkibaEarnedDisabled,
+    SeasonOneTxn,
+    SeasonOneTxnDisabled
 }

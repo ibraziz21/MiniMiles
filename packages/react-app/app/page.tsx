@@ -24,7 +24,7 @@ import {
   oraimo,
   smartwatch
 } from "@/lib/img";
-import { akibaMilesSymbol } from "@/lib/svg";
+import { akibaMilesSymbol, RefreshSvg } from "@/lib/svg";
 import { useEffect, useState } from "react";
 import {
   fetchActiveRaffles,
@@ -39,6 +39,8 @@ import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { ProsperityPassCard } from "@/components/prosperity-claim";
+import Image from "next/image";
+import PassClaimCard from "@/components/pass-claim-card";
 
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -75,10 +77,10 @@ const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
   97: credo,
 };
 const PHYSICAL_TITLES: Record<number, string> = {
-93: 'Oraimo SpaceBuds Neo',
-94: 'Samsung Watch 5 40mm Bluetooth Smartwatch - Black',
-95: 'Bluetooth Speakers HIFI Boomboxes For Laptop,TV',
-97: 'KES 500 Airtime Reward'
+  93: 'Oraimo SpaceBuds Neo',
+  94: 'Samsung Watch 5 40mm Bluetooth Smartwatch - Black',
+  95: 'Bluetooth Speakers HIFI Boomboxes For Laptop,TV',
+  97: 'KES 500 Airtime Reward'
 };
 const pickPhysicalImage = (raffle: PhysicalRaffle) =>
   PHYSICAL_IMAGES[raffle.id] ?? sambuds;
@@ -143,8 +145,8 @@ export default function Home() {
     fetchBalance();
   }, [address, getakibaMilesBalance]);
 
-   /** ───────── fetch username (if set) ───────── */
-   useEffect(() => {
+  /** ───────── fetch username (if set) ───────── */
+  useEffect(() => {
     if (!address) {
       setDisplayName("");
       return;
@@ -213,22 +215,22 @@ export default function Home() {
   };
 
   const headerName =
-  displayName || (address ? truncateEthAddress(address) : ""); // ⬅️ NEW
+    displayName || (address ? truncateEthAddress(address) : ""); // ⬅️ NEW
 
   return (
     <main className="pb-24 font-sterling">
-        {/* 🏆 Winner modal only mounts when user opens from the header icon */}
-    {winnerOpen && (
-      <WinningModal open={winnerOpen} onOpenChange={setWinnerOpen} />
-    )}
+      {/* 🏆 Winner modal only mounts when user opens from the header icon */}
+      {winnerOpen && (
+        <WinningModal open={winnerOpen} onOpenChange={setWinnerOpen} />
+      )}
 
-    <DashboardHeader
-      name={headerName}
-      onOpenWinners={() => setWinnerOpen(true)}
-    />
+      <DashboardHeader
+        name={headerName}
+        onOpenWinners={() => setWinnerOpen(true)}
+      />
       <PointsCard points={Number(akibaMilesBalance)} />
 
-      <ProsperityPassCard onClaim={() => router.push("/prosperity-pass")}/>
+      <ProsperityPassCard onClaim={() => router.push("/prosperity-pass")} />
 
       {/* Daily challenges */}
       <div className="mx-4 mt-6 gap-1">
@@ -246,6 +248,26 @@ export default function Home() {
         <div className="flex gap-3 overflow-x-auto">
           <DailyChallenges />
         </div>
+      </div>
+
+
+      {/* Pass Badges */}
+      <div className="mx-4 mt-6">
+        <div className="flex justify-between items-center my-2">
+          <h3 className="text-lg font-medium">Pass Badges</h3>
+          <Link href="/earn" className="flex items-center">
+            <span className="text-sm text-[#238D9D] hover:underline font-medium">
+              Claim Badges
+            </span>
+            <Image src={RefreshSvg} alt="" className="w-6 h-6 ml-1" width={24} height={24} />
+          </Link>
+        </div>
+        <p className="text-gray-500 mb-4">
+          Completed a challenge? Click & claim Miles
+        </p>
+
+        {/* Active badges */}
+        <PassClaimCard />
       </div>
 
       {/* PHYSICAL */}
