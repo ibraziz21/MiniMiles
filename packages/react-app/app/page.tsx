@@ -38,6 +38,7 @@ import truncateEthAddress from "truncate-eth-address";
 import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+import { ProsperityPassCard } from "@/components/prosperity-claim";
 
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -226,6 +227,8 @@ export default function Home() {
       onOpenWinners={() => setWinnerOpen(true)}
     />
       <PointsCard points={Number(akibaMilesBalance)} />
+
+      <ProsperityPassCard onClaim={() => router.push("/prosperity-pass")}/>
 
       {/* Daily challenges */}
       <div className="mx-4 mt-6 gap-1">
