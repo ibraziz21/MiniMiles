@@ -27,14 +27,20 @@ export default function ProsperityPassOnboarding() {
   const [milesBalance, setMilesBalance] = useState<number | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  /* ───────── carousel state ───────── */
   useEffect(() => {
     if (!api) return;
+
     const onSelect = () => setIdx(api.selectedScrollSnap());
+
     api.on("select", onSelect);
     onSelect();
-    return () => api.off("select", onSelect);
+
+    // ✅ explicit void cleanup
+    return () => {
+      api.off("select", onSelect);
+    };
   }, [api]);
+
 
   const isLast = idx === prosperityPassSource.length - 1;
 
