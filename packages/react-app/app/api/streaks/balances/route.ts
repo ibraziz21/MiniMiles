@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import {
   getUserStableWalletBalanceUsd,
-  userStableWalletBalanceAtLeastUsd,
 } from "@/helpers/walletStableBalance";
 import { claimStreakReward } from "@/helpers/streaks";
 
@@ -22,7 +21,7 @@ export async function POST(req: Request) {
     if (!userAddress || !questId || !tier) {
       return NextResponse.json(
         { success: false, message: "Missing userAddress, questId or tier" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -69,14 +68,14 @@ export async function POST(req: Request) {
           code: "error",
           message: "Could not claim streak reward",
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
     return NextResponse.json({
       success: true,
       txHash: result.txHash,
-      claimedAt: result.scopeKey,        // YYYY-MM-DD
+      claimedAt: result.scopeKey, // YYYY-MM-DD
       scopeKey: result.scopeKey,
       currentStreak: result.currentStreak,
       longestStreak: result.longestStreak,
@@ -85,7 +84,7 @@ export async function POST(req: Request) {
     console.error("[streak_wallet_balance] error", err);
     return NextResponse.json(
       { success: false, message: "server-error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

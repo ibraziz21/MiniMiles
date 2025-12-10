@@ -25,6 +25,7 @@ import {
   smartwatch
 } from "@/lib/img";
 import { akibaMilesSymbol, RefreshSvg } from "@/lib/svg";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import {
   fetchActiveRaffles,
@@ -39,14 +40,21 @@ import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { ProsperityPassCard } from "@/components/prosperity-claim";
-import Image from "next/image";
-import PassClaimCard from "@/components/pass-claim-card";
+import { BadgesSection } from "@/components/BadgesSection";
 
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const SUPABASE_SERVICE_KEY = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || "";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+const BadgeClaimSuccessSheet = dynamic(
+  () =>
+    import("@/components/BadgeClaimSuccessSheet").then(
+      (m) => m.BadgeClaimSuccessSheet
+    ),
+  { ssr: false }
+);
 
 const PhysicalRaffleSheet = dynamic(
   () => import("@/components/physical-raffle-sheet"),
@@ -126,6 +134,9 @@ export default function Home() {
   const [hasMounted, setHasMounted] = useState(false);
 
   const [displayName, setDisplayName] = useState<string>(""); // ⬅️ NEW
+  const [badgeSheetOpen, setBadgeSheetOpen] = useState(false);
+  const [unlockedBadges, setUnlockedBadges] = useState<string[]>([]);
+  const [isRefreshingBadges, setIsRefreshingBadges] = useState(false);
 
   useEffect(() => setHasMounted(true), []);
   useEffect(() => {
@@ -214,6 +225,13 @@ export default function Home() {
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
   };
 
+  const badgeProgress = {
+    "S1U": 123,
+    "CEL2": 430,
+    "LAM": 9,
+    "AMG": 22,
+  };
+
   const headerName =
     displayName || (address ? truncateEthAddress(address) : ""); // ⬅️ NEW
 
@@ -253,67 +271,49 @@ export default function Home() {
 
       {/* Pass Badges */}
       <div className="mx-4 mt-6">
-        <div className="flex justify-between items-center my-2">
-          <h3 className="text-lg font-medium">Pass Badges</h3>
-          <Link href="/earn" className="flex items-center">
-            <span className="text-sm text-[#238D9D] hover:underline font-medium">
-              Claim Badges
-            </span>
-            <Image src={RefreshSvg} alt="" className="w-6 h-6 ml-1" width={24} height={24} />
-          </Link>
-        </div>
-        <p className="text-gray-500 mb-4">
-          Completed a challenge? Click & claim Miles
-        </p>
+      <div className="flex justify-between items-center my-2">
+  <h3 className="text-lg font-medium">Pass Badges</h3>
+
+  <button
+  type="button"
+  className="flex items-center"
+  onClick={async () => {
+    if (isRefreshingBadges) return; // prevent double-click spam
+    setIsRefreshingBadges(true);
+
+    // TODO: replace with real logic to fetch / compute unlocked badges
+    setUnlockedBadges([
+      "S1 Transactions • Tier 1",
+      "S1 Transactions • Tier 2",
+      "S1 Transactions • Tier 3",
+    ]);
+
+    setBadgeSheetOpen(true);
+    // 👇 don't reset here; it's handled in onOpenChange when user closes sheet
+  }}
+>
+  <span className="text-sm text-[#238D9D] hover:underline font-medium">
+    Claim Badges
+  </span>
+  <Image
+    src={RefreshSvg}
+    alt="Refresh Icon"
+    width={24}
+    height={24}
+    className={`w-6 h-6 ml-1 ${
+      isRefreshingBadges ? "animate-spin" : ""
+    }`}
+  />
+</button>
+
+</div>
+
+
 
         {/* Active badges */}
-        <PassClaimCard />
+        <BadgesSection />
       </div>
 
-      {/* PHYSICAL */}
-      <div className="mx-4 mt-6">
-        <div className="flex justify-between items-center">
-          <h3 className="text-lg font-extrabold mb-2">Physical Rewards</h3>
-        </div>
-        <div className="flex gap-3 overflow-x-auto">
-          {physicalRaffles.map((r) => {
-            const cardImg = pickPhysicalImage(r);
-            const title = physicalTitle(r);
-
-            return (
-              <RaffleCard
-                key={r.id}
-                image={cardImg}
-                title={title}
-                endsIn={formatEndsIn(r.ends)}
-                ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
-                icon={akibaMilesSymbol}
-                locked={false}
-                onClick={() => {
-                  setSpendRaffle(null);
-                  setPhysicalRaffle({
-                    id: r.id,
-                    title,
-                    endDate: formatEndsIn(r.ends),
-                    ticketCost: r.ticketCost,
-                    image: cardImg,
-                    balance: Number(akibaMilesBalance),
-                    totalTickets: r.totalTickets,
-                    maxTickets: r.maxTickets,
-                  });
-                  setActiveSheet("physical");
-                }}
-              />
-            );
-          })}
-
-          {physicalRaffles.length === 0 && (
-            <div className="text-sm opacity-70 px-2 py-4">
-              No physical rewards live right now.
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* TOKEN / Join Rewards */}
       <div className="mx-4 mt-6">
@@ -373,6 +373,15 @@ export default function Home() {
       </div>
 
       {/* Sheets */}
+      <BadgeClaimSuccessSheet
+  open={badgeSheetOpen}
+  onOpenChange={(open) => {
+    setBadgeSheetOpen(open);
+    if (!open) setIsRefreshingBadges(false);
+  }}
+  unlocked={unlockedBadges}
+/>
+
       <PhysicalRaffleSheet
         open={activeSheet === "physical"}
         onOpenChange={(o) => setActiveSheet(o ? "physical" : null)}

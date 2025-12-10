@@ -16,7 +16,7 @@ import { ProsperityPassSuccessSheet } from "@/components/ProsperityPassSuccessSh
 import { useWeb3 } from "@/contexts/useWeb3";
 import { akibaMilesSymbolAlt } from "@/lib/svg";
 
-const REQUIRED_MILES = 100;
+const REQUIRED_MILES = 20;
 
 export default function ProsperityPassOnboarding() {
   const router = useRouter();

@@ -1,4 +1,3 @@
-// src/components/daily-challenge.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -8,6 +7,7 @@ import { StreakInfoSheet } from "@/components/StreakDetailModal";
 
 import { useWeb3 } from "@/contexts/useWeb3";
 import QuestLoadingModal, { QuestStatus } from "./quest-loading-modal";
+
 import { claimBalanceStreak10, claimBalanceStreak30 } from "@/helpers/claimBalanceStreak";
 import { claimDailyQuest } from "@/helpers/claimDaily";
 import { claimFiveTransfers } from "@/helpers/claimFiveTransfers";
@@ -47,6 +47,7 @@ async function claimSendDollar(addr: string) {
   }).then((r) => r.json());
   return res;
 }
+
 async function claimReceiveDollar(addr: string) {
   const res = await fetch("/api/quests/daily_receive", {
     method: "POST",
@@ -70,7 +71,7 @@ type QuestRow = {
 /** streaks table row (per user+quest) */
 type StreakRow = {
   quest_id: string;
-  streak_count: number;
+  current_streak: number; // 👈 DB column
 };
 
 /* ─── handler map ────────────────────────────────────────── */
@@ -89,29 +90,30 @@ const ACTION_BY_ID: Record<string, QuestHandler> = {
 
   /* C. Daily receive ≥ $1 */
   "c6b14ae1-66e9-4777-9c9f-65e57b091b16": { action: claimReceiveDollar, img: Cash },
-    /* G. Weekly $5 top-up streak */
-    "96009afb-0762-4399-adb3-ced421d73072": {
-      action: claimTopupStreak,
-      img: Cash,
-    },
-  
-    /* H. 7-day daily-quest streak */
-    "6ddc811a-1a4d-4e57-871d-836f07486531": {
-      action: claimSevenDayStreak,
-      img: Cash,
-    },
-  
-    /* I. Wallet balance streak ≥ $10 */
-    "feb6e5ef-7d9c-4ca6-a042-e2b692a6b00f": {
-      action: claimBalanceStreak10,
-      img: Cash,
-    },
-  
-    /* J. Wallet balance streak ≥ $30 */
-    "a1ac5914-20d4-4436-bf02-29563938fe9d": {
-      action: claimBalanceStreak30,
-      img: Cash,
-    },
+
+  /* G. Weekly $5 top-up streak */
+  "96009afb-0762-4399-adb3-ced421d73072": {
+    action: claimTopupStreak,
+    img: Cash,
+  },
+
+  /* H. 7-day daily-quest streak */
+  "6ddc811a-1a4d-4e57-871d-836f07486531": {
+    action: claimSevenDayStreak,
+    img: Cash,
+  },
+
+  /* I. Wallet balance streak ≥ $10 */
+  "feb6e5ef-7d9c-4ca6-a042-e2b692a6b00f": {
+    action: claimBalanceStreak10,
+    img: Cash,
+  },
+
+  /* J. Wallet balance streak ≥ $30 */
+  "a1ac5914-20d4-4436-bf02-29563938fe9d": {
+    action: claimBalanceStreak30,
+    img: Cash,
+  },
 
   /* D. Send 5 transfers */
   "f6d027d2-bf52-4768-a87f-2be00a5b03a0": { action: claimFiveTransfers, img: Cash },
@@ -124,13 +126,10 @@ const ACTION_BY_ID: Record<string, QuestHandler> = {
     action: claimTwentyTransfers,
     img: Cash,
   },
-
-
 };
 
 /**
  * Which quests should show the streak flame badge in the top-right.
- * Add/remove IDs here to control it.
  */
 const STREAK_QUEST_IDS = new Set<string>([
   // daily send ≥ $1
@@ -147,19 +146,18 @@ const STREAK_QUEST_IDS = new Set<string>([
   "a1ac5914-20d4-4436-bf02-29563938fe9d",
 ]);
 
-
-/* Desired visual order: Check-in → $1 Send → $1 Receive → 7d streak → 5 TXs → 10 TXs → 20 TXs */
+/* Desired visual order */
 const ORDERED_IDS = [
-  "a9c68150-7db8-4555-b87f-5e9117b43a08",
-  "383eaa90-75aa-4592-a783-ad9126e8f04d",
-  "c6b14ae1-66e9-4777-9c9f-65e57b091b16",
-  "feb6e5ef-7d9c-4ca6-a042-e2b692a6b00f",
-"a1ac5914-20d4-4436-bf02-29563938fe9d",
-  "96009afb-0762-4399-adb3-ced421d73072",
-  "6ddc811a-1a4d-4e57-871d-836f07486531",
-  "f6d027d2-bf52-4768-a87f-2be00a5b03a0",
-  "ea001296-2405-451b-a590-941af22a8df1",
-  "60320fa4-1681-4795-8818-429f11afe784",
+  "a9c68150-7db8-4555-b87f-5e9117b43a08", // check-in
+  "383eaa90-75aa-4592-a783-ad9126e8f04d", // send $1
+  "c6b14ae1-66e9-4777-9c9f-65e57b091b16", // receive $1
+  "feb6e5ef-7d9c-4ca6-a042-e2b692a6b00f", // balance $10
+  "a1ac5914-20d4-4436-bf02-29563938fe9d", // balance $30
+  "96009afb-0762-4399-adb3-ced421d73072", // weekly topup streak
+  "6ddc811a-1a4d-4e57-871d-836f07486531", // 7d streak
+  "f6d027d2-bf52-4768-a87f-2be00a5b03a0", // 5 txs
+  "ea001296-2405-451b-a590-941af22a8df1", // 10 txs
+  "60320fa4-1681-4795-8818-429f11afe784", // 20 txs
 ];
 
 function sortByDesiredOrder(rows: QuestRow[]) {
@@ -193,6 +191,7 @@ export default function DailyChallenges({
   const [modalStatus, setStatus] = useState<QuestStatus>("loading");
   const [modalMsg, setMsg] = useState<string>();
   const [streakInfoOpen, setStreakInfoOpen] = useState(false);
+
   /* wallet */
   useEffect(() => {
     getUserAddress();
@@ -219,6 +218,8 @@ export default function DailyChallenges({
       }
 
       const today = new Date().toISOString().slice(0, 10);
+
+      // daily_engagements has been working, so keep using `address` as-is
       const { data: eng } = await supabase
         .from("daily_engagements")
         .select("quest_id")
@@ -233,12 +234,14 @@ export default function DailyChallenges({
       setActive(sortByDesiredOrder(activeQs));
       setCompleted(sortByDesiredOrder(completedQs));
 
-      // pull streak counts for this user (for streak-enabled quests)
+      // 🔥 streaks table stores user_address in LOWERCASE
+      const userLc = address.toLowerCase();
+
       try {
         const { data: streakRows, error: streakErr } = await supabase
           .from("streaks")
-          .select("quest_id, streak_count")
-          .eq("user_address", address);
+          .select("quest_id, current_streak")
+          .eq("user_address", userLc);
 
         if (streakErr) {
           console.error("[daily-challenge] streaks fetch error:", streakErr);
@@ -246,7 +249,7 @@ export default function DailyChallenges({
           const map: Record<string, number> = {};
           (streakRows as StreakRow[]).forEach((row) => {
             if (STREAK_QUEST_IDS.has(row.quest_id)) {
-              map[row.quest_id] = row.streak_count;
+              map[row.quest_id] = row.current_streak;
             }
           });
           setStreakCounts(map);
@@ -285,33 +288,40 @@ export default function DailyChallenges({
         if (STREAK_QUEST_IDS.has(q.id)) {
           setStreakCounts((prev) => {
             const current = prev[q.id] ?? 0;
-            const next =
-              typeof res.streakCount === "number" ? res.streakCount : current + 1;
+
+            // API might return currentStreak (balances route) or streak (topup route)
+            let serverCount: number | undefined;
+            if (typeof res.currentStreak === "number") serverCount = res.currentStreak;
+            if (typeof res.streak === "number") serverCount = res.streak;
+
+            const next = serverCount ?? current + 1;
             return { ...prev, [q.id]: next };
           });
         }
       } else if (res.code === "already") {
         setStatus("already");
-      } else if (res.code === "condition-failed" && typeof res.missingUsd === "number") {
-        // tailor message when user doesn’t meet $10 / $30 or weekly topup
+      } else if (
+        res.code === "condition-failed" &&
+        typeof res.missingUsd === "number"
+      ) {
+        // tailored message when user doesn’t meet $10 / $30 or weekly topup
         const current =
           typeof res.currentUsd === "number"
             ? res.currentUsd.toFixed(2)
             : undefined;
         const missing = res.missingUsd.toFixed(2);
-      
+
         setStatus("error");
         setMsg(
           res.message ||
             (current
               ? `You currently have $${current}. Top up $${missing} more to qualify.`
-              : `Top up $${missing} more to qualify.`)
+              : `Top up $${missing} more to qualify.`),
         );
       } else {
         setStatus("error");
         setMsg(res.message);
       }
-      
     } catch (e) {
       console.error(e);
       setStatus("error");
@@ -336,9 +346,9 @@ export default function DailyChallenges({
             const map = ACTION_BY_ID[q.id];
             if (!map) return null;
 
-            // inside quests.map(...)
             const isStreak = STREAK_QUEST_IDS.has(q.id);
             const streakCount = streakCounts[q.id] ?? 0;
+            const showNumber = streakCount > 0;
 
             return (
               <button
@@ -346,28 +356,34 @@ export default function DailyChallenges({
                 disabled={showCompleted}
                 onClick={() => runQuest(q)}
                 className={`relative flex-none h-60 w-44 rounded-xl p-4 shadow-xl
-      ${showCompleted
-                    ? "bg-blue-50 opacity-70 cursor-default"
-                    : "bg-white border border-[#238D9D4D]"
+                  ${
+                    showCompleted
+                      ? "bg-blue-50 opacity-70 cursor-default"
+                      : "bg-white border border-[#238D9D4D]"
                   }`}
               >
-              {isStreak && (
-  <div
-    className="
-      absolute right-2 top-2
-      flex h-7 w-7 items-center justify-center
-      rounded-full bg-[#238D9D]
-      cursor-pointer
-    "
-    onClick={(e) => {
-      e.stopPropagation();          // don’t trigger runQuest
-      setStreakInfoOpen(true);      // open info sheet
-    }}
-  >
-    <Image src={streakIcon} alt="Streak" className="h-5 w-5" />
-  </div>
-)}
-
+                {isStreak && (
+                  <div
+                    className="
+                      absolute right-2 top-2
+                      flex h-7 items-center
+                      rounded-full bg-[#238D9D]
+                      px-2
+                      cursor-pointer
+                    "
+                    onClick={(e) => {
+                      e.stopPropagation(); // don’t trigger runQuest
+                      setStreakInfoOpen(true);
+                    }}
+                  >
+                    {showNumber && (
+                      <span className="mr-1 text-[11px] font-semibold leading-none text-white">
+                        {streakCount}
+                      </span>
+                    )}
+                    <Image src={streakIcon} alt="Streak" className="h-5 w-5" />
+                  </div>
+                )}
 
                 <div className="flex h-full flex-col items-center justify-between text-center">
                   <Image src={map.img} alt="" className="mx-auto" />
@@ -386,10 +402,7 @@ export default function DailyChallenges({
         </div>
       )}
 
-<StreakInfoSheet
-        open={streakInfoOpen}
-        onOpenChange={setStreakInfoOpen}
-      />
+      <StreakInfoSheet open={streakInfoOpen} onOpenChange={setStreakInfoOpen} />
 
       <QuestLoadingModal
         open={modalOpen}

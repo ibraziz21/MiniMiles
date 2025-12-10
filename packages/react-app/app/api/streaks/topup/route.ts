@@ -1,4 +1,3 @@
-// src/app/api/streaks/topup/route.ts
 import { NextResponse } from "next/server";
 import { topupProgressLast7Days } from "@/helpers/graphTopupStreak";
 import { claimStreakReward } from "@/helpers/streaks";
@@ -51,7 +50,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       scopeKey: result.scopeKey,
-      streak: result.currentStreak,       // 👈 THIS is the number we’ll show
+      streak: result.currentStreak, // 👈 what we use in UI
       longestStreak: result.longestStreak,
     });
   } catch (err) {
