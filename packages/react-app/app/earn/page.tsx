@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import MiniPointsCard from "@/components/mini-points-card";
 import DailyChallenges from "@/components/daily-challenge";
 import PartnerQuests from "@/components/partner-quests";
@@ -8,6 +9,17 @@ import SuccessModal from "@/components/success-modal";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useWeb3 } from "@/contexts/useWeb3";
 import React, { useEffect, useState } from "react";
+import { BadgesSection } from "@/components/BadgesSection";
+import { akibaMilesSymbol, RefreshSvg } from "@/lib/svg";
+import dynamic from "next/dynamic";
+
+const BadgeClaimSuccessSheet = dynamic(
+  () =>
+    import("@/components/BadgeClaimSuccessSheet").then(
+      (m) => m.BadgeClaimSuccessSheet
+    ),
+  { ssr: false }
+);
 
 export default function EarnPage() {
   const { address, getUserAddress, getakibaMilesBalance } = useWeb3();
@@ -15,7 +27,9 @@ export default function EarnPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [quest, setQuest] = useState<any>(null);
   const [success, setSuccess] = useState(false);
-
+  const [isRefreshingBadges, setIsRefreshingBadges] = useState(false);
+  const [unlockedBadges, setUnlockedBadges] = useState<string[]>([]);
+  const [badgeSheetOpen, setBadgeSheetOpen] = useState(false);
   /* wallet + balance */
   useEffect(() => { getUserAddress(); }, [getUserAddress]);
   useEffect(() => {
@@ -82,6 +96,60 @@ export default function EarnPage() {
               add a PartnerQuestsCompleted component here */}
         </TabsContent>
       </Tabs>
+            {/* Pass Badges */}
+            <div className="mx-4 mt-6">
+      <div className="flex justify-between items-center my-2">
+  <h3 className="text-lg font-medium">Pass Badges</h3>
+
+  <button
+  type="button"
+  className="flex items-center"
+  onClick={async () => {
+    if (isRefreshingBadges) return; // prevent double-click spam
+    setIsRefreshingBadges(true);
+
+    // TODO: replace with real logic to fetch / compute unlocked badges
+    setUnlockedBadges([
+      "S1 Transactions • Tier 1",
+      "S1 Transactions • Tier 2",
+      "S1 Transactions • Tier 3",
+    ]);
+
+    setBadgeSheetOpen(true);
+    // 👇 don't reset here; it's handled in onOpenChange when user closes sheet
+  }}
+>
+  <span className="text-sm text-[#238D9D] hover:underline font-medium">
+    Claim Badges
+  </span>
+  <Image
+    src={RefreshSvg}
+    alt="Refresh Icon"
+    width={24}
+    height={24}
+    className={`w-6 h-6 ml-1 ${
+      isRefreshingBadges ? "animate-spin" : ""
+    }`}
+  />
+</button>
+
+</div>
+
+
+
+        {/* Active badges */}
+        <BadgesSection />
+      </div>
+
+            {/* Sheets */}
+            <BadgeClaimSuccessSheet
+  open={badgeSheetOpen}
+  onOpenChange={(open: boolean | ((prevState: boolean) => boolean)) => {
+    setBadgeSheetOpen(open);
+    if (!open) setIsRefreshingBadges(false);
+  }}
+  unlocked={unlockedBadges}
+/>
 
       {/* sheets / modals */}
       <EarnPartnerQuestSheet
