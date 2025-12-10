@@ -24,6 +24,10 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY!,
 );
 
+// src/components/daily-challenge.tsx (add near top)
+const TOPUP_STREAK_QUEST_ID = "96009afb-0762-4399-adb3-ced421d73072";
+
+
 /* ─── tiny wrappers to hit your existing API routes ─────── */
 
 async function claimSevenDayStreak(addr: string) {
@@ -266,7 +270,6 @@ export default function DailyChallenges({
   const quests = showCompleted ? completed : active;
   if (loading) return null;
 
-  /* run quest */
   async function runQuest(q: QuestRow) {
     if (!address) return;
     const map = ACTION_BY_ID[q.id];
@@ -289,7 +292,7 @@ export default function DailyChallenges({
           setStreakCounts((prev) => {
             const current = prev[q.id] ?? 0;
 
-            // API might return currentStreak (balances route) or streak (topup route)
+            // API might return currentStreak (balances) or streak (topup)
             let serverCount: number | undefined;
             if (typeof res.currentStreak === "number") serverCount = res.currentStreak;
             if (typeof res.streak === "number") serverCount = res.streak;
@@ -299,7 +302,17 @@ export default function DailyChallenges({
           });
         }
       } else if (res.code === "already") {
-        setStatus("already");
+        // 🗓 special handling for weekly topup streak
+        if (q.id === TOPUP_STREAK_QUEST_ID && res.nextClaimDate) {
+          setStatus("already");
+          setMsg(
+            `You’ve already claimed your top-up streak for this week.\n\n` +
+              `Next claim date: ${res.nextClaimDate}`,
+          );
+        } else {
+          setStatus("already");
+          setMsg(res.message || "You’ve already claimed this reward.");
+        }
       } else if (
         res.code === "condition-failed" &&
         typeof res.missingUsd === "number"
@@ -308,16 +321,28 @@ export default function DailyChallenges({
         const current =
           typeof res.currentUsd === "number"
             ? res.currentUsd.toFixed(2)
+            : typeof res.totalUsd === "number"
+            ? res.totalUsd.toFixed(2)
             : undefined;
         const missing = res.missingUsd.toFixed(2);
 
-        setStatus("error");
-        setMsg(
-          res.message ||
-            (current
-              ? `You currently have $${current}. Top up $${missing} more to qualify.`
-              : `Top up $${missing} more to qualify.`),
-        );
+        // if this is the weekly topup streak, phrase it accordingly
+        if (q.id === TOPUP_STREAK_QUEST_ID) {
+          setStatus("error");
+          setMsg(
+            `You need $${missing} more in MiniPay top-ups this week to complete this streak.` +
+              (current ? `\n\nCurrent top-ups this week: $${current}.` : ""),
+          );
+        } else {
+          // daily balance streaks
+          setStatus("error");
+          setMsg(
+            res.message ||
+              (current
+                ? `You currently have $${current}. Top up $${missing} more to qualify.`
+                : `Top up $${missing} more to qualify.`),
+          );
+        }
       } else {
         setStatus("error");
         setMsg(res.message);
@@ -328,6 +353,7 @@ export default function DailyChallenges({
       setMsg("Network or contract error");
     }
   }
+
 
   /* UI */
   return (

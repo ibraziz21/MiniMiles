@@ -1,5 +1,6 @@
 // src/helpers/streaks.ts
 import { createClient } from "@supabase/supabase-js";
+import { safeMintMiniPoints } from "@/lib/minipoints";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,18 +12,23 @@ type StreakScope = "daily" | "weekly" | "monthly";
 type ClaimStreakOpts = {
   userAddress: string;
   questId: string;
-  points: number;
+  points: number;       // base points (before multiplier)
   scope: StreakScope;
-  label: string; // e.g. "topup-streak"
+  label: string;        // e.g. "topup-streak" or "wallet-10-streak"
 };
 
-type ClaimStreakResult = {
+export type ClaimStreakResult = {
   ok: boolean;
   code?: "already" | "error";
   scopeKey?: string;
   currentStreak?: number;
   longestStreak?: number;
-  txHash?: string | null; // if you ever attach on-chain tx
+  txHash?: string | null;
+
+  // ✅ NEW: for UI / debugging
+  basePoints?: number;
+  multiplier?: number;
+  awardedPoints?: number;
 };
 
 // ── helpers for period keys ────────────────────────────────────────
@@ -66,6 +72,7 @@ function isPreviousPeriod(
   currentKey: string,
 ): boolean {
   if (!prevKey) return false;
+
   if (scope === "daily") {
     // prevKey === yesterday?
     const today = new Date(currentKey);
@@ -73,11 +80,12 @@ function isPreviousPeriod(
     yesterday.setDate(today.getDate() - 1);
     return prevKey === getDailyKey(yesterday);
   }
+
   if (scope === "weekly") {
     // naive: just ensure keys differ → if not equal, we treat it as previous
-    // You can get fancy with real ISO week math if you want.
     return prevKey !== currentKey;
   }
+
   if (scope === "monthly") {
     const [y, m] = currentKey.split("-").map(Number);
     let prevY = y;
@@ -89,6 +97,7 @@ function isPreviousPeriod(
     const recomputed = `${prevY}-${String(prevM).padStart(2, "0")}`;
     return prevKey === recomputed;
   }
+
   return false;
 }
 
@@ -97,7 +106,7 @@ function isPreviousPeriod(
 export async function claimStreakReward(
   opts: ClaimStreakOpts,
 ): Promise<ClaimStreakResult> {
-  const { userAddress, questId, points, scope } = opts;
+  const { userAddress, questId, points, scope, label } = opts;
   const user = userAddress.toLowerCase();
   const scopeKey = computeScopeKey(scope);
 
@@ -157,14 +166,43 @@ export async function claimStreakReward(
     return { ok: false, code: "error" };
   }
 
-  // 3) award the points as usual – if you have an existing “awardPoints” helper call it here
-  // await awardPoints({ userAddress: user, questId, points, label: opts.label });
+  // 3) Compute multiplier + final points, then mint MiniPoints
+  let multiplier = 1;
+  if (scope === "daily") {
+    if (nextStreak >= 10) {
+      multiplier = 1.5;
+    } else if (nextStreak >= 3) {
+      multiplier = 1.2;
+    }
+  }
+
+  const basePoints = points;
+  const awardedPoints = Math.floor(basePoints * multiplier);
+
+  let txHash: `0x${string}` | null = null;
+
+  try {
+    if (awardedPoints > 0) {
+      txHash = await safeMintMiniPoints({
+        to: user as `0x${string}`,
+        points: awardedPoints,
+        reason: label,
+      });
+    }
+  } catch (err) {
+    console.error("[claimStreakReward] mint error", err);
+    // you can choose to still keep streak but fail claim; for now, treat as error
+    return { ok: false, code: "error" };
+  }
 
   return {
     ok: true,
     scopeKey,
     currentStreak: upRow?.current_streak ?? nextStreak,
     longestStreak: upRow?.longest_streak ?? longest,
-    txHash: null,
+    txHash,
+    basePoints,
+    multiplier,
+    awardedPoints,
   };
 }
