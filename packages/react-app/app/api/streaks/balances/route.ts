@@ -1,6 +1,8 @@
-// src/app/api/streaks/balances
 import { NextResponse } from "next/server";
-import { userStableWalletBalanceAtLeastUsd } from "@/helpers/walletStableBalance";
+import {
+  getUserStableWalletBalanceUsd,
+  userStableWalletBalanceAtLeastUsd,
+} from "@/helpers/walletStableBalance";
 import { claimStreakReward } from "@/helpers/streaks";
 
 /**
@@ -28,16 +30,20 @@ export async function POST(req: Request) {
     const points = tier === "30" ? 20 : 10; // tweak rewards
 
     // 1) check combined stable wallet balance
-    const ok = await userStableWalletBalanceAtLeastUsd(userAddress, minUsd);
-    if (!ok) {
+    const totalUsd = await getUserStableWalletBalanceUsd(userAddress);
+    if (totalUsd < minUsd) {
+      const missingUsd = Math.max(0, minUsd - totalUsd);
       return NextResponse.json({
         success: false,
         code: "condition-failed",
         message: `Need at least $${minUsd} in your wallet (cUSD/USDT/other stables)`,
+        minUsd,
+        currentUsd: totalUsd,
+        missingUsd,
       });
     }
 
-    // 2) daily reward
+    // 2) daily reward + streak tracking
     const result = await claimStreakReward({
       userAddress,
       questId,
@@ -47,13 +53,33 @@ export async function POST(req: Request) {
     });
 
     if (!result.ok && result.code === "already") {
-      return NextResponse.json({ success: false, code: "already" });
+      return NextResponse.json({
+        success: false,
+        code: "already",
+        scopeKey: result.scopeKey,
+        currentStreak: result.currentStreak,
+        longestStreak: result.longestStreak,
+      });
+    }
+
+    if (!result.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: "error",
+          message: "Could not claim streak reward",
+        },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
       success: true,
       txHash: result.txHash,
-      claimedAt: result.scopeKey, // YYYY-MM-DD
+      claimedAt: result.scopeKey,        // YYYY-MM-DD
+      scopeKey: result.scopeKey,
+      currentStreak: result.currentStreak,
+      longestStreak: result.longestStreak,
     });
   } catch (err) {
     console.error("[streak_wallet_balance] error", err);

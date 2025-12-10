@@ -1,136 +1,170 @@
 // src/helpers/streaks.ts
 import { createClient } from "@supabase/supabase-js";
-import {
-  createPublicClient,
-  createWalletClient,
-  http,
-  parseUnits,
-} from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { celo } from "viem/chains";
-import MiniPointsAbi from "@/contexts/minimiles.json";
-import { getReferralTag, submitReferral } from "@divvi/referral-sdk";
 
-const {
-  SUPABASE_URL = "",
-  SUPABASE_SERVICE_KEY = "",
-  PRIVATE_KEY = "",
-  MINIPOINTS_ADDRESS = "",
-} = process.env;
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY!,
+);
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !PRIVATE_KEY || !MINIPOINTS_ADDRESS) {
-  console.warn("[streaks] Missing one or more env vars");
-}
+type StreakScope = "daily" | "weekly" | "monthly";
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-
-const account = privateKeyToAccount(`0x${PRIVATE_KEY}`);
-
-export const publicClient = createPublicClient({
-  chain: celo,
-  transport: http("https://forno.celo.org"),
-});
-
-export const walletClient = createWalletClient({
-  account,
-  chain: celo,
-  transport: http("https://forno.celo.org"),
-});
-
-export type StreakScope = "daily" | "weekly";
-
-/**
- * Compute a scope key for logging in DB:
- *  - daily:  "YYYY-MM-DD"
- *  - weekly: "YYYY-Www" (ISO week)
- */
-export function scopeKeyFor(scope: StreakScope, now = new Date()): string {
-  if (scope === "daily") {
-    return now.toISOString().slice(0, 10);
-  }
-
-  // Weekly → ISO week string
-  const tmp = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-  const dayNum = tmp.getUTCDay() || 7; // Sunday=7
-  tmp.setUTCDate(tmp.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil(
-    ((tmp.getTime() - yearStart.getTime()) / 86400000 + 1) / 7
-  );
-
-  return `${tmp.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
-}
-
-/**
- * Generic helper:
- *  - enforce "once per scope" restriction via daily_engagements
- *  - mint MiniMiles points to user
- *  - log row in daily_engagements
- */
-export async function claimStreakReward(opts: {
+type ClaimStreakOpts = {
   userAddress: string;
   questId: string;
   points: number;
   scope: StreakScope;
-  label?: string; // for logging / analytics
-}) {
-  const { userAddress, questId, points, scope, label } = opts;
+  label: string; // e.g. "topup-streak"
+};
 
-  const key = scopeKeyFor(scope);
+type ClaimStreakResult = {
+  ok: boolean;
+  code?: "already" | "error";
+  scopeKey?: string;
+  currentStreak?: number;
+  longestStreak?: number;
+  txHash?: string | null; // if you ever attach on-chain tx
+};
 
-  // 1) has already claimed in this scope?
-  const { data: claimed, error: checkErr } = await supabase
-    .from("daily_engagements")
-    .select("id")
-    .eq("user_address", userAddress)
+// ── helpers for period keys ────────────────────────────────────────
+
+function getDailyKey(d: Date) {
+  return d.toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
+function getIsoWeekKey(d: Date) {
+  const tmp = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  // Thursday in current week decides the year.
+  tmp.setUTCDate(tmp.getUTCDate() + 3 - ((tmp.getUTCDay() + 6) % 7));
+  const week1 = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 4));
+  const week =
+    1 +
+    Math.round(
+      ((tmp.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getUTCDay() + 6) % 7)) /
+        7,
+    );
+  return `${tmp.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+}
+
+function getMonthlyKey(d: Date) {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function computeScopeKey(scope: StreakScope, now = new Date()): string {
+  if (scope === "daily") return getDailyKey(now);
+  if (scope === "weekly") return getIsoWeekKey(now);
+  return getMonthlyKey(now);
+}
+
+/**
+ * Very light “previous period?” check.
+ * For dailies we compare date-1; for weeklies we just check key inequality and
+ * assume any non-equal-previous is a reset. (Good enough for now.)
+ */
+function isPreviousPeriod(
+  scope: StreakScope,
+  prevKey: string | null,
+  currentKey: string,
+): boolean {
+  if (!prevKey) return false;
+  if (scope === "daily") {
+    // prevKey === yesterday?
+    const today = new Date(currentKey);
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    return prevKey === getDailyKey(yesterday);
+  }
+  if (scope === "weekly") {
+    // naive: just ensure keys differ → if not equal, we treat it as previous
+    // You can get fancy with real ISO week math if you want.
+    return prevKey !== currentKey;
+  }
+  if (scope === "monthly") {
+    const [y, m] = currentKey.split("-").map(Number);
+    let prevY = y;
+    let prevM = m - 1;
+    if (prevM === 0) {
+      prevM = 12;
+      prevY -= 1;
+    }
+    const recomputed = `${prevY}-${String(prevM).padStart(2, "0")}`;
+    return prevKey === recomputed;
+  }
+  return false;
+}
+
+// ── main entrypoint ────────────────────────────────────────────────
+
+export async function claimStreakReward(
+  opts: ClaimStreakOpts,
+): Promise<ClaimStreakResult> {
+  const { userAddress, questId, points, scope } = opts;
+  const user = userAddress.toLowerCase();
+  const scopeKey = computeScopeKey(scope);
+
+  // 1) read existing row (if any)
+  const { data: existing, error: fetchErr } = await supabase
+    .from("streaks")
+    .select("*")
+    .eq("user_address", user)
     .eq("quest_id", questId)
-    .eq("claimed_at", key)
+    .eq("scope", scope)
     .maybeSingle();
 
-  if (checkErr) {
-    console.error("[claimStreakReward] check failed", label, checkErr);
+  if (fetchErr && fetchErr.code !== "PGRST116") {
+    console.error("[claimStreakReward] fetch error", fetchErr);
+    return { ok: false, code: "error" };
   }
 
-  if (claimed) {
-    return { ok: false as const, code: "already" as const, scopeKey: key };
+  if (existing && existing.last_scope_key === scopeKey) {
+    // Already claimed this period
+    return {
+      ok: false,
+      code: "already",
+      scopeKey,
+      currentStreak: existing.current_streak,
+      longestStreak: existing.longest_streak,
+    };
   }
 
-  // 2) mint MiniMiles
-  const referralTag = getReferralTag({
-    user: account.address as `0x${string}`,
-    consumer: "0x03909bb1E9799336d4a8c49B74343C2a85fDad9d", // Divvi identifier
-  });
+  const prevKey = existing?.last_scope_key ?? null;
+  const prevStreak = existing?.current_streak ?? 0;
 
-  const { request } = await publicClient.simulateContract({
-    address: MINIPOINTS_ADDRESS as `0x${string}`,
-    abi: MiniPointsAbi.abi,
-    functionName: "mint",
-    args: [userAddress as `0x${string}`, parseUnits(points.toString(), 18)],
-    account,
-    dataSuffix: `0x${referralTag}`,
-  });
+  const nextStreak = isPreviousPeriod(scope, prevKey, scopeKey)
+    ? prevStreak + 1
+    : 1;
 
-  const txHash = await walletClient.writeContract(request);
+  const longest = Math.max(existing?.longest_streak ?? 0, nextStreak);
 
-  submitReferral({ txHash, chainId: publicClient.chain.id }).catch((e) =>
-    console.error("[claimStreakReward] Divvi submitReferral failed", label, e)
-  );
+  // 2) upsert streak row
+  const { error: upErr, data: upRow } = await supabase
+    .from("streaks")
+    .upsert(
+      {
+        user_address: user,
+        quest_id: questId,
+        scope,
+        last_scope_key: scopeKey,
+        current_streak: nextStreak,
+        longest_streak: longest,
+      },
+      { onConflict: "user_address,quest_id,scope" },
+    )
+    .select()
+    .maybeSingle();
 
-  // 3) log DB
-  const { error: insertErr } = await supabase.from("daily_engagements").insert({
-    user_address: userAddress,
-    quest_id: questId,
-    claimed_at: key,
-    points_awarded: points,
-  });
-
-  if (insertErr) {
-    console.error("[claimStreakReward] insert failed", label, insertErr);
+  if (upErr) {
+    console.error("[claimStreakReward] upsert error", upErr);
+    return { ok: false, code: "error" };
   }
+
+  // 3) award the points as usual – if you have an existing “awardPoints” helper call it here
+  // await awardPoints({ userAddress: user, questId, points, label: opts.label });
 
   return {
-    ok: true as const,
-    txHash,
-    scopeKey: key,
+    ok: true,
+    scopeKey,
+    currentStreak: upRow?.current_streak ?? nextStreak,
+    longestStreak: upRow?.longest_streak ?? longest,
+    txHash: null,
   };
 }

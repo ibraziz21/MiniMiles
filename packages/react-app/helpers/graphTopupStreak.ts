@@ -25,74 +25,105 @@ const DECIMALS: Record<string, number> = {
 
 /* ------------------------------------------------------------- GQL docs  */
 
-const TRANSFER_IN_QUERY = gql`
-  query ($user: Bytes!, $since: BigInt!, $min: BigInt!) {
+const TRANSFERS_WINDOW_QUERY = gql`
+  query ($user: Bytes!, $since: BigInt!) {
     transfers(
-      first: 1
-      where: {
-        to: $user
-        blockTimestamp_gt: $since
-        value_gte: $min
-      }
+      first: 1000
+      where: { to: $user, blockTimestamp_gt: $since }
+      orderBy: blockTimestamp
+      orderDirection: desc
     ) {
-      id
+      value
     }
   }
 `;
 
 /* ---------------------------------------------------------------- helpers */
 
-async function hasRecentTopupAtLeast(
+/**
+ * Sum all incoming transfers for a user in the window and return
+ * the total amount in "USD units" (cUSD/USDT both counted as 1:1 with USD).
+ */
+async function cumulativeTopupForToken(
   user: string,
   token: string,
   url: string,
-  minUsd: number,
   windowSeconds: number
-): Promise<boolean> {
+): Promise<number> {
   const since = (Math.floor(Date.now() / 1_000) - windowSeconds).toString();
   const decimals = DECIMALS[token] ?? 18;
 
-  const minWei = BigInt(Math.floor(minUsd)) * 10n ** BigInt(decimals);
-
-  const { transfers } = await request<{ transfers: { id: string }[] }>(
+  const { transfers } = await request<{ transfers: { value: string }[] }>(
     url,
-    TRANSFER_IN_QUERY,
+    TRANSFERS_WINDOW_QUERY,
     {
       user: user.toLowerCase(),
       since,
-      min: minWei.toString(),
     }
   );
 
-  return transfers.length > 0;
+  if (!transfers || transfers.length === 0) return 0;
+
+  const totalWei = transfers.reduce<bigint>((acc, t) => {
+    try {
+      return acc + BigInt(t.value);
+    } catch {
+      return acc;
+    }
+  }, 0n);
+
+  const factor = 10 ** decimals;
+  // convert to a JS number in token units (treated as 1 USD per token)
+  return Number(totalWei) / factor;
 }
 
 /**
- * Has the wallet **received** ≥ $5 (cUSD or USDT) in the last 7 days?
+ * Get progress for "topped up at least minUsd in the last 7 days".
+ * Treats cUSD + USDT as 1:1 with USD.
+ */
+export async function topupProgressLast7Days(
+  userAddress: string,
+  minUsd = 5
+): Promise<{
+  totalUsd: number;
+  meets: boolean;
+  shortfallUsd: number;
+  targetUsd: number;
+}> {
+  const windowSeconds = 7 * 24 * 60 * 60;
+
+  const cusd = await cumulativeTopupForToken(
+    userAddress,
+    CUSD_ADDRESS,
+    URL_CUSD,
+    windowSeconds
+  );
+
+  const usdt = await cumulativeTopupForToken(
+    userAddress,
+    USDT_ADDRESS,
+    URL_USDT,
+    windowSeconds
+  );
+
+  const totalUsd = cusd + usdt;
+  const meets = totalUsd >= minUsd;
+  const shortfallUsd = meets ? 0 : Math.max(0, minUsd - totalUsd);
+
+  return {
+    totalUsd,
+    meets,
+    shortfallUsd,
+    targetUsd: minUsd,
+  };
+}
+
+/**
+ * Backwards-compatible boolean helper, if you still need it anywhere else.
  */
 export async function userToppedUpAtLeast5DollarsInLast7Days(
   userAddress: string
 ): Promise<boolean> {
-  const windowSeconds = 7 * 24 * 60 * 60;
-  const minUsd = 5;
-
-  const okCusd = await hasRecentTopupAtLeast(
-    userAddress,
-    CUSD_ADDRESS,
-    URL_CUSD,
-    minUsd,
-    windowSeconds
-  );
-
-  if (okCusd) return true;
-
-  const okUsdt = await hasRecentTopupAtLeast(
-    userAddress,
-    USDT_ADDRESS,
-    URL_USDT,
-    minUsd,
-    windowSeconds
-  );
-
-  return okUsdt;
+  const { meets } = await topupProgressLast7Days(userAddress, 5);
+  return meets;
 }

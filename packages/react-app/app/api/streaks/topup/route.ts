@@ -1,16 +1,8 @@
 // src/app/api/streaks/topup/route.ts
 import { NextResponse } from "next/server";
-import { userToppedUpAtLeast5DollarsInLast7Days } from "@/helpers/graphTopupStreak";
+import { topupProgressLast7Days } from "@/helpers/graphTopupStreak";
 import { claimStreakReward } from "@/helpers/streaks";
 
-/**
- * Weekly streak:
- *  - "Akiba Streak for weeks in a row topping up at least $5 in MiniPay"
- *  - One claim per ISO-week per questId
- *
- * POST /api/streaks/topup
- * body: { userAddress: string; questId: string }
- */
 export async function POST(req: Request) {
   try {
     const { userAddress, questId } = await req.json();
@@ -18,25 +10,30 @@ export async function POST(req: Request) {
     if (!userAddress || !questId) {
       return NextResponse.json(
         { success: false, message: "Missing userAddress or questId" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // 1) verify on-chain topup condition
-    const ok = await userToppedUpAtLeast5DollarsInLast7Days(userAddress);
-    if (!ok) {
+    // cumulative progress
+    const progress = await topupProgressLast7Days(userAddress, 5);
+    if (!progress.meets) {
+      const remaining = Math.max(0, progress.shortfallUsd);
       return NextResponse.json({
         success: false,
         code: "condition-failed",
-        message: "No MiniPay top-up ≥ $5 in the last 7 days",
+        message: `You need $${remaining.toFixed(
+          2,
+        )} more in MiniPay top-ups this week to complete this streak.`,
+        totalUsd: Number(progress.totalUsd.toFixed(2)),
+        targetUsd: progress.targetUsd,
+        remainingUsd: Number(remaining.toFixed(2)),
       });
     }
 
-    // 2) weekly reward
     const result = await claimStreakReward({
       userAddress,
       questId,
-      points: 25, // tweak reward
+      points: 25,
       scope: "weekly",
       label: "topup-streak",
     });
@@ -44,17 +41,24 @@ export async function POST(req: Request) {
     if (!result.ok && result.code === "already") {
       return NextResponse.json({ success: false, code: "already" });
     }
+    if (!result.ok) {
+      return NextResponse.json(
+        { success: false, message: "streak-error" },
+        { status: 500 },
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      txHash: result.txHash,
-      scopeKey: result.scopeKey, // e.g. "2025-W01"
+      scopeKey: result.scopeKey,
+      streak: result.currentStreak,       // 👈 THIS is the number we’ll show
+      longestStreak: result.longestStreak,
     });
   } catch (err) {
     console.error("[streak_topup] error", err);
     return NextResponse.json(
       { success: false, message: "server-error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
