@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     // ⬇️ Normalize address once
     let checksumAddr: `0x${string}`;
     try {
-      checksumAddr = getAddress(userAddress as `0x${string}`);
+      checksumAddr = getAddress(userAddress) as `0x${string}`;
     } catch {
       return NextResponse.json(
         { error: "Invalid userAddress" },
