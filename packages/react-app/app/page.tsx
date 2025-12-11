@@ -13,7 +13,9 @@ import {
   RaffleImg2,
   RaffleImg3,
   RaffleImg5,
-  jbl, amaya, itel,
+  jbl,
+  amaya,
+  itel,
   sambuds,
   promo,
   credo,
@@ -22,7 +24,7 @@ import {
   power,
   speaker,
   oraimo,
-  smartwatch
+  smartwatch,
 } from "@/lib/img";
 import { akibaMilesSymbol, RefreshSvg } from "@/lib/svg";
 import Image from "next/image";
@@ -42,9 +44,12 @@ import { createClient } from "@supabase/supabase-js";
 import { ProsperityPassCard } from "@/components/prosperity-claim";
 import { BadgesSection } from "@/components/BadgesSection";
 
+// ⬇️ Passport helper
+import { fetchSuperAccountForOwner } from "@/lib/prosperity-pass";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const SUPABASE_SERVICE_KEY = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || "";
+const SUPABASE_SERVICE_KEY =
+  process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || "";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
@@ -64,10 +69,9 @@ const SpendPartnerQuestSheet = dynamic(
   () => import("@/components/spend-partner-quest-sheet"),
   { ssr: false }
 );
-const WinningModal = dynamic(
-  () => import("@/components/winning-modal"),
-  { ssr: false }
-);
+const WinningModal = dynamic(() => import("@/components/winning-modal"), {
+  ssr: false,
+});
 
 /** ───────────────── Token raffle image map ───────────────── */
 const TOKEN_IMAGES: Record<string, StaticImageData> = {
@@ -85,10 +89,10 @@ const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
   97: credo,
 };
 const PHYSICAL_TITLES: Record<number, string> = {
-  93: 'Oraimo SpaceBuds Neo',
-  94: 'Samsung Watch 5 40mm Bluetooth Smartwatch - Black',
+  93: "Oraimo SpaceBuds Neo",
+  94: "Samsung Watch 5 40mm Bluetooth Smartwatch - Black",
   95: 'Bluetooth Speakers HIFI Boomboxes For Laptop,TV',
-  97: 'KES 500 Airtime Reward'
+  97: "KES 500 Airtime Reward",
 };
 const pickPhysicalImage = (raffle: PhysicalRaffle) =>
   PHYSICAL_IMAGES[raffle.id] ?? sambuds;
@@ -111,7 +115,7 @@ export type SpendRaffle = {
   symbol: string;
   totalTickets: number;
   maxTickets: number;
-  winners?: number
+  winners?: number;
 };
 
 export default function Home() {
@@ -133,12 +137,16 @@ export default function Home() {
   );
   const [hasMounted, setHasMounted] = useState(false);
 
-  const [displayName, setDisplayName] = useState<string>(""); // ⬅️ NEW
+  const [displayName, setDisplayName] = useState<string>(""); // username or truncated addr
   const [badgeSheetOpen, setBadgeSheetOpen] = useState(false);
   const [unlockedBadges, setUnlockedBadges] = useState<string[]>([]);
   const [isRefreshingBadges, setIsRefreshingBadges] = useState(false);
 
+  // NEW: track whether user has Prosperity Pass
+  const [hasPassport, setHasPassport] = useState(false);
+
   useEffect(() => setHasMounted(true), []);
+
   useEffect(() => {
     getUserAddress();
   }, [getUserAddress]);
@@ -191,10 +199,49 @@ export default function Home() {
     loadUsername();
   }, [address]);
 
+  /** ───────── check if user has Prosperity Pass (Super Account) ───────── */
+  useEffect(() => {
+    if (!address) {
+      setHasPassport(false);
+      return;
+    }
+
+    const checkPassport = async () => {
+      try {
+        console.log("[Passport] Checking Super Account for:", address);
+
+        const result = await fetchSuperAccountForOwner(address);
+
+        setHasPassport(result.hasPassport);
+
+        if (!result.hasPassport) {
+          console.log(
+            "[Passport] No Prosperity Pass found for user:",
+            address
+          );
+          return;
+        }
+
+        console.log("[Passport] User HAS Prosperity Pass:", {
+          smartAccount: result.account?.smartAccount,
+          superChainID: result.account?.superChainID,
+          points: result.account?.points.toString(),
+          level: result.account?.level,
+          noun: result.account?.noun,
+        });
+      } catch (err) {
+        console.error("[Passport] Error checking Super Account:", err);
+        setHasPassport(false);
+      }
+    };
+
+    void checkPassport();
+  }, [address]);
+
   useEffect(() => {
     fetchActiveRaffles()
       .then(({ tokenRaffles, physicalRaffles }) => {
-        // ⬇︎ Add winners: id 80 → 5, others → 1
+        // ⬇︎ Add winners: id 96 → 5, others → 1
         const withWinners: TokenRaffleWithWinners[] = tokenRaffles.map((r) => ({
           ...r,
           winners: r.id === 96 ? 5 : 1,
@@ -225,15 +272,8 @@ export default function Home() {
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
   };
 
-  const badgeProgress = {
-    "S1U": 123,
-    "CEL2": 430,
-    "LAM": 9,
-    "AMG": 22,
-  };
-
   const headerName =
-    displayName || (address ? truncateEthAddress(address) : ""); // ⬅️ NEW
+    displayName || (address ? truncateEthAddress(address) : "");
 
   return (
     <main className="pb-24 font-sterling">
@@ -248,7 +288,10 @@ export default function Home() {
       />
       <PointsCard points={Number(akibaMilesBalance)} />
 
-      <ProsperityPassCard onClaim={() => router.push("/prosperity-pass")} />
+      {/* If user does NOT have Prosperity Pass, show the card to create/claim it */}
+      {!hasPassport && (
+        <ProsperityPassCard onClaim={() => router.push("/prosperity-pass")} />
+      )}
 
       {/* Daily challenges */}
       <div className="mx-4 mt-6 gap-1">
@@ -268,52 +311,49 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Pass Badges – only visible if user HAS Prosperity Pass */}
+      {hasPassport && (
+        <div className="mx-4 mt-6">
+          <div className="flex justify-between items-center my-2">
+            <h3 className="text-lg font-medium">Pass Badges</h3>
 
-      {/* Pass Badges */}
-      <div className="mx-4 mt-6">
-      <div className="flex justify-between items-center my-2">
-  <h3 className="text-lg font-medium">Pass Badges</h3>
+            <button
+              type="button"
+              className="flex items-center"
+              onClick={async () => {
+                if (isRefreshingBadges) return; // prevent double-click spam
+                setIsRefreshingBadges(true);
 
-  <button
-  type="button"
-  className="flex items-center"
-  onClick={async () => {
-    if (isRefreshingBadges) return; // prevent double-click spam
-    setIsRefreshingBadges(true);
+                // TODO: replace with real logic to fetch / compute unlocked badges
+                setUnlockedBadges([
+                  "S1 Transactions • Tier 1",
+                  "S1 Transactions • Tier 2",
+                  "S1 Transactions • Tier 3",
+                ]);
 
-    // TODO: replace with real logic to fetch / compute unlocked badges
-    setUnlockedBadges([
-      "S1 Transactions • Tier 1",
-      "S1 Transactions • Tier 2",
-      "S1 Transactions • Tier 3",
-    ]);
+                setBadgeSheetOpen(true);
+                // Reset isRefreshingBadges in onOpenChange when sheet closes
+              }}
+            >
+              <span className="text-sm text-[#238D9D] hover:underline font-medium">
+                Claim Badges
+              </span>
+              <Image
+                src={RefreshSvg}
+                alt="Refresh Icon"
+                width={24}
+                height={24}
+                className={`w-6 h-6 ml-1 ${
+                  isRefreshingBadges ? "animate-spin" : ""
+                }`}
+              />
+            </button>
+          </div>
 
-    setBadgeSheetOpen(true);
-    // 👇 don't reset here; it's handled in onOpenChange when user closes sheet
-  }}
->
-  <span className="text-sm text-[#238D9D] hover:underline font-medium">
-    Claim Badges
-  </span>
-  <Image
-    src={RefreshSvg}
-    alt="Refresh Icon"
-    width={24}
-    height={24}
-    className={`w-6 h-6 ml-1 ${
-      isRefreshingBadges ? "animate-spin" : ""
-    }`}
-  />
-</button>
-
-</div>
-
-
-
-        {/* Active badges */}
-        <BadgesSection />
-      </div>
-
+          {/* Active badges */}
+          <BadgesSection />
+        </div>
+      )}
 
       {/* TOKEN / Join Rewards */}
       <div className="mx-4 mt-6">
@@ -374,13 +414,13 @@ export default function Home() {
 
       {/* Sheets */}
       <BadgeClaimSuccessSheet
-  open={badgeSheetOpen}
-  onOpenChange={(open) => {
-    setBadgeSheetOpen(open);
-    if (!open) setIsRefreshingBadges(false);
-  }}
-  unlocked={unlockedBadges}
-/>
+        open={badgeSheetOpen}
+        onOpenChange={(open) => {
+          setBadgeSheetOpen(open);
+          if (!open) setIsRefreshingBadges(false);
+        }}
+        unlocked={unlockedBadges}
+      />
 
       <PhysicalRaffleSheet
         open={activeSheet === "physical"}

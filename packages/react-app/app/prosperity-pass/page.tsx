@@ -16,6 +16,9 @@ import { ProsperityPassSuccessSheet } from "@/components/ProsperityPassSuccessSh
 import { useWeb3 } from "@/contexts/useWeb3";
 import { akibaMilesSymbolAlt } from "@/lib/svg";
 
+// 🔗 claim helper
+import { claimProsperityPassForAddress } from "@/lib/prosperity-pass-claim";
+
 const REQUIRED_MILES = 100;
 
 export default function ProsperityPassOnboarding() {
@@ -23,9 +26,14 @@ export default function ProsperityPassOnboarding() {
   const [api, setApi] = useState<CarouselApi | null>(null);
   const [idx, setIdx] = useState(0);
 
-  const { address, getUserAddress, getakibaMilesBalance } = useWeb3();
+  const { address, getUserAddress, getakibaMilesBalance, burnAkibaMiles } =
+  useWeb3();
   const [milesBalance, setMilesBalance] = useState<number | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+
+  // NEW: submit state
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!api) return;
@@ -35,12 +43,11 @@ export default function ProsperityPassOnboarding() {
     api.on("select", onSelect);
     onSelect();
 
-    // ✅ explicit void cleanup
+    // ✅ explicit cleanup
     return () => {
       api.off("select", onSelect);
     };
   }, [api]);
-
 
   const isLast = idx === prosperityPassSource.length - 1;
 
@@ -50,7 +57,10 @@ export default function ProsperityPassOnboarding() {
   }, [getUserAddress]);
 
   useEffect(() => {
-    if (!address) return;
+    if (!address) {
+      setMilesBalance(null);
+      return;
+    }
 
     (async () => {
       try {
@@ -67,21 +77,90 @@ export default function ProsperityPassOnboarding() {
   // balance logic: only grey out when we KNOW it's insufficient
   const balanceReady = milesBalance !== null;
   const insufficient = balanceReady && milesBalance! < REQUIRED_MILES;
-  const canClaim = balanceReady && !insufficient;
+  const canClaim =
+    balanceReady && !insufficient && !!address && !isSubmitting;
 
   const finish = () => {
     router.push("/");
   };
 
-  const handleCta = () => {
+  const handleCta = async () => {
+    setSubmitError(null);
+
+    // Not last slide → just move carousel
     if (!isLast) {
       api?.scrollNext();
       return;
     }
-    if (!canClaim) return; // either loading or insufficient
-    // TODO: put real on-chain claim here, then:
-    setShowSuccess(true);
+
+    if (!address) {
+      setSubmitError("Connect your wallet to claim your Prosperity Pass.");
+      return;
+    }
+
+    if (!canClaim) {
+      // either loading, insufficient, no wallet, or already submitting
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // 1) User burns 100 AkibaMiles from their own wallet
+      await burnAkibaMiles(REQUIRED_MILES);
+
+      // 2) Backend creates the eco account / Super Account
+      const result = await claimProsperityPassForAddress(
+        address,
+        REQUIRED_MILES
+      );
+
+      console.log("[ProsperityPass] claim result:", result);
+
+      setShowSuccess(true);
+    } catch (err: any) {
+      console.error("[ProsperityPass] claim failed:", err);
+
+      // If creation step failed AFTER burning, try to refund
+      // We don't have perfect introspection here, but in practice:
+      //  - if burn fails, it throws BEFORE claimProsperityPassForAddress
+      //  - if claim fails, we're in this catch AFTER a successful burn
+      try {
+        const res = await fetch("/api/refund-for-passport", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address, amount: REQUIRED_MILES }),
+        });
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          console.error(
+            "[ProsperityPass] refund failed:",
+            body?.error || "unknown refund error"
+          );
+        } else {
+          const body = await res.json().catch(() => ({}));
+          console.info(
+            "[ProsperityPass] refund tx:",
+            body?.txHash || "(no txHash returned)"
+          );
+        }
+      } catch (refundErr) {
+        console.error(
+          "[ProsperityPass] refund request threw:",
+          refundErr
+        );
+      }
+
+      setSubmitError(
+        err?.message ||
+          "We couldn't complete your Prosperity Pass creation. Your points should be refunded. If not, please contact support."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
 
   return (
     <>
@@ -158,34 +237,47 @@ export default function ProsperityPassOnboarding() {
                           type="button"
                           className={
                             "flex h-14 w-full items-center justify-center rounded-2xl text-base font-medium " +
-                            (isLast && insufficient
-                              ? "bg-[#D4D4D4] text-white" // grey when insufficient
+                            (isLast &&
+                            (insufficient || isSubmitting || !address)
+                              ? "bg-[#D4D4D4] text-white"
                               : "bg-[#238D9D] text-white")
                           }
                           onClick={handleCta}
-                          disabled={isLast && !canClaim}
+                          disabled={
+                            isSubmitting ||
+                            (isLast && (!balanceReady || insufficient))
+                          }
                         >
-                          {isLast ? (
-                            <>
-                              <span>Claim Pass for</span>
-                              <Image
-                                src={akibaMilesSymbolAlt}
-                                alt=""
-                                width={20}
-                                height={20}
-                                className="mx-1 h-5 w-5"
-                              />
-                              <span>{REQUIRED_MILES} AkibaMiles</span>
-                            </>
-                          ) : (
-                            "Next"
-                          )}
+                          {isSubmitting
+                            ? "Processing..."
+                            : isLast
+                            ? (
+                              <>
+                                <span>Claim Pass for</span>
+                                <Image
+                                  src={akibaMilesSymbolAlt}
+                                  alt=""
+                                  width={20}
+                                  height={20}
+                                  className="mx-1 h-5 w-5"
+                                />
+                                <span>{REQUIRED_MILES} AkibaMiles</span>
+                              </>
+                            )
+                            : "Next"}
                         </button>
 
-                        {/* Error only on last step and when balance is known + low */}
+                        {/* Balance error */}
                         {isLast && balanceReady && insufficient && (
                           <p className="text-center text-xs text-red-600">
                             Insufficient AkibaMiles
+                          </p>
+                        )}
+
+                        {/* Wallet / claim error */}
+                        {submitError && (
+                          <p className="text-center text-xs text-red-600">
+                            {submitError}
                           </p>
                         )}
                       </div>

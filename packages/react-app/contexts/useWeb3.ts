@@ -12,6 +12,7 @@ import {
   http,
   parseEther,
   formatUnits,
+  parseUnits,
 } from "viem";
 import { celo } from "viem/chains";
 import StableTokenABI from "@/contexts/cusd-abi.json";
@@ -178,6 +179,49 @@ export function useWeb3() {
   return hash
 }, [walletClient, publicClient, address])
 
+const burnAkibaMiles = useCallback(
+  async (amount: number) => {
+    if (!walletClient || !address) throw new Error("Wallet not connected");
+
+    const chainId = await walletClient.getChainId();
+    if (chainId !== celo.id) throw new Error("Wrong network");
+
+    const milesAmount = amount.toString();
+
+    const hash = await walletClient.writeContract({
+      chain: walletClient.chain,
+      address: "0xEeD878017f027FE96316007D0ca5fDA58Ee93a6b", // MiniMiles / MiniPoints contract
+      abi: MiniMilesAbi.abi,
+      functionName: "burn", // assumes burn(address,uint256)
+      account: address as `0x${string}`,
+      args: [
+        address as `0x${string}`,
+        parseUnits(milesAmount, 18),
+      ],
+    });
+
+    try {
+      await publicClient.waitForTransactionReceipt({
+        hash,
+        confirmations: 1,
+        timeout: 120_000,
+      });
+    } catch (err: any) {
+      const m = String(err?.message || "");
+      if (/(block.*out of range|header not found|query timeout)/i.test(m)) {
+        console.warn(
+          "[burnAkibaMiles] Ignoring provider range error while waiting for receipt:",
+          err
+        );
+      } else {
+        throw err;
+      }
+    }
+
+    return hash;
+  },
+  [walletClient, address, publicClient]
+);
 
 // ──────────────────────────────────────────────
   // Dice game: read helpers
@@ -501,6 +545,7 @@ const getDicePlayerStats = useCallback(
     joinDice,
     getDiceTierStats,
     getDicePlayerStats,
-    getLastResolvedRoundForPlayer
+    getLastResolvedRoundForPlayer,
+    burnAkibaMiles
   };
 }
