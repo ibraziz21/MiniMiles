@@ -3,17 +3,17 @@
 
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { BADGE_BY_KEY, type BadgeDef } from "@/lib/prosperityBadges";
+import { BADGE_BY_KEY, BadgeKey, type BadgeDef } from "@/lib/prosperityBadges";
 import closeIcon from "@/public/svg/close-pass.svg";
 import lockIcon from "@/public/svg/lock-icon.svg";
 import checkIcon from "@/public/svg/check-icon.svg";
 
 export default function BadgeDetailPage() {
   const router = useRouter();
-  const params = useParams<{ key: string }>();
+  const params = useParams<{ key: BadgeKey }>();
   const searchParams = useSearchParams();
 
-  const keyParam = Array.isArray(params.key) ? params.key[0] : params.key;
+  const keyParam: BadgeKey | undefined = Array.isArray(params.key) ? params.key[0] : params.key;
   const badge: BadgeDef | undefined = keyParam
     ? BADGE_BY_KEY[keyParam]
     : undefined;

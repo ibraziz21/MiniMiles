@@ -71,7 +71,7 @@ export async function POST(req: Request) {
 
   let userAddr: `0x${string}`;
   try {
-    userAddr = getAddress(raw);
+    userAddr = getAddress(raw) as `0x${string}`;
   } catch {
     return NextResponse.json({ error: "Invalid address" }, { status: 400 });
   }
@@ -102,7 +102,7 @@ export async function POST(req: Request) {
   if (refRow?.referrer_address) {
     try {
       const candidate = getAddress(refRow.referrer_address);
-      if (candidate !== userAddr) refAddr = candidate;
+      if (candidate !== userAddr) refAddr = candidate as `0x${string}`;
     } catch {
       /* ignore bad stored address */
     }
