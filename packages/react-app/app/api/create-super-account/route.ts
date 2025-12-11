@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
     // 3) SafeFactory using the older Safe SDK
     const safeFactory = await SafeFactory.create({
       ethAdapter,
-      safeVersion: SAFE_VERSION,
+      safeVersion: SAFE_VERSION as any,
     });
 
     // 4) Encode setupSuperChainAccount

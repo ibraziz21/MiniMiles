@@ -13,7 +13,8 @@ type BadgeDetailModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   badge: BadgeDef | null;
-  progressValue: number; // e.g. 123 transactions
+  /** RAW metric value (e.g. 123 tx, 2_400 AkibaMiles, etc.) */
+  progressValue: number;
 };
 
 export const BadgeDetailModal: FC<BadgeDetailModalProps> = ({
@@ -27,10 +28,15 @@ export const BadgeDetailModal: FC<BadgeDetailModalProps> = ({
   const lastTier = badge.tiers[badge.tiers.length - 1];
   const isCompleted = progressValue >= lastTier.threshold;
 
+  console.log("[UI] BadgeDetailModal:", {
+    badgeKey: badge.key,
+    progressValue,
+    thresholds: badge.tiers.map((t) => t.threshold),
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        // ⭐ bottom sheet styling
         className="
           fixed bottom-0 left-0 right-0
           mx-auto
@@ -47,9 +53,9 @@ export const BadgeDetailModal: FC<BadgeDetailModalProps> = ({
           data-[state=closed]:slide-out-to-bottom
         "
       >
-        {/* Top area: icon + heading + close (312 wide) */}
+        {/* Top area: icon + heading + close */}
         <div className="flex w-[312px] max-w-full items-start gap-4">
-          {/* Icon box 58x58 */}
+          {/* Icon box */}
           <div
             className="
               flex h-[58px] w-[58px]
@@ -97,7 +103,7 @@ export const BadgeDetailModal: FC<BadgeDetailModalProps> = ({
         {/* Divider */}
         <div className="mt-4 h-px w-full bg-[#E5E7EB]" />
 
-        {/* Completed banner (full badge done) */}
+        {/* Completed banner */}
         {isCompleted && (
           <div className="mt-4 flex w-[312px] max-w-full items-center justify-center rounded-full bg-[#D1FAE5] px-4 py-2">
             <Image
@@ -133,62 +139,61 @@ export const BadgeDetailModal: FC<BadgeDetailModalProps> = ({
             Your Progress:
           </span>
           <span className="text-[14px] font-semibold text-[#111827]">
-            {progressValue}{" "}
+            {progressValue.toLocaleString("en-US")}{" "}
             <span className="font-normal text-[#6B7280]">
               {badge.unitLabel}
             </span>
           </span>
         </div>
 
-{/* Tier list */}
-<div className="mt-4 flex w-full flex-col gap-2 pb-2">
-  {badge.tiers.map((tier) => {
-    const tierDone = progressValue >= tier.threshold;
+        {/* Tier list */}
+        <div className="mt-4 flex w-full flex-col gap-2 pb-2">
+          {badge.tiers.map((tier) => {
+            const tierDone = progressValue >= tier.threshold;
 
-    return (
-      <div
-        key={tier.id}
-        className={`
-          flex min-h-[88px] w-full items-stretch
-          rounded-[16px] border overflow-hidden
-          bg-white
-          ${tierDone ? "border-[#A7F3D0]" : "border-[#E5E7EB]"}
-        `}
-      >
-        {/* LEFT: icon column */}
-        <div
-          className={`
-            flex h-full w-[48px] flex-shrink-0 items-center justify-center
-            px-3
-            ${tierDone ? "bg-[#CFF2E5]" : "bg-[#8080801A]"}
-          `}
-        >
-          <Image
-            src={tierDone ? checkIcon : lockIcon}
-            alt={tierDone ? "Completed" : "Locked"}
-            width={18}
-            height={18}
-            className="h-[18px] w-[18px]"
-          />
+            return (
+              <div
+                key={tier.id}
+                className={`
+                  flex min-h-[88px] w-full items-stretch
+                  rounded-[16px] border overflow-hidden
+                  bg-white
+                  ${tierDone ? "border-[#A7F3D0]" : "border-[#E5E7EB]"}
+                `}
+              >
+                {/* LEFT: icon column */}
+                <div
+                  className={`
+                    flex h-full w-[48px] flex-shrink-0 items-center justify-center
+                    px-3
+                    ${tierDone ? "bg-[#CFF2E5]" : "bg-[#8080801A]"}
+                  `}
+                >
+                  <Image
+                    src={tierDone ? checkIcon : lockIcon}
+                    alt={tierDone ? "Completed" : "Locked"}
+                    width={18}
+                    height={18}
+                    className="h-[18px] w-[18px]"
+                  />
+                </div>
+
+                {/* RIGHT: text side */}
+                <div className="flex flex-1 flex-col justify-center bg-white px-3 py-3">
+                  <p className="text-[12px] leading-[16px] font-medium text-[#9CA3AF]">
+                    {tier.label}
+                    {tier.usersCompletedLabel
+                      ? ` • ${tier.usersCompletedLabel}`
+                      : ""}
+                  </p>
+                  <p className="mt-1 text-[16px] leading-[22px] font-medium text-[#111827]">
+                    {tier.requirement}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
         </div>
-
-        {/* RIGHT: text side – always white */}
-        <div className="flex flex-1 flex-col justify-center bg-white px-3 py-3">
-          <p className="text-[12px] leading-[16px] font-medium text-[#9CA3AF]">
-            {tier.label} • {tier.usersCompletedLabel}
-          </p>
-          <p className="mt-1 text-[16px] leading-[22px] font-medium text-[#111827]">
-            {tier.requirement}
-          </p>
-        </div>
-      </div>
-    );
-  })}
-</div>
-
-
-
-
       </DialogContent>
     </Dialog>
   );

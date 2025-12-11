@@ -1,4 +1,4 @@
-// src/app/page.tsx (Home)
+// src/app/page.tsx
 "use client";
 
 import ReferFab from "@/components/refer-fab";
@@ -6,7 +6,6 @@ import DailyChallenges from "@/components/daily-challenge";
 import DashboardHeader from "@/components/dashboard-header";
 import { RaffleCard } from "@/components/raffle-card";
 import PointsCard from "@/components/points-card";
-import { SectionHeading } from "@/components/section-heading";
 import { useWeb3 } from "@/contexts/useWeb3";
 import {
   RaffleImg1,
@@ -44,14 +43,30 @@ import { createClient } from "@supabase/supabase-js";
 import { ProsperityPassCard } from "@/components/prosperity-claim";
 import { BadgesSection } from "@/components/BadgesSection";
 
-// ⬇️ Passport helper
+// Passport helper
 import { fetchSuperAccountForOwner } from "@/lib/prosperity-pass";
+
+// Badge metadata only
+import {
+  BADGES,
+  type BadgeProgress,
+  type BadgeKey,
+  EMPTY_BADGE_PROGRESS,
+} from "@/lib/prosperityBadges";
+
+/* ──────────────────────────────────────────────────────────────── */
+/*  Supabase setup                                                 */
+/* ──────────────────────────────────────────────────────────────── */
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const SUPABASE_SERVICE_KEY =
   process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || "";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+/* ──────────────────────────────────────────────────────────────── */
+/*  Dynamic imports                                                */
+/* ──────────────────────────────────────────────────────────────── */
 
 const BadgeClaimSuccessSheet = dynamic(
   () =>
@@ -65,15 +80,20 @@ const PhysicalRaffleSheet = dynamic(
   () => import("@/components/physical-raffle-sheet"),
   { ssr: false }
 );
+
 const SpendPartnerQuestSheet = dynamic(
   () => import("@/components/spend-partner-quest-sheet"),
   { ssr: false }
 );
+
 const WinningModal = dynamic(() => import("@/components/winning-modal"), {
   ssr: false,
 });
 
-/** ───────────────── Token raffle image map ───────────────── */
+/* ──────────────────────────────────────────────────────────────── */
+/*  Types for raffles                                              */
+/* ──────────────────────────────────────────────────────────────── */
+
 const TOKEN_IMAGES: Record<string, StaticImageData> = {
   cUSD: RaffleImg1,
   USDT: RaffleImg2,
@@ -81,7 +101,6 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   default: RaffleImg3,
 };
 
-/** ───────────────── Physical raffle helpers ─────────────── */
 const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
   93: oraimo,
   94: smartwatch,
@@ -99,10 +118,8 @@ const pickPhysicalImage = (raffle: PhysicalRaffle) =>
 const physicalTitle = (raffle: PhysicalRaffle) =>
   PHYSICAL_TITLES[raffle.id] ?? "Physical prize";
 
-/** ─────────────── Extend TokenRaffle with winners ────────── */
 export type TokenRaffleWithWinners = TokenRaffle & { winners: number };
 
-/** ───────────────── Spend sheet payload ──────────────────── */
 export type SpendRaffle = {
   id: number;
   title: string;
@@ -118,9 +135,80 @@ export type SpendRaffle = {
   winners?: number;
 };
 
+/* ──────────────────────────────────────────────────────────────── */
+/*  Badge backend types                                            */
+/* ──────────────────────────────────────────────────────────────── */
+
+type TierMetadata = {
+  badgeId: number;
+  level: number;
+  minValue: number;
+  points: number;
+};
+
+type BackendBadgeTier = {
+  points: string;
+  tier: string;
+  uri: string;
+  metadata: TierMetadata;
+};
+
+type BackendBadge = {
+  badgeId: string;
+  badgeTiers: BackendBadgeTier[];
+  uri: string;
+  metadata: {
+    name: string;
+    description: string;
+    platform: string;
+    chains: string[];
+    condition: string;
+    image: string;
+    "stack-image": string;
+    season: number | null;
+  };
+  points: number;
+  tier: number;
+  claimableTier: number | null;
+  claimable: boolean;
+};
+
+type BackendBadgesResponse = {
+  currentBadges: BackendBadge[];
+};
+
+/* Map local keys → Prosperity badge IDs */
+const BADGE_ID_BY_KEY: Record<BadgeKey, number | null> = {
+  "cel2-transactions": 18,
+  "s1-transactions": 22,
+  "lam-lifetime-akiba": 27,
+  "amg-akiba-games": null, // not wired yet
+};
+
+function deriveProgressFromBackendBadge(badge: BackendBadge): number {
+  const rawTier =
+    typeof badge.tier === "number" && !Number.isNaN(badge.tier)
+      ? badge.tier
+      : 0;
+
+  const maxSteps =
+    Array.isArray(badge.badgeTiers) && badge.badgeTiers.length > 0
+      ? badge.badgeTiers.length
+      : 5;
+
+  const steps = Math.max(0, Math.min(rawTier, maxSteps));
+
+  return steps;
+}
+
+/* ──────────────────────────────────────────────────────────────── */
+/*  Component                                                      */
+/* ──────────────────────────────────────────────────────────────── */
+
 export default function Home() {
   const router = useRouter();
   const { address, getUserAddress, getakibaMilesBalance } = useWeb3();
+
   const [akibaMilesBalance, setakibaMilesBalance] = useState("0");
   const [winnerOpen, setWinnerOpen] = useState(false);
   const [tokenRaffles, setTokenRaffles] = useState<TokenRaffleWithWinners[]>(
@@ -137,34 +225,39 @@ export default function Home() {
   );
   const [hasMounted, setHasMounted] = useState(false);
 
-  const [displayName, setDisplayName] = useState<string>(""); // username or truncated addr
+  const [displayName, setDisplayName] = useState<string>("");
   const [badgeSheetOpen, setBadgeSheetOpen] = useState(false);
   const [unlockedBadges, setUnlockedBadges] = useState<string[]>([]);
   const [isRefreshingBadges, setIsRefreshingBadges] = useState(false);
-
-  // NEW: track whether user has Prosperity Pass
   const [hasPassport, setHasPassport] = useState(false);
 
+  const [badgeProgress, setBadgeProgress] = useState<
+    BadgeProgress | undefined
+  >(undefined);
+
+  /* ───────── Initial mount ───────── */
   useEffect(() => setHasMounted(true), []);
 
+  /* ───────── Address from MiniPay / Wallet ───────── */
   useEffect(() => {
     getUserAddress();
   }, [getUserAddress]);
 
+  /* ───────── Balance ───────── */
   useEffect(() => {
     const fetchBalance = async () => {
       if (!address) return;
       try {
         const balance = await getakibaMilesBalance();
         setakibaMilesBalance(balance);
-      } catch (error) {
-        console.log(error);
+      } catch {
+        // swallow
       }
     };
     fetchBalance();
   }, [address, getakibaMilesBalance]);
 
-  /** ───────── fetch username (if set) ───────── */
+  /* ───────── Username / displayName ───────── */
   useEffect(() => {
     if (!address) {
       setDisplayName("");
@@ -180,7 +273,6 @@ export default function Home() {
           .maybeSingle();
 
         if (error) {
-          console.error("[Home] fetch username error:", error);
           setDisplayName(truncateEthAddress(address));
           return;
         }
@@ -190,8 +282,7 @@ export default function Home() {
         } else {
           setDisplayName(truncateEthAddress(address));
         }
-      } catch (e) {
-        console.error("[Home] username fetch exception:", e);
+      } catch {
         setDisplayName(truncateEthAddress(address));
       }
     };
@@ -199,7 +290,7 @@ export default function Home() {
     loadUsername();
   }, [address]);
 
-  /** ───────── check if user has Prosperity Pass (Super Account) ───────── */
+  /* ───────── Check Prosperity Pass (Super Account) ───────── */
   useEffect(() => {
     if (!address) {
       setHasPassport(false);
@@ -208,29 +299,9 @@ export default function Home() {
 
     const checkPassport = async () => {
       try {
-        console.log("[Passport] Checking Super Account for:", address);
-
         const result = await fetchSuperAccountForOwner(address);
-
         setHasPassport(result.hasPassport);
-
-        if (!result.hasPassport) {
-          console.log(
-            "[Passport] No Prosperity Pass found for user:",
-            address
-          );
-          return;
-        }
-
-        console.log("[Passport] User HAS Prosperity Pass:", {
-          smartAccount: result.account?.smartAccount,
-          superChainID: result.account?.superChainID,
-          points: result.account?.points.toString(),
-          level: result.account?.level,
-          noun: result.account?.noun,
-        });
-      } catch (err) {
-        console.error("[Passport] Error checking Super Account:", err);
+      } catch {
         setHasPassport(false);
       }
     };
@@ -238,10 +309,10 @@ export default function Home() {
     void checkPassport();
   }, [address]);
 
+  /* ───────── Raffles ───────── */
   useEffect(() => {
     fetchActiveRaffles()
       .then(({ tokenRaffles, physicalRaffles }) => {
-        // ⬇︎ Add winners: id 96 → 5, others → 1
         const withWinners: TokenRaffleWithWinners[] = tokenRaffles.map((r) => ({
           ...r,
           winners: r.id === 96 ? 5 : 1,
@@ -250,9 +321,227 @@ export default function Home() {
         setTokenRaffles(withWinners);
         setPhysicalRaffles(physicalRaffles);
       })
-      .catch(console.error)
+      .catch(() => {
+        // swallow
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  /* ───────── Badge refresh helper ───────── */
+  const refreshBadges = async (owner: `0x${string}`) => {
+    try {
+      const result: any = await fetchSuperAccountForOwner(owner);
+
+      const safe =
+        result?.hasPassport && result?.account?.smartAccount
+          ? (result.account.smartAccount as `0x${string}`)
+          : null;
+
+      if (!safe) {
+        setBadgeProgress({ ...EMPTY_BADGE_PROGRESS });
+        setUnlockedBadges([]);
+        return;
+      }
+
+      const base = process.env.NEXT_PUBLIC_BADGES_API_BASE ?? "";
+      const url = `${base}/api/user/${safe}`;
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers: { accept: "application/json" },
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        setBadgeProgress({ ...EMPTY_BADGE_PROGRESS });
+        setUnlockedBadges([]);
+        return;
+      }
+
+      const data: BackendBadgesResponse = await res.json();
+      const backendBadges = data.currentBadges ?? [];
+
+      const latest: BadgeProgress = { ...EMPTY_BADGE_PROGRESS };
+
+      (Object.keys(latest) as BadgeKey[]).forEach((key) => {
+        const badgeId = BADGE_ID_BY_KEY[key];
+
+        if (badgeId == null) {
+          latest[key] = 0;
+          return;
+        }
+
+        const backendBadge = backendBadges.find(
+          (b) => Number(b.badgeId) === badgeId
+        );
+
+        if (!backendBadge) {
+          latest[key] = 0;
+          return;
+        }
+
+        const value = deriveProgressFromBackendBadge(backendBadge);
+        latest[key] = value;
+      });
+
+      setBadgeProgress(latest);
+
+      // unlockedBadges is now driven by claim flow, not plain refresh
+    } catch {
+      setBadgeProgress({ ...EMPTY_BADGE_PROGRESS });
+      setUnlockedBadges([]);
+    }
+  };
+
+  async function claimProsperityBadgesForOwner(
+    owner: `0x${string}`
+  ): Promise<boolean> {
+    try {
+      const result: any = await fetchSuperAccountForOwner(owner);
+
+      const safe =
+        result?.hasPassport && result?.account?.smartAccount
+          ? (result.account.smartAccount as `0x${string}`)
+          : null;
+
+      if (!safe) {
+        return false;
+      }
+
+      const base = process.env.NEXT_PUBLIC_BADGES_API_BASE ?? "";
+      const url = `${base}/api/user/${safe}`;
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          accept: "application/json, text/plain, */*",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+
+      if (!res.ok) {
+        return false;
+      }
+
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /* ───────── Claim badges (tracked IDs only) then refresh ───────── */
+  const claimBadgesAndRefresh = async (owner: `0x${string}`) => {
+    try {
+      const result: any = await fetchSuperAccountForOwner(owner);
+
+      const safe =
+        result?.hasPassport && result?.account?.smartAccount
+          ? (result.account.smartAccount as `0x${string}`)
+          : null;
+
+      if (!safe) {
+        await refreshBadges(owner);
+        return;
+      }
+
+      const base = process.env.NEXT_PUBLIC_BADGES_API_BASE ?? "";
+      const url = `${base}/api/user/${safe}`;
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers: { accept: "application/json" },
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        await refreshBadges(owner);
+        return;
+      }
+
+      const data: BackendBadgesResponse = await res.json();
+      const backendBadges = data.currentBadges ?? [];
+
+      const trackedIds = new Set(
+        Object.values(BADGE_ID_BY_KEY).filter(
+          (id): id is number => id != null
+        )
+      );
+
+      const claimableTargets = backendBadges.filter((b) => {
+        const idNum = Number(b.badgeId);
+        const claimableTier = b.claimableTier ?? 0;
+        return (
+          trackedIds.has(idNum) &&
+          b.claimable === true &&
+          claimableTier > 0
+        );
+      });
+
+      const newlyUnlocked: string[] = [];
+
+      claimableTargets.forEach((b) => {
+        const idNum = Number(b.badgeId);
+        const claimableTier = b.claimableTier ?? 0;
+        const currentTier = b.tier ?? 0;
+
+        const key = (Object.keys(BADGE_ID_BY_KEY) as BadgeKey[]).find(
+          (k) => BADGE_ID_BY_KEY[k] === idNum
+        );
+        if (!key) return;
+
+        const def = BADGES.find((bd) => bd.key === key);
+        if (!def) return;
+
+        for (
+          let lvl = currentTier + 1;
+          lvl <= claimableTier && lvl <= def.tiers.length;
+          lvl++
+        ) {
+          const tierDef = def.tiers[lvl - 1];
+          newlyUnlocked.push(`${def.title} • ${tierDef.label}`);
+        }
+      });
+
+      if (claimableTargets.length === 0) {
+        setUnlockedBadges([]);
+        await refreshBadges(owner);
+        return;
+      }
+
+      setUnlockedBadges(newlyUnlocked);
+
+      const claimRes = await fetch(url, {
+        method: "POST",
+        headers: {
+          accept: "application/json, text/plain, */*",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+
+      try {
+        await claimRes.json();
+      } catch {
+        // swallow
+      }
+
+      await refreshBadges(owner);
+    } catch {
+      await refreshBadges(owner);
+    }
+  };
+
+  /* ───────── Auto-fetch badges once we know address + hasPassport ───────── */
+  useEffect(() => {
+    if (!address || !hasPassport) {
+      return;
+    }
+
+    void refreshBadges(address as `0x${string}`);
+  }, [address, hasPassport]);
+
+  /* ───────── Misc helpers ───────── */
 
   if (loading) return <div>Loading…</div>;
 
@@ -275,9 +564,11 @@ export default function Home() {
   const headerName =
     displayName || (address ? truncateEthAddress(address) : "");
 
+  /* ───────── Render ───────── */
+
   return (
     <main className="pb-24 font-sterling">
-      {/* 🏆 Winner modal only mounts when user opens from the header icon */}
+      {/* Winner modal */}
       {winnerOpen && (
         <WinningModal open={winnerOpen} onOpenChange={setWinnerOpen} />
       )}
@@ -288,7 +579,7 @@ export default function Home() {
       />
       <PointsCard points={Number(akibaMilesBalance)} />
 
-      {/* If user does NOT have Prosperity Pass, show the card to create/claim it */}
+      {/* Create/claim Prosperity Pass */}
       {!hasPassport && (
         <ProsperityPassCard onClaim={() => router.push("/prosperity-pass")} />
       )}
@@ -321,18 +612,33 @@ export default function Home() {
               type="button"
               className="flex items-center"
               onClick={async () => {
-                if (isRefreshingBadges) return; // prevent double-click spam
+                if (!address || !hasPassport) {
+                  return;
+                }
+
+                if (isRefreshingBadges) {
+                  return;
+                }
+
                 setIsRefreshingBadges(true);
 
-                // TODO: replace with real logic to fetch / compute unlocked badges
-                setUnlockedBadges([
-                  "S1 Transactions • Tier 1",
-                  "S1 Transactions • Tier 2",
-                  "S1 Transactions • Tier 3",
-                ]);
+                try {
+                  const claimed = await claimProsperityBadgesForOwner(
+                    address as `0x${string}`
+                  );
 
-                setBadgeSheetOpen(true);
-                // Reset isRefreshingBadges in onOpenChange when sheet closes
+                  if (!claimed) {
+                    await refreshBadges(address as `0x${string}`);
+                    return;
+                  }
+
+                  await refreshBadges(address as `0x${string}`);
+                  setBadgeSheetOpen(true);
+                } catch {
+                  // swallow
+                } finally {
+                  setIsRefreshingBadges(false);
+                }
               }}
             >
               <span className="text-sm text-[#238D9D] hover:underline font-medium">
@@ -351,7 +657,7 @@ export default function Home() {
           </div>
 
           {/* Active badges */}
-          <BadgesSection />
+          <BadgesSection progress={badgeProgress} />
         </div>
       )}
 
@@ -412,7 +718,8 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Sheets */}
+      {/* Physical raffles ... if you display them */}
+
       <BadgeClaimSuccessSheet
         open={badgeSheetOpen}
         onOpenChange={(open) => {

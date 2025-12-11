@@ -6,35 +6,32 @@ import { BadgeCard } from "@/components/badge-card";
 import {
   BADGES,
   type BadgeProgress,
+  EMPTY_BADGE_PROGRESS,
 } from "@/lib/prosperityBadges";
 
 type Props = {
-  /** Map badge.key -> numeric progress (e.g. tx count) */
+  /** Map badge.key -> RAW metric (tx count / AkibaMiles), not steps */
   progress?: BadgeProgress;
-};
-
-// Dummy demo data:
-// - s1-transactions → 0   (0 tiers)
-// - s1-volume       → 300 (2 tiers, thresholds: 50, 250, 1000, ...)
-// - minipay-activity → 70 (all tiers, thresholds: 3,7,15,30,60)
-// - akiba-engagement → 20 (some progress, not full)
-const DEMO_PROGRESS: BadgeProgress = {
-  "s1-transactions": 0,
-  "s1-volume": 300,
-  "minipay-activity": 70,
-  "akiba-engagement": 20,
 };
 
 export function BadgesSection({ progress }: Props) {
   const router = useRouter();
-  const safeProgress = progress ?? DEMO_PROGRESS;
+  const safeProgress = progress ?? EMPTY_BADGE_PROGRESS;
+
 
   return (
     <div className="mt-6">
       <div className="flex gap-3 overflow-x-auto px-4 pb-2">
         {BADGES.map((b) => {
+          // RAW metric value for this badge (e.g. 73 tx, 2400 Miles, etc.)
           const raw = safeProgress[b.key] ?? 0;
-          const completedTiers = b.tiers.filter((t) => raw >= t.threshold).length;
+
+          // Number of tiers whose threshold is satisfied by this raw value
+          const completedSteps = b.tiers.filter(
+            (t) => raw >= t.threshold
+          ).length;
+
+      
 
           return (
             <BadgeCard
@@ -44,8 +41,9 @@ export function BadgesSection({ progress }: Props) {
               activeIcon={b.activeIcon}
               inactiveIcon={b.inactiveIcon}
               totalSteps={b.tiers.length}
-              completedSteps={completedTiers}
+              completedSteps={raw}
               onClick={() =>
+                // Pass the RAW metric to the detail page
                 router.push(`/badges/${b.key}?progress=${raw}`)
               }
             />
