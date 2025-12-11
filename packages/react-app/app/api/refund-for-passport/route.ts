@@ -1,6 +1,6 @@
 // src/app/api/minipoints/refund-for-passport/route.ts
 import { NextResponse } from "next/server";
-import { safeMintMiniPoints } from "@/lib/minipoints";
+import { safeMintRefund } from "@/lib/minipoints";
 
 export async function POST(req: Request) {
   try {
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     const address = body.address as `0x${string}`;
     const amount = body.amount as number;
 
-    const txHash = await safeMintMiniPoints({
+    const txHash = await safeMintRefund({
       to: address,
       points: amount,
       reason: "prosperity-pass-refund",
