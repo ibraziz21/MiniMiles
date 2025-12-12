@@ -1,0 +1,541 @@
+[
+  {
+    "name": "AdminChanged",
+    "type": "event",
+    "inputs": [
+      {
+        "name": "previousAdmin",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "newAdmin",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "name": "AllowedTierSet",
+    "type": "event",
+    "inputs": [
+      {
+        "name": "tier",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "allowed",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "name": "BeaconUpgraded",
+    "type": "event",
+    "inputs": [
+      {
+        "name": "beacon",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "name": "Initialized",
+    "type": "event",
+    "inputs": [
+      {
+        "name": "version",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "name": "Joined",
+    "type": "event",
+    "inputs": [
+      {
+        "name": "roundId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "number",
+        "type": "uint8",
+        "indexed": true,
+        "internalType": "uint8"
+      },
+      {
+        "name": "player",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "name": "OwnershipTransferred",
+    "type": "event",
+    "inputs": [
+      {
+        "name": "oldOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "name": "RandomnessRequested",
+    "type": "event",
+    "inputs": [
+      {
+        "name": "roundId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "randomBlock",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "name": "RoundCancelled",
+    "type": "event",
+    "inputs": [
+      {
+        "name": "roundId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "name": "RoundOpened",
+    "type": "event",
+    "inputs": [
+      {
+        "name": "roundId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "tier",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "name": "RoundResolved",
+    "type": "event",
+    "inputs": [
+      {
+        "name": "roundId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "winningNumber",
+        "type": "uint8",
+        "indexed": true,
+        "internalType": "uint8"
+      },
+      {
+        "name": "winner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "payout",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "name": "Upgraded",
+    "type": "event",
+    "inputs": [
+      {
+        "name": "implementation",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "name": "RNG",
+    "type": "function",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IWitnetRandomness"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "name": "activeRoundByTier",
+    "type": "function",
+    "inputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "name": "allowedTier",
+    "type": "function",
+    "inputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "outputs": [{ "name": "", "type": "bool", "internalType": "bool" }],
+    "stateMutability": "view"
+  },
+  {
+    "name": "cancelRound",
+    "type": "function",
+    "inputs": [
+      { "name": "roundId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "name": "drawRound",
+    "type": "function",
+    "inputs": [
+      { "name": "roundId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "name": "getActiveRoundId",
+    "type": "function",
+    "inputs": [
+      { "name": "tier", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "name": "getMyActiveEntryForTier",
+    "type": "function",
+    "inputs": [
+      { "name": "tier", "type": "uint256", "internalType": "uint256" },
+      { "name": "player", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [
+      { "name": "joined", "type": "bool", "internalType": "bool" },
+      { "name": "roundId", "type": "uint256", "internalType": "uint256" },
+      { "name": "number", "type": "uint8", "internalType": "uint8" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "name": "getMyNumberInRound",
+    "type": "function",
+    "inputs": [
+      { "name": "roundId", "type": "uint256", "internalType": "uint256" },
+      { "name": "player", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [
+      { "name": "joined", "type": "bool", "internalType": "bool" },
+      { "name": "number", "type": "uint8", "internalType": "uint8" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "name": "getPlayerStats",
+    "type": "function",
+    "inputs": [
+      { "name": "player", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [
+      { "name": "roundsJoined", "type": "uint64", "internalType": "uint64" },
+      { "name": "roundsWon", "type": "uint64", "internalType": "uint64" },
+      { "name": "totalStaked", "type": "uint128", "internalType": "uint128" },
+      { "name": "totalWon", "type": "uint128", "internalType": "uint128" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "name": "getRoundInfo",
+    "type": "function",
+    "inputs": [
+      { "name": "roundId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [
+      { "name": "tier", "type": "uint256", "internalType": "uint256" },
+      { "name": "filledSlots", "type": "uint8", "internalType": "uint8" },
+      { "name": "winnerSelected", "type": "bool", "internalType": "bool" },
+      { "name": "winningNumber", "type": "uint8", "internalType": "uint8" },
+      { "name": "randomBlock", "type": "uint256", "internalType": "uint256" },
+      { "name": "winner", "type": "address", "internalType": "address" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "name": "getRoundSlotPlayer",
+    "type": "function",
+    "inputs": [
+      { "name": "roundId", "type": "uint256", "internalType": "uint256" },
+      { "name": "number", "type": "uint8", "internalType": "uint8" }
+    ],
+    "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "stateMutability": "view"
+  },
+  {
+    "name": "getRoundSlots",
+    "type": "function",
+    "inputs": [
+      { "name": "roundId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [
+      { "name": "players", "type": "address[6]", "internalType": "address[6]" },
+      { "name": "numbers", "type": "uint8[6]", "internalType": "uint8[6]" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "name": "getRoundState",
+    "type": "function",
+    "inputs": [
+      { "name": "roundId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "enum AkibaDiceGame.RoundState"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "name": "getTierStats",
+    "type": "function",
+    "inputs": [
+      { "name": "tier", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [
+      { "name": "roundsCreated", "type": "uint64", "internalType": "uint64" },
+      { "name": "roundsResolved", "type": "uint64", "internalType": "uint64" },
+      { "name": "totalStaked", "type": "uint128", "internalType": "uint128" },
+      { "name": "totalPayout", "type": "uint128", "internalType": "uint128" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "name": "hasJoinedRound",
+    "type": "function",
+    "inputs": [
+      { "name": "", "type": "uint256", "internalType": "uint256" },
+      { "name": "", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [{ "name": "", "type": "bool", "internalType": "bool" }],
+    "stateMutability": "view"
+  },
+  {
+    "name": "initialize",
+    "type": "function",
+    "inputs": [
+      { "name": "_miniPoints", "type": "address", "internalType": "address" },
+      { "name": "_owner", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "name": "joinTier",
+    "type": "function",
+    "inputs": [
+      { "name": "tier", "type": "uint256", "internalType": "uint256" },
+      { "name": "chosenNumber", "type": "uint8", "internalType": "uint8" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "name": "miniPoints",
+    "type": "function",
+    "inputs": [],
+    "outputs": [
+      { "name": "", "type": "address", "internalType": "contract IMiniPoints" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "name": "nextRoundId",
+    "type": "function",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "name": "owner",
+    "type": "function",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "stateMutability": "view"
+  },
+  {
+    "name": "playerStats",
+    "type": "function",
+    "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "outputs": [
+      { "name": "roundsJoined", "type": "uint64", "internalType": "uint64" },
+      { "name": "roundsWon", "type": "uint64", "internalType": "uint64" },
+      { "name": "totalStaked", "type": "uint128", "internalType": "uint128" },
+      { "name": "totalWon", "type": "uint128", "internalType": "uint128" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "name": "proxiableUUID",
+    "type": "function",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "bytes32", "internalType": "bytes32" }],
+    "stateMutability": "view"
+  },
+  {
+    "name": "requestRoundRandomness",
+    "type": "function",
+    "inputs": [
+      { "name": "roundId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "name": "setAllowedTier",
+    "type": "function",
+    "inputs": [
+      { "name": "tier", "type": "uint256", "internalType": "uint256" },
+      { "name": "allowed", "type": "bool", "internalType": "bool" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "name": "tierStats",
+    "type": "function",
+    "inputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "outputs": [
+      { "name": "roundsCreated", "type": "uint64", "internalType": "uint64" },
+      { "name": "roundsResolved", "type": "uint64", "internalType": "uint64" },
+      { "name": "totalStaked", "type": "uint128", "internalType": "uint128" },
+      { "name": "totalPayout", "type": "uint128", "internalType": "uint128" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "name": "totalPayoutGlobal",
+    "type": "function",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint128", "internalType": "uint128" }],
+    "stateMutability": "view"
+  },
+  {
+    "name": "totalRoundsCancelled",
+    "type": "function",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint64", "internalType": "uint64" }],
+    "stateMutability": "view"
+  },
+  {
+    "name": "totalRoundsCreated",
+    "type": "function",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint64", "internalType": "uint64" }],
+    "stateMutability": "view"
+  },
+  {
+    "name": "totalRoundsResolved",
+    "type": "function",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint64", "internalType": "uint64" }],
+    "stateMutability": "view"
+  },
+  {
+    "name": "totalStakedGlobal",
+    "type": "function",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint128", "internalType": "uint128" }],
+    "stateMutability": "view"
+  },
+  {
+    "name": "transferOwnership",
+    "type": "function",
+    "inputs": [
+      { "name": "newOwner", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "name": "upgradeTo",
+    "type": "function",
+    "inputs": [
+      {
+        "name": "newImplementation",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "name": "upgradeToAndCall",
+    "type": "function",
+    "inputs": [
+      {
+        "name": "newImplementation",
+        "type": "address",
+        "internalType": "address"
+      },
+      { "name": "data", "type": "bytes", "internalType": "bytes" }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  }
+]

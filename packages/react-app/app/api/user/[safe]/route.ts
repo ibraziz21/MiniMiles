@@ -4,6 +4,9 @@ import { NextResponse } from "next/server";
 const PROSPERITY_URL =
   process.env.PROSPERITY_CORE_URL ??
   "https://prosperity-passport-backend-production.up.railway.app";
+  const BADGES_API_KEY = process.env.BADGES_API || "";
+
+  console.log("API Key:", BADGES_API_KEY);
 
 export async function GET(
   _req: Request,
@@ -59,8 +62,6 @@ export async function POST(
 ) {
   const { safe } = await context.params;
 
- 
-
   if (
     !safe ||
     typeof safe !== "string" ||
@@ -74,15 +75,23 @@ export async function POST(
     );
   }
 
+  if (!BADGES_API_KEY) {
+    console.error("[Badges API][CLAIM] Missing BADGES_API env var");
+    return NextResponse.json(
+      { error: "Badges API not configured" },
+      { status: 500 }
+    );
+  }
+
   try {
     const claimUrl = `${PROSPERITY_URL}/api/user/${safe}/badges/claim`;
-  
 
     const upstream = await fetch(claimUrl, {
       method: "POST",
       headers: {
         accept: "application/json, text/plain, */*",
         "content-type": "application/json",
+        "x-api-key": BADGES_API_KEY,
       },
       body: JSON.stringify({}),
     });
@@ -95,10 +104,7 @@ export async function POST(
       json = { raw: text };
     }
 
-    console.log(
-      "[Badges API][CLAIM] Backend response:",
-      json
-    );
+    console.log("[Badges API][CLAIM] Backend response:", json);
 
     return NextResponse.json(json, { status: upstream.status });
   } catch (err) {

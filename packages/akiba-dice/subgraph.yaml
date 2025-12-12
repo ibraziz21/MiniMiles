@@ -1,0 +1,56 @@
+specVersion: 1.3.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: AkibaDiceGame
+    network: celo
+    source:
+      address: "0xb0e2db276ea2d6d669da194ee21ba357f6116488"
+      abi: AkibaDiceGame
+      startBlock: 52084118
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - AdminChanged
+        - AllowedTierSet
+        - BeaconUpgraded
+        - Initialized
+        - Joined
+        - OwnershipTransferred
+        - RandomnessRequested
+        - RoundCancelled
+        - RoundOpened
+        - RoundResolved
+        - Upgraded
+      abis:
+        - name: AkibaDiceGame
+          file: ./abis/AkibaDiceGame.json
+      eventHandlers:
+        - event: AdminChanged(address,address)
+          handler: handleAdminChanged
+        - event: AllowedTierSet(indexed uint256,bool)
+          handler: handleAllowedTierSet
+        - event: BeaconUpgraded(indexed address)
+          handler: handleBeaconUpgraded
+        - event: Initialized(uint8)
+          handler: handleInitialized
+        - event: Joined(indexed uint256,indexed uint8,indexed address)
+          handler: handleJoined
+        - event: OwnershipTransferred(indexed address,indexed address)
+          handler: handleOwnershipTransferred
+        - event: RandomnessRequested(indexed uint256,uint256)
+          handler: handleRandomnessRequested
+        - event: RoundCancelled(indexed uint256)
+          handler: handleRoundCancelled
+        - event: RoundOpened(indexed uint256,indexed uint256)
+          handler: handleRoundOpened
+        - event: RoundResolved(indexed uint256,indexed uint8,indexed address,uint256)
+          handler: handleRoundResolved
+        - event: Upgraded(indexed address)
+          handler: handleUpgraded
+      file: ./src/akiba-dice-game.ts

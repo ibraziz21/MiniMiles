@@ -235,6 +235,8 @@ export default function Home() {
     BadgeProgress | undefined
   >(undefined);
 
+  const [hasClaimableBadges, setHasClaimableBadges] = useState(false);
+
   /* ───────── Initial mount ───────── */
   useEffect(() => setHasMounted(true), []);
 
@@ -327,8 +329,8 @@ export default function Home() {
       .finally(() => setLoading(false));
   }, []);
 
-  /* ───────── Badge refresh helper ───────── */
-  const refreshBadges = async (owner: `0x${string}`) => {
+   /* ───────── Badge refresh helper ───────── */
+   const refreshBadges = async (owner: `0x${string}`) => {
     try {
       const result: any = await fetchSuperAccountForOwner(owner);
 
@@ -340,6 +342,7 @@ export default function Home() {
       if (!safe) {
         setBadgeProgress({ ...EMPTY_BADGE_PROGRESS });
         setUnlockedBadges([]);
+        setHasClaimableBadges(false);
         return;
       }
 
@@ -355,12 +358,14 @@ export default function Home() {
       if (!res.ok) {
         setBadgeProgress({ ...EMPTY_BADGE_PROGRESS });
         setUnlockedBadges([]);
+        setHasClaimableBadges(false);
         return;
       }
 
       const data: BackendBadgesResponse = await res.json();
       const backendBadges = data.currentBadges ?? [];
 
+      // Build our step-based progress
       const latest: BadgeProgress = { ...EMPTY_BADGE_PROGRESS };
 
       (Object.keys(latest) as BadgeKey[]).forEach((key) => {
@@ -386,12 +391,35 @@ export default function Home() {
 
       setBadgeProgress(latest);
 
-      // unlockedBadges is now driven by claim flow, not plain refresh
+      // NEW: determine if any of the tracked IDs are actually claimable
+      const trackedIds = new Set(
+        Object.values(BADGE_ID_BY_KEY).filter(
+          (id): id is number => id != null
+        )
+      );
+
+      const claimableExists = backendBadges.some((b) => {
+        const idNum = Number(b.badgeId);
+        const claimableTier = b.claimableTier ?? 0;
+        const currentTier = b.tier ?? 0;
+
+        return (
+          trackedIds.has(idNum) &&
+          b.claimable === true &&
+          claimableTier > currentTier
+        );
+      });
+
+      setHasClaimableBadges(claimableExists);
+
+      // unlockedBadges still driven by claim flow if you decide to use it
     } catch {
       setBadgeProgress({ ...EMPTY_BADGE_PROGRESS });
       setUnlockedBadges([]);
+      setHasClaimableBadges(false);
     }
   };
+
 
   async function claimProsperityBadgesForOwner(
     owner: `0x${string}`
@@ -607,7 +635,6 @@ export default function Home() {
         <div className="mx-4 mt-6">
           <div className="flex justify-between items-center my-2">
             <h3 className="text-lg font-medium">Pass Badges</h3>
-
             <button
               type="button"
               className="flex items-center"
@@ -623,26 +650,35 @@ export default function Home() {
                 setIsRefreshingBadges(true);
 
                 try {
+                  // If no claimable badges, treat this as a pure "Refresh"
+                  if (!hasClaimableBadges) {
+                    await refreshBadges(address as `0x${string}`);
+                    return;
+                  }
+
+                  // Otherwise try to claim first
                   const claimed = await claimProsperityBadgesForOwner(
                     address as `0x${string}`
                   );
 
                   if (!claimed) {
+                    // Claim failed → just refresh, do NOT show success modal
                     await refreshBadges(address as `0x${string}`);
                     return;
                   }
 
+                  // Claim succeeded → refresh + show success modal
                   await refreshBadges(address as `0x${string}`);
                   setBadgeSheetOpen(true);
                 } catch {
-                  // swallow
+                  // swallow, and leave UI in a safe state
                 } finally {
                   setIsRefreshingBadges(false);
                 }
               }}
             >
               <span className="text-sm text-[#238D9D] hover:underline font-medium">
-                Claim Badges
+                {hasClaimableBadges ? "Claim Badges" : "Refresh Badges"}
               </span>
               <Image
                 src={RefreshSvg}
@@ -654,6 +690,7 @@ export default function Home() {
                 }`}
               />
             </button>
+
           </div>
 
           {/* Active badges */}
