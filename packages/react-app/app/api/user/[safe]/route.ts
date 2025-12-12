@@ -75,14 +75,6 @@ export async function POST(
     );
   }
 
-  if (!BADGES_API_KEY) {
-    console.error("[Badges API][CLAIM] Missing BADGES_API env var");
-    return NextResponse.json(
-      { error: "Badges API not configured" },
-      { status: 500 }
-    );
-  }
-
   try {
     const claimUrl = `${PROSPERITY_URL}/api/user/${safe}/badges/claim`;
 
@@ -97,16 +89,31 @@ export async function POST(
     });
 
     const text = await upstream.text();
-    let json: any = null;
+    let json: any;
     try {
-      json = JSON.parse(text);
+      json = text ? JSON.parse(text) : {};
     } catch {
       json = { raw: text };
     }
 
     console.log("[Badges API][CLAIM] Backend response:", json);
 
-    return NextResponse.json(json, { status: upstream.status });
+    // Normalize status:
+    // if backend returns 2xx BUT message clearly says "Error" or "Unauthorized",
+    // treat it as a server failure for our client.
+    let finalStatus = upstream.status;
+    const msg =
+      typeof json?.message === "string" ? json.message.toLowerCase() : "";
+
+    if (
+      finalStatus >= 200 &&
+      finalStatus < 300 &&
+      (msg === "error" || msg === "unauthorized")
+    ) {
+      finalStatus = 500; // or 400 if you prefer "client error"
+    }
+
+    return NextResponse.json(json, { status: finalStatus });
   } catch (err) {
     console.error("[Badges API][CLAIM] ERROR calling backend:", err);
     return NextResponse.json(
@@ -115,3 +122,4 @@ export async function POST(
     );
   }
 }
+

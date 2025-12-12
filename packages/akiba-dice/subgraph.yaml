@@ -8,7 +8,7 @@ dataSources:
     name: AkibaDiceGame
     network: celo
     source:
-      address: "0xb0e2db276ea2d6d669da194ee21ba357f6116488"
+      address: "0xf77e7395Aa5c89BcC8d6e23F67a9c7914AB9702a"
       abi: AkibaDiceGame
       startBlock: 52084118
     mapping:

@@ -1,34 +1,33 @@
 // app/api/create-super-account/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { ethers } from "ethers";
-import {
-  SafeFactory,
-  EthersAdapter,
-} from "@safe-global/protocol-kit";
+import { ethers, NonceManager } from "ethers";
+import { SafeFactory, EthersAdapter } from "@safe-global/protocol-kit";
 
 export const runtime = "nodejs";
 
 /* ────────────────────────────── Env / config ────────────────────────────── */
 
-const CELO_RPC_URL =
-  process.env.CELO_RPC_URL || "https://forno.celo.org";
+const CELO_RPC_URL = process.env.CELO_RPC_URL || "https://forno.celo.org";
 
-const BACKEND_PRIVATE_KEY = process.env.PRIVATE_KEY;
+const BACKEND_PRIVATE_KEY = process.env.BADGES_RELAYER_KEY;
 
 // Prosperity Pass deployment addresses (Prosperity Pass row from your doc)
-const SUPERCHAIN_MODULE_ADDRESS = process.env.SUPERCHAIN_MODULE_ADDRESS
-  ?? "0x58f5805b5072C3Dd157805132714E1dF40E79c66";
+const SUPERCHAIN_MODULE_ADDRESS =
+  process.env.SUPERCHAIN_MODULE_ADDRESS ??
+  "0x58f5805b5072C3Dd157805132714E1dF40E79c66";
 
-const SUPERCHAIN_GUARD_ADDRESS = process.env.SUPERCHAIN_GUARD_ADDRESS
-  ?? "0xED12D87487B372cf4447C8147a89aA01C133Dc52";
+const SUPERCHAIN_GUARD_ADDRESS =
+  process.env.SUPERCHAIN_GUARD_ADDRESS ??
+  "0xED12D87487B372cf4447C8147a89aA01C133Dc52";
 
-const SUPERCHAIN_SETUP_ADDRESS = process.env.SUPERCHAIN_SETUP_ADDRESS
-  ?? "0xe0651391D3fEF63F14FB33C9cf4F157F3eD0F4AF";
+const SUPERCHAIN_SETUP_ADDRESS =
+  process.env.SUPERCHAIN_SETUP_ADDRESS ??
+  "0xe0651391D3fEF63F14FB33C9cf4F157F3eD0F4AF";
 
 // Optional AA module: if not set, we just don’t wire ERC4337 yet
 const ERC4337_MODULE_ADDRESS =
   process.env.ERC4337_MODULE_ADDRESS ||
-  "0x0000000000000000000000000000000000000000";
+  "0x75cf11467937ce3F2f357CE24ffc3DBF8fD5c226";
 
 // Safe version – align with Prosperity Passport if you know it
 const SAFE_VERSION = process.env.SAFE_VERSION || "1.4.1";
@@ -38,7 +37,11 @@ if (!BACKEND_PRIVATE_KEY) {
     "[create-super-account] PRIVATE_KEY env missing – route will throw on first request."
   );
 }
-if (!SUPERCHAIN_MODULE_ADDRESS || !SUPERCHAIN_GUARD_ADDRESS || !SUPERCHAIN_SETUP_ADDRESS) {
+if (
+  !SUPERCHAIN_MODULE_ADDRESS ||
+  !SUPERCHAIN_GUARD_ADDRESS ||
+  !SUPERCHAIN_SETUP_ADDRESS
+) {
   console.warn(
     "[create-super-account] SUPERCHAIN_* envs missing – SuperChain setup will fail."
   );
@@ -95,7 +98,11 @@ export async function POST(req: NextRequest) {
     if (!BACKEND_PRIVATE_KEY) {
       throw new Error("PRIVATE_KEY env is not set");
     }
-    if (!SUPERCHAIN_MODULE_ADDRESS || !SUPERCHAIN_GUARD_ADDRESS || !SUPERCHAIN_SETUP_ADDRESS) {
+    if (
+      !SUPERCHAIN_MODULE_ADDRESS ||
+      !SUPERCHAIN_GUARD_ADDRESS ||
+      !SUPERCHAIN_SETUP_ADDRESS
+    ) {
       throw new Error(
         "SUPERCHAIN_MODULE_ADDRESS / SUPERCHAIN_GUARD_ADDRESS / SUPERCHAIN_SETUP_ADDRESS must be set"
       );
@@ -127,15 +134,18 @@ export async function POST(req: NextRequest) {
 
     // 1) Backend signer on Celo
     const provider = new ethers.JsonRpcProvider(CELO_RPC_URL);
-    const signer = new ethers.Wallet(BACKEND_PRIVATE_KEY, provider);
+    const baseWallet = new ethers.Wallet(BACKEND_PRIVATE_KEY, provider);
+
+    // Wrap with NonceManager to avoid nonce clashes / replacement-underpriced
+    const signer = new NonceManager(baseWallet);
 
     // 2) EthersAdapter just like your sweep script
     const ethAdapter = new EthersAdapter({
       ethers,
-      signerOrProvider: signer,
+      signerOrProvider: signer as any,
     });
 
-    // 3) SafeFactory using the older Safe SDK
+    // 3) SafeFactory using the Safe SDK
     const safeFactory = await SafeFactory.create({
       ethAdapter,
       safeVersion: SAFE_VERSION as any,
@@ -174,6 +184,7 @@ export async function POST(req: NextRequest) {
       paymentReceiver: ethers.ZeroAddress,
     };
 
+    // Salt nonce so each owner / call path is unique
     const saltNonce = Date.now().toString();
     let deploymentTxHash: string | undefined;
 
@@ -205,8 +216,35 @@ export async function POST(req: NextRequest) {
     );
   } catch (err: any) {
     console.error("[API] /api/create-super-account error:", err);
+
+    const rawMsg: string =
+      err?.shortMessage ||
+      err?.info?.error?.message ||
+      err?.message ||
+      "";
+
+    // Specific handling for replacement-underpriced (nonce / pending-tx issue)
+    const lower = rawMsg.toLowerCase();
+
+    if (
+      err?.code === "REPLACEMENT_UNDERPRICED" ||
+      lower.includes("replacement transaction underpriced")
+    ) {
+      return NextResponse.json(
+        {
+          error: "REPLACEMENT_UNDERPRICED",
+          message:
+            "There is already a pending transaction from the backend signer (likely a previous Safe deployment). " +
+            "Wait for it to confirm or speed it up / cancel it, then try again.",
+        },
+        { status: 409 }
+      );
+    }
+
     return NextResponse.json(
-      { error: err?.message ?? "Internal error creating Super Account" },
+      {
+        error: rawMsg || "Internal error creating Super Account",
+      },
       { status: 500 }
     );
   }

@@ -19,7 +19,7 @@ import { akibaMilesSymbolAlt } from "@/lib/svg";
 // 🔗 claim helper
 import { claimProsperityPassForAddress } from "@/lib/prosperity-pass-claim";
 
-const REQUIRED_MILES = 100;
+const REQUIRED_MILES = 70;
 
 export default function ProsperityPassOnboarding() {
   const router = useRouter();

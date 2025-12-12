@@ -423,7 +423,7 @@ export default function Home() {
 
   async function claimProsperityBadgesForOwner(
     owner: `0x${string}`
-  ): Promise<boolean> {
+  ): Promise<string[]> {
     try {
       const result: any = await fetchSuperAccountForOwner(owner);
 
@@ -433,7 +433,7 @@ export default function Home() {
           : null;
 
       if (!safe) {
-        return false;
+        return [];
       }
 
       const base = process.env.NEXT_PUBLIC_BADGES_API_BASE ?? "";
@@ -448,13 +448,60 @@ export default function Home() {
         body: JSON.stringify({}),
       });
 
-      if (!res.ok) {
-        return false;
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        // non-JSON / empty body
       }
 
-      return true;
+      if (!res.ok) {
+        return [];
+      }
+
+      // Guard against legacy `{ message: "Error" | "Unauthorized" }` bodies
+      const msg =
+        typeof data?.message === "string" ? data.message.toLowerCase() : "";
+      if (msg === "error" || msg === "unauthorized") {
+        return [];
+      }
+
+      const updates: any[] = Array.isArray(data?.badgeUpdates)
+        ? data.badgeUpdates
+        : [];
+
+      const newlyUnlocked: string[] = [];
+
+      updates.forEach((u) => {
+        const idNum = Number(u.badgeId);
+        const newLevel = Number(u.level ?? 0);
+        const prevLevel = Number(u.previousLevel ?? 0);
+
+        if (!Number.isFinite(idNum) || !Number.isFinite(newLevel)) return;
+
+        // Find our local BadgeKey for this backend badgeId
+        const key = (Object.keys(BADGE_ID_BY_KEY) as BadgeKey[]).find(
+          (k) => BADGE_ID_BY_KEY[k] === idNum
+        );
+        if (!key) return;
+
+        const def = BADGES.find((bd) => bd.key === key);
+        if (!def) return;
+
+        // Add each newly reached tier between prevLevel+1 and newLevel
+        for (
+          let lvl = prevLevel + 1;
+          lvl <= newLevel && lvl <= def.tiers.length;
+          lvl++
+        ) {
+          const tierDef = def.tiers[lvl - 1];
+          newlyUnlocked.push(`${def.title} • ${tierDef.label}`);
+        }
+      });
+
+      return newlyUnlocked;
     } catch {
-      return false;
+      return [];
     }
   }
 
@@ -650,28 +697,34 @@ export default function Home() {
                 setIsRefreshingBadges(true);
 
                 try {
-                  // If no claimable badges, treat this as a pure "Refresh"
+                  const owner = address as `0x${string}`;
+
+                  // If no claimable badges, this acts as a pure "Refresh"
                   if (!hasClaimableBadges) {
-                    await refreshBadges(address as `0x${string}`);
+                    await refreshBadges(owner);
                     return;
                   }
 
-                  // Otherwise try to claim first
-                  const claimed = await claimProsperityBadgesForOwner(
-                    address as `0x${string}`
-                  );
+                  // Otherwise, try to claim and get the newly unlocked tiers
+                  const unlocked = await claimProsperityBadgesForOwner(owner);
 
-                  if (!claimed) {
-                    // Claim failed → just refresh, do NOT show success modal
-                    await refreshBadges(address as `0x${string}`);
+                  // If claiming failed or nothing new was unlocked,
+                  // just refresh and don't open the success sheet.
+                  if (unlocked.length === 0) {
+                    await refreshBadges(owner);
                     return;
                   }
 
-                  // Claim succeeded → refresh + show success modal
-                  await refreshBadges(address as `0x${string}`);
+                  // We have newly unlocked tiers → show them in the success modal
+                  setUnlockedBadges(unlocked);
+
+                  // Refresh progress bars to reflect new tiers
+                  await refreshBadges(owner);
+
+                  // Finally open the success sheet
                   setBadgeSheetOpen(true);
                 } catch {
-                  // swallow, and leave UI in a safe state
+                  // swallow, leave UI safe (no success modal)
                 } finally {
                   setIsRefreshingBadges(false);
                 }
@@ -690,6 +743,7 @@ export default function Home() {
                 }`}
               />
             </button>
+
 
           </div>
 
