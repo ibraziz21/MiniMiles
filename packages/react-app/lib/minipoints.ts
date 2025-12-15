@@ -14,7 +14,7 @@ import MiniPointsAbi from "@/contexts/minimiles.json";
 /* ─── viem / wallet setup ───────────────────────────────── */
 
 const account = privateKeyToAccount(`0x${process.env.BADGES_RELAYER_KEY!}`);
-const miniAccount  = privateKeyToAccount(`0x${process.env.PRIVATE_KEY!}`);
+const miniAccount = privateKeyToAccount(`0x${process.env.PRIVATE_KEY!}`);
 
 
 const publicClient = createPublicClient({
@@ -59,7 +59,7 @@ export async function safeMintMiniPoints(params: {
     try {
       // Always grab the latest pending nonce to avoid races
       const nonce = await publicClient.getTransactionCount({
-        address: miniAccount.address,
+        address: account.address,
         blockTag: "pending",
       });
 
@@ -93,8 +93,7 @@ export async function safeMintMiniPoints(params: {
       }
 
       console.warn(
-        `[safeMintMiniPoints] nonce/gas race${
-          reason ? ` for ${reason}` : ""
+        `[safeMintMiniPoints] nonce/gas race${reason ? ` for ${reason}` : ""
         } on attempt ${attempt + 1}, retrying…`,
         msg,
       );
@@ -161,8 +160,7 @@ export async function safeMintRefund(params: {
       }
 
       console.warn(
-        `[safeMintMiniPoints] nonce/gas race${
-          reason ? ` for ${reason}` : ""
+        `[safeMintMiniPoints] nonce/gas race${reason ? ` for ${reason}` : ""
         } on attempt ${attempt + 1}, retrying…`,
         msg,
       );
@@ -205,8 +203,7 @@ export async function safeBurnMiniPoints(params: {
       });
 
       console.info(
-        `[safeBurnMiniPoints] Burned ${points} MiniPoints from ${from}${
-          reason ? ` for ${reason}` : ""
+        `[safeBurnMiniPoints] Burned ${points} MiniPoints from ${from}${reason ? ` for ${reason}` : ""
         }. txHash=${txHash}`,
       );
 
@@ -225,8 +222,7 @@ export async function safeBurnMiniPoints(params: {
       }
 
       console.warn(
-        `[safeBurnMiniPoints] nonce/gas race${
-          reason ? ` for ${reason}` : ""
+        `[safeBurnMiniPoints] nonce/gas race${reason ? ` for ${reason}` : ""
         } on attempt ${attempt + 1}, retrying…`,
         msg,
       );

@@ -6,7 +6,7 @@ import Image from "next/image";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import checkIcon from "@/public/svg/check-icon.svg";
 
-type Props = {
+type SuccessProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Lines like "S1 Transactions • Tier 1" */
@@ -14,7 +14,7 @@ type Props = {
   onContinue?: () => void;
 };
 
-export const BadgeClaimSuccessSheet: FC<Props> = ({
+export const BadgeClaimSuccessSheet: FC<SuccessProps> = ({
   open,
   onOpenChange,
   unlocked,
@@ -119,6 +119,78 @@ export const BadgeClaimSuccessSheet: FC<Props> = ({
           >
             Continue
           </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+/* ──────────────────────────────────────────────────────────────── */
+/*  Loading sheet                                                  */
+/* ──────────────────────────────────────────────────────────────── */
+
+type LoadingProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  message?: string;
+};
+
+export const BadgeClaimLoadingSheet: FC<LoadingProps> = ({
+  open,
+  onOpenChange,
+  message = "Claiming your badges…",
+}) => {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="
+          fixed
+          inset-x-0
+          mx-auto
+          w-full
+          max-w-[420px]
+          rounded-t-[24px]
+          rounded-b-none
+          border-none
+          bg-white
+          shadow-[0_-10px_30px_rgba(0,0,0,0.15)]
+          focus:outline-none
+          data-[state=open]:animate-none
+        "
+        style={{
+          top: "auto",
+          bottom: 0,
+          left: "50%",
+          transform: "translateX(-50%)",
+        }}
+      >
+        <div className="px-6 pt-6 pb-8">
+          {/* drag handle */}
+          <div className="mb-6 flex justify-center">
+            <div className="h-1 w-16 rounded-full bg-[#E5E7EB]" />
+          </div>
+
+          {/* Heading + copy */}
+          <h2 className="text-[22px] leading-[28px] tracking-[-0.26px] font-semibold text-black">
+            Claiming badges
+          </h2>
+          <p className="mt-2 text-[16px] leading-[22px] tracking-[-0.26px] text-[#4B5563]">
+            {message} This usually takes a few seconds.
+          </p>
+
+          {/* Spinner */}
+          <div className="mt-6 flex justify-center">
+            <div
+              className="
+                h-12 w-12
+                rounded-full
+                border-4
+                border-[#238D9D]
+                border-t-transparent
+                animate-spin
+              "
+            />
+          </div>
         </div>
       </DialogContent>
     </Dialog>

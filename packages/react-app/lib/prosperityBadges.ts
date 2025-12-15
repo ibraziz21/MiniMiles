@@ -215,34 +215,20 @@ export const BADGES: BadgeDef[] = [
         id: "t1",
         label: "Tier 1",
         usersCompletedLabel: "Most players",
-        requirement: "Earn 50 AkibaMiles from games",
-        threshold: 50,
+        requirement: "Earn 100 AkibaMiles from games",
+        threshold: 100,
       },
       {
         id: "t2",
         label: "Tier 2",
         usersCompletedLabel: "Regular players",
-        requirement: "Earn 250 AkibaMiles from games",
-        threshold: 250,
+        requirement: "Earn 1000 AkibaMiles from games",
+        threshold: 1000,
       },
       {
         id: "t3",
         label: "Tier 3",
         usersCompletedLabel: "High rollers",
-        requirement: "Earn 1,000 AkibaMiles from games",
-        threshold: 1_000,
-      },
-      {
-        id: "t4",
-        label: "Tier 4",
-        usersCompletedLabel: "Top 1%",
-        requirement: "Earn 5,000 AkibaMiles from games",
-        threshold: 5_000,
-      },
-      {
-        id: "t5",
-        label: "Tier 5",
-        usersCompletedLabel: "Top 0.1%",
         requirement: "Earn 10,000 AkibaMiles from games",
         threshold: 10_000,
       },
@@ -272,7 +258,7 @@ const BADGE_ID_BY_KEY: Record<BadgeKey, number | null> = {
   "cel2-transactions": 18,
   "s1-transactions": 22,
   "lam-lifetime-akiba": 27,
-  "amg-akiba-games": null, // still local-only
+  "amg-akiba-games": 30, // still local-only
 };
 
 export const EMPTY_BADGE_PROGRESS: BadgeProgress = {

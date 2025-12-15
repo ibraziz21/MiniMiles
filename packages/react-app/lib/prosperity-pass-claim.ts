@@ -23,7 +23,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 /* ───────────────── Internal helpers ───────────────── */
 
-async function getUsernameForAddress(address: string): Promise<string | null> {
+export async function getUsernameForAddress(address: string): Promise<string | null> {
   try {
     const { data, error } = await supabase
       .from("users")

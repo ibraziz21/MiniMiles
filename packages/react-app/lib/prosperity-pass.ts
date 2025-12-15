@@ -71,7 +71,10 @@ const SUPERCHAIN_MODULE_ABI = [
 ] as const;
 
 /* ───────────────── Helper ───────────────── */
-
+function isZero(addr: string | undefined | null): boolean {
+  if (!addr) return true;
+  return addr.toLowerCase() === ZeroAddress.toLowerCase();
+}
 /**
  * Fetch the Super Account (Prosperity Pass) data for a given owner address.
  * Returns { hasPassport, account } where `hasPassport` is false if the
@@ -94,7 +97,6 @@ export async function fetchSuperAccountForOwner(
 
   const rawAccount = await superChainModule.getUserSuperChainAccount(owner);
 
-  // Ethers v6 returns an object with named properties and array-like indexes.
   const smartAccount: string = rawAccount.smartAccount;
   const superChainID: string = rawAccount.superChainID;
   const points: bigint = rawAccount.points;
@@ -107,8 +109,15 @@ export async function fetchSuperAccountForOwner(
     glasses: bigint;
   };
 
+  const levelBig =
+    typeof levelRaw === "bigint" ? levelRaw : BigInt(levelRaw ?? 0);
+
+  // More tolerant detection for legacy users
   const hasPassport =
-    !!smartAccount && smartAccount !== ZeroAddress && smartAccount !== "0x0000000000000000000000000000000000000000";
+    !isZero(smartAccount) ||
+    (superChainID && superChainID.length > 0) ||
+    points > 0n ||
+    levelBig > 0n;
 
   if (!hasPassport) {
     return {
@@ -121,7 +130,7 @@ export async function fetchSuperAccountForOwner(
     smartAccount,
     superChainID,
     points,
-    level: typeof levelRaw === "bigint" ? Number(levelRaw) : levelRaw,
+    level: Number(levelBig),
     noun: {
       background: nounRaw.background,
       body: nounRaw.body,
