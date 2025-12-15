@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     }
 
     const minUsd = tier === "30" ? 30 : 10;
-    const points = tier === "30" ? 20 : 10; // tweak rewards
+    const points = tier === "30" ? 50 : 25; // tweak rewards
 
     // 1) check combined stable wallet balance
     const totalUsd = await getUserStableWalletBalanceUsd(userAddress);
