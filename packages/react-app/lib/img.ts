@@ -18,6 +18,7 @@ import ebike from "../public/img/e-bike.png"
 import tv from "../public/img/tv.png"
 import soundbar from "../public/img/soundbar.png"
 import ps5 from "../public/img/ps5.png"
+import usdt from "../public/img/250USD.png"
 
 export {
   WinImg,
@@ -36,6 +37,6 @@ export {
   speaker,
   sambuds,
   hplaptop,
-  ebike, tv,soundbar, ps5
+  ebike, tv,soundbar, ps5, usdt
 
 };

@@ -13,7 +13,8 @@ import {
   RaffleImg2,
   RaffleImg3,
   RaffleImg5,
- ps5, tv, soundbar, ebike
+ ps5, tv, soundbar, ebike,
+ usdt
 
 } from "@/lib/img";
 import { akibaMilesSymbol } from "@/lib/svg";
@@ -55,7 +56,7 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   cUSD: RaffleImg1,
   USDT: RaffleImg2,
   Miles: RaffleImg5,
-  default: RaffleImg3,
+  default: usdt,
 };
 
 /** ───────────────── Physical raffle helpers ─────────────── */
@@ -176,7 +177,7 @@ export default function Home() {
         // ⬇︎ Add winners: id 80 → 5, others → 1
         const withWinners: TokenRaffleWithWinners[] = tokenRaffles.map((r) => ({
           ...r,
-          winners: r.id === 96 ? 5 : 1,
+          winners: r.id === 112 ? 5 : 1,
         }));
 
         setTokenRaffles(withWinners);
