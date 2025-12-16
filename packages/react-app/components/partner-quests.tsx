@@ -94,16 +94,16 @@ const quests: Quest[] = [
   },
   {
     id: '8d5a7766-4d2a-4bff-ac97-6b03fd5b570f',
-    isLocked: true,
+    isLocked: false,
     img: Celo,
-    title: 'Celo',
-    description: 'Stake more than 5 Celo through Mondo.celo.org',
-    reward: '15 akibaMiles',
+    title: 'Celo PG',
+    description: 'Follow Celo PG on X (Twitter)',
+    reward: '20 akibaMiles',
     color: '#FFFFD6',
-    actionLink: 'https://mondo.celo.org',
+    actionLink: 'https://x.com/CeloPublicGoods',
     instructions: [
-      { title: 'Connect Wallet', text: 'Open your wallet and select Celo network.' },
-      { title: 'Stake', text: 'Go to Mondo.celo.org and stake ≥ 5 CELO.' },
+      { title: 'Open Twitter', text: 'Go to @CeloPublicGoods page.' },
+      { title: 'Follow', text: 'Hit the Follow button and confirm.' },
     ],
   },
   {
