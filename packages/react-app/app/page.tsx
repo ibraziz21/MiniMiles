@@ -13,9 +13,11 @@ import {
   RaffleImg2,
   RaffleImg3,
   RaffleImg5,
- ps5, tv, soundbar, ebike,
- usdt
-
+  ps5,
+  tv,
+  soundbar,
+  ebike,
+  usdt,
 } from "@/lib/img";
 import { akibaMilesSymbol } from "@/lib/svg";
 import { useEffect, useState } from "react";
@@ -32,9 +34,9 @@ import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
-
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const SUPABASE_SERVICE_KEY = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || "";
+const SUPABASE_SERVICE_KEY =
+  process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY || "";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
@@ -46,10 +48,9 @@ const SpendPartnerQuestSheet = dynamic(
   () => import("@/components/spend-partner-quest-sheet"),
   { ssr: false }
 );
-const WinningModal = dynamic(
-  () => import("@/components/winning-modal"),
-  { ssr: false }
-);
+const WinningModal = dynamic(() => import("@/components/winning-modal"), {
+  ssr: false,
+});
 
 /** ───────────────── Token raffle image map ───────────────── */
 const TOKEN_IMAGES: Record<string, StaticImageData> = {
@@ -66,15 +67,17 @@ const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
   110: tv,
   111: soundbar,
 };
-const PHYSICAL_TITLES: Record<number, string> = {
-108: 'Playstation 5',
-109: 'Electric Bike',
-110: '43 Inch TV',
-111: 'Soundbar',
 
+const PHYSICAL_TITLES: Record<number, string> = {
+  108: "Playstation 5",
+  109: "Electric Bike",
+  110: "43 Inch TV",
+  111: "Soundbar",
 };
+
 const pickPhysicalImage = (raffle: PhysicalRaffle) =>
   PHYSICAL_IMAGES[raffle.id] ?? soundbar;
+
 const physicalTitle = (raffle: PhysicalRaffle) =>
   PHYSICAL_TITLES[raffle.id] ?? "Physical prize";
 
@@ -94,14 +97,16 @@ export type SpendRaffle = {
   symbol: string;
   totalTickets: number;
   maxTickets: number;
-  winners?: number
+  winners?: number;
 };
 
 export default function Home() {
   const router = useRouter();
   const { address, getUserAddress, getakibaMilesBalance } = useWeb3();
+
   const [akibaMilesBalance, setakibaMilesBalance] = useState("0");
   const [winnerOpen, setWinnerOpen] = useState(false);
+
   const [tokenRaffles, setTokenRaffles] = useState<TokenRaffleWithWinners[]>(
     []
   );
@@ -116,9 +121,10 @@ export default function Home() {
   );
   const [hasMounted, setHasMounted] = useState(false);
 
-  const [displayName, setDisplayName] = useState<string>(""); // ⬅️ NEW
+  const [displayName, setDisplayName] = useState<string>("");
 
   useEffect(() => setHasMounted(true), []);
+
   useEffect(() => {
     getUserAddress();
   }, [getUserAddress]);
@@ -133,11 +139,11 @@ export default function Home() {
         console.log(error);
       }
     };
-    fetchBalance();
+    void fetchBalance();
   }, [address, getakibaMilesBalance]);
 
-   /** ───────── fetch username (if set) ───────── */
-   useEffect(() => {
+  /** ───────── fetch username (if set) ───────── */
+  useEffect(() => {
     if (!address) {
       setDisplayName("");
       return;
@@ -168,13 +174,12 @@ export default function Home() {
       }
     };
 
-    loadUsername();
+    void loadUsername();
   }, [address]);
 
   useEffect(() => {
     fetchActiveRaffles()
       .then(({ tokenRaffles, physicalRaffles }) => {
-        // ⬇︎ Add winners: id 80 → 5, others → 1
         const withWinners: TokenRaffleWithWinners[] = tokenRaffles.map((r) => ({
           ...r,
           winners: r.id === 112 ? 5 : 1,
@@ -205,20 +210,47 @@ export default function Home() {
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
   };
 
-  const headerName =
-  displayName || (address ? truncateEthAddress(address) : ""); // ⬅️ NEW
+  const headerName = displayName || (address ? truncateEthAddress(address) : "");
+
+  // ─────────────────────────────────────────────
+  // Physical raffle grouping
+  // ─────────────────────────────────────────────
+  const TOP_PRIZE_IDS = new Set<number>([108, 109]); // PS5 + E-bike
+  const ADVENT_DAILY_IDS = new Set<number>([110, 111]); // TV + Soundbar
+
+  const topPrizes = physicalRaffles.filter((r) => TOP_PRIZE_IDS.has(r.id));
+  const adventDaily = physicalRaffles.filter((r) => ADVENT_DAILY_IDS.has(r.id));
+
+  const openPhysical = (r: PhysicalRaffle) => {
+    const cardImg = pickPhysicalImage(r);
+    const title = physicalTitle(r);
+
+    setSpendRaffle(null);
+    setPhysicalRaffle({
+      id: r.id,
+      title,
+      endDate: formatEndsIn(r.ends),
+      ticketCost: r.ticketCost,
+      image: cardImg,
+      balance: Number(akibaMilesBalance),
+      totalTickets: r.totalTickets,
+      maxTickets: r.maxTickets,
+    });
+    setActiveSheet("physical");
+  };
 
   return (
     <main className="pb-24 font-sterling">
-        {/* 🏆 Winner modal only mounts when user opens from the header icon */}
-    {winnerOpen && (
-      <WinningModal open={winnerOpen} onOpenChange={setWinnerOpen} />
-    )}
+      {/* 🏆 Winner modal only mounts when user opens from the header icon */}
+      {winnerOpen && (
+        <WinningModal open={winnerOpen} onOpenChange={setWinnerOpen} />
+      )}
 
-    <DashboardHeader
-      name={headerName}
-      onOpenWinners={() => setWinnerOpen(true)}
-    />
+      <DashboardHeader
+        name={headerName}
+        onOpenWinners={() => setWinnerOpen(true)}
+      />
+
       <PointsCard points={Number(akibaMilesBalance)} />
 
       {/* Daily challenges */}
@@ -239,13 +271,14 @@ export default function Home() {
         </div>
       </div>
 
-      {/* PHYSICAL */}
+      {/* PHYSICAL — Top Prizes */}
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-extrabold mb-2">Physical Rewards</h3>
+          <h3 className="text-lg font-extrabold mb-2">Top Prizes</h3>
         </div>
+
         <div className="flex gap-3 overflow-x-auto">
-          {physicalRaffles.map((r) => {
+          {topPrizes.map((r) => {
             const cardImg = pickPhysicalImage(r);
             const title = physicalTitle(r);
 
@@ -258,27 +291,47 @@ export default function Home() {
                 ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
                 icon={akibaMilesSymbol}
                 locked={false}
-                onClick={() => {
-                  setSpendRaffle(null);
-                  setPhysicalRaffle({
-                    id: r.id,
-                    title,
-                    endDate: formatEndsIn(r.ends),
-                    ticketCost: r.ticketCost,
-                    image: cardImg,
-                    balance: Number(akibaMilesBalance),
-                    totalTickets: r.totalTickets,
-                    maxTickets: r.maxTickets,
-                  });
-                  setActiveSheet("physical");
-                }}
+                onClick={() => openPhysical(r)}
               />
             );
           })}
 
-          {physicalRaffles.length === 0 && (
+          {topPrizes.length === 0 && (
             <div className="text-sm opacity-70 px-2 py-4">
-              No physical rewards live right now.
+              No top prizes live right now.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* PHYSICAL — Advent Daily Prizes */}
+      <div className="mx-4 mt-6">
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-extrabold mb-2">Advent Daily Prizes</h3>
+        </div>
+
+        <div className="flex gap-3 overflow-x-auto">
+          {adventDaily.map((r) => {
+            const cardImg = pickPhysicalImage(r);
+            const title = physicalTitle(r);
+
+            return (
+              <RaffleCard
+                key={r.id}
+                image={cardImg}
+                title={title}
+                endsIn={formatEndsIn(r.ends)}
+                ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
+                icon={akibaMilesSymbol}
+                locked={false}
+                onClick={() => openPhysical(r)}
+              />
+            );
+          })}
+
+          {adventDaily.length === 0 && (
+            <div className="text-sm opacity-70 px-2 py-4">
+              No advent daily prizes live right now.
             </div>
           )}
         </div>
