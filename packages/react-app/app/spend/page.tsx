@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
 import type { Address } from 'viem'
 import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
-import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5, oraimo, smartwatch, speaker, sambuds, credo, promo, itel, amaya, jbl } from '@/lib/img';
+import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5,  speaker, sambuds, tv, soundbar, ps5, ebike} from '@/lib/img';
 import { Coin, akibaMilesSymbol } from '@/lib/svg';
 import { Question } from '@phosphor-icons/react';
 import { StaticImageData } from 'next/image';
@@ -68,16 +68,17 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   default: RaffleImg3,
 }
 const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
-  93: oraimo,
-  94: smartwatch,
-  95: speaker,
-  97: credo,
+  108: ps5,
+  109: ebike,
+  110: tv,
+  111: soundbar,
 };
 const PHYSICAL_TITLES: Record<number, string> = {
-93: 'Oraimo SpaceBuds Neo',
-94: 'Samsung Watch 5 40mm Bluetooth Smartwatch - Black',
-95: 'Bluetooth Speakers HIFI Boomboxes For Laptop,TV',
-97: 'KES 500 Airtime Reward'
+108: 'Playstation 5',
+109: 'Electric Bike',
+110: '43 Inch TV',
+111: 'Soundbar',
+
 };
 
 const pickPhysicalImage = (raffle: PhysicalRaffle) =>

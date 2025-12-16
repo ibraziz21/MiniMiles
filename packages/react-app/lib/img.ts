@@ -14,16 +14,10 @@ import solar from "../public/img/solar.jpg"
 import speaker from "../public/img/speaker.jpg"
 import hplaptop from "../public/img/hplaptop.jpg"
 import sambuds from "../public/img/sambuds.jpg"
-import credo from "../public/img/credo.jpg"
-import promo from "../public/img/promo.png"
-import power from "../public/img/power.jpg"
-import vitron from "../public/img/vitron.jpg"
-import spk from "../public/img/spk.jpg"
-import amaya from "../public/img/amaya.jpg"
-import itel from "../public/img/itel.jpg"
-import jbl from "../public/img/jbl.jpg"
-import oraimo from "../public/img/oraimo.jpg"
-import smartwatch from "../public/img/smartwatch.jpg"
+import ebike from "../public/img/e-bike.png"
+import tv from "../public/img/tv.png"
+import soundbar from "../public/img/soundbar.png"
+import ps5 from "../public/img/ps5.png"
 
 export {
   WinImg,
@@ -42,8 +36,6 @@ export {
   speaker,
   sambuds,
   hplaptop,
-  credo,
-  promo,
-  vitron, spk, power,
-  amaya, jbl,itel, oraimo, smartwatch
+  ebike, tv,soundbar, ps5
+
 };

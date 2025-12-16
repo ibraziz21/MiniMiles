@@ -13,16 +13,8 @@ import {
   RaffleImg2,
   RaffleImg3,
   RaffleImg5,
-  jbl, amaya, itel,
-  sambuds,
-  promo,
-  credo,
-  spk,
-  vitron,
-  power,
-  speaker,
-  oraimo,
-  smartwatch
+ ps5, tv, soundbar, ebike
+
 } from "@/lib/img";
 import { akibaMilesSymbol } from "@/lib/svg";
 import { useEffect, useState } from "react";
@@ -68,19 +60,20 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
 
 /** ───────────────── Physical raffle helpers ─────────────── */
 const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
-  93: oraimo,
-  94: smartwatch,
-  95: speaker,
-  97: credo,
+  108: ps5,
+  109: ebike,
+  110: tv,
+  111: soundbar,
 };
 const PHYSICAL_TITLES: Record<number, string> = {
-93: 'Oraimo SpaceBuds Neo',
-94: 'Samsung Watch 5 40mm Bluetooth Smartwatch - Black',
-95: 'Bluetooth Speakers HIFI Boomboxes For Laptop,TV',
-97: 'KES 500 Airtime Reward'
+108: 'Playstation 5',
+109: 'Electric Bike',
+110: '43 Inch TV',
+111: 'Soundbar',
+
 };
 const pickPhysicalImage = (raffle: PhysicalRaffle) =>
-  PHYSICAL_IMAGES[raffle.id] ?? sambuds;
+  PHYSICAL_IMAGES[raffle.id] ?? soundbar;
 const physicalTitle = (raffle: PhysicalRaffle) =>
   PHYSICAL_TITLES[raffle.id] ?? "Physical prize";
 
