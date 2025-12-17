@@ -18,6 +18,8 @@ import {
   soundbar,
   ebike,
   usdt,
+  phone,
+  pods,
 } from "@/lib/img";
 import { akibaMilesSymbol } from "@/lib/svg";
 import { useEffect, useState } from "react";
@@ -64,15 +66,15 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
 const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
   108: ps5,
   109: ebike,
-  110: tv,
-  111: soundbar,
+  113: phone,
+  114: pods,
 };
 
 const PHYSICAL_TITLES: Record<number, string> = {
   108: "Playstation 5",
   109: "Electric Bike",
-  110: "43 Inch TV",
-  111: "Soundbar",
+  113: "Samsung A24 (Smartphone) ",
+  114: "Earpods (Oraimo) ",
 };
 
 const pickPhysicalImage = (raffle: PhysicalRaffle) =>
