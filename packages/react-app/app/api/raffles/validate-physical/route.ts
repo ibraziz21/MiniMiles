@@ -8,7 +8,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY!;
 
 /**
- * Countries where the raffle is available.
+ * Countries where the raffle is available (used for phone dial-code gating + UI dropdown elsewhere).
  */
 const COUNTRY_CONFIG = [
   { iso: "NG", name: "Nigeria", dialCode: "+234" },
@@ -23,7 +23,6 @@ const COUNTRY_CONFIG = [
   { iso: "ZA", name: "South Africa", dialCode: "+27" },
 ];
 
-const ALLOWED_COUNTRIES = COUNTRY_CONFIG.map((c) => c.iso);
 const ALLOWED_DIAL_CODES = COUNTRY_CONFIG.map((c) => c.dialCode);
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
@@ -46,26 +45,7 @@ const phoneIsAllowedE164 = (s: string) => {
 
 export async function POST(req: Request) {
   try {
-    // ─── Geo from headers (Vercel sets these in prod) ────────────────────────
-    const countryHeader =
-      req.headers.get("x-vercel-ip-country") ||
-      req.headers.get("x-country") || // optional fallback
-      "";
-
-    const country = countryHeader.toUpperCase() || null;
-
-    // In local/dev (no header) we let pass; in prod we enforce the allowlist.
-    if (country && !ALLOWED_COUNTRIES.includes(country)) {
-      const list = COUNTRY_CONFIG.map((c) => c.name).join(", ");
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Not eligible",
-          reason: `This raffle is only open to users in: ${list}.`,
-        },
-        { status: 403 }
-      );
-    }
+    // ✅ IP/Geo gating removed — no country header enforcement.
 
     const body = await req.json();
     const { raffleId, address, twitter, email, phone } = body;
