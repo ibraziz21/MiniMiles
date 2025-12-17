@@ -12,6 +12,7 @@ import {
   MiniPay,
   W3MLogo,
 } from '@/lib/svg';
+import celopg from '@/public/img/celopg.png';
 import { Check, Lock } from '@phosphor-icons/react';
 import Image from 'next/image';
 import cn from 'clsx';
@@ -95,7 +96,7 @@ const quests: Quest[] = [
   {
     id: '8d5a7766-4d2a-4bff-ac97-6b03fd5b570f',
     isLocked: false,
-    img: Celo,
+    img: celopg,
     title: 'Celo PG',
     description: 'Follow Celo PG on X (Twitter)',
     reward: '20 akibaMiles',
