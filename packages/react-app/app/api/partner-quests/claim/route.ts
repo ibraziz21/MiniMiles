@@ -1,43 +1,18 @@
 // src/app/api/partner-quests/claim/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { getReferralTag, submitReferral } from '@divvi/referral-sdk'
-
-import {
-  createPublicClient,
-  createWalletClient,
-  http,
-  parseUnits,
-} from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { celo } from "viem/chains";
-
-import MiniPointsAbi from "@/contexts/minimiles.json";
-import { useQuery } from "@tanstack/react-query";
+import { safeMintMiniPoints } from "@/lib/minipoints";
 
 /* ─── env / clients ─────────────────────────────────────── */
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!,
-);
+const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY ?? "";
 
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+  throw new Error("[partner-claim] Missing SUPABASE_URL / SUPABASE_SERVICE_KEY");
+}
 
-
-const account = privateKeyToAccount(`0x${process.env.PRIVATE_KEY!}`);
-
-const publicClient = createPublicClient({
-  chain: celo,
-  transport: http("https://forno.celo.org"),
-});
-
-const walletClient = createWalletClient({
-  account,
-  chain: celo,
-  transport: http("https://forno.celo.org"),
-});
-
-const CONTRACT_ADDRESS = "0xEeD878017f027FE96316007D0ca5fDA58Ee93a6b";
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 /* ─── POST ──────────────────────────────────────────────── */
 
@@ -51,15 +26,17 @@ export async function POST(request: Request) {
     if (!userAddress || !questId) {
       return NextResponse.json(
         { error: "userAddress and questId are required" },
-        { status: 400 },
+        { status: 400 }
       );
     }
+
+    const userLc = userAddress.toLowerCase();
 
     /* 1 ▸ one-time check */
     const { data: existing, error: checkErr } = await supabase
       .from("partner_engagements")
-      .select("id", { count: "exact" })
-      .eq("user_address", userAddress)
+      .select("id")
+      .eq("user_address", userLc)
       .eq("partner_quest_id", questId)
       .limit(1);
 
@@ -67,10 +44,11 @@ export async function POST(request: Request) {
       console.error("[partner-claim] DB check error:", checkErr);
       return NextResponse.json({ error: "db-error" }, { status: 500 });
     }
+
     if (existing && existing.length > 0) {
       return NextResponse.json(
         { error: "Quest already claimed" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -86,38 +64,38 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Quest not found" }, { status: 404 });
     }
 
-    const points = quest.reward_points;
+    const points = Number(quest.reward_points ?? 0);
+    if (!Number.isFinite(points) || points <= 0) {
+      return NextResponse.json(
+        { error: "Invalid reward points" },
+        { status: 400 }
+      );
+    }
 
-    const referralTag = getReferralTag({
-      user: account.address as `0x${string}`, // The user address making the transaction
-      consumer: '0x03909bb1E9799336d4a8c49B74343C2a85fDad9d', // Your Divvi Identifier
-    })
-    /* 3 ▸ mint */
-    const { request: txReq } = await publicClient.simulateContract({
-      address: CONTRACT_ADDRESS as `0x${string}`,
-      abi: MiniPointsAbi.abi,
-      functionName: "mint",
-      args: [userAddress, parseUnits(points.toString(), 18)],
-      account,
-      dataSuffix: `0x${referralTag}`
+    /* 3 ▸ mint (with nonce/gas race retries via shared helper) */
+    const txHash = await safeMintMiniPoints({
+      to: userLc as `0x${string}`,
+      points,
+      reason: `partner-quest:${questId}`,
     });
-    const txHash = await walletClient.writeContract(txReq);
-
-    submitReferral({ txHash, chainId: publicClient.chain.id }).catch((e) =>
-      console.error("Divvi submitReferral failed", e)
-    )
 
     /* 4 ▸ record engagement */
-    const { error: insertErr } = await supabase.from("partner_engagements").insert({
-      user_address: userAddress,
-      partner_quest_id: questId,
-      claimed_at: new Date().toISOString(),
-      points_awarded: points,
-    });
+    const { error: insertErr } = await supabase
+      .from("partner_engagements")
+      .insert({
+        user_address: userLc,
+        partner_quest_id: questId,
+        claimed_at: new Date().toISOString(),
+        points_awarded: points,
+      });
 
     if (insertErr) {
       console.error("[partner-claim] insert error:", insertErr);
-      return NextResponse.json({ error: "db-error" }, { status: 500 });
+      // Note: mint already happened; we return a DB error so you can inspect/reconcile.
+      return NextResponse.json(
+        { error: "db-error", txHash, minted: points },
+        { status: 500 }
+      );
     }
 
     /* 5 ▸ done */
