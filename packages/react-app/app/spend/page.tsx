@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
 import type { Address } from 'viem'
 import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
-import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5,  speaker, sambuds, tv, soundbar, ps5, ebike, usdt} from '@/lib/img';
+import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5, pods, phone, speaker, sambuds, tv, soundbar, ps5, ebike, usdt} from '@/lib/img';
 import { Coin, akibaMilesSymbol } from '@/lib/svg';
 import { Question } from '@phosphor-icons/react';
 import { StaticImageData } from 'next/image';
@@ -67,18 +67,19 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   // default fallback:
   default: usdt,
 }
+/** ───────────────── Physical raffle helpers ─────────────── */
 const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
   108: ps5,
   109: ebike,
-  110: tv,
-  111: soundbar,
+  113: phone,
+  114: pods,
 };
-const PHYSICAL_TITLES: Record<number, string> = {
-108: 'Playstation 5',
-109: 'Electric Bike',
-110: '43 Inch TV',
-111: 'Soundbar',
 
+const PHYSICAL_TITLES: Record<number, string> = {
+  108: "Playstation 5",
+  109: "Electric Bike",
+  113: "Samsung A24 (Smartphone) ",
+  114: "Earpods (Oraimo) ",
 };
 
 const pickPhysicalImage = (raffle: PhysicalRaffle) =>
