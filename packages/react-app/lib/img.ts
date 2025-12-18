@@ -12,7 +12,7 @@ import nft1 from "../public/img/nft-1.png"
 import nft2 from "../public/img/nft2.png"
 import solar from "../public/img/solar.jpg"
 import speaker from "../public/img/speaker.jpg"
-import hplaptop from "../public/img/hplaptop.jpg"
+import jbl from "../public/img/jbl.png"
 import sambuds from "../public/img/sambuds.jpg"
 import ebike from "../public/img/e-bike.png"
 import tv from "../public/img/tv.png"
@@ -21,6 +21,7 @@ import ps5 from "../public/img/ps5.png"
 import usdt from "../public/img/250USD.png"
 import pods from "../public/img/pods.png"
 import phone from "../public/img/phone.png"
+import bag from "../public/img/bag.png"
 
 export {
   WinImg,
@@ -38,7 +39,7 @@ export {
   solar,
   speaker,
   sambuds,
-  hplaptop,
+  jbl,
   ebike, tv,soundbar, ps5, usdt,
-  pods, phone
+  pods, phone, bag
 };

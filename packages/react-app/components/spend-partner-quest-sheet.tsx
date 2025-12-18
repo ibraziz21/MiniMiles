@@ -43,6 +43,8 @@ interface SpendPartnerQuestSheetProps {
 }
 
 const PRESETS = [1, 5, 10, 25, 50];
+const BALANCE_REFRESH_EVENT = "akiba:miles:refresh";
+
 
 export default function SpendPartnerQuestSheet({
   open,

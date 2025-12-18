@@ -20,9 +20,12 @@ import {
   usdt,
   phone,
   pods,
+  laptop,
+  jbl,
+  bag,
 } from "@/lib/img";
 import { akibaMilesSymbol } from "@/lib/svg";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   fetchActiveRaffles,
   PhysicalRaffle,
@@ -68,6 +71,9 @@ const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
   109: ebike,
   113: phone,
   114: pods,
+  116: laptop,
+  117: jbl,
+  118: bag,
 };
 
 const PHYSICAL_TITLES: Record<number, string> = {
@@ -75,6 +81,10 @@ const PHYSICAL_TITLES: Record<number, string> = {
   109: "Electric Bike",
   113: "Samsung A24 (Smartphone) ",
   114: "Earpods (Oraimo) ",
+  116: "Laptop",
+  117: "JBL Speaker",
+  118: "Laptop Bag",
+
 };
 
 const pickPhysicalImage = (raffle: PhysicalRaffle) =>
@@ -124,6 +134,26 @@ export default function Home() {
   const [hasMounted, setHasMounted] = useState(false);
 
   const [displayName, setDisplayName] = useState<string>("");
+  //Auto-Refresh
+  const BALANCE_REFRESH_EVENT = "akiba:miles:refresh";
+
+const refreshMilesBalance = useCallback(async () => {
+  if (!address) return;
+  try {
+    const balance = await getakibaMilesBalance();
+    setakibaMilesBalance(balance);
+  } catch {
+    // swallow
+  }
+}, [address, getakibaMilesBalance]);
+
+// Helps when tx receipt is mined but RPC/cache/indexing lags a bit
+const refreshMilesBalanceSoon = useCallback(() => {
+  void refreshMilesBalance();
+  window.setTimeout(() => void refreshMilesBalance(), 1500);
+  window.setTimeout(() => void refreshMilesBalance(), 4500);
+}, [refreshMilesBalance]);
+
 
   useEffect(() => setHasMounted(true), []);
 
@@ -132,17 +162,15 @@ export default function Home() {
   }, [getUserAddress]);
 
   useEffect(() => {
-    const fetchBalance = async () => {
-      if (!address) return;
-      try {
-        const balance = await getakibaMilesBalance();
-        setakibaMilesBalance(balance);
-      } catch (error) {
-        console.log(error);
-      }
-    };
-    void fetchBalance();
-  }, [address, getakibaMilesBalance]);
+    void refreshMilesBalance();
+  }, [refreshMilesBalance]);
+
+  useEffect(() => {
+    const handler = () => refreshMilesBalanceSoon();
+    window.addEventListener(BALANCE_REFRESH_EVENT, handler);
+    return () => window.removeEventListener(BALANCE_REFRESH_EVENT, handler);
+  }, [refreshMilesBalanceSoon]);
+  
 
   /** ───────── fetch username (if set) ───────── */
   useEffect(() => {
@@ -150,7 +178,6 @@ export default function Home() {
       setDisplayName("");
       return;
     }
-
     const loadUsername = async () => {
       try {
         const { data, error } = await supabase
@@ -214,11 +241,12 @@ export default function Home() {
 
   const headerName = displayName || (address ? truncateEthAddress(address) : "");
 
+  
   // ─────────────────────────────────────────────
   // Physical raffle grouping
   // ─────────────────────────────────────────────
   const TOP_PRIZE_IDS = new Set<number>([108, 109]); // PS5 + E-bike
-  const ADVENT_DAILY_IDS = new Set<number>([113, 114]); // TV + Soundbar
+  const ADVENT_DAILY_IDS = new Set<number>([113,114,116, 117, 118]); // TV + Soundbar
 
   const topPrizes = physicalRaffles.filter((r) => TOP_PRIZE_IDS.has(r.id));
   const adventDaily = physicalRaffles.filter((r) => ADVENT_DAILY_IDS.has(r.id));

@@ -37,6 +37,8 @@ type Props = {
 };
 
 const explorerBase = "https://celoscan.io/tx";
+const BALANCE_REFRESH_EVENT = "akiba:miles:refresh";
+
 
 /* ──────────────────────────────────────────────────────────── */
 /*   Country / phone helpers                                   */
