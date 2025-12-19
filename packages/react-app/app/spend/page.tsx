@@ -67,8 +67,7 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   // default fallback:
   default: usdt,
 }
-/** ───────────────── Physical raffle helpers ─────────────── */
-/** ───────────────── Physical raffle helpers ─────────────── */
+
 const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
   108: ps5,
   109: ebike,
@@ -77,8 +76,8 @@ const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
   116: laptop,
   117: jbl,
   118: bag,
-  120: tab,
-  121: hphone,
+  120: hphone,
+  121: tab,
   123: watch,
   124: nintendo
 };
@@ -91,8 +90,8 @@ const PHYSICAL_TITLES: Record<number, string> = {
   116: "Laptop",
   117: "JBL Speaker",
   118: "Laptop Bag",
-  120: "Samsung Galaxy Tab",
-  121: "Marshall Headphones",
+  120: "Marshall Headphones",
+  121: "Samsung Galaxy Tab",
   123: "Samsung Galaxy Watch 4",
   124: "Nintendo Switch"
 };
