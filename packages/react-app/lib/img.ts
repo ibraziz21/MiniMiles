@@ -22,6 +22,10 @@ import usdt from "../public/img/250USD.png"
 import pods from "../public/img/pods.png"
 import phone from "../public/img/phone.png"
 import bag from "../public/img/bag.png"
+import hphone from "../public/img/hphone.png"
+import nintendo from "../public/img/switch.png"
+import watch from "../public/img/watch.png"
+import tab from "../public/img/tab.png"
 
 export {
   WinImg,
@@ -41,5 +45,6 @@ export {
   sambuds,
   jbl,
   ebike, tv,soundbar, ps5, usdt,
-  pods, phone, bag
+  pods, phone, bag,
+  hphone, nintendo, watch, tab,
 };
