@@ -26,6 +26,8 @@ import hphone from "../public/img/hphones.png"
 import nintendo from "../public/img/switch.png"
 import watch from "../public/img/watch.png"
 import tab from "../public/img/tab.png"
+import ring from "../public/img/ring.png"
+import microwave from "../public/img/microwave.png"
 
 export {
   WinImg,
@@ -46,5 +48,5 @@ export {
   jbl,
   ebike, tv,soundbar, ps5, usdt,
   pods, phone, bag,
-  hphone, nintendo, watch, tab,
+  hphone, nintendo, watch, tab, ring, microwave
 };
