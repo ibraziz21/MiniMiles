@@ -29,6 +29,7 @@ import {
   nintendo,
   ring,
   microwave,
+  fridge,
 } from "@/lib/img";
 import { akibaMilesSymbol } from "@/lib/svg";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -85,7 +86,8 @@ const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
   123: ring,
   124: watch,
   126: nintendo,
-  127: microwave
+  127: microwave,
+  128: fridge
 };
 
 const PHYSICAL_TITLES: Record<number, string> = {
@@ -101,7 +103,8 @@ const PHYSICAL_TITLES: Record<number, string> = {
   123: "Ring Video Camera",
   124: "Samsung Galaxy Watch 4",
   126: "Nintendo Switch",
-  127: "Microwave Oven"
+  127: "Microwave Oven",
+  128: "Refrigerator"
 };
 
 const pickPhysicalImage = (raffle: PhysicalRaffle) =>
