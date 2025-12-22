@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
 import type { Address } from 'viem'
 import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
-import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, fridge,microwave,ring, airpods,tab, laptop, bicycle, nft1, nft2, RaffleImg5, pods, phone, jbl,bag, sambuds, tv, soundbar, ps5, ebike, usdt, nintendo, watch, hphone,} from '@/lib/img';
+import { Dice, RaffleImg1, RaffleImg2, RaffleImg3,projector, fridge,microwave,ring, airpods,tab, laptop, bicycle, nft1, nft2, RaffleImg5, pods, phone, jbl,bag, sambuds, tv, soundbar, ps5, ebike, usdt, nintendo, watch, hphone,} from '@/lib/img';
 import { Coin, akibaMilesSymbol } from '@/lib/svg';
 import { Question } from '@phosphor-icons/react';
 import { StaticImageData } from 'next/image';
@@ -84,7 +84,9 @@ const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
   124: watch,
   126: nintendo,
   127: microwave,
-  128: fridge
+  128: fridge,
+  130: tv,
+  131: projector
 };
 
 const PHYSICAL_TITLES: Record<number, string> = {
@@ -101,7 +103,9 @@ const PHYSICAL_TITLES: Record<number, string> = {
   124: "Samsung Galaxy Watch 4",
   126: "Nintendo Switch",
   127: "Microwave Oven",
-  128: "Refrigerator"
+  128: "Refrigerator",
+  130: "43 inch TV",
+  131: "Projector",
 };
 
 const pickPhysicalImage = (raffle: PhysicalRaffle) =>
