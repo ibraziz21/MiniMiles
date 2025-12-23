@@ -69,7 +69,6 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
 }
 
 
-/** ───────────────── Physical raffle helpers ─────────────── */
 const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
   108: ps5,
   109: ebike,
@@ -86,7 +85,9 @@ const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
   127: microwave,
   128: fridge,
   130: tv,
-  131: projector
+  131: projector,
+  133: phone,
+  134: bag
 };
 
 const PHYSICAL_TITLES: Record<number, string> = {
@@ -106,6 +107,8 @@ const PHYSICAL_TITLES: Record<number, string> = {
   128: "Refrigerator",
   130: "43 inch TV",
   131: "Projector",
+  133: "Samsung A24 (Smartphone)",
+  134: "Laptop Bag"
 };
 
 const pickPhysicalImage = (raffle: PhysicalRaffle) =>
