@@ -31,6 +31,7 @@ import {
   microwave,
   fridge,
   projector,
+  docking,
 } from "@/lib/img";
 import { akibaMilesSymbol } from "@/lib/svg";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -73,7 +74,6 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   default: usdt,
 };
 
-/** ───────────────── Physical raffle helpers ─────────────── */
 const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
   108: ps5,
   109: ebike,
@@ -92,7 +92,9 @@ const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
   130: tv,
   131: projector,
   133: phone,
-  134: bag
+  134: bag,
+  136: laptop,
+  137: docking,
 };
 
 const PHYSICAL_TITLES: Record<number, string> = {
@@ -113,8 +115,11 @@ const PHYSICAL_TITLES: Record<number, string> = {
   130: "43 inch TV",
   131: "Projector",
   133: "Samsung A24 (Smartphone)",
-  134: "Laptop Bag"
+  134: "Laptop Bag",
+  136: "Laptop",
+  137: "Docking Station ",
 };
+
 
 const pickPhysicalImage = (raffle: PhysicalRaffle) =>
   PHYSICAL_IMAGES[raffle.id] ?? soundbar;
@@ -275,7 +280,7 @@ const refreshMilesBalanceSoon = useCallback(() => {
   // Physical raffle grouping
   // ─────────────────────────────────────────────
   const TOP_PRIZE_IDS = new Set<number>([108, 109]); // PS5 + E-bike
-  const ADVENT_DAILY_IDS = new Set<number>([113,114,116, 117, 118, 120,121,123,124,125, 126,127,128, 130, 131, 133, 134]); // TV + Soundbar
+  const ADVENT_DAILY_IDS = new Set<number>([113,114,116, 117, 118, 120,121,123,124,125, 126,127,128, 130, 131, 133, 134, 136, 137]); // TV + Soundbar
 
   const topPrizes = physicalRaffles.filter((r) => TOP_PRIZE_IDS.has(r.id));
   const adventDaily = physicalRaffles.filter((r) => ADVENT_DAILY_IDS.has(r.id));

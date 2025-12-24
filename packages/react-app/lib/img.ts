@@ -30,6 +30,7 @@ import ring from "../public/img/ring.png"
 import microwave from "../public/img/microwave.png"
 import fridge from "../public/img/fridge.png"
 import projector from "../public/img/projector.png"
+import docking from "../public/img/docking.png"
 
 export {
   WinImg,
@@ -39,6 +40,7 @@ export {
   RaffleImg4,
   RaffleImg5,
   laptop,
+  docking,
   Dice,
   bicycle,
   airpods,
