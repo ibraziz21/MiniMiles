@@ -95,6 +95,8 @@ const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
   134: bag,
   136: laptop,
   137: docking,
+  139: pods,
+  140: jbl,
 };
 
 const PHYSICAL_TITLES: Record<number, string> = {
@@ -118,6 +120,11 @@ const PHYSICAL_TITLES: Record<number, string> = {
   134: "Laptop Bag",
   136: "Laptop",
   137: "Docking Station ",
+  139: "Oraimo Earpods",
+  140: "JBL Speaker",
+  142: "Canon EOS 1200D Camera",
+  143: "Washing Machine",
+  144: "Gaming Chair",
 };
 
 
@@ -280,7 +287,7 @@ const refreshMilesBalanceSoon = useCallback(() => {
   // Physical raffle grouping
   // ─────────────────────────────────────────────
   const TOP_PRIZE_IDS = new Set<number>([108, 109]); // PS5 + E-bike
-  const ADVENT_DAILY_IDS = new Set<number>([113,114,116, 117, 118, 120,121,123,124,125, 126,127,128, 130, 131, 133, 134, 136, 137]); // TV + Soundbar
+  const ADVENT_DAILY_IDS = new Set<number>([113,114,116, 117, 118, 120,121,123,124,125, 126,127,128, 130, 131, 133, 134, 136, 137, 139, 140, 142,143,144]); // TV + Soundbar
 
   const topPrizes = physicalRaffles.filter((r) => TOP_PRIZE_IDS.has(r.id));
   const adventDaily = physicalRaffles.filter((r) => ADVENT_DAILY_IDS.has(r.id));

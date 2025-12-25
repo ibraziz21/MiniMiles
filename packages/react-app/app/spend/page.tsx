@@ -90,6 +90,8 @@ const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
   134: bag,
   136: laptop,
   137: docking,
+  139: pods,
+  140: jbl,
 };
 
 const PHYSICAL_TITLES: Record<number, string> = {
@@ -113,6 +115,11 @@ const PHYSICAL_TITLES: Record<number, string> = {
   134: "Laptop Bag",
   136: "Laptop",
   137: "Docking Station ",
+  139: "Oraimo Earpods",
+  140: "JBL Speaker",
+  142: "Canon EOS 1200D Camera",
+  143: "Washing Machine",
+  144: "Gaming Chair",
 };
 
 const pickPhysicalImage = (raffle: PhysicalRaffle) =>
