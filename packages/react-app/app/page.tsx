@@ -23,14 +23,6 @@ import {
   laptop,
   jbl,
   bag,
-  tab,
-  hphone,
-  watch,
-  nintendo,
-  ring,
-  microwave,
-  fridge,
-  projector,
   docking, camera, washmachine, chair
 } from "@/lib/img";
 import { akibaMilesSymbol } from "@/lib/svg";
@@ -82,15 +74,7 @@ const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
   116: laptop,
   117: jbl,
   118: bag,
-  120: hphone,
-  121: tab,
-  123: ring,
-  124: watch,
-  126: nintendo,
-  127: microwave,
-  128: fridge,
-  130: tv,
-  131: projector,
+
   133: phone,
   134: bag,
   136: laptop,
