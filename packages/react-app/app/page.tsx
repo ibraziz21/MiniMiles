@@ -31,7 +31,7 @@ import {
   microwave,
   fridge,
   projector,
-  docking,
+  docking, camera, washmachine, chair
 } from "@/lib/img";
 import { akibaMilesSymbol } from "@/lib/svg";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -97,6 +97,9 @@ const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
   137: docking,
   139: pods,
   140: jbl,
+   142: camera,
+  143: washmachine,
+  144: chair,
 };
 
 const PHYSICAL_TITLES: Record<number, string> = {

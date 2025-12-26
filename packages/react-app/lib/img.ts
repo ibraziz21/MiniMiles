@@ -31,6 +31,9 @@ import microwave from "../public/img/microwave.png"
 import fridge from "../public/img/fridge.png"
 import projector from "../public/img/projector.png"
 import docking from "../public/img/docking.png"
+import camera from "../public/img/camera.png"
+import washmachine from "../public/img/washmachine.png"
+import chair from "../public/img/gaming-chair.png"
 
 export {
   WinImg,
@@ -51,6 +54,5 @@ export {
   sambuds,
   jbl,
   ebike, tv,soundbar, ps5, usdt,
-  pods, phone, bag,
-  hphone, nintendo, watch, tab, ring, microwave, fridge, projector
+  pods, phone, bag,camera,washmachine, chair
 };

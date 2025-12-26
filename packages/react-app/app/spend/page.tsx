@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
 import type { Address } from 'viem'
 import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
-import { Dice, RaffleImg1, RaffleImg2, RaffleImg3,projector, fridge,microwave,ring, airpods,tab, laptop, bicycle, nft1, nft2, RaffleImg5, pods, phone, jbl,bag, sambuds, tv, soundbar, ps5, ebike, usdt, nintendo, watch, hphone, docking,} from '@/lib/img';
+import { Dice, RaffleImg1, RaffleImg2, RaffleImg3,projector, fridge,microwave,ring, airpods,tab, laptop, bicycle, nft1, nft2, RaffleImg5, pods, phone, jbl,bag, sambuds, tv, soundbar, ps5, ebike, usdt, nintendo, watch, hphone, docking,camera,washmachine,chair} from '@/lib/img';
 import { Coin, akibaMilesSymbol } from '@/lib/svg';
 import { Question } from '@phosphor-icons/react';
 import { StaticImageData } from 'next/image';
@@ -92,6 +92,9 @@ const PHYSICAL_IMAGES: Record<number, StaticImageData> = {
   137: docking,
   139: pods,
   140: jbl,
+  142: camera,
+  143: washmachine,
+  144: chair,
 };
 
 const PHYSICAL_TITLES: Record<number, string> = {
