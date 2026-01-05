@@ -12,7 +12,7 @@ import { celo } from "viem/chains";
 const URL_CUSD =
   "https://api.studio.thegraph.com/query/114722/transfers-18-d/version/latest";
 const URL_USDT =
-  "https://api.studio.thegraph.com/query/114722/transfers-6-d/version/latest";
+  "https://api.studio.thegraph.com/query/1717663/usd-transfers/version/latest/";
 
 const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
 const USDT_ADDRESS = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e";
