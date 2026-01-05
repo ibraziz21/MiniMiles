@@ -9,16 +9,26 @@ importers:
   .:
     dependencies:
       posthog-js:
+<<<<<<< Updated upstream
         specifier: ^1.302.2
         version: 1.302.2
+=======
+        specifier: ^1.248.1
+        version: 1.310.1
+>>>>>>> Stashed changes
       truncate-eth-address:
         specifier: ^1.0.2
         version: 1.0.2
 
 packages:
 
+<<<<<<< Updated upstream
   '@posthog/core@1.7.1':
     resolution: {integrity: sha512-kjK0eFMIpKo9GXIbts8VtAknsoZ18oZorANdtuTj1CbgS28t4ZVq//HAWhnxEuXRTrtkd+SUJ6Ux3j2Af8NCuA==}
+=======
+  '@posthog/core@1.9.0':
+    resolution: {integrity: sha512-j7KSWxJTUtNyKynLt/p0hfip/3I46dWU2dk+pt7dKRoz2l5CYueHuHK4EO7Wlgno5yo1HO4sc4s30MXMTICHJw==}
+>>>>>>> Stashed changes
 
   core-js@3.47.0:
     resolution: {integrity: sha512-c3Q2VVkGAUyupsjRnaNX6u8Dq2vAdzm9iuPj5FW0fRxzlxgq9Q39MDq10IvmQSpLgHQNyQzQmOo6bgGHmH3NNg==}
@@ -37,11 +47,19 @@ packages:
     resolution: {integrity: sha512-ojmeN0qd+y0jszEtoY48r0Peq5dwMEkIlCOu6Q5f41lfkswXuKtYrhgoTpLnyIcHm24Uhqx+5Tqm2InSwLhE6Q==}
     engines: {node: '>=8'}
 
+<<<<<<< Updated upstream
   posthog-js@1.302.2:
     resolution: {integrity: sha512-4voih22zQe7yHA7DynlQ3B7kgzJOaKIjzV7K3jJ2Qf+UDXd1ZgO7xYmLWYVtuKEvD1OXHbKk/fPhUTZeHEWpBw==}
 
   preact@10.28.0:
     resolution: {integrity: sha512-rytDAoiXr3+t6OIP3WGlDd0ouCUG1iCWzkcY3++Nreuoi17y6T5i/zRhe6uYfoVcxq6YU+sBtJouuRDsq8vvqA==}
+=======
+  posthog-js@1.310.1:
+    resolution: {integrity: sha512-UkR6zzlWNtqHDXHJl2Yk062DOmZyVKTPL5mX4j4V+u3RiYbMHJe47+PpMMUsvK1R2e1r/m9uSlHaJMJRzyUjGg==}
+
+  preact@10.28.1:
+    resolution: {integrity: sha512-u1/ixq/lVQI0CakKNvLDEcW5zfCjUQfZdK9qqWuIJtsezuyG6pk9TWj75GMuI/EzRSZB/VAE43sNWWZfiy8psw==}
+>>>>>>> Stashed changes
 
   shebang-command@2.0.0:
     resolution: {integrity: sha512-kHxr2zZpYtdmrN1qDjrrX/Z1rR1kG8Dx+gkpK1G4eXmvXswmcE1hTWBWYUzlraYw1/yZp6YuDY77YtvbN0dmDA==}
@@ -64,7 +82,11 @@ packages:
 
 snapshots:
 
+<<<<<<< Updated upstream
   '@posthog/core@1.7.1':
+=======
+  '@posthog/core@1.9.0':
+>>>>>>> Stashed changes
     dependencies:
       cross-spawn: 7.0.6
 
@@ -82,6 +104,7 @@ snapshots:
 
   path-key@3.1.1: {}
 
+<<<<<<< Updated upstream
   posthog-js@1.302.2:
     dependencies:
       '@posthog/core': 1.7.1
@@ -91,6 +114,17 @@ snapshots:
       web-vitals: 4.2.4
 
   preact@10.28.0: {}
+=======
+  posthog-js@1.310.1:
+    dependencies:
+      '@posthog/core': 1.9.0
+      core-js: 3.47.0
+      fflate: 0.4.8
+      preact: 10.28.1
+      web-vitals: 4.2.4
+
+  preact@10.28.1: {}
+>>>>>>> Stashed changes
 
   shebang-command@2.0.0:
     dependencies:
