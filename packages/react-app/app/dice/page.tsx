@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
@@ -21,6 +22,7 @@ import {
   type DiceRoundStateName,
   type TierStats,
   type PlayerStats,
+  TIERS,
 } from "@/lib/diceTypes";
 
 const DBG = (...args: any[]) => console.log("[DicePage]", ...args);
@@ -64,6 +66,10 @@ export default function DicePage() {
 
   // backend triggers (draw guard)
   const [drawingRoundId, setDrawingRoundId] = useState<bigint | null>(null);
+  const [requestingRandomnessRoundId, setRequestingRandomnessRoundId] =
+    useState<bigint | null>(null);
+  const backgroundRandomnessRef = useRef<Set<string>>(new Set());
+  const backgroundDrawRef = useRef<Set<string>>(new Set());
 
   /* ────────────────────────────────────────────────────────────── */
   /* Derived state                                                 */
@@ -191,21 +197,111 @@ export default function DicePage() {
     loadRound(selectedTier);
   }, [selectedTier, loadRound]);
 
-  // poll every 15s so state stays fresh
+  // poll every 20s so state stays fresh
   useEffect(() => {
     DBG("setting up polling interval");
     const id = setInterval(() => {
       DBG("poll tick → loadRound()", { selectedTier });
       loadRound(selectedTier);
-    }, 15000);
+    }, 20000);
     return () => {
       DBG("clearing polling interval");
       clearInterval(id);
     };
   }, [selectedTier, loadRound]);
 
+  const sweepAllTiers = useCallback(async () => {
+    const tiers = [...TIERS];
+
+    for (const tier of tiers) {
+      let view: DiceRoundView | null = null;
+      try {
+        view = await fetchDiceRound(tier);
+      } catch (e) {
+        console.warn("[DicePage] sweep fetchDiceRound failed", { tier, e });
+        continue;
+      }
+
+      if (!view || view.roundId === 0n) continue;
+
+      const key = `${tier}-${view.roundId.toString()}`;
+      const isFull = view.filledSlots === 6;
+      const noWinner = !view.winner;
+
+      if (
+        isFull &&
+        noWinner &&
+        view.randomBlock === 0n &&
+        view.state !== "resolved" &&
+        !(tier === selectedTier && requestingRandomnessRoundId === view.roundId) &&
+        !backgroundRandomnessRef.current.has(key)
+      ) {
+        backgroundRandomnessRef.current.add(key);
+        try {
+          const res = await fetch("/api/dice/randomness", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              roundId: view.roundId.toString(),
+              tier,
+            }),
+          });
+          DBG("background randomness API response", {
+            tier,
+            roundId: view.roundId.toString(),
+            ok: res.ok,
+            status: res.status,
+          });
+          if (!res.ok) {
+            backgroundRandomnessRef.current.delete(key);
+          }
+        } catch (e) {
+          console.error("[DicePage] background randomness failed", e);
+          backgroundRandomnessRef.current.delete(key);
+        }
+      }
+
+      if (
+        isFull &&
+        noWinner &&
+        view.state === "ready" &&
+        !(tier === selectedTier && drawingRoundId === view.roundId) &&
+        !backgroundDrawRef.current.has(key)
+      ) {
+        backgroundDrawRef.current.add(key);
+        try {
+          const res = await fetch("/api/dice/draw", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ roundId: view.roundId.toString() }),
+          });
+          DBG("background draw API response", {
+            tier,
+            roundId: view.roundId.toString(),
+            ok: res.ok,
+            status: res.status,
+          });
+          if (!res.ok) {
+            backgroundDrawRef.current.delete(key);
+          }
+        } catch (e) {
+          console.error("[DicePage] background draw failed", e);
+          backgroundDrawRef.current.delete(key);
+        }
+      }
+    }
+  }, [fetchDiceRound, selectedTier, requestingRandomnessRoundId, drawingRoundId]);
+
+  useEffect(() => {
+    sweepAllTiers();
+    const id = setInterval(() => {
+      sweepAllTiers();
+    }, 20000);
+    return () => clearInterval(id);
+  }, [sweepAllTiers]);
+
   /* ────────────────────────────────────────────────────────────── */
-  /* Backend triggers: draw + modal                                */
+  /* Backend triggers: randomness + draw + modal                   */
   /* ────────────────────────────────────────────────────────────── */
 
   useEffect(() => {
@@ -213,22 +309,71 @@ export default function DicePage() {
 
     const isFull = round.filledSlots === 6;
     const noWinner = !round.winner;
-    const hasRandom = round.randomBlock !== 0n;
-    const iAmInRound = round.myNumber != null;
+    const needsRandom = round.randomBlock === 0n;
+    const shouldRequestRandomness =
+      isFull && noWinner && needsRandom && round.state !== "resolved";
+
+    DBG("randomness effect check", {
+      roundId: round.roundId?.toString?.() ?? round.roundId,
+      filledSlots: round.filledSlots,
+      winner: round.winner,
+      randomBlock: round.randomBlock?.toString?.(),
+      state: round.state,
+      shouldRequestRandomness,
+      requestingRandomnessRoundId:
+        requestingRandomnessRoundId?.toString?.(),
+    });
+
+    if (!shouldRequestRandomness) return;
+    if (requestingRandomnessRoundId === round.roundId) return;
+
+    setRequestingRandomnessRoundId(round.roundId);
+
+    (async () => {
+      try {
+        const res = await fetch("/api/dice/randomness", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            roundId: round.roundId.toString(),
+            tier: selectedTier,
+          }),
+        });
+        DBG("randomness API response (effect)", {
+          ok: res.ok,
+          status: res.status,
+        });
+        if (!res.ok) {
+          setRequestingRandomnessRoundId(null);
+        } else {
+          await loadRound(selectedTier);
+        }
+      } catch (e) {
+        console.error("[DicePage] request randomness failed (effect)", e);
+        setRequestingRandomnessRoundId(null);
+      }
+    })();
+  }, [round, requestingRandomnessRoundId, selectedTier, loadRound]);
+
+  useEffect(() => {
+    if (!round) return;
+
+    const isFull = round.filledSlots === 6;
+    const noWinner = !round.winner;
+    const readyToDraw = isFull && noWinner && round.state === "ready";
 
     DBG("draw effect check", {
       roundId: round.roundId?.toString?.() ?? round.roundId,
       filledSlots: round.filledSlots,
       winner: round.winner,
-      randomBlock: round.randomBlock?.toString?.(),
+      state: round.state,
       isFull,
       noWinner,
-      hasRandom,
-      iAmInRound,
+      readyToDraw,
       drawingRoundId: drawingRoundId?.toString?.(),
     });
 
-    if (!isFull || !noWinner || !hasRandom || !iAmInRound) return;
+    if (!readyToDraw) return;
     if (drawingRoundId === round.roundId) return;
 
     DBG("draw conditions met → triggering /api/dice/draw", {
@@ -251,6 +396,9 @@ export default function DicePage() {
         });
 
         DBG("draw API response", { ok: res.ok, status: res.status });
+        if (!res.ok) {
+          setDrawingRoundId(null);
+        }
 
         const updated = await loadRound(selectedTier);
         if (!updated) return;
@@ -281,6 +429,7 @@ export default function DicePage() {
         setLastResultMessage(
           "Something went wrong while drawing this pot. Please refresh."
         );
+        setDrawingRoundId(null);
       } finally {
         setIsRolling(false);
       }
@@ -386,6 +535,7 @@ export default function DicePage() {
         DBG("first player joined → requesting randomness", {
           roundId: updated.roundId?.toString?.(),
         });
+        setRequestingRandomnessRoundId(updated.roundId);
         try {
           const res = await fetch("/api/dice/randomness", {
             method: "POST",
@@ -399,8 +549,14 @@ export default function DicePage() {
             ok: res.ok,
             status: res.status,
           });
+          if (!res.ok) {
+            setRequestingRandomnessRoundId(null);
+          } else {
+            await loadRound(selectedTier);
+          }
         } catch (e) {
           console.error("[DicePage] request randomness failed", e);
+          setRequestingRandomnessRoundId(null);
         }
       }
 

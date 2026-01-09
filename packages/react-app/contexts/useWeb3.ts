@@ -237,9 +237,10 @@ export function useWeb3() {
         roundId,
       ])) as [`0x${string}`[], number[]];
 
-      const rawState: bigint = (await dice.read.getRoundState([
+      const rawState = (await dice.read.getRoundState([
         roundId,
-      ])) as bigint;
+      ])) as bigint | number | string;
+      const stateNum = Number(rawState);
 
       let myNumber: number | null = null;
       if (address) {
@@ -264,13 +265,13 @@ export function useWeb3() {
       }));
 
       const state: DiceRoundStateName =
-        rawState === 1n
+        stateNum === 1
           ? "open"
-          : rawState === 2n
+          : stateNum === 2
           ? "fullWaiting"
-          : rawState === 3n
+          : stateNum === 3
           ? "ready"
-          : rawState === 4n
+          : stateNum === 4
           ? "resolved"
           : "none";
 

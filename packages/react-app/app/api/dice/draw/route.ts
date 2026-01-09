@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { celo } from "viem/chains";
-import { createWalletClient, http } from "viem";
+import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import diceAbi from "@/contexts/akibadice.json";
 
@@ -28,6 +28,13 @@ function getWalletClient() {
   });
 }
 
+function getPublicClient() {
+  return createPublicClient({
+    chain: celo,
+    transport: http(CELO_RPC_URL),
+  });
+}
+
 export async function POST(req: Request) {
   try {
     const { roundId } = await req.json();
@@ -36,6 +43,28 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: "roundId is required" },
         { status: 400 }
+      );
+    }
+
+    const publicClient = getPublicClient();
+    const rawState = (await publicClient.readContract({
+      abi: diceAbi.abi,
+      address: DICE_ADDRESS,
+      functionName: "getRoundState",
+      args: [BigInt(roundId)],
+    })) as bigint | number | string;
+    const stateNum = Number(rawState);
+
+    if (stateNum !== 3) {
+      const reason =
+        stateNum === 2
+          ? "randomness-pending"
+          : stateNum === 4
+          ? "already-resolved"
+          : "not-ready";
+      return NextResponse.json(
+        { error: "round-not-ready", reason },
+        { status: 409 }
       );
     }
 
