@@ -34,11 +34,23 @@ export interface Quest {
 }
 
 /* ─── Akiba quest IDs (3-step flow) ──────────────────────── */
+const USERNAME_ID = 'f18818cf-eec4-412e-8311-22e09a1332db'; // Set username
 const FOLLOW_ID = '99da9e3d-5332-419e-aa40-5cb9d6e3a7ab'; // Follow Twitter
 const TELEGRAM_ID = '2679ab21-f8cf-446f-8efb-36b549f73fa0'; // Join Telegram
-const USERNAME_ID = 'f18818cf-eec4-412e-8311-22e09a1332db'; // Set username
 
 const quests: Quest[] = [
+  // 👇 username quest – part of the same Akiba slot (1st step)
+  {
+    id: USERNAME_ID,
+    isLocked: false,
+    img: akibaMilesSymbolAlt,
+    title: 'AkibaMiles',
+    description: 'Set your Akiba username',
+    reward: '10 akibaMiles',
+    color: '#238D9D1A',
+    actionLink: '', // handled inside sheet – no external link
+    instructions: [], // we ignore instructions for this one in the sheet
+  },
   {
     id: FOLLOW_ID,
     isLocked: false,
@@ -80,18 +92,6 @@ const quests: Quest[] = [
       { title: 'Open Telegram', text: 'Open the Telegram App' },
       { title: 'Join Group', text: 'Hit the Join Group button' },
     ],
-  },
-  // 👇 username quest – part of the same Akiba slot (3rd step)
-  {
-    id: USERNAME_ID,
-    isLocked: false,
-    img: akibaMilesSymbolAlt,
-    title: 'AkibaMiles',
-    description: 'Set your Akiba username',
-    reward: '10 akibaMiles',
-    color: '#238D9D1A',
-    actionLink: '', // handled inside sheet – no external link
-    instructions: [], // we ignore instructions for this one in the sheet
   },
   {
     id: '8d5a7766-4d2a-4bff-ac97-6b03fd5b570f',
@@ -156,23 +156,23 @@ export default function PartnerQuests({
     const list = [...quests];
 
     // All Akiba stage IDs in order
-    const akibaIds = [FOLLOW_ID, TELEGRAM_ID, USERNAME_ID];
+    const akibaIds = [USERNAME_ID, FOLLOW_ID, TELEGRAM_ID];
 
     // Find the index of the FIRST Akiba card in the list – this slot will be reused
     const baseIdx = list.findIndex((q) => akibaIds.includes(q.id));
     if (baseIdx === -1) return list; // safeguard
 
     // Decide which Akiba quest to show in that slot:
-    // - if Follow not done → show Follow
-    // - else if Telegram not done → show Telegram
-    // - else → show Username (even if completed, so it can show "Completed")
+    // - if Username not done → show Username
+    // - else if Follow not done → show Follow
+    // - else → show Telegram (even if completed, so it can show "Completed")
     let currentAkibaId: string;
-    if (!claimedSet.has(FOLLOW_ID)) {
-      currentAkibaId = FOLLOW_ID;
-    } else if (!claimedSet.has(TELEGRAM_ID)) {
-      currentAkibaId = TELEGRAM_ID;
-    } else {
+    if (!claimedSet.has(USERNAME_ID)) {
       currentAkibaId = USERNAME_ID;
+    } else if (!claimedSet.has(FOLLOW_ID)) {
+      currentAkibaId = FOLLOW_ID;
+    } else {
+      currentAkibaId = TELEGRAM_ID;
     }
 
     const currentAkibaQuest = quests.find((q) => q.id === currentAkibaId);
