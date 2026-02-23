@@ -15,8 +15,8 @@ import MiniPointsAbi from "@/contexts/minimiles.json";
 
 /* ── setup ───────────────────────────────────────────────────────── */
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_SERVICE_KEY!
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY!
 );
 
 const account = privateKeyToAccount(`0x${process.env.PRIVATE_KEY!}`);
@@ -155,4 +155,3 @@ export async function POST(req: Request) {
     txHashes,
   });
 }
-

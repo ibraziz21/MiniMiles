@@ -7,7 +7,21 @@ Celo Composer support React boilerplate template with TailwindCSS. This is a sta
 
 ### Set environment variables
 
-Create a copy of `.env.example` and rename it to `.env`.
+Create a copy of `.env.template` and rename it to `.env`.
+
+Supabase key split:
+
+```bash
+# Browser-safe
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+
+# Server-only
+SUPABASE_URL=...
+SUPABASE_SERVICE_KEY=...
+```
+
+Do not use `NEXT_PUBLIC_SUPABASE_SERVICE_KEY`. Service role keys must stay server-only.
 
 #### Add Wallet Connect ID
 
