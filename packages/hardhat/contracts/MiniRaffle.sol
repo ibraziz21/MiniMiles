@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import "./MiniPoints.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "witnet-solidity-bridge/contracts/interfaces/IWitnetRandomness.sol";
+import "@witnet/solidity/contracts/interfaces/legacy/IWitRandomnessLegacy.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -13,8 +13,8 @@ contract AkibaRaffle is UUPSUpgradeable, ReentrancyGuardUpgradeable {
 
     address public owner;
     IMiniPoints public miniPoints;
-    IWitnetRandomness public constant RNG =
-        IWitnetRandomness(0xC0FFEE98AD1434aCbDB894BbB752e138c1006fAB);
+    IWitRandomnessLegacy public constant RNG =
+        IWitRandomnessLegacy(0xC0FFEE98AD1434aCbDB894BbB752e138c1006fAB);
 
     IERC20 public cUSD;
     IERC20 public usdt;
