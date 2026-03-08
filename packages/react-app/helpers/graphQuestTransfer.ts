@@ -78,6 +78,21 @@ function writeCache(key: string, value: boolean) {
  * separate subgraphs per token (transfers-18-d vs transfers-6-d).
  * If your subgraph supports a token field, we can add it later.
  */
+
+const TRANSFER_COUNT_QUERY = gql`
+  query ($user: Bytes!, $since: BigInt!, $min: BigInt!, $limit: Int!) {
+    transfers(
+      first: $limit
+      where: { from: $user, blockTimestamp_gt: $since, value_gte: $min }
+    ) {
+      id
+    }
+    _meta {
+      block { timestamp }
+    }
+  }
+`;
+
 const TRANSFER_OUT_QUERY = gql`
   query ($user: Bytes!, $since: BigInt!, $min: BigInt!) {
     transfers(
@@ -85,6 +100,9 @@ const TRANSFER_OUT_QUERY = gql`
       where: { from: $user, blockTimestamp_gt: $since, value_gte: $min }
     ) {
       id
+    }
+    _meta {
+      block { timestamp }
     }
   }
 `;
@@ -97,8 +115,14 @@ const TRANSFER_IN_QUERY = gql`
     ) {
       id
     }
+    _meta {
+      block { timestamp }
+    }
   }
 `;
+
+/** If the subgraph's latest indexed block is older than this, treat it as stale */
+const SUBGRAPH_STALE_SECS = 2 * 3600; // 2 hours
 
 /* ---------------------------------------------------------------- helpers */
 
@@ -116,10 +140,13 @@ async function hasRecentTransferViaSubgraph(params: {
   user: string;
   url: string;
   min: bigint;
-}): Promise<boolean> {
+}): Promise<{ hasTransfer: boolean; subgraphTs: number }> {
   const since24h = Math.floor(Date.now() / 1000) - 86_400;
 
-  const { transfers } = await request<{ transfers: { id: string }[] }>(
+  const result = await request<{
+    transfers: { id: string }[];
+    _meta: { block: { timestamp: number } };
+  }>(
     params.url,
     params.direction === "out" ? TRANSFER_OUT_QUERY : TRANSFER_IN_QUERY,
     {
@@ -129,7 +156,10 @@ async function hasRecentTransferViaSubgraph(params: {
     }
   );
 
-  return (transfers?.length ?? 0) > 0;
+  return {
+    hasTransfer: (result.transfers?.length ?? 0) > 0,
+    subgraphTs: result._meta?.block?.timestamp ?? 0,
+  };
 }
 
 async function hasRecentTransferViaRpc(params: {
@@ -162,6 +192,27 @@ async function hasRecentTransferViaRpc(params: {
   return false;
 }
 
+async function countOutgoingViaRpc(
+  user: string,
+  token: string,
+  min: bigint,
+  lookbackBlocks = DEFAULT_LOOKBACK_BLOCKS
+): Promise<number> {
+  const latest = await publicClient.getBlockNumber();
+  const fromBlock = latest > lookbackBlocks ? latest - lookbackBlocks : 0n;
+  const logs = await publicClient.getLogs({
+    address: token as Address,
+    event: ERC20_TRANSFER,
+    args: { from: user as Address },
+    fromBlock,
+    toBlock: "latest",
+  });
+  return logs.filter((l) => {
+    const value = (l.args as any)?.value as bigint | undefined;
+    return typeof value === "bigint" && value >= min;
+  }).length;
+}
+
 /**
  * Smart checker:
  * - TTL cache + in-flight de-dupe
@@ -185,37 +236,46 @@ async function hasRecentTransferSmart(params: {
 
   const p = (async () => {
     const min = oneDollarMin(params.token);
+    const now = Math.floor(Date.now() / 1000);
+
+    const useRpcFallback = async (reason: string): Promise<boolean> => {
+      console.warn(`[graphQuestTransfer] ${reason} — falling back to RPC`);
+      try {
+        const ok = await hasRecentTransferViaRpc({
+          direction: params.direction,
+          user: params.user,
+          token: params.token,
+          min,
+        });
+        writeCache(key, ok);
+        return ok;
+      } catch (rpcErr) {
+        console.error("[graphQuestTransfer] RPC fallback failed:", rpcErr);
+        writeCache(key, false);
+        return false;
+      }
+    };
 
     try {
-      const ok = await hasRecentTransferViaSubgraph({
+      const { hasTransfer, subgraphTs } = await hasRecentTransferViaSubgraph({
         direction: params.direction,
         user: params.user,
         url: params.url,
         min,
       });
-      writeCache(key, ok);
-      return ok;
-    } catch (err) {
-      if (is429(err)) {
-        try {
-          const ok = await hasRecentTransferViaRpc({
-            direction: params.direction,
-            user: params.user,
-            token: params.token,
-            min,
-          });
-          writeCache(key, ok);
-          return ok;
-        } catch (rpcErr) {
-          console.error("[graphQuestTransfer] RPC fallback failed:", rpcErr);
-          writeCache(key, false);
-          return false;
-        }
+
+      if (now - subgraphTs > SUBGRAPH_STALE_SECS) {
+        return useRpcFallback(
+          `Subgraph is ${((now - subgraphTs) / 3600).toFixed(1)}h behind`
+        );
       }
 
-      console.error("[graphQuestTransfer] Subgraph error:", err);
-      writeCache(key, false);
-      return false;
+      writeCache(key, hasTransfer);
+      return hasTransfer;
+    } catch (err) {
+      return useRpcFallback(
+        is429(err) ? "Rate limited (429)" : `Subgraph error: ${err}`
+      );
     } finally {
       INFLIGHT.delete(key);
     }
@@ -226,6 +286,55 @@ async function hasRecentTransferSmart(params: {
 }
 
 /* ---------------------------------------------------------------- exports */
+
+/**
+ * Count how many outgoing transfers the wallet made across cUSD + USDT in the
+ * last 24 h.  Uses the subgraph when fresh; falls back to RPC getLogs when
+ * the subgraph is stale (> 2 h behind).
+ */
+export async function countOutgoingTransfersIn24H(
+  userAddress: string
+): Promise<number> {
+  const user = userAddress.toLowerCase();
+  const since = (Math.floor(Date.now() / 1_000) - 86_400).toString();
+  const now = Math.floor(Date.now() / 1_000);
+  const LIMIT = 1000;
+
+  const tokens = [
+    { url: URL_CUSD, token: CUSD_ADDRESS },
+    { url: URL_USDT, token: USDT_ADDRESS },
+  ];
+
+  let total = 0;
+
+  for (const { url, token } of tokens) {
+    const min = oneDollarMin(token);
+    try {
+      const result = await request<{
+        transfers: { id: string }[];
+        _meta: { block: { timestamp: number } };
+      }>(url, TRANSFER_COUNT_QUERY, { user, since, min: min.toString(), limit: LIMIT });
+
+      const subgraphTs = result._meta?.block?.timestamp ?? 0;
+
+      if (now - subgraphTs > SUBGRAPH_STALE_SECS) {
+        console.warn(
+          `[graphQuestTransfer] Count subgraph stale (${((now - subgraphTs) / 3600).toFixed(1)}h behind), using RPC for ${token}`
+        );
+        total += await countOutgoingViaRpc(user, token, min);
+      } else {
+        total += result.transfers?.length ?? 0;
+      }
+    } catch (err) {
+      console.warn(`[graphQuestTransfer] Count subgraph error, using RPC: ${err}`);
+      total += await countOutgoingViaRpc(user, token, min);
+    }
+  }
+
+  return total;
+}
+
+
 
 /**
  * Has the wallet **sent** ≥ $1 (cUSD or USDT) in the last 24 h?
