@@ -1,38 +1,12 @@
 // src/app/api/quests/seven_day_streak/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import {
-  createPublicClient,
-  createWalletClient,
-  http,
-  parseUnits,
-} from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { celo } from "viem/chains";
-
-import { getReferralTag, submitReferral } from "@divvi/referral-sdk";
-import MiniPointsAbi from "@/contexts/minimiles.json";
+import { claimQueuedDailyReward } from "@/lib/minipointQueue";
 
 /* ───────────────────────── env ────────────────────────── */
-const {
-  SUPABASE_URL = "",
-  SUPABASE_SERVICE_KEY = "",
-  PRIVATE_KEY = "",
-  MINIPOINTS_ADDRESS = "",
-} = process.env;
+const { SUPABASE_URL = "", SUPABASE_SERVICE_KEY = "" } = process.env;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-
-const account = privateKeyToAccount(`0x${PRIVATE_KEY}`);
-const publicClient = createPublicClient({
-  chain: celo,
-  transport: http("https://forno.celo.org"),
-});
-const walletClient = createWalletClient({
-  account,
-  chain: celo,
-  transport: http("https://forno.celo.org"),
-});
 
 /* ───────────────────────── consts ─────────────────────── */
 
@@ -129,42 +103,31 @@ export async function POST(req: Request) {
       });
     }
 
-    /* 3 ▸ mint 200 MiniMiles */
-    const referralTag = getReferralTag({
-      user: account.address as `0x${string}`,
-      consumer: "0x03909bb1E9799336d4a8c49B74343C2a85fDad9d", // Your Divvi Identifier
-    });
-
-    const { request } = await publicClient.simulateContract({
-      address: MINIPOINTS_ADDRESS as `0x${string}`,
-      abi: MiniPointsAbi.abi,
-      functionName: "mint",
-      args: [userAddress, parseUnits(STREAK_REWARD_POINTS.toString(), 18)],
-      account,
-      dataSuffix: `0x${referralTag}`,
-    });
-
-    const txHash = await walletClient.writeContract(request);
-
-    submitReferral({ txHash, chainId: publicClient.chain.id }).catch((e) =>
-      console.error("[seven_day_streak] Divvi submitReferral failed", e),
-    );
-
-    /* 4 ▸ log the quest claim in DB */
     const todayStr = new Date().toISOString().slice(0, 10);
-    const { error: insertErr } = await supabase.from("daily_engagements").insert({
-      user_address: userAddress,
-      quest_id: questId,
-      claimed_at: todayStr,
-      points_awarded: STREAK_REWARD_POINTS,
+    const result = await claimQueuedDailyReward({
+      userAddress,
+      questId,
+      points: STREAK_REWARD_POINTS,
+      scopeKey: todayStr,
+      reason: `seven-day-streak:${questId}`,
     });
 
-    if (insertErr) {
-      console.error("[seven_day_streak] insert error", insertErr);
-      // We already minted, so just report success but note DB error server-side
+    if (!result.ok && result.code === "already") {
+      return NextResponse.json({ success: false, code: "already" });
     }
 
-    return NextResponse.json({ success: true, txHash });
+    if (!result.ok) {
+      return NextResponse.json({
+        success: false,
+        message: result.message ?? "queue-error",
+      });
+    }
+
+    return NextResponse.json({
+      success: true,
+      txHash: result.txHash,
+      queued: result.queued,
+    });
   } catch (err) {
     console.error("[seven_day_streak]", err);
     return NextResponse.json({ success: false, message: "server-error" });

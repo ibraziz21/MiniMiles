@@ -37,25 +37,36 @@ const DIVVI_CONSUMER = (
   "0x03909bb1E9799336d4a8c49B74343C2a85fDad9d"
 ) as `0x${string}`;
 
-/* ─── Exported helper with nonce/gas race retries ───────── */
+function isRetryableNonceOrGasRace(message: string) {
+  return (
+    message.includes("nonce too low") ||
+    message.includes("lower than the current nonce") ||
+    message.includes("current nonce") ||
+    message.includes("replacement transaction underpriced") ||
+    message.includes("already known") ||
+    message.includes("transaction with the same hash was already imported")
+  );
+}
 
-export async function safeMintMiniPoints(params: {
-  to: `0x${string}`;
-  points: number;
-  reason?: string; // optional for logging: "username-quest", etc
+async function writeMiniPointsWithRetries(params: {
+  functionName: "mint" | "burn";
+  args: readonly unknown[];
+  reason?: string;
+  attachReferral?: boolean;
 }): Promise<`0x${string}`> {
-  const { to, points, reason } = params;
+  const { functionName, args, reason, attachReferral = false } = params;
 
-  const referralTag = getReferralTag({
-    user: account.address as `0x${string}`,
-    consumer: DIVVI_CONSUMER,
-  });
+  const referralTag = attachReferral
+    ? getReferralTag({
+        user: account.address as `0x${string}`,
+        consumer: DIVVI_CONSUMER,
+      })
+    : null;
 
   let lastError: any = null;
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      // Always grab the latest pending nonce to avoid races
       const nonce = await publicClient.getTransactionCount({
         address: account.address,
         blockTag: "pending",
@@ -64,45 +75,76 @@ export async function safeMintMiniPoints(params: {
       const txHash = await walletClient.writeContract({
         address: CONTRACT_ADDRESS,
         abi: MiniPointsAbi.abi,
-        functionName: "mint",
-        args: [to, parseUnits(points.toString(), 18)],
+        functionName,
+        args,
         account,
-        dataSuffix: `0x${referralTag}`,
         nonce,
+        ...(referralTag ? { dataSuffix: `0x${referralTag}` } : {}),
       });
 
-      // Fire-and-forget Divvi attribution
-      submitReferral({ txHash, chainId: publicClient.chain.id }).catch((e) =>
-        console.error("[safeMintMiniPoints] Divvi submitReferral failed", e),
-      );
+      if (attachReferral) {
+        submitReferral({ txHash, chainId: publicClient.chain.id }).catch((e) =>
+          console.error(`[${functionName}MiniPoints] Divvi submitReferral failed`, e),
+        );
+      }
 
       return txHash as `0x${string}`;
     } catch (err: any) {
       lastError = err;
       const msg = (err?.shortMessage || err?.message || "").toLowerCase();
 
-      const isNonceOrGasRace =
-        msg.includes("nonce too low") ||
-        msg.includes("replacement transaction underpriced");
-
-      if (!isNonceOrGasRace) {
-        // some other error → don't hide it
+      if (!isRetryableNonceOrGasRace(msg)) {
         throw err;
       }
 
       console.warn(
-        `[safeMintMiniPoints] nonce/gas race${
+        `[${functionName}MiniPoints] nonce/gas race${
           reason ? ` for ${reason}` : ""
         } on attempt ${attempt + 1}, retrying…`,
         msg,
       );
 
-      // tiny jitter to de-sync concurrent requests from the same wallet
-      await new Promise((r) =>
-        setTimeout(r, 150 + Math.random() * 250),
-      );
+      await new Promise((r) => setTimeout(r, 150 + Math.random() * 250));
     }
   }
 
-  throw lastError ?? new Error("mint failed after nonce/gas retries");
+  throw lastError ?? new Error(`${functionName} failed after nonce/gas retries`);
+}
+
+/* ─── Exported helper with nonce/gas race retries ───────── */
+
+export async function safeMintMiniPoints(params: {
+  to: `0x${string}`;
+  points: number;
+  reason?: string; // optional for logging: "username-quest", etc
+}): Promise<`0x${string}`> {
+  const { to, points, reason } = params;
+  return writeMiniPointsWithRetries({
+    functionName: "mint",
+    args: [to, parseUnits(points.toString(), 18)],
+    reason,
+    attachReferral: true,
+  });
+}
+
+export async function safeMintRefund(params: {
+  to: `0x${string}`;
+  points: number;
+  reason?: string;
+}): Promise<`0x${string}`> {
+  return safeMintMiniPoints(params);
+}
+
+export async function safeBurnMiniPoints(params: {
+  from: `0x${string}`;
+  points: number;
+  reason?: string;
+}): Promise<`0x${string}`> {
+  const { from, points, reason } = params;
+  return writeMiniPointsWithRetries({
+    functionName: "burn",
+    args: [from, parseUnits(points.toString(), 18)],
+    reason,
+    attachReferral: false,
+  });
 }

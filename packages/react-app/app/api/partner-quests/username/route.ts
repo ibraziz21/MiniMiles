@@ -1,19 +1,8 @@
 // src/app/api/partner-quests/username/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { getReferralTag, submitReferral } from "@divvi/referral-sdk";
-import {
-  createPublicClient,
-  createWalletClient,
-  http,
-  parseUnits,
-  getAddress,           // ⬅️ NEW: normalize addresses
-} from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { celo } from "viem/chains";
-
-import MiniPointsAbi from "@/contexts/minimiles.json";
-import { safeMintMiniPoints } from "@/lib/minipoints";
+import { getAddress } from "viem";
+import { claimQueuedPartnerReward } from "@/lib/minipointQueue";
 
 /* ─── env / clients ─────────────────────────────────────── */
 
@@ -21,24 +10,6 @@ const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_KEY!,
 );
-
-const account = privateKeyToAccount(`0x${process.env.PRIVATE_KEY!}`);
-
-const publicClient = createPublicClient({
-  chain: celo,
-  transport: http("https://forno.celo.org"),
-});
-
-const walletClient = createWalletClient({
-  account,
-  chain: celo,
-  transport: http("https://forno.celo.org"),
-});
-
-const CONTRACT_ADDRESS =
-  "0xEeD878017f027FE96316007D0ca5fDA58Ee93a6b" as `0x${string}`;
-const DIVVI_CONSUMER =
-  "0x03909bb1E9799336d4a8c49B74343C2a85fDad9d" as `0x${string}`;
 
 // must match partner_quests.id and the Quest in partner-quests.tsx
 const USERNAME_QUEST_ID = "f18818cf-eec4-412e-8311-22e09a1332db";
@@ -110,38 +81,33 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "db-error" }, { status: 500 });
     }
 
-    /* 3 ▸ mint 50 points via shared helper */
     const points = USERNAME_REWARD_POINTS;
-
-    const txHash = await safeMintMiniPoints({
-      to: checksumAddr,           // ⬅️ checksummed address for chain
+    const result = await claimQueuedPartnerReward({
+      userAddress: checksumAddr,
+      questId: USERNAME_QUEST_ID,
       points,
       reason: "username-quest",
     });
 
-    /* 4 ▸ record engagement so quest becomes 'Completed' */
-    const { error: insertEngagementErr } = await supabase
-      .from("partner_engagements")
-      .insert({
-        user_address: dbAddr,              // ⬅️ lowercase in DB
-        partner_quest_id: USERNAME_QUEST_ID,
-        claimed_at: new Date().toISOString(),
-        points_awarded: points,
-      });
-
-    if (insertEngagementErr) {
-      console.error(
-        "[username-quest] insert partner_engagements error:",
-        insertEngagementErr,
+    if (!result.ok && result.code === "already") {
+      return NextResponse.json(
+        { error: "Quest already claimed" },
+        { status: 400 }
       );
-      return NextResponse.json({ error: "db-error" }, { status: 500 });
     }
 
-    /* 5 ▸ done */
+    if (!result.ok) {
+      return NextResponse.json(
+        { error: result.message ?? "queue-error" },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json(
       {
         minted: points,
-        txHash,
+        txHash: result.txHash,
+        queued: result.queued,
         username: username.trim(),
         userAddress: checksumAddr,
       },

@@ -1,43 +1,24 @@
 // src/helpers/streaks.ts
 import { createClient } from "@supabase/supabase-js";
-import {
-  createPublicClient,
-  createWalletClient,
-  http,
-  parseUnits,
-} from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { celo } from "viem/chains";
-import MiniPointsAbi from "@/contexts/minimiles.json";
-import { getReferralTag, submitReferral } from "@divvi/referral-sdk";
+import { claimQueuedDailyReward } from "@/lib/minipointQueue";
 
 const {
   SUPABASE_URL = "",
   SUPABASE_SERVICE_KEY = "",
-  PRIVATE_KEY = "",
-  MINIPOINTS_ADDRESS = "",
 } = process.env;
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !PRIVATE_KEY || !MINIPOINTS_ADDRESS) {
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   console.warn("[streaks] Missing one or more env vars");
 }
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-const account = privateKeyToAccount(`0x${PRIVATE_KEY}`);
-
-export const publicClient = createPublicClient({
-  chain: celo,
-  transport: http("https://forno.celo.org"),
-});
-
-export const walletClient = createWalletClient({
-  account,
-  chain: celo,
-  transport: http("https://forno.celo.org"),
-});
-
 export type StreakScope = "daily" | "weekly";
+
+type StreakClaimResult =
+  | { ok: true; txHash?: string; scopeKey: string; queued?: boolean; currentStreak: number; longestStreak: number }
+  | { ok: false; code: "already"; scopeKey: string; currentStreak: number; longestStreak: number }
+  | { ok: false; code: "error"; scopeKey: string; message?: string; currentStreak: number; longestStreak: number };
 
 /**
  * Compute a scope key for logging in DB:
@@ -61,11 +42,136 @@ export function scopeKeyFor(scope: StreakScope, now = new Date()): string {
   return `${tmp.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
 }
 
+function previousScopeKeyFor(scope: StreakScope, key: string): string {
+  if (scope === "daily") {
+    const d = new Date(`${key}T00:00:00.000Z`);
+    d.setUTCDate(d.getUTCDate() - 1);
+    return d.toISOString().slice(0, 10);
+  }
+
+  const [yearPart, weekPart] = key.split("-W");
+  const year = Number(yearPart);
+  const week = Number(weekPart);
+
+  if (week > 1) {
+    return `${year}-W${String(week - 1).padStart(2, "0")}`;
+  }
+
+  const lastDayPrevYear = new Date(Date.UTC(year - 1, 11, 31));
+  return scopeKeyFor("weekly", lastDayPrevYear);
+}
+
+async function getExistingStreak(userAddress: string, questId: string) {
+  const { data, error } = await supabase
+    .from("streaks")
+    .select("scope, current_streak, longest_streak, last_scope_key")
+    .eq("user_address", userAddress.toLowerCase())
+    .eq("quest_id", questId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as
+    | {
+        scope: StreakScope | null;
+        current_streak: number | null;
+        longest_streak: number | null;
+        last_scope_key: string | null;
+      }
+    | null;
+}
+
+async function upsertStreak(opts: {
+  userAddress: string;
+  questId: string;
+  scope: StreakScope;
+  scopeKey: string;
+}) {
+  const existing = await getExistingStreak(opts.userAddress, opts.questId);
+  const expectedPreviousKey = previousScopeKeyFor(opts.scope, opts.scopeKey);
+  const userLc = opts.userAddress.toLowerCase();
+
+  let currentStreak = 1;
+  const previousCurrent = Number(existing?.current_streak ?? 0);
+  const previousLongest = Number(existing?.longest_streak ?? 0);
+  const lastScopeKey = existing?.last_scope_key ?? null;
+
+  if (lastScopeKey === opts.scopeKey) {
+    return {
+      currentStreak: previousCurrent,
+      longestStreak: Math.max(previousLongest, previousCurrent),
+    };
+  }
+
+  if (lastScopeKey === expectedPreviousKey) {
+    currentStreak = previousCurrent + 1;
+  }
+
+  const longestStreak = Math.max(previousLongest, currentStreak);
+
+  const { error } = await supabase.from("streaks").upsert(
+    {
+      user_address: userLc,
+      quest_id: opts.questId,
+      scope: opts.scope,
+      current_streak: currentStreak,
+      longest_streak: longestStreak,
+      last_scope_key: opts.scopeKey,
+    },
+    { onConflict: "user_address,quest_id" }
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  return { currentStreak, longestStreak };
+}
+
+export async function refreshStreakState(opts: {
+  userAddress: string;
+  questId: string;
+  scope: StreakScope;
+}) {
+  const scopeKey = scopeKeyFor(opts.scope);
+  const existing = await getExistingStreak(opts.userAddress, opts.questId);
+  if (!existing) {
+    return { currentStreak: 0, longestStreak: 0 };
+  }
+
+  const expectedPreviousKey = previousScopeKeyFor(opts.scope, scopeKey);
+  const lastScopeKey = existing.last_scope_key ?? null;
+  const currentStreak = Number(existing.current_streak ?? 0);
+  const longestStreak = Number(existing.longest_streak ?? 0);
+
+  if (!lastScopeKey || lastScopeKey === scopeKey || lastScopeKey === expectedPreviousKey) {
+    return { currentStreak, longestStreak };
+  }
+
+  if (currentStreak === 0) {
+    return { currentStreak, longestStreak };
+  }
+
+  const { error } = await supabase
+    .from("streaks")
+    .update({ current_streak: 0 })
+    .eq("user_address", opts.userAddress.toLowerCase())
+    .eq("quest_id", opts.questId);
+
+  if (error) {
+    throw error;
+  }
+
+  return { currentStreak: 0, longestStreak };
+}
+
 /**
  * Generic helper:
  *  - enforce "once per scope" restriction via daily_engagements
- *  - mint MiniMiles points to user
- *  - log row in daily_engagements
+ *  - enqueue MiniMiles mint and let the queue processor serialize sends
+ *  - log row in daily_engagements after the mint succeeds
  */
 export async function claimStreakReward(opts: {
   userAddress: string;
@@ -73,64 +179,54 @@ export async function claimStreakReward(opts: {
   points: number;
   scope: StreakScope;
   label?: string; // for logging / analytics
-}) {
+}): Promise<StreakClaimResult> {
   const { userAddress, questId, points, scope, label } = opts;
 
   const key = scopeKeyFor(scope);
-
-  // 1) has already claimed in this scope?
-  const { data: claimed, error: checkErr } = await supabase
-    .from("daily_engagements")
-    .select("id")
-    .eq("user_address", userAddress)
-    .eq("quest_id", questId)
-    .eq("claimed_at", key)
-    .maybeSingle();
-
-  if (checkErr) {
-    console.error("[claimStreakReward] check failed", label, checkErr);
-  }
-
-  if (claimed) {
-    return { ok: false as const, code: "already" as const, scopeKey: key };
-  }
-
-  // 2) mint MiniMiles
-  const referralTag = getReferralTag({
-    user: account.address as `0x${string}`,
-    consumer: "0x03909bb1E9799336d4a8c49B74343C2a85fDad9d", // Divvi identifier
+  const result = await claimQueuedDailyReward({
+    userAddress,
+    questId,
+    points,
+    scopeKey: key,
+    reason: label ? `streak:${label}` : `streak:${questId}`,
   });
 
-  const { request } = await publicClient.simulateContract({
-    address: MINIPOINTS_ADDRESS as `0x${string}`,
-    abi: MiniPointsAbi.abi,
-    functionName: "mint",
-    args: [userAddress as `0x${string}`, parseUnits(points.toString(), 18)],
-    account,
-    dataSuffix: `0x${referralTag}`,
-  });
-
-  const txHash = await walletClient.writeContract(request);
-
-  submitReferral({ txHash, chainId: publicClient.chain.id }).catch((e) =>
-    console.error("[claimStreakReward] Divvi submitReferral failed", label, e)
-  );
-
-  // 3) log DB
-  const { error: insertErr } = await supabase.from("daily_engagements").insert({
-    user_address: userAddress,
-    quest_id: questId,
-    claimed_at: key,
-    points_awarded: points,
-  });
-
-  if (insertErr) {
-    console.error("[claimStreakReward] insert failed", label, insertErr);
+  if (!result.ok && result.code === "already") {
+    const streak = await refreshStreakState({ userAddress, questId, scope });
+    return {
+      ok: false,
+      code: "already",
+      scopeKey: key,
+      currentStreak: streak.currentStreak,
+      longestStreak: streak.longestStreak,
+    };
   }
+
+  if (!result.ok) {
+    const streak = await refreshStreakState({ userAddress, questId, scope });
+    return {
+      ok: false,
+      code: "error",
+      scopeKey: key,
+      message: result.message,
+      currentStreak: streak.currentStreak,
+      longestStreak: streak.longestStreak,
+    };
+  }
+
+  const streak = await upsertStreak({
+    userAddress,
+    questId,
+    scope,
+    scopeKey: key,
+  });
 
   return {
-    ok: true as const,
-    txHash,
+    ok: true,
+    txHash: result.txHash,
+    queued: result.queued,
     scopeKey: key,
+    currentStreak: streak.currentStreak,
+    longestStreak: streak.longestStreak,
   };
 }

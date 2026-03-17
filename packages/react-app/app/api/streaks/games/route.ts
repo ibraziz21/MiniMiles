@@ -41,13 +41,33 @@ export async function POST(req: Request) {
     });
 
     if (!result.ok && result.code === "already") {
-      return NextResponse.json({ success: false, code: "already" });
+      return NextResponse.json({
+        success: false,
+        code: "already",
+        currentStreak: result.currentStreak,
+        longestStreak: result.longestStreak,
+      });
+    }
+
+    if (!result.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: result.message ?? "server-error",
+          currentStreak: result.currentStreak,
+          longestStreak: result.longestStreak,
+        },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
       success: true,
       txHash: result.txHash,
+      queued: result.queued,
       claimedAt: result.scopeKey, // YYYY-MM-DD
+      currentStreak: result.currentStreak,
+      longestStreak: result.longestStreak,
     });
   } catch (err) {
     console.error("[streak_games] error", err);
