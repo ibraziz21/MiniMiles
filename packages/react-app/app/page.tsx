@@ -861,6 +861,17 @@ const badgeButtonLabel =
       </div>
 
       {/* Sheets */}
+      <BadgeClaimLoadingSheet
+        open={badgeClaimLoadingOpen}
+        onOpenChange={setBadgeClaimLoadingOpen}
+      />
+
+      <BadgeClaimSuccessSheet
+        open={badgeSheetOpen}
+        onOpenChange={setBadgeSheetOpen}
+        unlocked={unlockedBadges}
+      />
+
       <PhysicalRaffleSheet
         open={activeSheet === "physical"}
         onOpenChange={(o) => setActiveSheet(o ? "physical" : null)}

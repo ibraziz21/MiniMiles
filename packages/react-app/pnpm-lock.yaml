@@ -62,9 +62,6 @@ importers:
       '@safe-global/protocol-kit':
         specifier: ^3.1.1
         version: 3.1.1(bufferutil@4.0.9)(encoding@0.1.13)(utf-8-validate@5.0.10)
-      '@safe-global/safe-core-sdk-types':
-        specifier: 4.1.1
-        version: 4.1.1(bufferutil@4.0.9)(encoding@0.1.13)(utf-8-validate@5.0.10)
       '@supabase/supabase-js':
         specifier: ^2.49.4
         version: 2.49.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)
@@ -1629,10 +1626,6 @@ packages:
 
   '@safe-global/safe-apps-sdk@9.1.0':
     resolution: {integrity: sha512-N5p/ulfnnA2Pi2M3YeWjULeWbjo7ei22JwU/IXnhoHzKq3pYCN6ynL9mJBOlvDVv892EgLPCWCOwQk/uBT2v0Q==}
-
-  '@safe-global/safe-core-sdk-types@4.1.1':
-    resolution: {integrity: sha512-5NIWG7OjV+C5iquux0yPcu8SHUzg1qJXJ/jAQcPwXGTC7ZVsFawnR43/l2Vg9zEwf0RF0xTm3W8DXkaBYORiEQ==}
-    deprecated: 'WARNING: This project has been renamed to @safe-global/types-kit. Please, migrate from @safe-global/safe-core-sdk-types@5.1.0 to @safe-global/types-kit@1.0.0.'
 
   '@safe-global/safe-deployments@1.37.52':
     resolution: {integrity: sha512-BFwJWY7L4nB2T7grHmcPp/DNtwz3L1Iuydra1iaRg+WbqPTgsrS2Buf5bkKWD3AG5MdwuqqdTnClBfzQJs+6GA==}
@@ -7765,18 +7758,6 @@ snapshots:
       - typescript
       - utf-8-validate
       - zod
-
-  '@safe-global/safe-core-sdk-types@4.1.1(bufferutil@4.0.9)(encoding@0.1.13)(utf-8-validate@5.0.10)':
-    dependencies:
-      '@safe-global/safe-deployments': 1.37.52
-      ethers: 6.13.5(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      web3-core: 1.10.4(encoding@0.1.13)
-      web3-utils: 1.10.4
-    transitivePeerDependencies:
-      - bufferutil
-      - encoding
-      - supports-color
-      - utf-8-validate
 
   '@safe-global/safe-deployments@1.37.52':
     dependencies:

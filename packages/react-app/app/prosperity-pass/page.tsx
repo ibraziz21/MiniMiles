@@ -98,6 +98,10 @@ const runClaimFlow = async () => {
   setSubmitError(null);
   setIsSubmitting(true);
 
+  // Stable ID for this attempt — passed to both burn and refund so each
+  // is executed exactly once even if the request is retried or races.
+  const claimOpId = crypto.randomUUID();
+
   // STEP 1: Burn AkibaMiles
   try {
     const burnRes = await fetch("/api/burn-for-passport", {
@@ -106,6 +110,7 @@ const runClaimFlow = async () => {
       body: JSON.stringify({
         address,
         amount: REQUIRED_MILES,
+        operationId: claimOpId,
       }),
     });
 
@@ -146,7 +151,11 @@ const runClaimFlow = async () => {
       const res = await fetch("/api/refund-for-passport", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address, amount: REQUIRED_MILES }),
+        body: JSON.stringify({
+          address,
+          amount: REQUIRED_MILES,
+          operationId: `${claimOpId}:refund`,
+        }),
       });
 
       if (!res.ok) {
