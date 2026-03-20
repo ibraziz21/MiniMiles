@@ -372,7 +372,7 @@ export default function DailyChallenges({
 
         setResultVariant("success");
         setResultTitle("Claim Successful!");
-        setResultMessage(`You claimed ${q.reward_points} AkibaMiles.`);
+        setResultMessage(`You claimed ${res.points ?? q.reward_points} AkibaMiles.`);
       } else if (res?.code === "already") {
         setResultVariant("already");
         setResultTitle("Already claimed");
