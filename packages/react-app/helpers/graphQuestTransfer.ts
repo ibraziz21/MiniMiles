@@ -16,6 +16,7 @@ const URL_USDT =
 
 const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
 const USDT_ADDRESS = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e";
+const USDC_ADDRESS = "0xcebA9300f2b948710d2653dD7B07f33A8B32118C";
 
 if (!URL_CUSD || !URL_USDT || !CUSD_ADDRESS || !USDT_ADDRESS) {
   throw new Error(
@@ -27,6 +28,7 @@ if (!URL_CUSD || !URL_USDT || !CUSD_ADDRESS || !USDT_ADDRESS) {
 const DECIMALS: Record<string, number> = {
   [CUSD_ADDRESS.toLowerCase()]: 18,
   [USDT_ADDRESS.toLowerCase()]: 6,
+  [USDC_ADDRESS.toLowerCase()]: 6,
 };
 
 /* ----------------------------------------------------------------- RPC fallback */
@@ -303,12 +305,18 @@ export async function countOutgoingTransfersIn24H(
   const tokens = [
     { url: URL_CUSD, token: CUSD_ADDRESS },
     { url: URL_USDT, token: USDT_ADDRESS },
+    { url: null, token: USDC_ADDRESS },
   ];
 
   let total = 0;
 
   for (const { url, token } of tokens) {
     const min = oneDollarMin(token);
+    if (!url) {
+      // No subgraph for this token — go straight to RPC
+      total += await countOutgoingViaRpc(user, token, min);
+      continue;
+    }
     try {
       const result = await request<{
         transfers: { id: string }[];
@@ -359,7 +367,14 @@ export async function userSentAtLeast1DollarIn24Hrs(
     token: USDT_ADDRESS,
     url: URL_USDT,
   });
-  return usdt;
+  if (usdt) return true;
+
+  return hasRecentTransferViaRpc({
+    direction: "out",
+    user,
+    token: USDC_ADDRESS,
+    min: oneDollarMin(USDC_ADDRESS),
+  });
 }
 
 /**
@@ -384,5 +399,12 @@ export async function userReceivedAtLeast1DollarIn24Hrs(
     token: USDT_ADDRESS,
     url: URL_USDT,
   });
-  return usdt;
+  if (usdt) return true;
+
+  return hasRecentTransferViaRpc({
+    direction: "in",
+    user,
+    token: USDC_ADDRESS,
+    min: oneDollarMin(USDC_ADDRESS),
+  });
 }

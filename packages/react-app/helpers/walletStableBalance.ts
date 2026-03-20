@@ -10,6 +10,7 @@ import { erc20Abi } from "viem";
  */
 const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
 const USDT_ADDRESS = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e";
+const USDC_ADDRESS = "0xcebA9300f2b948710d2653dD7B07f33A8B32118C";
 
 /**
  * Optional 3rd stable — configure via env:
@@ -23,6 +24,7 @@ const STABLE3_DECIMALS = Number(process.env.STABLE3_DECIMALS ?? "6");
 const STABLES: { address: `0x${string}` | ""; decimals: number }[] = [
   { address: CUSD_ADDRESS as `0x${string}`, decimals: 18 },
   { address: USDT_ADDRESS as `0x${string}`, decimals: 6 },
+  { address: USDC_ADDRESS as `0x${string}`, decimals: 6 },
   { address: STABLE3_ADDRESS, decimals: STABLE3_DECIMALS },
 ];
 
