@@ -252,9 +252,9 @@ const runClaimFlow = async () => {
                   </div>
 
                   {/* Main content */}
-                  <div className="flex flex-1 flex-col items-center">
+                  <div className="flex flex-1 flex-col items-center overflow-y-auto">
                     {/* Illustration */}
-                    <div className="mt-4 flex h-[260px] w-[312px] items-center justify-center">
+                    <div className="mt-4 flex h-[min(260px,35vh)] w-full max-w-[312px] flex-shrink-0 items-center justify-center">
                       <Image
                         src={step.img}
                         alt={step.title}
@@ -263,7 +263,7 @@ const runClaimFlow = async () => {
                     </div>
 
                     {/* Text + steps + button */}
-                    <div className="mt-6 flex w-[312px] flex-col gap-8">
+                    <div className="mt-4 flex w-full max-w-[312px] flex-col gap-4 pb-2">
                       {/* Message block */}
                       <div>
                         <h2 className="text-[36px] leading-[34px] tracking-[-0.26px] font-bold text-black">
