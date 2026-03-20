@@ -1,6 +1,6 @@
 // e.g. src/app/api/quests/daily/route.ts
 import { createClient } from "@supabase/supabase-js";
-import { safeMintMiniPoints } from "@/lib/minipoints";
+import { claimQueuedDailyReward } from "@/lib/minipointQueue";
 
 // ENVIRONMENT VARIABLES
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
@@ -50,32 +50,33 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2) Mint 20 points using shared safe helper
     const POINTS = 20;
-
-    const txHash = await safeMintMiniPoints({
-      to: addr,
+    const result = await claimQueuedDailyReward({
+      userAddress: addr,
+      questId,
       points: POINTS,
+      scopeKey: today,
       reason: `daily-engagement:${questId}`,
     });
 
-    // 3) Log claim in Supabase
-    const { error: insertErr } = await supabase.from("daily_engagements").insert({
-      user_address: addr,
-      quest_id: questId,
-      claimed_at: today,
-      points_awarded: POINTS,
-    });
-
-    if (insertErr) {
-      console.error("[daily-quest] insert daily_engagements error:", insertErr);
+    if (!result.ok && result.code === "already") {
       return Response.json(
-        { success: false, message: "db-error" },
+        { success: false, message: "Already claimed today" },
+        { status: 400 },
+      );
+    }
+
+    if (!result.ok) {
+      return Response.json(
+        { success: false, message: result.message ?? "queue-error" },
         { status: 500 },
       );
     }
 
-    return Response.json({ success: true, txHash }, { status: 200 });
+    return Response.json(
+      { success: true, txHash: result.txHash, queued: result.queued },
+      { status: 200 },
+    );
   } catch (err: any) {
     console.error("[daily-quest] unexpected error", err);
     return Response.json(

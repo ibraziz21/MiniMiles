@@ -1,7 +1,7 @@
 // src/app/api/partner-quests/claim/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { safeMintMiniPoints } from "@/lib/minipoints";
+import { claimQueuedPartnerReward } from "@/lib/minipointQueue";
 
 /* ─── env / clients ─────────────────────────────────────── */
 
@@ -72,34 +72,31 @@ export async function POST(request: Request) {
       );
     }
 
-    /* 3 ▸ mint (with nonce/gas race retries via shared helper) */
-    const txHash = await safeMintMiniPoints({
-      to: userLc as `0x${string}`,
+    const result = await claimQueuedPartnerReward({
+      userAddress: userLc,
+      questId,
       points,
       reason: `partner-quest:${questId}`,
     });
 
-    /* 4 ▸ record engagement */
-    const { error: insertErr } = await supabase
-      .from("partner_engagements")
-      .insert({
-        user_address: userLc,
-        partner_quest_id: questId,
-        claimed_at: new Date().toISOString(),
-        points_awarded: points,
-      });
-
-    if (insertErr) {
-      console.error("[partner-claim] insert error:", insertErr);
-      // Note: mint already happened; we return a DB error so you can inspect/reconcile.
+    if (!result.ok && result.code === "already") {
       return NextResponse.json(
-        { error: "db-error", txHash, minted: points },
+        { error: "Quest already claimed" },
+        { status: 400 }
+      );
+    }
+
+    if (!result.ok) {
+      return NextResponse.json(
+        { error: result.message ?? "queue-error" },
         { status: 500 }
       );
     }
 
-    /* 5 ▸ done */
-    return NextResponse.json({ minted: points, txHash }, { status: 200 });
+    return NextResponse.json(
+      { minted: points, txHash: result.txHash, queued: result.queued },
+      { status: 200 }
+    );
   } catch (err) {
     console.error("[partner-claim] unexpected:", err);
     return NextResponse.json({ error: "server-error" }, { status: 500 });

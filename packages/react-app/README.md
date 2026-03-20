@@ -15,13 +15,28 @@ Supabase key split:
 # Browser-safe
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+NEXT_PUBLIC_KILN_DAILY_HOLD_QUEST_ID=...
 
 # Server-only
 SUPABASE_URL=...
 SUPABASE_SERVICE_KEY=...
+KILN_SHARE_TOKEN_ADDRESS=0xbaD4711D689329E315Be3E7C1C64CF652868C56c
+KILN_SHARE_TOKEN_DECIMALS=6
+KILN_DAILY_MIN_HOLD=10
+KILN_DAILY_POINTS=30
 ```
 
 Do not use `NEXT_PUBLIC_SUPABASE_SERVICE_KEY`. Service role keys must stay server-only.
+
+### Run the Mint Queue SQL
+
+Execute [minipoint_mint_queue.sql](/Users/ibraziz21/Desktop/Work/MiniMiles/packages/react-app/sql/minipoint_mint_queue.sql) in your Supabase SQL editor before using queued quest minting. It creates:
+
+- `minipoint_mint_jobs`
+- `minipoint_mint_queue_locks`
+- the RPC functions the API uses to claim, retry, complete, and lock mint jobs
+
+You can also drain queued jobs manually via `POST /api/admin/drain-mint-queue` using `Authorization: Bearer $ADMIN_QUEUE_SECRET` or `?secret=$ADMIN_QUEUE_SECRET`.
 
 #### Add Wallet Connect ID
 
