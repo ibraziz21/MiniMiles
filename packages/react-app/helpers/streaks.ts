@@ -111,20 +111,30 @@ async function upsertStreak(opts: {
 
   const longestStreak = Math.max(previousLongest, currentStreak);
 
-  const { error } = await supabase.from("streaks").upsert(
-    {
+  if (existing) {
+    const { error } = await supabase
+      .from("streaks")
+      .update({
+        scope: opts.scope,
+        current_streak: currentStreak,
+        longest_streak: longestStreak,
+        last_scope_key: opts.scopeKey,
+      })
+      .eq("user_address", userLc)
+      .eq("quest_id", opts.questId);
+
+    if (error) throw error;
+  } else {
+    const { error } = await supabase.from("streaks").insert({
       user_address: userLc,
       quest_id: opts.questId,
       scope: opts.scope,
       current_streak: currentStreak,
       longest_streak: longestStreak,
       last_scope_key: opts.scopeKey,
-    },
-    { onConflict: "user_address,quest_id" }
-  );
+    });
 
-  if (error) {
-    throw error;
+    if (error) throw error;
   }
 
   return { currentStreak, longestStreak };
