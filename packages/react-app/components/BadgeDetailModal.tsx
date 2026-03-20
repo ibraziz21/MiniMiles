@@ -3,7 +3,7 @@
 
 import type { FC } from "react";
 import Image from "next/image";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { BadgeDef } from "@/lib/prosperityBadges";
 import closeIcon from "@/public/svg/close-pass.svg";
 import lockIcon from "@/public/svg/lock-icon.svg";
@@ -35,24 +35,22 @@ export const BadgeDetailModal: FC<BadgeDetailModalProps> = ({
   });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="bottom"
         className="
-          fixed bottom-0 left-0 right-0
           mx-auto
           w-full max-w-[420px]
           rounded-t-[24px] rounded-b-none
           bg-white
-          px-6 pt-6 pb-8
+          p-0
           border-none
           max-h-[90vh]
           overflow-y-auto
-          data-[state=open]:animate-in
-          data-[state=open]:slide-in-from-bottom
-          data-[state=closed]:animate-out
-          data-[state=closed]:slide-out-to-bottom
+          [&>button]:hidden
         "
       >
+        <div className="px-6 pt-6 pb-8">
         {/* Top area: icon + heading + close */}
         <div className="flex w-[312px] max-w-full items-start gap-4">
           {/* Icon box */}
@@ -164,8 +162,7 @@ export const BadgeDetailModal: FC<BadgeDetailModalProps> = ({
                 {/* LEFT: icon column */}
                 <div
                   className={`
-                    flex h-full w-[48px] flex-shrink-0 items-center justify-center
-                    px-3
+                    flex self-stretch w-[48px] flex-shrink-0 items-center justify-center
                     ${tierDone ? "bg-[#CFF2E5]" : "bg-[#8080801A]"}
                   `}
                 >
@@ -194,7 +191,8 @@ export const BadgeDetailModal: FC<BadgeDetailModalProps> = ({
             );
           })}
         </div>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 };
