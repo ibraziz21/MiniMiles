@@ -1,18 +1,16 @@
-// src/app/api/history/[address]/route.ts
+// app/api/history/[address]/route.ts
 import { NextResponse } from 'next/server';
-import {
-  createPublicClient,
-  http,
-  type Address,
-  type Abi,
-} from 'viem';
+import { createPublicClient, http, type Address, type Abi } from 'viem';
 import { celo } from 'viem/chains';
-import erc20Abi from '@/contexts/cusd-abi.json'; // has `symbol()` ABI
+import erc20Abi from '@/contexts/cusd-abi.json';
+import { createClient } from '@supabase/supabase-js';
 
-const publicClient = createPublicClient({
-  chain: celo,
-  transport: http(),
-});
+const publicClient = createPublicClient({ chain: celo, transport: http() });
+
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY!
+);
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,30 +18,13 @@ export const dynamic = 'force-dynamic';
 const SUBGRAPH_URL =
   'https://api.studio.thegraph.com/query/115307/akiba-v-3/version/latest';
 
-interface CacheEntry { expires: number; data: any }
-const CACHE: Record<string, CacheEntry> = {};
-const TTL_MS = 30_000;
-const USE_CACHE = true;
-
-const FULL_QUERY = /* GraphQL */ `
-query Full($user: Bytes!) {
-  mints: transfers(
-    where: { to: $user, from: "0x0000000000000000000000000000000000000000" }
-    orderBy: blockTimestamp
-    orderDirection: desc
-  ) { id value blockTimestamp }
-
-  spends: transfers(
-    where: { from: $user }
-    orderBy: blockTimestamp
-    orderDirection: desc
-  ) { id value blockTimestamp }
-
+const RAFFLE_QUERY = /* GraphQL */ `
+query Raffle($user: Bytes!) {
   joins: participantJoineds(
     where: { participant: $user }
     orderBy: blockTimestamp
     orderDirection: desc
-  ) { id roundId blockTimestamp }
+  ) { id roundId tickets blockTimestamp transactionHash }
 
   raffleResults: winnerSelecteds(
     orderBy: blockTimestamp
@@ -55,251 +36,276 @@ query Full($user: Bytes!) {
     orderBy: blockTimestamp
     orderDirection: desc
     first: 50
-  ) {
-    roundId
-    rewardToken
-    rewardPool
-  }
+  ) { roundId rewardToken rewardPool }
 }
 `;
 
+interface CacheEntry { expires: number; data: any }
+const CACHE: Record<string, CacheEntry> = {};
+const TTL_MS     = 5 * 60_000;
+const CDN_MAXAGE = 60;
+const CDN_STALE  = 5 * 60;
+
+const USD_SYMBOLS = new Set(['cusd', 'usdt', 'usdc', 'dai']);
+
+function milestoneNote(reason: string): string {
+  if (reason === 'profile-milestone-50')  return 'Profile 50% complete milestone';
+  if (reason === 'profile-milestone-100') return 'Profile 100% complete milestone';
+  if (reason.startsWith('streak:'))       return `Streak reward — ${reason.slice(7)}`;
+  return 'Bonus reward';
+}
+
 function isAddress(a: string) {
-  const ok = /^0x[a-fA-F0-9]{40}$/.test(a);
-  if (!ok) {
-    console.warn('[history][isAddress] invalid address:', a);
-  }
-  return ok;
+  return /^0x[a-fA-F0-9]{40}$/.test(a);
+}
+
+/** Convert "YYYY-MM-DD" or ISO string → unix seconds */
+function toTs(dateStr: string): number {
+  return Math.floor(new Date(dateStr).getTime() / 1000);
 }
 
 export async function GET(_req: Request, context: any) {
-  // ✅ IMPORTANT: params is a Promise in newer Next, so we must await it
-  const params = await context?.params;
-  console.log('[history][GET] resolved params:', params);
-
+  const params  = await context?.params;
   const address: string | undefined = params?.address;
-  console.log('[history][GET] raw address param:', address);
 
   if (!address || !isAddress(address)) {
-    console.warn('[history][GET] rejecting request with bad address:', address);
-    return NextResponse.json(
-      { ok: false, error: 'Bad address', provided: address },
-      { status: 400 }
-    );
+    return NextResponse.json({ ok: false, error: 'Bad address' }, { status: 400 });
   }
 
   const key = address.toLowerCase();
-  console.log('[history][GET] normalized address key:', key);
 
-  // Cache
-  if (USE_CACHE) {
-    const c = CACHE[key];
-    if (c && c.expires > Date.now()) {
-      console.log('[history][GET] cache HIT for', key);
-      return NextResponse.json(
-        { ok: true, ...c.data, meta: { ...c.data.meta, cached: true } },
-        { headers: { 'X-Cache': 'HIT' } }
-      );
-    } else if (c) {
-      console.log('[history][GET] cache EXPIRED for', key);
-    } else {
-      console.log('[history][GET] cache MISS for', key);
-    }
-  }
-
-  // Subgraph fetch
-  let graphJson: any;
-  try {
-    console.log('[history][GET] fetching subgraph for', key, '→', SUBGRAPH_URL);
-    const res = await fetch(SUBGRAPH_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: FULL_QUERY, variables: { user: key } })
-    });
-
-    const raw = await res.text();
-    console.log('[history][GET] subgraph status:', res.status);
-
-    try {
-      graphJson = raw ? JSON.parse(raw) : {};
-    } catch {
-      console.error('[history][GET] invalid JSON from subgraph, raw snippet:', raw.slice(0, 200));
-      return NextResponse.json(
-        { ok: false, error: 'Invalid JSON from subgraph', snippet: raw.slice(0, 200) },
-        { status: 502 }
-      );
-    }
-
-    if (!res.ok || graphJson.errors) {
-      console.error('[history][GET] subgraph error:', graphJson.errors || res.statusText);
-      return NextResponse.json(
-        { ok: false, error: 'Subgraph error', detail: graphJson.errors || res.statusText },
-        { status: 502 }
-      );
-    }
-  } catch (e: any) {
-    console.error('[history][GET] fetch exception:', e);
+  // In-process cache hit
+  if (CACHE[key] && CACHE[key].expires > Date.now()) {
     return NextResponse.json(
-      { ok: false, error: 'Fetch exception', detail: e.message || String(e) },
-      { status: 502 }
+      { ok: true, ...CACHE[key].data, meta: { ...CACHE[key].data.meta, cached: true } },
+      { headers: { 'X-Cache': 'HIT', 'Cache-Control': `public, s-maxage=${CDN_MAXAGE}, stale-while-revalidate=${CDN_STALE}` } }
     );
   }
 
-  const d = graphJson.data || {};
-  const mints = Array.isArray(d.mints) ? d.mints : [];
-  const spends = Array.isArray(d.spends) ? d.spends : [];
-  const joins = Array.isArray(d.joins) ? d.joins : [];
-  const raffleResults = Array.isArray(d.raffleResults) ? d.raffleResults : [];
-  const rounds = Array.isArray(d.rounds) ? d.rounds : [];
+  const stale = () => CACHE[key] ?? null;
 
-  console.log('[history][GET] subgraph counts', {
-    mints: mints.length,
-    spends: spends.length,
-    joins: joins.length,
-    raffleResults: raffleResults.length,
-    rounds: rounds.length,
-  });
+  // ── All fetches in parallel ──────────────────────────────────────────────────
+  const [dailyRes, partnerRes, mintRes, subgraphRes] = await Promise.allSettled([
 
-  // Build lookup: roundId → roundMeta
-  const roundById: Record<string, any> = {};
-  for (const r of rounds) roundById[r.roundId] = r;
+    // 1. Daily quest completions — full lifetime history
+    supabase
+      .from('daily_engagements')
+      .select('id, quest_id, claimed_at, points_awarded, quests(title)')
+      .eq('user_address', key)
+      .order('claimed_at', { ascending: false })
+      .limit(500),
 
-  // Earn
-  const earnItems = mints.map((t: any) => {
-    const amt = Number(t.value) / 1e18;
-    return {
-      id: t.id,
-      ts: +t.blockTimestamp,
-      type: 'EARN' as const,
-      amount: amt.toFixed(0),
-      note: `You earned ${amt.toFixed(0)} MiniMiles`
-    };
-  });
+    // 2. Partner quest completions — full lifetime history
+    supabase
+      .from('partner_engagements')
+      .select('id, partner_quest_id, claimed_at, points_awarded, partner_quests(title)')
+      .eq('user_address', key)
+      .order('claimed_at', { ascending: false })
+      .limit(200),
 
-  // Spend
-  const spendItems = spends.map((t: any) => {
-    const amt = Number(t.value) / 1e18;
-    return {
-      id: t.id,
-      ts: +t.blockTimestamp,
-      type: 'SPEND' as const,
-      amount: amt.toFixed(0),
-      note: `You spent ${amt.toFixed(0)} MiniMiles`
-    };
-  });
+    // 3. Mint jobs — only profile milestones and streaks (not covered by engagement tables)
+    supabase
+      .from('minipoint_mint_jobs')
+      .select('id, points, reason, tx_hash, created_at')
+      .eq('user_address', key)
+      .eq('status', 'completed')
+      .or('reason.like.profile-milestone-%,reason.like.streak:%')
+      .order('created_at', { ascending: false })
+      .limit(200),
 
-  // Joins
-  const joinItems = joins.map((j: any) => ({
-    id: j.id ?? `${j.roundId}-${j.blockTimestamp}-join`,
-    ts: +j.blockTimestamp,
-    type: 'RAFFLE_ENTRY' as const,
-    roundId: j.roundId,
-    note: `Entered raffle #${j.roundId}`
-  }));
+    // 4. Subgraph — raffle joins / results / round metadata
+    fetch(SUBGRAPH_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: RAFFLE_QUERY, variables: { user: key } }),
+    }),
+  ]);
 
-  // Token symbol resolution
-  const symbolCache: Record<string, string> = {};
-  async function loadSymbols(addrs: Address[]) {
-    const unique = addrs
-      .map(a => a?.toLowerCase() as Address)
-      .filter(a => a && !symbolCache[a]);
-    if (!unique.length) return;
+  // ── Build earn items ─────────────────────────────────────────────────────────
+  let earnItems: any[] = [];
+  let dbOk = false;
 
-    console.log('[history][GET] loading symbols for', unique.length, 'tokens');
-
-    const calls = unique.map(addr => ({
-      address: addr,
-      abi: erc20Abi.abi as Abi,
-      functionName: 'symbol',
-    }));
-
-    const res = await publicClient.multicall({ contracts: calls, allowFailure: true });
-
-    unique.forEach((addr, i) => {
-      const out = res[i];
-      if (out.status === 'success') {
-        symbolCache[addr] = out.result as string;
-      } else {
-        console.warn('[history][GET] symbol multicall failed for', addr);
-        symbolCache[addr] = '???';
-      }
-    });
+  // Daily engagements
+  if (dailyRes.status === 'fulfilled' && !dailyRes.value.error) {
+    dbOk = true;
+    for (const row of dailyRes.value.data ?? []) {
+      const questTitle = (row as any).quests?.title ?? null;
+      earnItems.push({
+        id:     `daily-${row.id}`,
+        ts:     toTs(row.claimed_at),
+        type:   'EARN' as const,
+        amount: String(row.points_awarded ?? 0),
+        note:   questTitle ? `Daily quest — ${questTitle}` : 'Daily quest reward',
+      });
+    }
   }
 
-  const rewardTokens: Address[] = rounds
-    .map((r: any) => r.rewardToken as Address)
-    .filter(Boolean);
+  // Partner engagements
+  if (partnerRes.status === 'fulfilled' && !partnerRes.value.error) {
+    dbOk = true;
+    for (const row of partnerRes.value.data ?? []) {
+      const questTitle = (row as any).partner_quests?.title ?? null;
+      earnItems.push({
+        id:     `partner-${row.id}`,
+        ts:     toTs(row.claimed_at),
+        type:   'EARN' as const,
+        amount: String(row.points_awarded ?? 0),
+        note:   questTitle ? `Partner quest — ${questTitle}` : 'Partner quest reward',
+      });
+    }
+  }
 
-  await loadSymbols(rewardTokens);
+  // Mint jobs (profile milestones + streaks)
+  if (mintRes.status === 'fulfilled' && !mintRes.value.error) {
+    dbOk = true;
+    for (const row of mintRes.value.data ?? []) {
+      earnItems.push({
+        id:     `mint-${row.id}`,
+        ts:     toTs(row.created_at),
+        type:   'EARN' as const,
+        amount: String(row.points ?? 0),
+        txHash: row.tx_hash ?? undefined,
+        note:   milestoneNote(row.reason ?? ''),
+      });
+    }
+  }
 
-  // Results (public)
-  const resultItems = raffleResults.map((w: any) => {
-    const meta = roundById[w.roundId] || {};
-    const tokenAddr = (meta.rewardToken || '0x').toLowerCase();
-    const symbol = symbolCache[tokenAddr] || '???';
+  // Stale fallback if all DB queries failed
+  if (!dbOk) {
+    const s = stale();
+    if (s) earnItems = s.data._earnItems ?? [];
+  }
 
-    return {
-      id: w.id,
-      ts: +w.blockTimestamp,
-      type: 'RAFFLE_RESULT' as const,
-      roundId: w.roundId,
-      winner: w.winner,
-      rewardToken: tokenAddr,
-      symbol,
-      rewardPool: meta.rewardPool ?? null,
-      image: null,
-      note:
-        symbol !== '???' && w.reward
-          ? `Won ${Number(w.reward) / 1e18} ${symbol}`
-          : `Raffle #${w.roundId} result`,
-    };
-  });
+  // Sort by newest first
+  earnItems.sort((a, b) => b.ts - a.ts);
 
-  // Personal stats
-  const myWins = resultItems.filter((r: { winner: string }) => r.winner?.toLowerCase() === key);
+  // ── Subgraph → raffle items ─────────────────────────────────────────────────
+  let joinItems:    any[] = [];
+  let resultItems:  any[] = [];
+  let subgraphStale = false;
 
-  const history = [...earnItems, ...spendItems, ...joinItems]
-    .sort((a, b) => b.ts - a.ts);
+  if (subgraphRes.status === 'fulfilled') {
+    try {
+      const res = subgraphRes.value;
+      if (res.status === 429) throw new Error('rate-limited');
 
-  const totalEarned = earnItems.reduce((s: number, i: any) => s + Number(i.amount), 0);
+      const graphJson = await res.json();
+      if (res.ok && !graphJson.errors) {
+        const d             = graphJson.data || {};
+        const joins         = Array.isArray(d.joins)         ? d.joins         : [];
+        const raffleResults = Array.isArray(d.raffleResults)  ? d.raffleResults  : [];
+        const rounds: any[] = Array.isArray(d.rounds)         ? d.rounds         : [];
+
+        // Token symbol resolution via multicall
+        const symbolCache: Record<string, string> = {};
+        const tokenAddrs: Address[] = rounds
+          .map((r: any) => r.rewardToken as Address)
+          .filter(Boolean);
+
+        if (tokenAddrs.length) {
+          const unique = [...new Set(tokenAddrs.map(a => a.toLowerCase() as Address))];
+          const calls  = unique.map(addr => ({ address: addr, abi: erc20Abi.abi as Abi, functionName: 'symbol' }));
+          try {
+            const results = await publicClient.multicall({ contracts: calls, allowFailure: true });
+            unique.forEach((addr, i) => {
+              symbolCache[addr] = results[i].status === 'success' ? (results[i].result as string) : '???';
+            });
+          } catch { /* symbols optional */ }
+        }
+
+        const roundById: Record<string, any> = {};
+        for (const r of rounds) roundById[r.roundId] = r;
+
+        joinItems = joins.map((j: any) => ({
+          id:      j.id,
+          ts:      +j.blockTimestamp,
+          type:    'RAFFLE_ENTRY' as const,
+          roundId: String(j.roundId),
+          tickets: Number(j.tickets ?? 1),
+          txHash:  j.transactionHash ?? undefined,
+          note:    `Entered raffle #${j.roundId}` + (Number(j.tickets) > 1 ? ` · ${j.tickets} tickets` : ''),
+        }));
+
+        resultItems = raffleResults.map((w: any) => {
+          const meta      = roundById[w.roundId] || {};
+          const tokenAddr = (meta.rewardToken || '0x').toLowerCase();
+          const symbol    = symbolCache[tokenAddr] || '???';
+          return {
+            id:           w.id,
+            ts:           +w.blockTimestamp,
+            type:         'RAFFLE_RESULT' as const,
+            roundId:      String(w.roundId),
+            winner:       w.winner,
+            rewardToken:  tokenAddr,
+            symbol,
+            rewardAmount: w.reward ?? null,
+            rewardPool:   meta.rewardPool ?? null,
+            image:        null,
+            note:
+              symbol !== '???' && w.reward
+                ? `Won ${Number(w.reward) / 1e18} ${symbol}`
+                : `Raffle #${w.roundId} result`,
+          };
+        });
+      } else {
+        throw new Error('subgraph-error');
+      }
+    } catch (e: any) {
+      console.warn('[history] Subgraph error:', e?.message);
+      const s = stale();
+      if (s) {
+        joinItems     = s.data._joinItems    ?? [];
+        resultItems   = s.data.raffleResults ?? [];
+        subgraphStale = true;
+      }
+    }
+  }
+
+  // ── Stats ───────────────────────────────────────────────────────────────────
+  const myWins          = resultItems.filter((r: any) => r.winner?.toLowerCase() === key);
   const totalRafflesWon = myWins.length;
-  const totalUSDWon = 0;
+  const totalEarned     = earnItems.reduce((s: number, i: any) => s + Number(i.amount), 0);
+  const totalUSDWon     = myWins.reduce((s: number, w: any) => {
+    const amount = w.rewardAmount ?? w.rewardPool;
+    if (amount && USD_SYMBOLS.has((w.symbol ?? '').toLowerCase())) {
+      return s + Number(amount) / 1e18;
+    }
+    return s;
+  }, 0);
 
-  const participatingRaffles = Array.from(
-    new Set(joinItems.map((j: any) => Number(j.roundId)))
-  );
-
-  console.log('[history][GET] stats', {
-    totalEarned,
-    totalRafflesWon,
-    participatingRaffles: participatingRaffles.length,
-  });
+  const history = [...earnItems, ...joinItems].sort((a, b) => b.ts - a.ts);
+  const participatingRaffles = [...new Set(joinItems.map((j: any) => Number(j.roundId)))];
 
   const payload = {
     history,
     raffleResults: resultItems,
     stats: { totalEarned, totalRafflesWon, totalUSDWon },
     participatingRaffles,
+    _earnItems: earnItems,
+    _joinItems: joinItems,
     meta: {
       address: key,
       generatedAt: new Date().toISOString(),
       counts: {
-        mints: mints.length,
-        spends: spends.length,
-        joins: joins.length,
+        daily:   (dailyRes.status === 'fulfilled' ? dailyRes.value.data?.length : 0) ?? 0,
+        partner: (partnerRes.status === 'fulfilled' ? partnerRes.value.data?.length : 0) ?? 0,
+        milestones: (mintRes.status === 'fulfilled' ? mintRes.value.data?.length : 0) ?? 0,
+        joins:   joinItems.length,
         results: resultItems.length,
-        myWins: myWins.length,
+        myWins:  myWins.length,
       },
       cached: false,
-      ttlMs: TTL_MS,
+      stale:  !dbOk || subgraphStale,
+      ttlMs:  TTL_MS,
     },
   };
 
-  if (USE_CACHE) {
-    CACHE[key] = { expires: Date.now() + TTL_MS, data: payload };
-    console.log('[history][GET] cache SET for', key);
-  }
+  CACHE[key] = { expires: Date.now() + TTL_MS, data: payload };
 
-  console.log('[history][GET] returning payload for', key);
-
-  return NextResponse.json({ ok: true, ...payload }, { headers: { 'X-Cache': 'MISS' } });
+  return NextResponse.json({ ok: true, ...payload }, {
+    headers: {
+      'X-Cache': 'MISS',
+      'Cache-Control': `public, s-maxage=${CDN_MAXAGE}, stale-while-revalidate=${CDN_STALE}`,
+    },
+  });
 }

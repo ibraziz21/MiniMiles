@@ -22,7 +22,13 @@ type PartnerEngagementPayload = {
   pointsAwarded: number;
 };
 
-type MintJobPayload = DailyEngagementPayload | PartnerEngagementPayload;
+type ProfileMilestonePayload = {
+  kind: "profile_milestone";
+  userAddress: string;
+  milestone: 50 | 100;
+};
+
+type MintJobPayload = DailyEngagementPayload | PartnerEngagementPayload | ProfileMilestonePayload;
 
 type MintJobRow = {
   id: string;
@@ -107,6 +113,19 @@ async function applyMintPayload(payload: MintJobPayload) {
     if (error && !isDuplicateError(error)) {
       throw error;
     }
+    return;
+  }
+
+  if (payload.kind === "profile_milestone") {
+    const flagField =
+      payload.milestone === 50
+        ? "profile_milestone_50_claimed"
+        : "profile_milestone_100_claimed";
+    const { error } = await supabase
+      .from("users")
+      .update({ [flagField]: true })
+      .eq("user_address", payload.userAddress.toLowerCase());
+    if (error) throw error;
     return;
   }
 
@@ -275,6 +294,40 @@ export async function claimQueuedDailyReward(opts: {
     queued: job.status !== "completed",
     txHash: job.tx_hash ?? undefined,
     scopeKey,
+  };
+}
+
+export async function claimQueuedProfileMilestone(opts: {
+  userAddress: string;
+  milestone: 50 | 100;
+  points: number;
+}) {
+  const { userAddress, milestone, points } = opts;
+  const userLc = userAddress.toLowerCase();
+  const idempotencyKey = `profile-milestone:${milestone}:${userLc}`;
+
+  await ensureMintJob({
+    idempotencyKey,
+    userAddress: userLc,
+    points,
+    reason: `profile-milestone-${milestone}`,
+    payload: { kind: "profile_milestone", userAddress: userLc, milestone },
+  });
+
+  await processMintQueue({ maxJobs: 5 });
+
+  const job = await getMintJob(idempotencyKey);
+  if (!job) throw new Error(`Mint job missing: ${idempotencyKey}`);
+
+  if (job.status === "failed") {
+    return { ok: false as const, message: job.last_error ?? "Mint failed" };
+  }
+
+  return {
+    ok: true as const,
+    queued: job.status !== "completed",
+    txHash: job.tx_hash ?? undefined,
+    points,
   };
 }
 
