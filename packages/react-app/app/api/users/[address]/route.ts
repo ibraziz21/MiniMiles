@@ -9,14 +9,36 @@ const supabase = createClient(
 
 function isEthAddress(s: unknown): s is string {
   if (typeof s !== "string") return false;
-  const trimmed = s.trim();
-  return /^0x[a-fA-F0-9]{40}$/.test(trimmed);
+  return /^0x[a-fA-F0-9]{40}$/.test(s.trim());
 }
 
-// Next 16: params is a Promise, so we must await it
 type RouteContext = {
   params: Promise<{ address?: string }>;
 };
+
+const PROFILE_FIELDS = [
+  "username",
+  "full_name",
+  "email",
+  "phone",
+  "twitter_handle",
+  "avatar_url",
+  "bio",
+  "interests",
+] as const;
+
+function computeCompletion(row: Record<string, any>): number {
+  let filled = 0;
+  for (const f of PROFILE_FIELDS) {
+    const v = row[f];
+    if (f === "interests") {
+      if (Array.isArray(v) && v.length > 0) filled++;
+    } else {
+      if (v && String(v).trim()) filled++;
+    }
+  }
+  return Math.round((filled / PROFILE_FIELDS.length) * 100);
+}
 
 export async function GET(_req: Request, { params }: RouteContext) {
   const { address: raw } = await params;
@@ -28,23 +50,19 @@ export async function GET(_req: Request, { params }: RouteContext) {
 
   const address = raw.trim().toLowerCase();
 
-  // 1) ensure the stub row exists (ignore duplicate conflicts)
-  const { error: upErr } = await supabase
+  // auto-upsert stub row
+  await supabase
     .from("users")
     .upsert(
       { user_address: address },
       { onConflict: "user_address", ignoreDuplicates: true }
     );
 
-  if (upErr) {
-    console.error("[GET /api/users/[address]] upsert error:", upErr);
-    return NextResponse.json({ error: "DB error" }, { status: 500 });
-  }
-
-  // 2) fetch the flag
   const { data, error } = await supabase
     .from("users")
-    .select("is_member")
+    .select(
+      "is_member, username, full_name, email, phone, twitter_handle, avatar_url, bio, country, interests, profile_milestone_50_claimed, profile_milestone_100_claimed"
+    )
     .eq("user_address", address)
     .single();
 
@@ -53,7 +71,9 @@ export async function GET(_req: Request, { params }: RouteContext) {
     return NextResponse.json({ error: "DB error" }, { status: 500 });
   }
 
-  return NextResponse.json({ isMember: data?.is_member === true });
+  const completion = computeCompletion(data ?? {});
+
+  return NextResponse.json({ ...data, isMember: data?.is_member === true, completion });
 }
 
 export async function PATCH(req: Request, { params }: RouteContext) {
@@ -73,37 +93,70 @@ export async function PATCH(req: Request, { params }: RouteContext) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const email = String(body?.email ?? "").trim();
-  const twitter_handle = String(body?.twitter_handle ?? "").trim();
-  const phone = String(body?.phone ?? "").trim();
+  const allowed: Record<string, any> = {};
 
-  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  const phoneOk = /^\+?[0-9]{9,15}$/.test(phone);
+  if ("username" in body) {
+    const v = String(body.username ?? "").trim();
+    if (!v || !/^[a-zA-Z0-9_]{3,30}$/.test(v)) {
+      return NextResponse.json(
+        { error: "username must be 3–30 alphanumeric/underscore chars" },
+        { status: 400 }
+      );
+    }
+    allowed.username = v;
+  }
+  if ("full_name" in body) {
+    const v = String(body.full_name ?? "").trim();
+    if (!v) return NextResponse.json({ error: "full_name cannot be empty" }, { status: 400 });
+    allowed.full_name = v;
+  }
+  if ("email" in body) {
+    const v = String(body.email ?? "").trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+      return NextResponse.json({ error: "Invalid email" }, { status: 400 });
+    }
+    allowed.email = v;
+  }
+  if ("phone" in body) {
+    const v = String(body.phone ?? "").trim();
+    if (!/^\+?[0-9]{9,15}$/.test(v)) {
+      return NextResponse.json({ error: "Invalid phone" }, { status: 400 });
+    }
+    allowed.phone = v;
+  }
+  if ("twitter_handle" in body) {
+    const v = String(body.twitter_handle ?? "").trim();
+    if (!v) return NextResponse.json({ error: "twitter_handle cannot be empty" }, { status: 400 });
+    allowed.twitter_handle = v;
+  }
+  if ("avatar_url" in body) {
+    allowed.avatar_url = String(body.avatar_url ?? "").trim() || null;
+  }
+  if ("bio" in body) {
+    const v = String(body.bio ?? "").trim().slice(0, 200);
+    allowed.bio = v || null;
+  }
+  if ("country" in body) {
+    allowed.country = String(body.country ?? "").trim() || null;
+  }
+  if ("interests" in body) {
+    if (!Array.isArray(body.interests)) {
+      return NextResponse.json({ error: "interests must be an array" }, { status: 400 });
+    }
+    allowed.interests = body.interests.slice(0, 8).map(String);
+  }
 
-  if (!emailOk) {
-    return NextResponse.json({ error: "Invalid email" }, { status: 400 });
-  }
-  if (!twitter_handle) {
-    return NextResponse.json({ error: "Twitter is required" }, { status: 400 });
-  }
-  if (!phoneOk) {
-    return NextResponse.json({ error: "Invalid phone" }, { status: 400 });
+  if (Object.keys(allowed).length === 0) {
+    return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
   }
 
-  const { error: upErr } = await supabase
+  const { error } = await supabase
     .from("users")
-    .upsert(
-      {
-        user_address: address,
-        email,
-        twitter_handle,
-        phone,
-      },
-      { onConflict: "user_address" }
-    );
+    .update(allowed)
+    .eq("user_address", address);
 
-  if (upErr) {
-    console.error("[PATCH /api/users/[address]] upsert error:", upErr);
+  if (error) {
+    console.error("[PATCH /api/users/[address]]", error);
     return NextResponse.json({ error: "DB error" }, { status: 500 });
   }
 
