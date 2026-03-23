@@ -28,17 +28,15 @@ export async function POST(req: Request) {
     const maxJobs = Math.min(100, Math.max(1, requestedMax));
 
     // Reset failed + stuck-processing jobs back to pending
-    const [{ count: failedReset }, { count: stuckReset }] = await Promise.all([
+    await Promise.all([
       supabase
         .from("minipoint_mint_jobs")
         .update({ status: "pending", attempts: 0, last_error: null })
-        .eq("status", "failed")
-        .select("id", { count: "exact", head: true }),
+        .eq("status", "failed"),
       supabase
         .from("minipoint_mint_jobs")
         .update({ status: "pending" })
-        .eq("status", "processing")
-        .select("id", { count: "exact", head: true }),
+        .eq("status", "processing"),
     ]);
 
     const result = await processMintQueue({ maxJobs });
@@ -47,7 +45,6 @@ export async function POST(req: Request) {
       success: true,
       acquired: result.acquired,
       processed: result.processed,
-      reset: { failed: failedReset ?? 0, stuck: stuckReset ?? 0 },
     });
   } catch (err: any) {
     console.error("[drain-mint-queue]", err);
