@@ -4,13 +4,9 @@ import { supabase } from "./supabaseClient";
 import * as dotenv from "dotenv";
 dotenv.config();
 
-const CELO_RPC_URL = process.env.CELO_RPC_URL || "";
-const PRIVATE_KEY = process.env.PRIVATE_KEY || "";
-const MINIPOINTS_ADDRESS = process.env.MINIPOINTS_ADDRESS || "";
+const CELO_RPC_URL = process.env.CELO_RPC_URL || "https://forno.celo.org";
+const MINIPOINTS_ADDRESS = process.env.MINIPOINTS_ADDRESS || "0xEeD878017f027FE96316007D0ca5fDA58Ee93a6b";
 const USDT_ADDRESS = process.env.USDT_ADDRESS || "";
-
-const provider = new ethers.JsonRpcProvider(CELO_RPC_URL);
-const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
 
 // Minimal ABI for your MiniPoints
 const MINIPOINTS_ABI = [
@@ -23,8 +19,39 @@ const ERC20_ABI = [
   "event Transfer(address indexed from, address indexed to, uint256 value)"
 ];
 
-export const miniPoints = new ethers.Contract(MINIPOINTS_ADDRESS, MINIPOINTS_ABI, wallet);
-const usdtToken = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, provider);
+// Lazy-initialize so a missing/invalid key doesn't crash the whole process on import
+let _provider: ethers.JsonRpcProvider | null = null;
+let _wallet: ethers.Wallet | null = null;
+let _miniPoints: ethers.Contract | null = null;
+let _usdtToken: ethers.Contract | null = null;
+
+function getProvider(): ethers.JsonRpcProvider {
+  if (!_provider) _provider = new ethers.JsonRpcProvider(CELO_RPC_URL);
+  return _provider;
+}
+
+function getWallet(): ethers.Wallet {
+  if (!_wallet) {
+    const raw = (process.env.RETRY_PK ?? process.env.PRIVATE_KEY ?? "").trim();
+    if (!raw) throw new Error("No PRIVATE_KEY or RETRY_PK set");
+    const pk = raw.startsWith("0x") ? raw : `0x${raw}`;
+    _wallet = new ethers.Wallet(pk, getProvider());
+  }
+  return _wallet;
+}
+
+export function getMiniPoints(): ethers.Contract {
+  if (!_miniPoints) _miniPoints = new ethers.Contract(MINIPOINTS_ADDRESS, MINIPOINTS_ABI, getWallet());
+  return _miniPoints;
+}
+
+function getUsdtToken(): ethers.Contract {
+  if (!_usdtToken) _usdtToken = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, getProvider());
+  return _usdtToken;
+}
+
+/** @deprecated use the mint queue instead */
+export const miniPoints = { mint: (...args: any[]) => getMiniPoints().mint(...args) };
 
 function getTodayDateString(): string {
     return new Date().toISOString().split("T")[0];
@@ -128,7 +155,7 @@ export async function hasDoneOneMinipayAction(userAddress: string): Promise<bool
  * Checks if user has 25 or more outgoing transactions.
  */
 export async function has25Transactions(userAddress: string): Promise<boolean> {
-  const txCount = await provider.getTransactionCount(userAddress);
+  const txCount = await getProvider().getTransactionCount(userAddress);
   return txCount >= 25;
 }
 
@@ -138,16 +165,11 @@ export async function has25Transactions(userAddress: string): Promise<boolean> {
  * Adjust block range or indexing strategy for your production environment.
  */
 export async function hasTransferred5USDT(userAddress: string): Promise<boolean> {
+  const provider = getProvider();
   const currentBlock = await provider.getBlockNumber();
-  // For demonstration, we check the last 200000 blocks (~some range).
-  // Tweak this if you want a shorter or longer range, or keep an index server.
   const startBlock = currentBlock - 200000;
-  if (startBlock < 0) {
-    // if on a testnet with fewer blocks, clamp to 0
-    return false;
-  }
+  if (startBlock < 0) return false;
 
-  // Filter logs where `from = userAddress`
   const filter = {
     address: USDT_ADDRESS,
     fromBlock: startBlock,
@@ -160,16 +182,10 @@ export async function hasTransferred5USDT(userAddress: string): Promise<boolean>
 
   const logs = await provider.getLogs(filter);
   for (const log of logs) {
-    // parse the log
-    const parsed = usdtToken.interface.parseLog(log);
+    const parsed = getUsdtToken().interface.parseLog(log);
     if (!parsed) continue;
-    // Transfer event => [from, to, value]
     const value = parsed.args.value as bigint;
-
-    // If >= 5 * 1e18 (assuming 18 decimals)
-    if (value >= ethers.parseUnits("5", 18)) {
-      return true;
-    }
+    if (value >= ethers.parseUnits("5", 18)) return true;
   }
   return false;
 }
@@ -178,7 +194,7 @@ export async function hasTransferred5USDT(userAddress: string): Promise<boolean>
  * Mints MiniPoints to the user from the owner wallet.
  */
 export async function mintMiniPoints(userAddress: string, amount: bigint) {
-  const tx = await miniPoints.mint(userAddress, amount);
+  const tx = await getMiniPoints().mint(userAddress, amount);
   console.log(`Minting ${amount} points to ${userAddress}, txHash = ${tx.hash}`);
   await tx.wait();
   console.log("Mint confirmed");
