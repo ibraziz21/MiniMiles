@@ -20,15 +20,15 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.49.4
         version: 2.100.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      dotenv:
+        specifier: ^17.3.1
+        version: 17.3.1
       ethers:
         specifier: ^6.13.5
         version: 6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       node-cron:
         specifier: ^4.2.1
         version: 4.2.1
-      viem:
-        specifier: ^2.47.6
-        version: 2.47.6(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
     devDependencies:
       '@types/express':
         specifier: ^4.17.17
