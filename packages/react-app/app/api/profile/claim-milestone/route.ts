@@ -15,7 +15,6 @@ const PROFILE_FIELDS = [
   "email",
   "phone",
   "twitter_handle",
-  "avatar_url",
   "bio",
   "interests",
 ] as const;
