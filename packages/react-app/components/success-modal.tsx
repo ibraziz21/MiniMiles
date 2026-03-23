@@ -41,11 +41,11 @@ const SuccessModal = ({
             </span>
 
             <DialogTitle className="mt-3 text-center text-xl font-semibold text-gray-900">
-              Claimed Successfully
+              Claim Received
             </DialogTitle>
 
             <p className="mt-1 text-center text-sm text-gray-500">
-              Your AkibaMiles have been added to your balance.
+              Your AkibaMiles are being processed and will reflect in your balance shortly.
             </p>
           </DialogHeader>
         </div>

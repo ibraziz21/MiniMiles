@@ -6,14 +6,14 @@ import {
   http,
   parseUnits,
 } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { nonceManager, privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 
 import MiniPointsAbi from "@/contexts/minimiles.json";
 
 /* ─── viem / wallet setup ───────────────────────────────── */
 
-const account = privateKeyToAccount(`0x${process.env.PRIVATE_KEY!}`);
+const account = privateKeyToAccount(`0x${process.env.PRIVATE_KEY!}`, { nonceManager });
 
 const publicClient = createPublicClient({
   chain: celo,
@@ -25,6 +25,20 @@ const walletClient = createWalletClient({
   chain: celo,
   transport: http("https://forno.celo.org"),
 });
+
+function makeClients(privateKey?: string) {
+  if (!privateKey) {
+    console.log(`[makeClients] No privateKey provided, using default PRIVATE_KEY account: ${account.address}`);
+    return { account, walletClient, publicClient };
+  }
+  const acc = privateKeyToAccount((privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`) as `0x${string}`, { nonceManager });
+  console.log(`[makeClients] Using RETRY_PK account: ${acc.address}`);
+  return {
+    account: acc,
+    publicClient,
+    walletClient: createWalletClient({ account: acc, chain: celo, transport: http("https://forno.celo.org") }),
+  };
+}
 
 // You can keep these hard-coded or move to envs if you like
 const CONTRACT_ADDRESS = (
@@ -53,12 +67,14 @@ async function writeMiniPointsWithRetries(params: {
   args: readonly unknown[];
   reason?: string;
   attachReferral?: boolean;
+  privateKey?: string;
 }): Promise<`0x${string}`> {
-  const { functionName, args, reason, attachReferral = false } = params;
+  const { functionName, args, reason, attachReferral = false, privateKey } = params;
+  const clients = makeClients(privateKey);
 
   const referralTag = attachReferral
     ? getReferralTag({
-        user: account.address as `0x${string}`,
+        user: clients.account.address as `0x${string}`,
         consumer: DIVVI_CONSUMER,
       })
     : null;
@@ -67,18 +83,14 @@ async function writeMiniPointsWithRetries(params: {
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const nonce = await publicClient.getTransactionCount({
-        address: account.address,
-        blockTag: "pending",
-      });
+      await new Promise(r => setTimeout(r, attempt * 500));
 
-      const txHash = await walletClient.writeContract({
+      const txHash = await clients.walletClient.writeContract({
         address: CONTRACT_ADDRESS,
         abi: MiniPointsAbi.abi,
         functionName,
         args,
-        account,
-        nonce,
+        account: clients.account,
         ...(referralTag ? { dataSuffix: `0x${referralTag}` } : {}),
       });
 
@@ -116,14 +128,16 @@ async function writeMiniPointsWithRetries(params: {
 export async function safeMintMiniPoints(params: {
   to: `0x${string}`;
   points: number;
-  reason?: string; // optional for logging: "username-quest", etc
+  reason?: string;
+  privateKey?: string;
 }): Promise<`0x${string}`> {
-  const { to, points, reason } = params;
+  const { to, points, reason, privateKey } = params;
   return writeMiniPointsWithRetries({
     functionName: "mint",
     args: [to, parseUnits(points.toString(), 18)],
     reason,
     attachReferral: true,
+    privateKey,
   });
 }
 

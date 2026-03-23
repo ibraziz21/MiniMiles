@@ -122,8 +122,10 @@ async function applyMintPayload(payload: MintJobPayload) {
   }
 }
 
-export async function processMintQueue(opts?: { maxJobs?: number }) {
+export async function processMintQueue(opts?: { maxJobs?: number; leaseSeconds?: number }) {
   const maxJobs = opts?.maxJobs ?? 5;
+  // Give enough lease for all jobs: ~8s per job + buffer
+  const leaseSeconds = opts?.leaseSeconds ?? Math.max(LOCK_LEASE_SECONDS, maxJobs * 10);
   const owner = randomUUID();
 
   const { data: acquired, error: lockError } = await supabase.rpc(
@@ -131,7 +133,7 @@ export async function processMintQueue(opts?: { maxJobs?: number }) {
     {
       p_lock_name: LOCK_NAME,
       p_owner: owner,
-      p_lease_seconds: LOCK_LEASE_SECONDS,
+      p_lease_seconds: leaseSeconds,
     }
   );
 
@@ -163,10 +165,12 @@ export async function processMintQueue(opts?: { maxJobs?: number }) {
       if (!job) break;
 
       try {
+        console.log(`[queue] RETRY_PK set: ${!!process.env.RETRY_PK}, job: ${job.id}, user: ${job.user_address}, points: ${job.points}`);
         const txHash = await safeMintMiniPoints({
           to: job.user_address as `0x${string}`,
           points: job.points,
           reason: job.reason ?? undefined,
+          privateKey: process.env.RETRY_PK,
         });
 
         await applyMintPayload(job.payload);
