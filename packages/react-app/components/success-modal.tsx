@@ -12,7 +12,7 @@ import { Player } from "@lottiefiles/react-lottie-player";
 import lottieSuccess from "@/public/json/success.json";
 import { Button } from "./ui/button";
 
-const LottiePlayer = Player as unknown as React.ElementType;
+const LottiePlayer: any = Player;
 
 const SuccessModal = ({
   openSuccess,
