@@ -238,12 +238,13 @@ export default function PartnerQuests({
               {locked && (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="flex items-center rounded-full bg-white/90 p-1">
-                    <Lock
-                      size={16}
-                      color="#238D9D"
-                      weight="bold"
-                      className="mr-1"
-                    />
+                    <span className="mr-1">
+                      <Lock
+                        size={16}
+                        color="#238D9D"
+                        weight="bold"
+                      />
+                    </span>
                     <span className="text-xs font-medium text-[#238D9D]">
                       Coming Soon
                     </span>
@@ -255,12 +256,13 @@ export default function PartnerQuests({
               {completed && (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="flex items-center rounded-full bg-white/90 p-1">
-                    <Check
-                      size={16}
-                      color="#16a34a"
-                      weight="bold"
-                      className="mr-1"
-                    />
+                    <span className="mr-1">
+                      <Check
+                        size={16}
+                        color="#16a34a"
+                        weight="bold"
+                      />
+                    </span>
                     <span className="text-xs font-medium text-[#16a34a]">
                       Completed
                     </span>

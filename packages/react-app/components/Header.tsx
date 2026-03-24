@@ -1,10 +1,9 @@
 import { Disclosure } from "@headlessui/react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useConnect, useAccount } from "wagmi";
+import { useConnect } from "wagmi";
 import { injected } from "wagmi/connectors";
 
 export default function Header() {
@@ -19,9 +18,10 @@ export default function Header() {
   }, []);
 
   return (
-    <Disclosure as="nav" className="border-b border-black">
-      {({ open }) => (
+    <Disclosure>
+      {({ open }: { open: boolean }) => (
         <>
+          <nav className="border-b border-black">
           <div className="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8">
             <div className="relative flex h-16 justify-between">
               <div className="absolute inset-y-0 left-0 flex items-center sm:hidden">
@@ -60,11 +60,12 @@ export default function Header() {
               </div>
             </div>
           </div>
+          </nav>
 
-          <Disclosure.Panel className="sm:hidden">
+          <Disclosure.Panel static className="sm:hidden">
             <div className="space-y-1 pt-2 pb-4">
               <Disclosure.Button
-                as="a"
+                as={Link}
                 href="/"
                 className="block border-l-4 border-black py-2 pl-3 pr-4 text-base font-medium text-black"
               >

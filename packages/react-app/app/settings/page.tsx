@@ -52,11 +52,13 @@ export default function SettingsPage() {
           <span className="font-medium">
             {truncateEthAddress(address ?? '')}
           </span>
-          <Copy
-            size={24}
+          <button
+            type="button"
             className="cursor-pointer"
             onClick={() => handleCopy(address ?? '')}
-          />
+          >
+            <Copy size={24} />
+          </button>
         </div>
       </div>
 
@@ -142,7 +144,9 @@ function SettingRow({
             <Export size={24} />
           </Link>
         ) : (
-          <Copy size={24} className="cursor-pointer" onClick={onCopy} />
+          <button type="button" className="cursor-pointer" onClick={onCopy}>
+            <Copy size={24} />
+          </button>
         )}
       </div>
     </div>

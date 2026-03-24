@@ -89,8 +89,8 @@ function EditRow({
   };
 
   return (
-    <div className={`flex items-center justify-between py-3.5 ${isLast ? '' : 'border-b border-gray-100'}`}>
-      <div className="flex-1 min-w-0 pr-3">
+    <div className={`flex flex-col gap-3 py-3.5 sm:flex-row sm:items-center sm:justify-between ${isLast ? '' : 'border-b border-gray-100'}`}>
+      <div className="min-w-0 flex-1 sm:pr-3">
         <p className="text-[11px] text-gray-400 uppercase tracking-wide mb-0.5">{label}</p>
         {editing ? (
           <input
@@ -102,7 +102,7 @@ function EditRow({
               if (e.key === 'Enter') handleSave();
               if (e.key === 'Escape') { setDraft(value); setEditing(false); }
             }}
-            className="w-full text-sm font-medium text-gray-900 border-b-2 border-[#238D9D] outline-none bg-transparent pb-0.5"
+            className="block w-full max-w-full min-w-0 text-sm font-medium text-gray-900 border-b-2 border-[#238D9D] outline-none bg-transparent pb-0.5"
             placeholder={placeholder}
           />
         ) : (
@@ -111,7 +111,7 @@ function EditRow({
           </p>
         )}
       </div>
-      <div className="flex-shrink-0 flex items-center gap-1.5">
+      <div className="flex flex-shrink-0 items-center gap-1.5 self-end sm:self-auto">
         {editing ? (
           <>
             <button
@@ -158,9 +158,9 @@ function BioRow({ value, onSave }: { value: string; onSave: (v: string) => Promi
 
   return (
     <div className="py-3.5">
-      <div className="flex items-center justify-between mb-1">
+      <div className="mb-1 flex items-center justify-between gap-3">
         <p className="text-[11px] text-gray-400 uppercase tracking-wide">Bio</p>
-        <div className="flex gap-1.5">
+        <div className="flex flex-shrink-0 gap-1.5">
           {editing ? (
             <>
               <button onClick={handleSave} disabled={saving}
@@ -225,7 +225,7 @@ function MilestoneCard({
   };
 
   return (
-    <div className={`rounded-2xl p-4 flex items-center gap-3
+    <div className={`rounded-2xl p-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center
       ${claimed ? 'bg-[#CFF2E5] border border-[#238D9D]/20' : unlocked ? 'bg-white shadow-sm border border-gray-100' : 'bg-gray-50 border border-gray-100'}`}>
       <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0
         ${claimed ? 'bg-[#238D9D]/20' : unlocked ? 'bg-[#238D9D]/10' : 'bg-gray-200'}`}>
@@ -239,14 +239,14 @@ function MilestoneCard({
         </div>
       </div>
       {claimed ? (
-        <span className="text-xs font-bold text-[#238D9D] bg-white px-3 py-1.5 rounded-full border border-[#238D9D]/20 flex-shrink-0">
+        <span className="self-end text-xs font-bold text-[#238D9D] bg-white px-3 py-1.5 rounded-full border border-[#238D9D]/20 flex-shrink-0 sm:self-auto">
           Claimed ✓
         </span>
       ) : (
         <button
           onClick={handle}
           disabled={!unlocked || loading}
-          className={`text-xs font-bold px-3 py-1.5 rounded-full transition-all flex-shrink-0
+          className={`self-end text-xs font-bold px-3 py-1.5 rounded-full transition-all flex-shrink-0 sm:self-auto
             ${unlocked
               ? 'bg-[#238D9D] text-white active:scale-95 shadow-sm'
               : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
@@ -349,7 +349,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="pb-24 font-sterling bg-onboarding min-h-screen">
+    <main className="min-h-screen overflow-x-hidden bg-onboarding pb-24 font-sterling">
       <Toaster richColors />
 
       {/* Header */}
@@ -365,7 +365,7 @@ export default function ProfilePage() {
       ) : (
         <>
           {/* Hero card */}
-          <div className="mx-4 bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-center gap-4">
+          <div className="mx-4 flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm sm:flex-row sm:items-center">
             {/* Avatar + ring */}
             <div className="relative w-24 h-24 flex-shrink-0">
               <ProgressRing pct={completion} />

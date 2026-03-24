@@ -397,14 +397,16 @@ export default function PhysicalRaffleSheet({
           ) : joined ? (
             <div className="flex flex-col justify-center h-full p-6 space-y-6">
               <div className="flex items-center justify-between">
-                <CaretLeft
-                  size={24}
+                <button
+                  type="button"
                   className="cursor-pointer"
                   onClick={() => {
                     setJoined(false);
                     onOpenChange(true);
                   }}
-                />
+                >
+                  <CaretLeft size={24} />
+                </button>
               </div>
 
               <div className="flex justify-center">

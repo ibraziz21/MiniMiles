@@ -236,7 +236,7 @@ const runClaimFlow = async () => {
                         onClick={() => api?.scrollPrev()}
                         className="flex items-center justify-center"
                       >
-                        <CaretLeft size={22} className="text-black" />
+                        <CaretLeft size={22} color="#000000" />
                       </button>
                     ) : (
                       <span />

@@ -360,16 +360,16 @@ const Page = () => {
 </div>
 </div>
 
-      <PhysicalRaffleSheet
+<PhysicalRaffleSheet
   open={activeSheet === "physical"}
-  onOpenChange={(o) => setActiveSheet(o ? "physical" : null)}
+  onOpenChange={(open: boolean) => setActiveSheet(open ? "physical" : null)}
   raffle={physicalRaffle}
 />
 
 {hasMounted && (
   <SpendPartnerQuestSheet
     open={activeSheet === "token"}
-    onOpenChange={(o) => setActiveSheet(o ? "token" : null)}
+    onOpenChange={(open: boolean) => setActiveSheet(open ? "token" : null)}
     raffle={spendRaffle}
   />
 )}

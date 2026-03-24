@@ -12,6 +12,8 @@ import { Player } from "@lottiefiles/react-lottie-player";
 import lottieSuccess from "@/public/json/success.json";
 import { Button } from "./ui/button";
 
+const LottiePlayer = Player as unknown as React.ElementType;
+
 const SuccessModal = ({
   openSuccess,
   setOpenSuccess,
@@ -52,7 +54,7 @@ const SuccessModal = ({
 
         {/* Lottie animation */}
         <div className="mt-2 flex items-center justify-center">
-          <Player
+          <LottiePlayer
             keepLastFrame
             autoplay
             src={lottieSuccess}

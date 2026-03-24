@@ -5,6 +5,7 @@ import { fetchBadgeProgress } from "@/helpers/fetchBadgeProgress";
 import ReferFab from "@/components/refer-fab";
 import DailyChallenges from "@/components/daily-challenge";
 import DashboardHeader from "@/components/dashboard-header";
+import ProfileCtaCard from "@/components/profile-cta-card";
 import { RaffleCard } from "@/components/raffle-card";
 import PointsCard from "@/components/points-card";
 import { SectionHeading } from "@/components/section-heading";
@@ -175,6 +176,14 @@ type PassportState =
   | { status: "idle" | "loading" | "none" }
   | { status: "has"; safe: `0x${string}` };
 
+type ProfileSummary = {
+  username: string | null;
+  full_name: string | null;
+  completion: number;
+  profile_milestone_50_claimed: boolean;
+  profile_milestone_100_claimed: boolean;
+};
+
 /* ──────────────────────────────────────────────────────────────── */
 /*  Badge backend types                                            */
 /* ──────────────────────────────────────────────────────────────── */
@@ -288,6 +297,9 @@ export default function Home() {
   const [hasMounted, setHasMounted] = useState(false);
 
   const [displayName, setDisplayName] = useState<string>("");
+  const [profileSummary, setProfileSummary] = useState<ProfileSummary | null>(
+    null
+  );
     // Badge UI state
   const [passport, setPassport] = useState<PassportState>({ status: "idle" });
   const hasPassport = passport.status === "has";
@@ -385,6 +397,44 @@ const refreshMilesBalanceSoon = useCallback(() => {
     (async () => {
       const values = await fetchBadgeProgress(address as `0x${string}`);
       if (!cancelled) setBadgeProgress(values);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [address]);
+
+  useEffect(() => {
+    if (!address) {
+      setProfileSummary(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/users/${address.toLowerCase()}`, {
+          cache: "no-store",
+        });
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+        if (cancelled) return;
+
+        setProfileSummary({
+          username: data?.username ?? null,
+          full_name: data?.full_name ?? null,
+          completion: Number(data?.completion ?? 0),
+          profile_milestone_50_claimed:
+            data?.profile_milestone_50_claimed === true,
+          profile_milestone_100_claimed:
+            data?.profile_milestone_100_claimed === true,
+        });
+      } catch {
+        if (!cancelled) setProfileSummary(null);
+      }
     })();
 
     return () => {
@@ -623,6 +673,18 @@ const badgeButtonLabel =
       />
 
       <PointsCard points={Number(akibaMilesBalance)} />
+
+      {address &&
+        profileSummary &&
+        profileSummary.completion < 100 && (
+        <ProfileCtaCard
+          completion={profileSummary.completion}
+          profileName={profileSummary.full_name ?? profileSummary.username}
+          milestone50Claimed={profileSummary.profile_milestone_50_claimed}
+          milestone100Claimed={profileSummary.profile_milestone_100_claimed}
+          onOpenProfile={() => router.push("/profile")}
+        />
+      )}
 
       {/* Create/claim Prosperity Pass */}
       {!hasPassport && (
@@ -874,14 +936,14 @@ const badgeButtonLabel =
 
       <PhysicalRaffleSheet
         open={activeSheet === "physical"}
-        onOpenChange={(o) => setActiveSheet(o ? "physical" : null)}
+        onOpenChange={(open: boolean) => setActiveSheet(open ? "physical" : null)}
         raffle={physicalRaffle}
       />
 
       {hasMounted && (
         <SpendPartnerQuestSheet
           open={activeSheet === "token"}
-          onOpenChange={(o) => setActiveSheet(o ? "token" : null)}
+          onOpenChange={(open: boolean) => setActiveSheet(open ? "token" : null)}
           raffle={spendRaffle}
         />
       )}

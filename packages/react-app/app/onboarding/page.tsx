@@ -126,7 +126,7 @@ export default function Onboarding() {
                 <div className="flex flex-col items-center justify-center h-full px-6 bg-onboarding bg-no-repeat bg-cover">
                   {i > 0 && (
                     <button className="self-start mb-4" onClick={() => api?.scrollPrev()}>
-                      <CaretLeft size={24} className="text-black" />
+                      <CaretLeft size={24} color="#000000" />
                     </button>
                   )}
 

@@ -22,7 +22,9 @@ export const GameCard = ({ name, date, image, locked = false }: GameCardProps) =
     {locked && (
       <div className="absolute inset-0 flex flex-col items-center justify-center text-white text-center">
         <div className="bg-white/90 rounded-full flex items-center p-1">
-          <Lock size={16} color="#238D9D" weight="bold" className="mr-1" />
+          <span className="mr-1">
+            <Lock size={16} color="#238D9D" weight="bold" />
+          </span>
           <span className="text-xs text-[#238D9D] font-medium">
             Coming Soon
           </span>

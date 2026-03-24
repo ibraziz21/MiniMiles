@@ -51,11 +51,13 @@ const AccountSheet = () => {
             <h3 className="text-sm text-left">Username</h3>
             <div className="flex justify-between items-center w-full">
               <h2 className="font-medium">{username}</h2>
-              <Copy
-                size={24}
+              <button
+                type="button"
                 className="cursor-pointer"
                 onClick={() => handleCopy(username, "Username")}
-              />
+              >
+                <Copy size={24} />
+              </button>
             </div>
           </div>
 
@@ -64,11 +66,13 @@ const AccountSheet = () => {
             <h3 className="text-sm text-left">Paired address</h3>
             <div className="flex justify-between items-center w-full">
               <h2 className="font-medium break-all">{address}</h2>
-              <Copy
-                size={24}
+              <button
+                type="button"
                 className="cursor-pointer"
                 onClick={() => handleCopy(address!, "Address")}
-              />
+              >
+                <Copy size={24} />
+              </button>
             </div>
           </div>
 
