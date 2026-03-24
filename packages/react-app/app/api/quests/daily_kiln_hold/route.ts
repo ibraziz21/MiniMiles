@@ -10,7 +10,7 @@ const KILN_SHARE_TOKEN_DECIMALS = Number(
   process.env.KILN_SHARE_TOKEN_DECIMALS ?? "6"
 );
 const KILN_DAILY_MIN_HOLD = Number(process.env.KILN_DAILY_MIN_HOLD ?? "10");
-const KILN_DAILY_POINTS = Number(process.env.KILN_DAILY_POINTS ?? "30");
+const KILN_DAILY_POINTS = Number(process.env.KILN_DAILY_POINTS ?? "40");
 
 export async function POST(req: Request) {
   try {

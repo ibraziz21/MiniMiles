@@ -11,7 +11,7 @@ import { claimStreakReward } from "@/helpers/streaks";
  *      - tier "30" => min $30, e.g. 20 Miles/day
  *
  * POST /api/streaks/balances
- * body: { userAddress: string; questId: string; tier: "10" | "30" }
+ * body: { userAddress: string; questId: string; tier: "10" | "30" | "100" }
  */
 export async function POST(req: Request) {
   try {
@@ -24,8 +24,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const minUsd = tier === "30" ? 30 : 10;
-    const points = tier === "30" ? 20 : 10; // tweak rewards
+    const minUsd = tier === "100" ? 100 : tier === "30" ? 30 : 10;
+    const points = tier === "100" ? 70 : tier === "30" ? 50 : 40;
 
     // 1) check combined stable wallet balance
     const ok = await userStableWalletBalanceAtLeastUsd(userAddress, minUsd);

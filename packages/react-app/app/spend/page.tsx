@@ -322,43 +322,8 @@ const Page = () => {
         </div>
       </div>
 
-      {/* NFT (static demo) */}
-      <div className="mx-4 mt-6">
-        <div className="flex justify-between items-center">
-          <h3 className="text-lg font-extrabold mb-2">NFT raffles</h3>
-        </div>
-        <div className="flex gap-3 overflow-x-auto">
-          {nftRaffles.map((raffle, idx) => (
-            <RaffleCard
-              key={idx}
-              image={raffle.image}
-              title={raffle.title}
-              endsIn={`${raffle.endsIn} days`}
-              ticketCost={raffle.ticketCost}
-              icon={akibaMilesSymbol}
-              locked={true}
-              onClick={() => {
-                setSpendRaffle({
-                  id: idx,
-                  title: raffle.title,
-                  reward: raffle.ticketCost,
-                  prize: raffle.title,
-                  endDate: `${raffle.endsIn} days`,
-                  ticketCost: raffle.ticketCost,
-                  image: raffle.image,
-                  balance: Number(akibaMilesBalance),
-                  symbol: 'AkibaMiles',
-                  maxTickets: 0,
-                  totalTickets: 0
-                });
-              }}
-            />
-          ))}
-        </div>
-      </div>
-
       <div>
-        <SectionHeading title="Upcoming games" />
+        <SectionHeading title="Games" />
         <div className="flex space-x-3 overflow-x-auto px-4">
   {upcomingGames.map((game, idx) => {
     const locked = game.name !== 'Dice'; // Dice is live, others locked

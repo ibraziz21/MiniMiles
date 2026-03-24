@@ -27,7 +27,7 @@
        const result = await claimQueuedDailyReward({
          userAddress,
          questId,
-         points: 30,
+         points: 60,
          scopeKey: today,
          reason: `daily-10tx:${questId}`,
        });

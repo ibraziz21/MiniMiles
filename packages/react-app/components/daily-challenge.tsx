@@ -14,11 +14,11 @@ import {
 import {
   claimBalanceStreak10,
   claimBalanceStreak30,
+  claimBalanceStreak100,
 } from "@/helpers/claimBalanceStreak";
 import { claimDailyQuest } from "@/helpers/claimDaily";
 import { claimFiveTransfers } from "@/helpers/claimFiveTransfers";
 import { claimKilnHold } from "@/helpers/claimKilnHold";
-import { claimTwentyTransfers } from "@/helpers/claimTwentyTransfers";
 import { claimTenTransfers } from "@/helpers/claimTenTransfers";
 // import { claimTopupStreak } from "@/helpers/claimWeeklyTopup";
 
@@ -136,6 +136,12 @@ const ACTION_BY_ID: Record<string, QuestHandler> = {
     img: Cash,
   },
 
+  /* K. Wallet balance streak ≥ $100 */
+  "b5c7e1d2-6f8a-4b0c-9d2e-3a1f7c5b8e4d": {
+    action: claimBalanceStreak100,
+    img: Cash,
+  },
+
   /* D. Send 5 transfers */
   "f6d027d2-bf52-4768-a87f-2be00a5b03a0": {
     action: claimFiveTransfers,
@@ -148,11 +154,6 @@ const ACTION_BY_ID: Record<string, QuestHandler> = {
     img: Cash,
   },
 
-  /* F. Send 20 transfers */
-  "60320fa4-1681-4795-8818-429f11afe784": {
-    action: claimTwentyTransfers,
-    img: Cash,
-  },
 };
 
 if (KILN_DAILY_HOLD_QUEST_ID) {
@@ -171,6 +172,7 @@ const STREAK_QUEST_IDS = new Set<string>([
   "96009afb-0762-4399-adb3-ced421d73072",
   "feb6e5ef-7d9c-4ca6-a042-e2b692a6b00f",
   "a1ac5914-20d4-4436-bf02-29563938fe9d",
+  "b5c7e1d2-6f8a-4b0c-9d2e-3a1f7c5b8e4d",
 ]);
 
 /* Desired visual order */
@@ -180,12 +182,12 @@ const ORDERED_IDS = [
   "c6b14ae1-66e9-4777-9c9f-65e57b091b16",
   "feb6e5ef-7d9c-4ca6-a042-e2b692a6b00f",
   "a1ac5914-20d4-4436-bf02-29563938fe9d",
+  "b5c7e1d2-6f8a-4b0c-9d2e-3a1f7c5b8e4d",
   "96009afb-0762-4399-adb3-ced421d73072",
   ...(KILN_DAILY_HOLD_QUEST_ID ? [KILN_DAILY_HOLD_QUEST_ID] : []),
   "6ddc811a-1a4d-4e57-871d-836f07486531",
   "f6d027d2-bf52-4768-a87f-2be00a5b03a0",
   "ea001296-2405-451b-a590-941af22a8df1",
-  "60320fa4-1681-4795-8818-429f11afe784",
 ];
 
 function sortByDesiredOrder(rows: QuestRow[]) {

@@ -50,7 +50,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const POINTS = 20;
+    const POINTS = 10;
     const result = await claimQueuedDailyReward({
       userAddress: addr,
       questId,

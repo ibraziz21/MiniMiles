@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     const result = await claimQueuedDailyReward({
       userAddress,
       questId,
-      points: 15,
+      points: 30,
       scopeKey: today,
       reason: `daily-transfer:${questId}`,
     });
