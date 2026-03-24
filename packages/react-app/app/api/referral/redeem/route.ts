@@ -1,11 +1,19 @@
 // app/api/referral/redeem/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { createPublicClient, http } from "viem";
+import { celo } from "viem/chains";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_KEY!
 );
+
+const publicClient = createPublicClient({ chain: celo, transport: http() });
+
+// Minimum number of prior on-chain transactions required before a wallet
+// can be used as a referral target. Prevents freshly-created bot wallets.
+const MIN_PRIOR_TXS = 1;
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
@@ -57,6 +65,23 @@ export async function POST(req: Request) {
   // Block self-referral (your DB constraint will also enforce, but check here for UX)
   if (referrer === addr) {
     return NextResponse.json({ error: "You cannot use your own code" }, { status: 400 });
+  }
+
+  // #4 — Wallet age check: require at least MIN_PRIOR_TXS on-chain transactions
+  // This blocks freshly-created bot wallets that have never interacted with the chain.
+  try {
+    const txCount = await publicClient.getTransactionCount({
+      address: addr as `0x${string}`,
+    });
+    if (txCount < MIN_PRIOR_TXS) {
+      return NextResponse.json(
+        { error: "Your wallet must have prior on-chain activity to use a referral code" },
+        { status: 403 }
+      );
+    }
+  } catch (e) {
+    // Non-fatal: if the RPC fails, allow the redemption through
+    console.warn("[referral/redeem] wallet age check failed:", e);
   }
 
   // Insert redemption row

@@ -92,7 +92,7 @@ export async function POST(req: Request) {
   /* 2) referral check */
   const { data: refRow, error: refErr } = await supabase
     .from("referrals")
-    .select("referrer_address")
+    .select("referrer_address, referrer_rewarded")
     .eq("referred_address", userAddr.toLowerCase())
     .maybeSingle();
 
@@ -108,17 +108,19 @@ export async function POST(req: Request) {
     }
   }
 
-  /* 3) determine amounts */
+  /* 3) determine amounts
+     New user gets their bonus immediately.
+     Referrer bonus is intentionally withheld here — it is paid later via
+     /api/referral/claim-referrer-bonus once the referred user has 3+ days of activity.
+  */
   const newUserAmountNum = refAddr
     ? BASE_REWARD + NEW_USER_BONUS
     : BASE_REWARD;
 
   const mints: MintTarget[] = [
     { to: userAddr, amount: parseUnits(newUserAmountNum.toString(), 18) },
+    // Note: referrer bonus is NOT minted here. See /api/referral/claim-referrer-bonus.
   ];
-  if (refAddr) {
-    mints.push({ to: refAddr, amount: parseUnits(REFERRER_BONUS.toString(), 18) });
-  }
 
   /* 4) pre-flight simulate BOTH */
   let sims;
@@ -151,7 +153,7 @@ export async function POST(req: Request) {
     success: true,
     already: false,
     awarded: newUserAmountNum.toString(),
-    referrerRewarded: Boolean(refAddr),
+    referrerRewardPending: Boolean(refAddr),
     txHashes,
   });
 }
