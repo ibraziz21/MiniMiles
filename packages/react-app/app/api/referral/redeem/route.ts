@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createPublicClient, http } from "viem";
 import { celo } from "viem/chains";
+import { isBlacklisted } from "@/lib/blacklist";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -25,6 +26,10 @@ export async function POST(req: Request) {
 
   if (!addr || !code) {
     return NextResponse.json({ error: "Missing address or code" }, { status: 400 });
+  }
+
+  if (await isBlacklisted(addr)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   // Has this address already redeemed a code?

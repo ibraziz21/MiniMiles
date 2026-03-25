@@ -8,6 +8,7 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { isBlacklisted } from "@/lib/blacklist";
 import {
   createPublicClient,
   createWalletClient,
@@ -49,6 +50,10 @@ export async function POST(req: Request) {
     referrerAddr = getAddress(body?.referrerAddress).toLowerCase();
   } catch {
     return NextResponse.json({ error: "Invalid referrerAddress" }, { status: 400 });
+  }
+
+  if (await isBlacklisted(referrerAddr)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   // Find all referrals made by this address that haven't been rewarded yet
@@ -96,14 +101,34 @@ export async function POST(req: Request) {
     });
   }
 
-  // Mint referrer bonus once per eligible referral
+  // Atomically claim the reward slots before minting — prevents double-mint on concurrent calls.
+  // Only rows still false are flipped; concurrent requests get 0 rows back and mint nothing.
+  const { data: claimed, error: claimErr } = await supabase
+    .from("referrals")
+    .update({ referrer_rewarded: true })
+    .eq("referrer_address", referrerAddr)
+    .eq("referrer_rewarded", false)
+    .in("referred_address", eligible)
+    .select("referred_address");
+
+  if (claimErr) {
+    console.error("Failed to claim referral reward slots:", claimErr);
+    return NextResponse.json({ error: "DB error" }, { status: 500 });
+  }
+
+  const toMint = (claimed ?? []).map((r: { referred_address: string }) => r.referred_address);
+
+  if (toMint.length === 0) {
+    return NextResponse.json({ ok: true, paid: 0, message: "No pending referral bonuses" });
+  }
+
   const amount = parseUnits(REFERRER_BONUS.toString(), 18);
   const referrerChecksummed = getAddress(referrerAddr) as `0x${string}`;
 
   const txHashes: string[] = [];
   const rewarded: string[] = [];
 
-  for (const referredAddr of eligible) {
+  for (const referredAddr of toMint) {
     try {
       const { request } = await publicClient.simulateContract({
         address: TOKEN,
@@ -118,23 +143,19 @@ export async function POST(req: Request) {
       rewarded.push(referredAddr);
     } catch (e) {
       console.error(`[claim-referrer-bonus] mint failed for referral ${referredAddr}:`, e);
+      // Roll back the flag for this referral so it can be retried
+      await supabase
+        .from("referrals")
+        .update({ referrer_rewarded: false })
+        .eq("referrer_address", referrerAddr)
+        .eq("referred_address", referredAddr);
     }
-  }
-
-  // Mark rewarded referrals as paid
-  if (rewarded.length > 0) {
-    const { error: updateErr } = await supabase
-      .from("referrals")
-      .update({ referrer_rewarded: true })
-      .eq("referrer_address", referrerAddr)
-      .in("referred_address", rewarded);
-
-    if (updateErr) console.error("Failed to mark referrals as rewarded:", updateErr);
   }
 
   return NextResponse.json({
     ok: true,
     paid: rewarded.length,
+    skipped: toMint.length - rewarded.length,
     totalBonus: rewarded.length * REFERRER_BONUS,
     txHashes,
   });

@@ -12,6 +12,7 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 import MiniPointsAbi from "@/contexts/minimiles.json";
+import { isBlacklisted } from "@/lib/blacklist";
 
 /* ── setup ───────────────────────────────────────────────────────── */
 const supabase = createClient(
@@ -76,18 +77,24 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid address" }, { status: 400 });
   }
 
-  /* 1) membership check */
-  const { data: userRow, error: userErr } = await supabase
-    .from("users")
-    .select("is_member")
-    .eq("user_address", userAddr.toLowerCase())
-    .single();
+  if (await isBlacklisted(userAddr)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
-  if (userErr && userErr.code !== "PGRST116") {
-    console.error(userErr);
+  /* 1) claim registration slot atomically — prevents race-condition double-mints.
+     INSERT fails with 23505 if the address already exists, so only one concurrent
+     request can ever proceed to mint. */
+  const { error: insertErr } = await supabase
+    .from("users")
+    .insert({ user_address: userAddr.toLowerCase(), is_member: false });
+
+  if (insertErr) {
+    if (insertErr.code === "23505") {
+      return NextResponse.json({ success: true, already: true });
+    }
+    console.error("insert users err:", insertErr);
     return NextResponse.json({ error: "DB error" }, { status: 500 });
   }
-  if (userRow?.is_member) return NextResponse.json({ success: true, already: true });
 
   /* 2) referral check */
   const { data: refRow, error: refErr } = await supabase
@@ -140,14 +147,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Mint failed" }, { status: 500 });
   }
 
-  /* 6) mark as member (even if DB fails, on-chain is final) */
+  /* 6) mark as member (row was inserted in step 1, just flip the flag) */
   const { error: upErr } = await supabase
     .from("users")
-    .upsert(
-      { user_address: userAddr.toLowerCase(), is_member: true },
-      { onConflict: "user_address" }
-    );
-  if (upErr) console.error("upsert users err:", upErr);
+    .update({ is_member: true })
+    .eq("user_address", userAddr.toLowerCase());
+  if (upErr) console.error("update is_member err:", upErr);
 
   return NextResponse.json({
     success: true,

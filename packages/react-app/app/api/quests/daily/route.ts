@@ -1,6 +1,7 @@
 // e.g. src/app/api/quests/daily/route.ts
 import { createClient } from "@supabase/supabase-js";
 import { claimQueuedDailyReward } from "@/lib/minipointQueue";
+import { isBlacklisted } from "@/lib/blacklist";
 
 // ENVIRONMENT VARIABLES
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
@@ -23,6 +24,10 @@ export async function POST(req: Request) {
     }
 
     const addr = userAddress as `0x${string}`;
+
+    if (await isBlacklisted(addr)) {
+      return Response.json({ success: false, message: "Forbidden" }, { status: 403 });
+    }
 
     const today = new Date().toISOString().slice(0, 10); // e.g. "2025-04-15"
 

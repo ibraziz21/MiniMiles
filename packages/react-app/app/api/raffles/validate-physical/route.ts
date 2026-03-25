@@ -1,6 +1,7 @@
 // src/app/api/raffles/validate-physical/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { isBlacklisted } from "@/lib/blacklist";
 
 export const runtime = "nodejs";
 
@@ -50,6 +51,10 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { raffleId, address, twitter, email, phone } = body;
     const tickets = body?.tickets; // optional
+
+    if (address && await isBlacklisted(address)) {
+      return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+    }
 
     // ─── Basic required fields ───────────────────────────────────────────────
     if (!raffleId || !address || !twitter || !email) {

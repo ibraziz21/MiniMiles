@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { createPublicClient, http, type Abi } from "viem"
 import { celo } from "viem/chains"
 import raffleAbi from "@/contexts/miniraffle.json"
+import { isBlacklisted } from "@/lib/blacklist"
 
 const RAFFLE_ADDRESS = "0xD75dfa972C6136f1c594Fec1945302f885E1ab29"
 
@@ -30,6 +31,10 @@ export async function POST(req: Request) {
         { error: "Invalid roundId or ticketCount" },
         { status: 400 }
       )
+    }
+
+    if (await isBlacklisted(userAddress)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
     // simulate the call, to get the unsigned tx request

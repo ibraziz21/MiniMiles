@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { claimQueuedPartnerReward } from "@/lib/minipointQueue";
+import { isBlacklisted } from "@/lib/blacklist";
 
 /* ─── env / clients ─────────────────────────────────────── */
 
@@ -31,6 +32,10 @@ export async function POST(request: Request) {
     }
 
     const userLc = userAddress.toLowerCase();
+
+    if (await isBlacklisted(userLc)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     /* 1 ▸ one-time check */
     const { data: existing, error: checkErr } = await supabase
