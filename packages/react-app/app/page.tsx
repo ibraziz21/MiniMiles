@@ -8,6 +8,7 @@ import DashboardHeader from "@/components/dashboard-header";
 import ProfileCtaCard from "@/components/profile-cta-card";
 import { RaffleCard } from "@/components/raffle-card";
 import PointsCard from "@/components/points-card";
+import { MigrateV2Banner } from "@/components/migrate-v2-banner";
 import { SectionHeading } from "@/components/section-heading";
 import { useWeb3 } from "@/contexts/useWeb3";
 import {
@@ -673,6 +674,13 @@ const badgeButtonLabel =
       />
 
       <PointsCard points={Number(akibaMilesBalance)} />
+
+      {address && (
+        <MigrateV2Banner
+          address={address}
+          onMigrated={refreshMilesBalanceSoon}
+        />
+      )}
 
       {address &&
         profileSummary &&

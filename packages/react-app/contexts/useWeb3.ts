@@ -103,16 +103,21 @@ export function useWeb3() {
 
   // 2️⃣ Helpers can now reuse walletClient + publicClient + address
 
+  const V2_ADDRESS = (
+    process.env.NEXT_PUBLIC_MINIPOINTS_V2_ADDRESS ??
+    "0xab93400000751fc17918940C202A66066885d628"
+  ) as `0x${string}`;
+
   const getakibaMilesBalance = useCallback(async () => {
     if (!address) throw new Error("Wallet not connected");
     const miniMiles = getContract({
       abi: MiniMilesAbi.abi,
-      address: "0xEeD878017f027FE96316007D0ca5fDA58Ee93a6b",
+      address: V2_ADDRESS,
       client: publicClient,
     });
     const raw: bigint = await miniMiles.read.balanceOf([address]) as bigint;
     return formatUnits(raw, 18);
-  }, [address, publicClient]);
+  }, [address, publicClient, V2_ADDRESS]);
 
   const sendCUSD = useCallback(
     async (to: string, amount: string) => {
