@@ -1,0 +1,759 @@
+{
+  "manifestVersion": "3.2",
+  "proxies": [
+    {
+      "address": "0xd75dfa972c6136f1c594fec1945302f885e1ab29",
+      "kind": "uups"
+    },
+    {
+      "address": "0xf77e7395Aa5c89BcC8d6e23F67a9c7914AB9702a",
+      "kind": "uups"
+    }
+  ],
+  "impls": {
+    "a2751d2ea04b255165daea6069e616976e201aba4cd84e4456393df2cb1e78dc": {
+      "address": "0xae13B954E962E6136D4eaF641F93bFd55f0FC496",
+      "layout": {
+        "solcVersion": "0.8.24",
+        "storage": [
+          {
+            "label": "_initialized",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_uint8",
+            "contract": "Initializable",
+            "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:63",
+            "retypedFrom": "bool"
+          },
+          {
+            "label": "_initializing",
+            "offset": 1,
+            "slot": "0",
+            "type": "t_bool",
+            "contract": "Initializable",
+            "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:68"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_array(t_uint256)50_storage",
+            "contract": "ERC1967UpgradeUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/proxy/ERC1967/ERC1967UpgradeUpgradeable.sol:169"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "51",
+            "type": "t_array(t_uint256)50_storage",
+            "contract": "UUPSUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol:111"
+          },
+          {
+            "label": "_status",
+            "offset": 0,
+            "slot": "101",
+            "type": "t_uint256",
+            "contract": "ReentrancyGuardUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol:38"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "102",
+            "type": "t_array(t_uint256)49_storage",
+            "contract": "ReentrancyGuardUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol:88"
+          },
+          {
+            "label": "owner",
+            "offset": 0,
+            "slot": "151",
+            "type": "t_address",
+            "contract": "AkibaRaffleV6",
+            "src": "contracts/MiniRaffleV6.sol:16"
+          },
+          {
+            "label": "miniPoints",
+            "offset": 0,
+            "slot": "152",
+            "type": "t_contract(IMiniPoints)19774",
+            "contract": "AkibaRaffleV6",
+            "src": "contracts/MiniRaffleV6.sol:17"
+          },
+          {
+            "label": "cUSD",
+            "offset": 0,
+            "slot": "153",
+            "type": "t_contract(IERC20)3336",
+            "contract": "AkibaRaffleV6",
+            "src": "contracts/MiniRaffleV6.sol:24"
+          },
+          {
+            "label": "usdt",
+            "offset": 0,
+            "slot": "154",
+            "type": "t_contract(IERC20)3336",
+            "contract": "AkibaRaffleV6",
+            "src": "contracts/MiniRaffleV6.sol:25"
+          },
+          {
+            "label": "miles",
+            "offset": 0,
+            "slot": "155",
+            "type": "t_contract(IERC20)3336",
+            "contract": "AkibaRaffleV6",
+            "src": "contracts/MiniRaffleV6.sol:26"
+          },
+          {
+            "label": "roundIdCounter",
+            "offset": 0,
+            "slot": "156",
+            "type": "t_uint256",
+            "contract": "AkibaRaffleV6",
+            "src": "contracts/MiniRaffleV6.sol:50"
+          },
+          {
+            "label": "rounds",
+            "offset": 0,
+            "slot": "157",
+            "type": "t_mapping(t_uint256,t_struct(RaffleRound)19854_storage)",
+            "contract": "AkibaRaffleV6",
+            "src": "contracts/MiniRaffleV6.sol:51"
+          },
+          {
+            "label": "minters",
+            "offset": 0,
+            "slot": "158",
+            "type": "t_mapping(t_address,t_bool)",
+            "contract": "AkibaRaffleV6",
+            "src": "contracts/MiniRaffleV6.sol:52"
+          },
+          {
+            "label": "prizeNFT",
+            "offset": 0,
+            "slot": "159",
+            "type": "t_address",
+            "contract": "AkibaRaffleV6",
+            "src": "contracts/MiniRaffleV6.sol:56"
+          },
+          {
+            "label": "_reserved",
+            "offset": 0,
+            "slot": "160",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "AkibaRaffleV6",
+            "src": "contracts/MiniRaffleV6.sol:57"
+          },
+          {
+            "label": "_roundChunks",
+            "offset": 0,
+            "slot": "161",
+            "type": "t_mapping(t_uint256,t_array(t_struct(RoundChunk)19878_storage)dyn_storage)",
+            "contract": "AkibaRaffleV6",
+            "src": "contracts/MiniRaffleV6.sol:68"
+          },
+          {
+            "label": "_chunksFinalized",
+            "offset": 0,
+            "slot": "162",
+            "type": "t_mapping(t_uint256,t_bool)",
+            "contract": "AkibaRaffleV6",
+            "src": "contracts/MiniRaffleV6.sol:70"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "163",
+            "type": "t_array(t_uint256)48_storage",
+            "contract": "AkibaRaffleV6",
+            "src": "contracts/MiniRaffleV6.sol:677"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_array(t_address)dyn_storage": {
+            "label": "address[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_struct(RoundChunk)19878_storage)dyn_storage": {
+            "label": "struct AkibaRaffleV6.RoundChunk[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_uint256)48_storage": {
+            "label": "uint256[48]",
+            "numberOfBytes": "1536"
+          },
+          "t_array(t_uint256)49_storage": {
+            "label": "uint256[49]",
+            "numberOfBytes": "1568"
+          },
+          "t_array(t_uint256)50_storage": {
+            "label": "uint256[50]",
+            "numberOfBytes": "1600"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_contract(IERC20)3336": {
+            "label": "contract IERC20",
+            "numberOfBytes": "20"
+          },
+          "t_contract(IMiniPoints)19774": {
+            "label": "contract IMiniPoints",
+            "numberOfBytes": "20"
+          },
+          "t_mapping(t_address,t_bool)": {
+            "label": "mapping(address => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_uint32)": {
+            "label": "mapping(address => uint32)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_array(t_struct(RoundChunk)19878_storage)dyn_storage)": {
+            "label": "mapping(uint256 => struct AkibaRaffleV6.RoundChunk[])",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_bool)": {
+            "label": "mapping(uint256 => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(RaffleRound)19854_storage)": {
+            "label": "mapping(uint256 => struct AkibaRaffleV6.RaffleRound)",
+            "numberOfBytes": "32"
+          },
+          "t_string_storage": {
+            "label": "string",
+            "numberOfBytes": "32"
+          },
+          "t_struct(RaffleRound)19854_storage": {
+            "label": "struct AkibaRaffleV6.RaffleRound",
+            "members": [
+              {
+                "label": "id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "startTime",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "endTime",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "maxTickets",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "rewardToken",
+                "type": "t_contract(IERC20)3336",
+                "offset": 4,
+                "slot": "3"
+              },
+              {
+                "label": "rewardPool",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "ticketCostPoints",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "5"
+              },
+              {
+                "label": "participants",
+                "type": "t_array(t_address)dyn_storage",
+                "offset": 0,
+                "slot": "6"
+              },
+              {
+                "label": "isActive",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "7"
+              },
+              {
+                "label": "winnerSelected",
+                "type": "t_bool",
+                "offset": 1,
+                "slot": "7"
+              },
+              {
+                "label": "tickets",
+                "type": "t_mapping(t_address,t_uint32)",
+                "offset": 0,
+                "slot": "8"
+              },
+              {
+                "label": "totalTickets",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "9"
+              },
+              {
+                "label": "winner",
+                "type": "t_address",
+                "offset": 4,
+                "slot": "9"
+              },
+              {
+                "label": "randomBlock",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "10"
+              },
+              {
+                "label": "winners",
+                "type": "t_array(t_address)dyn_storage",
+                "offset": 0,
+                "slot": "11"
+              },
+              {
+                "label": "raffleType",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "12"
+              },
+              {
+                "label": "rewardURI",
+                "type": "t_string_storage",
+                "offset": 0,
+                "slot": "13"
+              }
+            ],
+            "numberOfBytes": "448"
+          },
+          "t_struct(RoundChunk)19878_storage": {
+            "label": "struct AkibaRaffleV6.RoundChunk",
+            "members": [
+              {
+                "label": "first",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "last",
+                "type": "t_uint32",
+                "offset": 4,
+                "slot": "0"
+              },
+              {
+                "label": "ticketsInChunk",
+                "type": "t_uint32",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint32": {
+            "label": "uint32",
+            "numberOfBytes": "4"
+          },
+          "t_uint8": {
+            "label": "uint8",
+            "numberOfBytes": "1"
+          }
+        },
+        "namespaces": {}
+      },
+      "allAddresses": [
+        "0xae13B954E962E6136D4eaF641F93bFd55f0FC496"
+      ]
+    },
+    "7083d5edfbd5ce53e13aff897273b5e2d4636398bb5f6c6d82e6da8eb18f0d3d": {
+      "address": "0xb0e2dB276Ea2D6D669da194eE21bA357F6116488",
+      "layout": {
+        "solcVersion": "0.8.24",
+        "storage": [
+          {
+            "label": "_initialized",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_uint8",
+            "contract": "Initializable",
+            "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:63",
+            "retypedFrom": "bool"
+          },
+          {
+            "label": "_initializing",
+            "offset": 1,
+            "slot": "0",
+            "type": "t_bool",
+            "contract": "Initializable",
+            "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:68"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_array(t_uint256)50_storage",
+            "contract": "ERC1967UpgradeUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/proxy/ERC1967/ERC1967UpgradeUpgradeable.sol:169"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "51",
+            "type": "t_array(t_uint256)50_storage",
+            "contract": "UUPSUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol:111"
+          },
+          {
+            "label": "_status",
+            "offset": 0,
+            "slot": "101",
+            "type": "t_uint256",
+            "contract": "ReentrancyGuardUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol:38"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "102",
+            "type": "t_array(t_uint256)49_storage",
+            "contract": "ReentrancyGuardUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol:88"
+          },
+          {
+            "label": "owner",
+            "offset": 0,
+            "slot": "151",
+            "type": "t_address",
+            "contract": "AkibaDiceGame",
+            "src": "contracts/AkibaDice.sol:62"
+          },
+          {
+            "label": "miniPoints",
+            "offset": 0,
+            "slot": "152",
+            "type": "t_contract(IMiniPoints)20403",
+            "contract": "AkibaDiceGame",
+            "src": "contracts/AkibaDice.sol:64"
+          },
+          {
+            "label": "nextRoundId",
+            "offset": 0,
+            "slot": "153",
+            "type": "t_uint256",
+            "contract": "AkibaDiceGame",
+            "src": "contracts/AkibaDice.sol:72"
+          },
+          {
+            "label": "_rounds",
+            "offset": 0,
+            "slot": "154",
+            "type": "t_mapping(t_uint256,t_struct(DiceRound)17915_storage)",
+            "contract": "AkibaDiceGame",
+            "src": "contracts/AkibaDice.sol:74"
+          },
+          {
+            "label": "activeRoundByTier",
+            "offset": 0,
+            "slot": "155",
+            "type": "t_mapping(t_uint256,t_uint256)",
+            "contract": "AkibaDiceGame",
+            "src": "contracts/AkibaDice.sol:77"
+          },
+          {
+            "label": "allowedTier",
+            "offset": 0,
+            "slot": "156",
+            "type": "t_mapping(t_uint256,t_bool)",
+            "contract": "AkibaDiceGame",
+            "src": "contracts/AkibaDice.sol:79"
+          },
+          {
+            "label": "hasJoinedRound",
+            "offset": 0,
+            "slot": "157",
+            "type": "t_mapping(t_uint256,t_mapping(t_address,t_bool))",
+            "contract": "AkibaDiceGame",
+            "src": "contracts/AkibaDice.sol:85"
+          },
+          {
+            "label": "tierStats",
+            "offset": 0,
+            "slot": "158",
+            "type": "t_mapping(t_uint256,t_struct(TierStats)17932_storage)",
+            "contract": "AkibaDiceGame",
+            "src": "contracts/AkibaDice.sol:89"
+          },
+          {
+            "label": "playerStats",
+            "offset": 0,
+            "slot": "159",
+            "type": "t_mapping(t_address,t_struct(PlayerStats)17942_storage)",
+            "contract": "AkibaDiceGame",
+            "src": "contracts/AkibaDice.sol:92"
+          },
+          {
+            "label": "totalRoundsCreated",
+            "offset": 0,
+            "slot": "160",
+            "type": "t_uint64",
+            "contract": "AkibaDiceGame",
+            "src": "contracts/AkibaDice.sol:94"
+          },
+          {
+            "label": "totalRoundsResolved",
+            "offset": 8,
+            "slot": "160",
+            "type": "t_uint64",
+            "contract": "AkibaDiceGame",
+            "src": "contracts/AkibaDice.sol:95"
+          },
+          {
+            "label": "totalRoundsCancelled",
+            "offset": 16,
+            "slot": "160",
+            "type": "t_uint64",
+            "contract": "AkibaDiceGame",
+            "src": "contracts/AkibaDice.sol:95"
+          },
+          {
+            "label": "totalStakedGlobal",
+            "offset": 0,
+            "slot": "161",
+            "type": "t_uint128",
+            "contract": "AkibaDiceGame",
+            "src": "contracts/AkibaDice.sol:96"
+          },
+          {
+            "label": "totalPayoutGlobal",
+            "offset": 16,
+            "slot": "161",
+            "type": "t_uint128",
+            "contract": "AkibaDiceGame",
+            "src": "contracts/AkibaDice.sol:98"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "162",
+            "type": "t_array(t_uint256)40_storage",
+            "contract": "AkibaDiceGame",
+            "src": "contracts/AkibaDice.sol:560"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_array(t_uint256)40_storage": {
+            "label": "uint256[40]",
+            "numberOfBytes": "1280"
+          },
+          "t_array(t_uint256)49_storage": {
+            "label": "uint256[49]",
+            "numberOfBytes": "1568"
+          },
+          "t_array(t_uint256)50_storage": {
+            "label": "uint256[50]",
+            "numberOfBytes": "1600"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_contract(IMiniPoints)20403": {
+            "label": "contract IMiniPoints",
+            "numberOfBytes": "20"
+          },
+          "t_mapping(t_address,t_bool)": {
+            "label": "mapping(address => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_struct(PlayerStats)17942_storage)": {
+            "label": "mapping(address => struct AkibaDiceGame.PlayerStats)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_bool)": {
+            "label": "mapping(uint256 => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_mapping(t_address,t_bool))": {
+            "label": "mapping(uint256 => mapping(address => bool))",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(DiceRound)17915_storage)": {
+            "label": "mapping(uint256 => struct AkibaDiceGame.DiceRound)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(TierStats)17932_storage)": {
+            "label": "mapping(uint256 => struct AkibaDiceGame.TierStats)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_uint256)": {
+            "label": "mapping(uint256 => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint8,t_address)": {
+            "label": "mapping(uint8 => address)",
+            "numberOfBytes": "32"
+          },
+          "t_struct(DiceRound)17915_storage": {
+            "label": "struct AkibaDiceGame.DiceRound",
+            "members": [
+              {
+                "label": "id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "tier",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "filledSlots",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "winnerSelected",
+                "type": "t_bool",
+                "offset": 1,
+                "slot": "2"
+              },
+              {
+                "label": "winningNumber",
+                "type": "t_uint8",
+                "offset": 2,
+                "slot": "2"
+              },
+              {
+                "label": "randomBlock",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "winner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "playerByNumber",
+                "type": "t_mapping(t_uint8,t_address)",
+                "offset": 0,
+                "slot": "5"
+              }
+            ],
+            "numberOfBytes": "192"
+          },
+          "t_struct(PlayerStats)17942_storage": {
+            "label": "struct AkibaDiceGame.PlayerStats",
+            "members": [
+              {
+                "label": "roundsJoined",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "roundsWon",
+                "type": "t_uint64",
+                "offset": 8,
+                "slot": "0"
+              },
+              {
+                "label": "totalStaked",
+                "type": "t_uint128",
+                "offset": 16,
+                "slot": "0"
+              },
+              {
+                "label": "totalWon",
+                "type": "t_uint128",
+                "offset": 0,
+                "slot": "1"
+              }
+            ],
+            "numberOfBytes": "64"
+          },
+          "t_struct(TierStats)17932_storage": {
+            "label": "struct AkibaDiceGame.TierStats",
+            "members": [
+              {
+                "label": "roundsCreated",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "roundsResolved",
+                "type": "t_uint64",
+                "offset": 8,
+                "slot": "0"
+              },
+              {
+                "label": "totalStaked",
+                "type": "t_uint128",
+                "offset": 16,
+                "slot": "0"
+              },
+              {
+                "label": "totalPayout",
+                "type": "t_uint128",
+                "offset": 0,
+                "slot": "1"
+              }
+            ],
+            "numberOfBytes": "64"
+          },
+          "t_uint128": {
+            "label": "uint128",
+            "numberOfBytes": "16"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_uint8": {
+            "label": "uint8",
+            "numberOfBytes": "1"
+          }
+        },
+        "namespaces": {}
+      },
+      "allAddresses": [
+        "0xb0e2dB276Ea2D6D669da194eE21bA357F6116488"
+      ]
+    }
+  }
+}

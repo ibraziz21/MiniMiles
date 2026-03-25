@@ -9,7 +9,7 @@ import { supabase } from "./supabaseClient";
 
 // ── Config ───────────────────────────────────────────────────────────────────
 const CONTRACT_ADDRESS =
-  process.env.MINIPOINTS_ADDRESS ?? "0xEeD878017f027FE96316007D0ca5fDA58Ee93a6b";
+  process.env.MINIPOINTS_V2_ADDRESS ?? "0xab93400000751fc17918940C202A66066885d628";
 
 const LOCK_NAME = "default";
 const MAX_JOBS_PER_RUN = 100;

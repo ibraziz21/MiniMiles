@@ -664,6 +664,11 @@ contract AkibaRaffleV6 is UUPSUpgradeable, ReentrancyGuardUpgradeable {
         return rounds[_roundId].winners;
     }
 
+    function setMiniPoints(address _mp) external onlyOwner {
+        miniPoints = IMiniPoints(_mp);
+        miles = IERC20(_mp);
+    }
+
     function _authorizeUpgrade(
         address newImplementation
     ) internal override onlyOwner {}

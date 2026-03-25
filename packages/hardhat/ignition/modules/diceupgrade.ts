@@ -11,25 +11,20 @@ import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
  */
 const DICE_PROXY_ADDR = "0xf77e7395Aa5c89BcC8d6e23F67a9c7914AB9702a" as const;
 
-const AkibaDiceGame_Upgrade = buildModule("AkibaDiceGame_Upgrade2", (m) => {
-  // 1) Deploy NEW implementation
-  //
-  // If your new implementation contract has a different name
-  // (e.g. "AkibaDiceGameV2"), change the string below to that name.
+const AkibaDiceGame_Upgrade = buildModule("AkibaDiceGame_Upgrade3", (m) => {
+  // 1) Deploy fresh implementation with setMiniPoints()
   const newImpl = m.contract("AkibaDiceGame", [], {
-    id: "akiba_dice_impl_v3",
+    id: "akiba_dice_impl_v4_setmp",
   });
 
-  // 2) Treat the EXISTING proxy as AkibaDiceGame
-  //
-  // We just need the ABI of the current version to call upgradeTo().
-  const proxyAsDice = m.contractAt("AkibaDiceGame", DICE_PROXY_ADDR);
+  // 2) Attach to the existing proxy
+  const proxyAsDice = m.contractAt("AkibaDiceGame", DICE_PROXY_ADDR, {
+    id: "akiba_dice_proxy",
+  });
 
-  // 3) Call upgradeTo(newImpl) via the proxy
-  //
-  // This will update the implementation slot of the UUPS proxy at DICE_PROXY_ADDR.
+  // 3) Point proxy at new implementation
   m.call(proxyAsDice, "upgradeTo", [newImpl], {
-    id: "akiba_dice_upgrade",
+    id: "akiba_dice_upgrade_setmp",
     after: [newImpl],
   });
 

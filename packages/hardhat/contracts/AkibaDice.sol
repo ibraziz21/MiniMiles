@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "./MiniPoints.sol"; // IMiniPoints
-import "witnet-solidity-bridge/contracts/interfaces/IWitnetRandomness.sol";
+import "witnet-solidity-bridge/contracts/interfaces/IWitRandomness.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
@@ -58,8 +58,8 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
     IMiniPoints public miniPoints;
 
     /// @notice Witnet Randomness provider (kept as-is for now)
-    IWitnetRandomness public constant RNG =
-        IWitnetRandomness(0xC0FFEE98AD1434aCbDB894BbB752e138c1006fAB);
+    IWitRandomness public constant RNG =
+        IWitRandomness(0xC0FFEE98AD1434aCbDB894BbB752e138c1006fAB);
 
     /// @notice Next round id to use when creating new pots
     uint256 public nextRoundId;
@@ -152,6 +152,10 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
         emit AllowedTierSet(10, true);
         emit AllowedTierSet(20, true);
         emit AllowedTierSet(30, true);
+    }
+
+    function setMiniPoints(address _mp) external onlyOwner {
+        miniPoints = IMiniPoints(_mp);
     }
 
     function _authorizeUpgrade(
@@ -302,7 +306,8 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
         DiceRound storage round = _rounds[roundId];
 
         // Draw a number in [0,5], then map to [1,6]
-        uint256 pick = RNG.random(6, 0, round.randomBlock);
+        bytes32 entropy = RNG.fetchRandomnessAfter(round.randomBlock);
+        uint256 pick = uint256(keccak256(abi.encode(entropy, uint256(0)))) % 6;
         uint8 winningNumber = uint8(pick + 1);
 
         address winner = round.playerByNumber[winningNumber];
