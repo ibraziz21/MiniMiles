@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { processMintQueue } from "@/lib/minipointQueue";
 import { supabase } from "@/lib/supabaseClient";
 
 const ADMIN_QUEUE_SECRET = process.env.ADMIN_QUEUE_SECRET ?? "";
@@ -23,10 +22,6 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = await req.json().catch(() => ({}));
-    const requestedMax = Number(body?.maxJobs ?? 20);
-    const maxJobs = Math.min(100, Math.max(1, requestedMax));
-
     // Reset failed + stuck-processing jobs back to pending
     await Promise.all([
       supabase
@@ -39,12 +34,15 @@ export async function POST(req: Request) {
         .eq("status", "processing"),
     ]);
 
-    const result = await processMintQueue({ maxJobs });
+    const { data: counts } = await supabase
+      .from("minipoint_mint_jobs")
+      .select("status")
+      .in("status", ["pending", "processing", "failed"]);
 
     return NextResponse.json({
       success: true,
-      acquired: result.acquired,
-      processed: result.processed,
+      message: "Stale jobs reset to pending. Backend worker will drain automatically.",
+      pending: counts?.filter((r) => r.status === "pending").length ?? 0,
     });
   } catch (err: any) {
     console.error("[drain-mint-queue]", err);
