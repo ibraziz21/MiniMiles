@@ -131,6 +131,24 @@ async function applyBatchPayloads(jobs: any[], txHash: string) {
 }
 
 const TX_TIMEOUT_MS = 60_000; // 60 s — abort tx.wait() if no confirmation
+const BATCH_RETRY_ATTEMPTS = 3;
+const BATCH_RETRY_DELAY_MS = 5_000;
+
+// Returns true for transient RPC/infra failures that warrant a retry.
+// Returns false for contract reverts (blacklisted address, etc.) that warrant fallback.
+function isTransientError(err: any): boolean {
+  const msg: string = (err?.shortMessage ?? err?.message ?? "").toLowerCase();
+  return (
+    msg.includes("503") ||
+    msg.includes("service unavailable") ||
+    msg.includes("could not coalesce") ||
+    msg.includes("timeout") ||
+    msg.includes("network error") ||
+    msg.includes("econnreset") ||
+    msg.includes("econnrefused") ||
+    msg.includes("etimedout")
+  );
+}
 
 // ── Batch mint a chunk of regular mint jobs ───────────────────────────────────
 async function processMintBatch(
@@ -140,13 +158,27 @@ async function processMintBatch(
   const accounts = jobs.map((j) => j.user_address);
   const amounts = jobs.map((j) => ethers.parseUnits(String(j.points), 18));
 
-  console.log(`[mintWorker] batchMint sending ${jobs.length} jobs…`);
-  const tx = await contract.batchMint(accounts, amounts);
-  console.log(`[mintWorker] batchMint tx submitted: ${tx.hash}`);
-  const receipt = await tx.wait(1, TX_TIMEOUT_MS);
-  const txHash: string = receipt.hash ?? tx.hash;
-
-  return { txHash, succeeded: jobs, failed: [] };
+  let lastErr: any;
+  for (let attempt = 1; attempt <= BATCH_RETRY_ATTEMPTS; attempt++) {
+    try {
+      console.log(`[mintWorker] batchMint sending ${jobs.length} jobs… (attempt ${attempt})`);
+      const tx = await contract.batchMint(accounts, amounts);
+      console.log(`[mintWorker] batchMint tx submitted: ${tx.hash}`);
+      const receipt = await tx.wait(1, TX_TIMEOUT_MS);
+      const txHash: string = receipt.hash ?? tx.hash;
+      return { txHash, succeeded: jobs, failed: [] };
+    } catch (err: any) {
+      lastErr = err;
+      if (isTransientError(err) && attempt < BATCH_RETRY_ATTEMPTS) {
+        console.warn(`[mintWorker] Transient RPC error on attempt ${attempt}, retrying in ${BATCH_RETRY_DELAY_MS / 1000}s: ${err?.shortMessage ?? err?.message}`);
+        await new Promise((r) => setTimeout(r, BATCH_RETRY_DELAY_MS));
+      } else {
+        // Contract revert or out of retries — propagate so caller decides fallback
+        throw err;
+      }
+    }
+  }
+  throw lastErr;
 }
 
 // ── Fallback: mint jobs one by one if batch reverts ──────────────────────────
