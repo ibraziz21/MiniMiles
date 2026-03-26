@@ -1,18 +1,9 @@
 // app/api/users/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import {
-  createPublicClient,
-  createWalletClient,
-  http,
-  parseUnits,
-  type Abi,
-  getAddress,
-} from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { celo } from "viem/chains";
-import MiniPointsAbi from "@/contexts/minimiles.json";
+import { getAddress } from "viem";
 import { isBlacklisted } from "@/lib/blacklist";
+import { enqueueSimpleMint } from "@/lib/minipointQueue";
 
 /* ── setup ───────────────────────────────────────────────────────── */
 const supabase = createClient(
@@ -20,43 +11,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!
 );
 
-const account = privateKeyToAccount(`0x${process.env.PRIVATE_KEY!}`);
-const publicClient = createPublicClient({ chain: celo, transport: http() });
-const walletClient = createWalletClient({ account, chain: celo, transport: http() });
-
-const TOKEN = process.env.MINIPOINTS_ADDRESS as `0x${string}`;
-
 /* rewards (strings -> numbers) */
 const BASE_REWARD = Number(process.env.REF_BASE_REWARD ?? "100");
 const NEW_USER_BONUS = Number(process.env.REF_NEW_BONUS ?? "100");
-const REFERRER_BONUS = Number(process.env.REF_REFERRER_BONUS ?? "100");
-
-/* ── helpers ─────────────────────────────────────────────────────── */
-type MintTarget = { to: `0x${string}`; amount: bigint };
-
-async function simulateAll(mints: MintTarget[]) {
-  return Promise.all(
-    mints.map(({ to, amount }) =>
-      publicClient.simulateContract({
-        address: TOKEN,
-        abi: MiniPointsAbi.abi as Abi,
-        functionName: "mint",
-        args: [to, amount],
-        account,
-      })
-    )
-  );
-}
-
-async function executeAll(simResults: Awaited<ReturnType<typeof simulateAll>>) {
-  const hashes: string[] = [];
-  for (const { request } of simResults) {
-    const hash = await walletClient.writeContract(request);
-    await publicClient.waitForTransactionReceipt({ hash });
-    hashes.push(hash);
-  }
-  return hashes;
-}
 
 /* ── route ───────────────────────────────────────────────────────── */
 export async function POST(req: Request) {
@@ -124,30 +81,16 @@ export async function POST(req: Request) {
     ? BASE_REWARD + NEW_USER_BONUS
     : BASE_REWARD;
 
-  const mints: MintTarget[] = [
-    { to: userAddr, amount: parseUnits(newUserAmountNum.toString(), 18) },
-    // Note: referrer bonus is NOT minted here. See /api/referral/claim-referrer-bonus.
-  ];
+  /* 4) enqueue mint — backend worker handles the actual transaction */
+  await enqueueSimpleMint({
+    idempotencyKey: `new-user:${userAddr.toLowerCase()}`,
+    userAddress: userAddr.toLowerCase(),
+    points: newUserAmountNum,
+    reason: "new-user-signup",
+    payload: { kind: "new_user_signup", userAddress: userAddr.toLowerCase() },
+  });
 
-  /* 4) pre-flight simulate BOTH */
-  let sims;
-  try {
-    sims = await simulateAll(mints);
-  } catch (e) {
-    console.error("simulate failed:", e);
-    return NextResponse.json({ error: "Simulation failed" }, { status: 500 });
-  }
-
-  /* 5) execute */
-  let txHashes: string[] = [];
-  try {
-    txHashes = await executeAll(sims);
-  } catch (e) {
-    console.error("mint failed:", e);
-    return NextResponse.json({ error: "Mint failed" }, { status: 500 });
-  }
-
-  /* 6) mark as member (row was inserted in step 1, just flip the flag) */
+  /* 5) mark as member */
   const { error: upErr } = await supabase
     .from("users")
     .update({ is_member: true })
@@ -158,7 +101,7 @@ export async function POST(req: Request) {
     success: true,
     already: false,
     awarded: newUserAmountNum.toString(),
+    queued: true,
     referrerRewardPending: Boolean(refAddr),
-    txHashes,
   });
 }

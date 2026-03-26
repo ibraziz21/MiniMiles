@@ -9,27 +9,14 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { isBlacklisted } from "@/lib/blacklist";
-import {
-  createPublicClient,
-  createWalletClient,
-  http,
-  parseUnits,
-  type Abi,
-  getAddress,
-} from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { celo } from "viem/chains";
-import MiniPointsAbi from "@/contexts/minimiles.json";
+import { getAddress } from "viem";
+import { enqueueSimpleMint } from "@/lib/minipointQueue";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_KEY!
 );
 
-const account = privateKeyToAccount(`0x${process.env.PRIVATE_KEY!}`);
-const publicClient = createPublicClient({ chain: celo, transport: http() });
-const walletClient = createWalletClient({ account, chain: celo, transport: http() });
-const TOKEN = process.env.MINIPOINTS_ADDRESS as `0x${string}`;
 const REFERRER_BONUS = Number(process.env.REF_REFERRER_BONUS ?? "100");
 
 // Referred wallet must have this many daily quest claims before referrer is paid
@@ -122,41 +109,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, paid: 0, message: "No pending referral bonuses" });
   }
 
-  const amount = parseUnits(REFERRER_BONUS.toString(), 18);
-  const referrerChecksummed = getAddress(referrerAddr) as `0x${string}`;
-
-  const txHashes: string[] = [];
-  const rewarded: string[] = [];
-
   for (const referredAddr of toMint) {
-    try {
-      const { request } = await publicClient.simulateContract({
-        address: TOKEN,
-        abi: MiniPointsAbi.abi as Abi,
-        functionName: "mint",
-        args: [referrerChecksummed, amount],
-        account,
-      });
-      const hash = await walletClient.writeContract(request);
-      await publicClient.waitForTransactionReceipt({ hash });
-      txHashes.push(hash);
-      rewarded.push(referredAddr);
-    } catch (e) {
-      console.error(`[claim-referrer-bonus] mint failed for referral ${referredAddr}:`, e);
-      // Roll back the flag for this referral so it can be retried
-      await supabase
-        .from("referrals")
-        .update({ referrer_rewarded: false })
-        .eq("referrer_address", referrerAddr)
-        .eq("referred_address", referredAddr);
-    }
+    await enqueueSimpleMint({
+      idempotencyKey: `referral-bonus:${referrerAddr}:${referredAddr}`,
+      userAddress: referrerAddr,
+      points: REFERRER_BONUS,
+      reason: `referral-bonus:${referredAddr}`,
+      payload: { kind: "referral_bonus", userAddress: referrerAddr, referredAddress: referredAddr },
+    });
   }
 
   return NextResponse.json({
     ok: true,
-    paid: rewarded.length,
-    skipped: toMint.length - rewarded.length,
-    totalBonus: rewarded.length * REFERRER_BONUS,
-    txHashes,
+    paid: toMint.length,
+    queued: true,
+    totalBonus: toMint.length * REFERRER_BONUS,
   });
 }

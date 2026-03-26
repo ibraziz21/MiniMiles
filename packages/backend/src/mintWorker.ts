@@ -93,6 +93,10 @@ async function applyPayload(payload: any) {
     return; // contract handles everything atomically
   }
 
+  if (payload.kind === "new_user_signup" || payload.kind === "referral_bonus") {
+    return; // DB side effects applied by API route before enqueuing
+  }
+
   // partner_engagement
   const { error } = await supabase.from("partner_engagements").insert({
     user_address: payload.userAddress,

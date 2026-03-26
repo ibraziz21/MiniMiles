@@ -1,10 +1,4 @@
-import { randomUUID } from "crypto";
 import { supabase } from "@/lib/supabaseClient";
-import { safeMintMiniPoints } from "@/lib/minipoints";
-
-const LOCK_NAME = "default";
-const LOCK_LEASE_SECONDS = 30;
-const MAX_JOB_ATTEMPTS = 6;
 
 type DailyEngagementPayload = {
   kind: "daily_engagement";
@@ -28,7 +22,23 @@ type ProfileMilestonePayload = {
   milestone: 50 | 100;
 };
 
-type MintJobPayload = DailyEngagementPayload | PartnerEngagementPayload | ProfileMilestonePayload;
+type NewUserSignupPayload = {
+  kind: "new_user_signup";
+  userAddress: string;
+};
+
+type ReferralBonusPayload = {
+  kind: "referral_bonus";
+  userAddress: string;       // referrer
+  referredAddress: string;   // the referred wallet that triggered the bonus
+};
+
+type MintJobPayload =
+  | DailyEngagementPayload
+  | PartnerEngagementPayload
+  | ProfileMilestonePayload
+  | NewUserSignupPayload
+  | ReferralBonusPayload;
 
 type MintJobRow = {
   id: string;
@@ -47,10 +57,6 @@ function isDuplicateError(error: any) {
   return error?.code === "23505";
 }
 
-function errorMessage(error: any) {
-  return error?.shortMessage ?? error?.message ?? "mint-queue-error";
-}
-
 async function getMintJob(idempotencyKey: string): Promise<MintJobRow | null> {
   const { data, error } = await supabase
     .from("minipoint_mint_jobs")
@@ -58,10 +64,7 @@ async function getMintJob(idempotencyKey: string): Promise<MintJobRow | null> {
     .eq("idempotency_key", idempotencyKey)
     .maybeSingle();
 
-  if (error) {
-    throw error;
-  }
-
+  if (error) throw error;
   return data as MintJobRow | null;
 }
 
@@ -72,9 +75,6 @@ async function ensureMintJob(opts: {
   reason: string;
   payload: MintJobPayload;
 }) {
-  const existing = await getMintJob(opts.idempotencyKey);
-  if (existing) return existing;
-
   const { data, error } = await supabase
     .from("minipoint_mint_jobs")
     .insert({
@@ -88,152 +88,15 @@ async function ensureMintJob(opts: {
     .select("*")
     .single();
 
-  if (error && !isDuplicateError(error)) {
-    throw error;
-  }
-
+  if (error && !isDuplicateError(error)) throw error;
   if (data) return data as MintJobRow;
 
   const raced = await getMintJob(opts.idempotencyKey);
-  if (!raced) {
-    throw new Error(`Failed to create mint job ${opts.idempotencyKey}`);
-  }
+  if (!raced) throw new Error(`Failed to create mint job ${opts.idempotencyKey}`);
   return raced;
 }
 
-async function applyMintPayload(payload: MintJobPayload) {
-  if (payload.kind === "daily_engagement") {
-    const { error } = await supabase.from("daily_engagements").insert({
-      user_address: payload.userAddress,
-      quest_id: payload.questId,
-      claimed_at: payload.claimedAt,
-      points_awarded: payload.pointsAwarded,
-    });
-
-    if (error && !isDuplicateError(error)) {
-      throw error;
-    }
-    return;
-  }
-
-  if (payload.kind === "profile_milestone") {
-    const flagField =
-      payload.milestone === 50
-        ? "profile_milestone_50_claimed"
-        : "profile_milestone_100_claimed";
-    const { error } = await supabase
-      .from("users")
-      .update({ [flagField]: true })
-      .eq("user_address", payload.userAddress.toLowerCase());
-    if (error) throw error;
-    return;
-  }
-
-  const { error } = await supabase.from("partner_engagements").insert({
-    user_address: payload.userAddress,
-    partner_quest_id: payload.questId,
-    claimed_at: payload.claimedAt,
-    points_awarded: payload.pointsAwarded,
-  });
-
-  if (error && !isDuplicateError(error)) {
-    throw error;
-  }
-}
-
-export async function processMintQueue(opts?: { maxJobs?: number; leaseSeconds?: number }) {
-  const maxJobs = opts?.maxJobs ?? 5;
-  // Give enough lease for all jobs: ~8s per job + buffer
-  const leaseSeconds = opts?.leaseSeconds ?? Math.max(LOCK_LEASE_SECONDS, maxJobs * 10);
-  const owner = randomUUID();
-
-  const { data: acquired, error: lockError } = await supabase.rpc(
-    "acquire_minipoint_mint_queue_lock",
-    {
-      p_lock_name: LOCK_NAME,
-      p_owner: owner,
-      p_lease_seconds: leaseSeconds,
-    }
-  );
-
-  if (lockError) {
-    throw lockError;
-  }
-
-  if (!acquired) {
-    return { acquired: false as const, processed: 0 };
-  }
-
-  let processed = 0;
-
-  try {
-    for (let i = 0; i < maxJobs; i++) {
-      const { data, error } = await supabase.rpc(
-        "claim_next_minipoint_mint_job",
-        {
-          p_lock_name: LOCK_NAME,
-          p_owner: owner,
-        }
-      );
-
-      if (error) {
-        throw error;
-      }
-
-      const job = (Array.isArray(data) ? data[0] : data) as MintJobRow | null;
-      if (!job) break;
-
-      try {
-        console.log(`[queue] RETRY_PK set: ${!!process.env.RETRY_PK}, job: ${job.id}, user: ${job.user_address}, points: ${job.points}`);
-        const txHash = await safeMintMiniPoints({
-          to: job.user_address as `0x${string}`,
-          points: job.points,
-          reason: job.reason ?? undefined,
-          privateKey: process.env.RETRY_PK,
-        });
-
-        await applyMintPayload(job.payload);
-
-        const { error: completeError } = await supabase.rpc(
-          "complete_minipoint_mint_job",
-          {
-            p_job_id: job.id,
-            p_tx_hash: txHash,
-          }
-        );
-
-        if (completeError) {
-          throw completeError;
-        }
-
-        processed += 1;
-      } catch (error: any) {
-        const message = errorMessage(error);
-
-        if ((job.attempts ?? 0) >= MAX_JOB_ATTEMPTS) {
-          await supabase.rpc("fail_minipoint_mint_job", {
-            p_job_id: job.id,
-            p_error: message,
-          });
-          continue;
-        }
-
-        await supabase.rpc("retry_minipoint_mint_job", {
-          p_job_id: job.id,
-          p_error: message,
-          p_delay_seconds: Math.min(30, 2 ** Math.max(1, job.attempts ?? 1)),
-        });
-      }
-    }
-  } finally {
-    await supabase.rpc("release_minipoint_mint_queue_lock", {
-      p_lock_name: LOCK_NAME,
-      p_owner: owner,
-    });
-  }
-
-  return { acquired: true as const, processed };
-}
+// ── Public helpers ────────────────────────────────────────────────────────────
 
 export async function claimQueuedDailyReward(opts: {
   userAddress: string;
@@ -253,13 +116,8 @@ export async function claimQueuedDailyReward(opts: {
     .eq("claimed_at", scopeKey)
     .maybeSingle();
 
-  if (checkError) {
-    throw checkError;
-  }
-
-  if (claimed) {
-    return { ok: false as const, code: "already" as const, scopeKey };
-  }
+  if (checkError) throw checkError;
+  if (claimed) return { ok: false as const, code: "already" as const, scopeKey };
 
   const idempotencyKey = `daily:${questId}:${userLc}:${scopeKey}`;
 
@@ -277,28 +135,7 @@ export async function claimQueuedDailyReward(opts: {
     },
   });
 
-  await processMintQueue({ maxJobs: 5 });
-
-  const job = await getMintJob(idempotencyKey);
-  if (!job) {
-    throw new Error(`Mint job missing after enqueue: ${idempotencyKey}`);
-  }
-
-  if (job.status === "failed") {
-    return {
-      ok: false as const,
-      code: "error" as const,
-      scopeKey,
-      message: job.last_error ?? "Mint queue failed",
-    };
-  }
-
-  return {
-    ok: true as const,
-    queued: job.status !== "completed",
-    txHash: job.tx_hash ?? undefined,
-    scopeKey,
-  };
+  return { ok: true as const, queued: true, txHash: undefined, scopeKey };
 }
 
 export async function claimQueuedProfileMilestone(opts: {
@@ -318,21 +155,7 @@ export async function claimQueuedProfileMilestone(opts: {
     payload: { kind: "profile_milestone", userAddress: userLc, milestone },
   });
 
-  await processMintQueue({ maxJobs: 5 });
-
-  const job = await getMintJob(idempotencyKey);
-  if (!job) throw new Error(`Mint job missing: ${idempotencyKey}`);
-
-  if (job.status === "failed") {
-    return { ok: false as const, message: job.last_error ?? "Mint failed" };
-  }
-
-  return {
-    ok: true as const,
-    queued: job.status !== "completed",
-    txHash: job.tx_hash ?? undefined,
-    points,
-  };
+  return { ok: true as const, queued: true, txHash: undefined, points };
 }
 
 export async function claimQueuedPartnerReward(opts: {
@@ -351,13 +174,8 @@ export async function claimQueuedPartnerReward(opts: {
     .eq("partner_quest_id", questId)
     .limit(1);
 
-  if (checkError) {
-    throw checkError;
-  }
-
-  if (existing && existing.length > 0) {
-    return { ok: false as const, code: "already" as const };
-  }
+  if (checkError) throw checkError;
+  if (existing && existing.length > 0) return { ok: false as const, code: "already" as const };
 
   const idempotencyKey = `partner:${questId}:${userLc}`;
 
@@ -375,25 +193,15 @@ export async function claimQueuedPartnerReward(opts: {
     },
   });
 
-  await processMintQueue({ maxJobs: 5 });
+  return { ok: true as const, queued: true, txHash: undefined, minted: points };
+}
 
-  const job = await getMintJob(idempotencyKey);
-  if (!job) {
-    throw new Error(`Mint job missing after enqueue: ${idempotencyKey}`);
-  }
-
-  if (job.status === "failed") {
-    return {
-      ok: false as const,
-      code: "error" as const,
-      message: job.last_error ?? "Mint queue failed",
-    };
-  }
-
-  return {
-    ok: true as const,
-    queued: job.status !== "completed",
-    txHash: job.tx_hash ?? undefined,
-    minted: points,
-  };
+export async function enqueueSimpleMint(opts: {
+  idempotencyKey: string;
+  userAddress: string;
+  points: number;
+  reason: string;
+  payload: NewUserSignupPayload | ReferralBonusPayload;
+}) {
+  await ensureMintJob(opts);
 }
