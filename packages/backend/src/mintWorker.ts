@@ -14,7 +14,7 @@ const CONTRACT_ADDRESS =
 const LOCK_NAME = "default";
 const MAX_JOB_ATTEMPTS = 6;
 const BATCH_SIZE = 400;
-const LOCK_LEASE_SECONDS = 1800; // 30 min; isRunning flag prevents same-process overlap
+const LOCK_LEASE_SECONDS = 300; // 5 min; renewed each round — stale locks from crashes expire quickly
 
 const BATCH_MINT_ABI = [
   "function batchMint(address[] calldata accounts, uint256[] calldata amounts) external",
@@ -49,6 +49,14 @@ async function permanentlyFail(jobId: string, reason: string) {
   await supabase.rpc("fail_minipoint_mint_job", {
     p_job_id: jobId,
     p_error: reason,
+  });
+}
+
+async function renewLock(owner: string) {
+  await supabase.rpc("acquire_minipoint_mint_queue_lock", {
+    p_lock_name: LOCK_NAME,
+    p_owner: owner,
+    p_lease_seconds: LOCK_LEASE_SECONDS,
   });
 }
 
@@ -237,6 +245,9 @@ export async function runDrain() {
     try {
       // ── Loop until the queue is empty ──────────────────────────────────────
       while (true) {
+        // Renew lease each round so a long drain doesn't lose the lock mid-flight
+        await renewLock(owner);
+
         const mintJobs: any[] = [];
         const migrationJobs: any[] = [];
 
