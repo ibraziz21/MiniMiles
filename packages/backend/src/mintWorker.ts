@@ -12,9 +12,9 @@ const CONTRACT_ADDRESS =
   process.env.MINIPOINTS_V2_ADDRESS ?? "0xab93400000751fc17918940C202A66066885d628";
 
 const LOCK_NAME = "default";
-const MAX_JOBS_PER_RUN = 1000; // drained in batches of BATCH_SIZE per tx
 const MAX_JOB_ATTEMPTS = 6;
-const BATCH_SIZE = 200;
+const BATCH_SIZE = 400;
+const LOCK_LEASE_SECONDS = 1800; // 30 min; isRunning flag prevents same-process overlap
 
 const BATCH_MINT_ABI = [
   "function batchMint(address[] calldata accounts, uint256[] calldata amounts) external",
@@ -65,46 +65,69 @@ async function resetStalledJobs() {
   }
 }
 
-async function applyPayload(payload: any) {
-  if (payload.kind === "daily_engagement") {
-    const { error } = await supabase.from("daily_engagements").insert({
-      user_address: payload.userAddress,
-      quest_id: payload.questId,
-      claimed_at: payload.claimedAt,
-      points_awarded: payload.pointsAwarded,
-    });
-    if (error && !isDupe(error)) throw error;
-    return;
+// Bulk DB side-effects + bulk complete for an entire batch
+async function applyBatchPayloads(jobs: any[], txHash: string) {
+  const dailyRows = jobs
+    .filter((j) => j.payload?.kind === "daily_engagement")
+    .map((j) => ({
+      user_address: j.payload.userAddress,
+      quest_id: j.payload.questId,
+      claimed_at: j.payload.claimedAt,
+      points_awarded: j.payload.pointsAwarded,
+    }));
+
+  const partnerRows = jobs
+    .filter((j) => j.payload?.kind === "partner_engagement")
+    .map((j) => ({
+      user_address: j.payload.userAddress,
+      partner_quest_id: j.payload.questId,
+      claimed_at: j.payload.claimedAt,
+      points_awarded: j.payload.pointsAwarded,
+    }));
+
+  const m50 = jobs
+    .filter((j) => j.payload?.kind === "profile_milestone" && j.payload.milestone === 50)
+    .map((j) => j.payload.userAddress.toLowerCase());
+  const m100 = jobs
+    .filter((j) => j.payload?.kind === "profile_milestone" && j.payload.milestone !== 50)
+    .map((j) => j.payload.userAddress.toLowerCase());
+
+  if (dailyRows.length > 0) {
+    const { error } = await supabase
+      .from("daily_engagements")
+      .upsert(dailyRows, { onConflict: "user_address,quest_id,claimed_at", ignoreDuplicates: true });
+    if (error && error.code !== "23505") console.error("[mintWorker] bulk daily_engagements:", error.message);
   }
 
-  if (payload.kind === "profile_milestone") {
-    const field = payload.milestone === 50
-      ? "profile_milestone_50_claimed"
-      : "profile_milestone_100_claimed";
+  if (partnerRows.length > 0) {
+    const { error } = await supabase
+      .from("partner_engagements")
+      .upsert(partnerRows, { onConflict: "user_address,partner_quest_id,claimed_at", ignoreDuplicates: true });
+    if (error && error.code !== "23505") console.error("[mintWorker] bulk partner_engagements:", error.message);
+  }
+
+  if (m50.length > 0) {
     const { error } = await supabase
       .from("users")
-      .update({ [field]: true })
-      .eq("user_address", payload.userAddress.toLowerCase());
-    if (error) throw error;
-    return;
+      .update({ profile_milestone_50_claimed: true })
+      .in("user_address", m50);
+    if (error) console.error("[mintWorker] bulk milestone_50:", error.message);
   }
 
-  if (payload.kind === "v2_migration") {
-    return; // contract handles everything atomically
+  if (m100.length > 0) {
+    const { error } = await supabase
+      .from("users")
+      .update({ profile_milestone_100_claimed: true })
+      .in("user_address", m100);
+    if (error) console.error("[mintWorker] bulk milestone_100:", error.message);
   }
 
-  if (payload.kind === "new_user_signup" || payload.kind === "referral_bonus") {
-    return; // DB side effects applied by API route before enqueuing
-  }
-
-  // partner_engagement
-  const { error } = await supabase.from("partner_engagements").insert({
-    user_address: payload.userAddress,
-    partner_quest_id: payload.questId,
-    claimed_at: payload.claimedAt,
-    points_awarded: payload.pointsAwarded,
-  });
-  if (error && !isDupe(error)) throw error;
+  const ids = jobs.map((j) => j.id);
+  const { error: completeErr } = await supabase
+    .from("minipoint_mint_jobs")
+    .update({ status: "completed", tx_hash: txHash, updated_at: new Date().toISOString() })
+    .in("id", ids);
+  if (completeErr) console.error("[mintWorker] bulk complete:", completeErr.message);
 }
 
 const TX_TIMEOUT_MS = 60_000; // 60 s — abort tx.wait() if no confirmation
@@ -164,13 +187,10 @@ export async function runDrain() {
 
     const { contract } = makeWallet();
     const owner = randomUUID();
-    // Each batch (BATCH_SIZE jobs) = ~60s tx + overhead; lease covers all batches + buffer
-    const numBatches = Math.ceil(MAX_JOBS_PER_RUN / BATCH_SIZE);
-    const leaseSeconds = numBatches * 90 + 60; // e.g. 2 batches → 240s
 
     const { data: acquired } = await supabase.rpc(
       "acquire_minipoint_mint_queue_lock",
-      { p_lock_name: LOCK_NAME, p_owner: owner, p_lease_seconds: leaseSeconds }
+      { p_lock_name: LOCK_NAME, p_owner: owner, p_lease_seconds: LOCK_LEASE_SECONDS }
     );
 
     if (!acquired) {
@@ -178,74 +198,98 @@ export async function runDrain() {
       return;
     }
 
-    const mintJobs: any[] = [];
-    const migrationJobs: any[] = [];
+    let totalMinted = 0;
+    let totalMigrated = 0;
+    let round = 0;
 
     try {
-      // ── 1. Claim all pending jobs ──────────────────────────────────────────
-      for (let i = 0; i < MAX_JOBS_PER_RUN; i++) {
-        const { data } = await supabase.rpc("claim_next_minipoint_mint_job", {
-          p_lock_name: LOCK_NAME,
-          p_owner: owner,
-        });
+      // ── Loop until the queue is empty ──────────────────────────────────────
+      while (true) {
+        const mintJobs: any[] = [];
+        const migrationJobs: any[] = [];
 
-        const job = (Array.isArray(data) ? data[0] : data) as any | null;
-        if (!job) break;
+        for (let i = 0; i < BATCH_SIZE; i++) {
+          const { data } = await supabase.rpc("claim_next_minipoint_mint_job", {
+            p_lock_name: LOCK_NAME,
+            p_owner: owner,
+          });
 
-        if (job.payload?.kind === "v2_migration") {
-          migrationJobs.push(job);
-        } else {
-          mintJobs.push(job);
+          const job = (Array.isArray(data) ? data[0] : data) as any | null;
+          if (!job) break;
+
+          if (job.payload?.kind === "v2_migration") {
+            migrationJobs.push(job);
+          } else {
+            mintJobs.push(job);
+          }
         }
-      }
 
-      console.log(`[mintWorker] Claimed ${mintJobs.length} mint jobs, ${migrationJobs.length} migration jobs`);
+        if (mintJobs.length === 0 && migrationJobs.length === 0) {
+          console.log("[mintWorker] Queue empty, done.");
+          break;
+        }
 
-      // ── 2. Process mint jobs in batches ────────────────────────────────────
-      let mintProcessed = 0;
+        round++;
+        console.log(`[mintWorker] Round ${round}: ${mintJobs.length} mint, ${migrationJobs.length} migration`);
 
-      for (let offset = 0; offset < mintJobs.length; offset += BATCH_SIZE) {
-        const chunk = mintJobs.slice(offset, offset + BATCH_SIZE);
+        // ── Mint jobs — one batchMint tx for the whole chunk ────────────────
+        if (mintJobs.length > 0) {
+          try {
+            const { txHash } = await processMintBatch(mintJobs, contract);
+            console.log(`[mintWorker] ✓ batchMint ${mintJobs.length} — tx: ${txHash}`);
+            await applyBatchPayloads(mintJobs, txHash);
+            totalMinted += mintJobs.length;
+          } catch (batchErr: any) {
+            console.warn(`[mintWorker] batchMint failed, falling back: ${batchErr?.shortMessage ?? batchErr?.message}`);
 
-        try {
-          const { txHash, succeeded } = await processMintBatch(chunk, contract);
-          console.log(`[mintWorker] ✓ batchMint ${succeeded.length} jobs — tx: ${txHash}`);
+            const { succeeded, failed } = await processMintJobsIndividually(mintJobs, contract);
 
-          for (const job of succeeded) {
-            try {
-              await applyPayload(job.payload);
-              await supabase.rpc("complete_minipoint_mint_job", {
-                p_job_id: job.id,
-                p_tx_hash: txHash,
-              });
-              mintProcessed++;
-            } catch (applyErr: any) {
-              console.error(`[mintWorker] applyPayload failed for job ${job.id}:`, applyErr?.message);
+            // Group by txHash so each group gets one bulk apply call
+            const byHash = new Map<string, any[]>();
+            for (const j of succeeded) {
+              const arr = byHash.get(j.txHash) ?? [];
+              arr.push(j);
+              byHash.set(j.txHash, arr);
+            }
+            for (const [hash, group] of byHash) {
+              await applyBatchPayloads(group, hash);
+            }
+            totalMinted += succeeded.length;
+
+            for (const { job, msg } of failed) {
+              console.error(`[mintWorker] ✗ Job ${job.id} failed: ${msg}`);
+              if (isBlacklistedError({ message: msg })) {
+                await permanentlyFail(job.id, "blacklisted");
+              } else if ((job.attempts ?? 0) >= MAX_JOB_ATTEMPTS) {
+                await permanentlyFail(job.id, msg);
+              } else {
+                const delay = Math.min(30, 2 ** Math.max(1, job.attempts ?? 1));
+                await supabase.rpc("retry_minipoint_mint_job", {
+                  p_job_id: job.id,
+                  p_error: msg,
+                  p_delay_seconds: delay,
+                });
+              }
             }
           }
-        } catch (batchErr: any) {
-          // Batch reverted (e.g. blacklisted address in chunk) — fall back to individual
-          console.warn(`[mintWorker] batchMint chunk failed, falling back to individual: ${batchErr?.shortMessage ?? batchErr?.message}`);
+        }
 
-          const { succeeded, failed } = await processMintJobsIndividually(chunk, contract);
-
-          for (const job of succeeded) {
-            try {
-              await applyPayload(job.payload);
-              await supabase.rpc("complete_minipoint_mint_job", {
-                p_job_id: job.id,
-                p_tx_hash: job.txHash,
-              });
-              mintProcessed++;
-            } catch (applyErr: any) {
-              console.error(`[mintWorker] applyPayload failed for job ${job.id}:`, applyErr?.message);
-            }
-          }
-
-          for (const { job, msg } of failed) {
-            console.error(`[mintWorker] ✗ Job ${job.id} failed individually: ${msg}`);
-            if (isBlacklistedError({ message: msg })) {
-              console.warn(`[mintWorker] Permanently failing blacklisted job ${job.id} (${job.user_address})`);
+        // ── Migration jobs — each reads V1 balance on-chain, must be serial ─
+        for (const job of migrationJobs) {
+          try {
+            const tx = await contract.claimV2TokensFor(job.user_address);
+            const receipt = await tx.wait(1, TX_TIMEOUT_MS);
+            const txHash: string = receipt.hash ?? tx.hash;
+            console.log(`[mintWorker] ✓ Migrated ${job.user_address} tx: ${txHash}`);
+            await supabase.rpc("complete_minipoint_mint_job", {
+              p_job_id: job.id,
+              p_tx_hash: txHash,
+            });
+            totalMigrated++;
+          } catch (err: any) {
+            const msg = err?.shortMessage ?? err?.message ?? "error";
+            console.error(`[mintWorker] ✗ Migration job ${job.id} failed: ${msg}`);
+            if (isBlacklistedError(err)) {
               await permanentlyFail(job.id, "blacklisted");
             } else if ((job.attempts ?? 0) >= MAX_JOB_ATTEMPTS) {
               await permanentlyFail(job.id, msg);
@@ -259,50 +303,17 @@ export async function runDrain() {
             }
           }
         }
+
+        console.log(`[mintWorker] Round ${round} done — ${totalMinted} minted, ${totalMigrated} migrated so far`);
       }
-
-      // ── 3. Process migration jobs individually (each reads V1 balance on-chain) ──
-      let migrateProcessed = 0;
-
-      for (const job of migrationJobs) {
-        try {
-          const tx = await contract.claimV2TokensFor(job.user_address);
-          const receipt = await tx.wait(1, TX_TIMEOUT_MS);
-          const txHash: string = receipt.hash ?? tx.hash;
-          console.log(`[mintWorker] ✓ Migrated ${job.user_address} tx: ${txHash}`);
-
-          await supabase.rpc("complete_minipoint_mint_job", {
-            p_job_id: job.id,
-            p_tx_hash: txHash,
-          });
-          migrateProcessed++;
-        } catch (err: any) {
-          const msg = err?.shortMessage ?? err?.message ?? "error";
-          console.error(`[mintWorker] ✗ Migration job ${job.id} failed: ${msg}`);
-
-          if (isBlacklistedError(err)) {
-            console.warn(`[mintWorker] Permanently failing blacklisted migration ${job.id} (${job.user_address})`);
-            await permanentlyFail(job.id, "blacklisted");
-          } else if ((job.attempts ?? 0) >= MAX_JOB_ATTEMPTS) {
-            await permanentlyFail(job.id, msg);
-          } else {
-            const delay = Math.min(30, 2 ** Math.max(1, job.attempts ?? 1));
-            await supabase.rpc("retry_minipoint_mint_job", {
-              p_job_id: job.id,
-              p_error: msg,
-              p_delay_seconds: delay,
-            });
-          }
-        }
-      }
-
-      console.log(`[mintWorker] Run complete — ${mintProcessed} minted, ${migrateProcessed} migrated`);
     } finally {
       await supabase.rpc("release_minipoint_mint_queue_lock", {
         p_lock_name: LOCK_NAME,
         p_owner: owner,
       });
     }
+
+    console.log(`[mintWorker] Complete — ${totalMinted} minted, ${totalMigrated} migrated`);
   } catch (err: any) {
     console.error("[mintWorker] Fatal error:", err?.message);
   } finally {
