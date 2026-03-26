@@ -308,9 +308,9 @@ export async function runDrain() {
 
 // ── Scheduler ──────────────────────────────────────────────────────────────────
 export function startMintWorker() {
-  console.log("[mintWorker] Starting — runs every 5 minutes");
+  console.log("[mintWorker] Starting — runs every minute");
   runDrain().catch(console.error);
-  cron.schedule("*/5 * * * *", () => {
+  cron.schedule("* * * * *", () => {
     runDrain().catch(console.error);
   });
 }
