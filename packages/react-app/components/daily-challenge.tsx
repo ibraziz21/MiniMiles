@@ -33,6 +33,7 @@ const supabase = createClient(
 
 const TOPUP_STREAK_QUEST_ID = "96009afb-0762-4399-adb3-ced421d73072";
 const BALANCE_REFRESH_EVENT = "akiba:miles:refresh";
+const QUESTS_REFRESH_EVENT = "akiba:quests:refresh";
 
 const KILN_DAILY_HOLD_QUEST_ID =
   process.env.NEXT_PUBLIC_KILN_DAILY_HOLD_QUEST_ID ??
@@ -242,10 +243,10 @@ export default function DailyChallenges({
     getUserAddress();
   }, [getUserAddress]);
 
-  /* fetch quests + streaks */
+  /* fetch quests + streaks — also re-runs on QUESTS_REFRESH_EVENT */
   useEffect(() => {
-    async function fetchAll() {
-      setLoading(true);
+    async function fetchAll(silent = false) {
+      if (!silent) setLoading(true);
 
       const { data: quests } = await supabase
         .from("quests")
@@ -273,7 +274,7 @@ export default function DailyChallenges({
       const { data: eng } = await supabase
         .from("daily_engagements")
         .select("quest_id")
-        .eq("user_address", address)
+        .eq("user_address", address.toLowerCase())
         .eq("claimed_at", today);
 
       const claimed = new Set(eng?.map((e) => e.quest_id));
@@ -284,7 +285,6 @@ export default function DailyChallenges({
       setActive(sortByDesiredOrder(activeQs));
       setCompleted(sortByDesiredOrder(completedQs));
 
-      // streaks table stores user_address in LOWERCASE
       const userLc = address.toLowerCase();
 
       try {
@@ -335,6 +335,10 @@ export default function DailyChallenges({
     }
 
     void fetchAll();
+
+    const onRefresh = () => { void fetchAll(true); };
+    window.addEventListener(QUESTS_REFRESH_EVENT, onRefresh);
+    return () => window.removeEventListener(QUESTS_REFRESH_EVENT, onRefresh);
   }, [address]);
 
   const quests = showCompleted ? completed : active;
@@ -355,26 +359,17 @@ export default function DailyChallenges({
       const res: any = await map.action(address);
 
       if (res?.success) {
-        setActive((cur) => sortByDesiredOrder(cur.filter((x) => x.id !== q.id)));
-        setCompleted((cur) => sortByDesiredOrder([...cur, q]));
-
+        // Refetch all DailyChallenges instances (active + completed tabs) from DB
+        window.dispatchEvent(new Event(QUESTS_REFRESH_EVENT));
         window.dispatchEvent(new Event(BALANCE_REFRESH_EVENT));
-
-        if (STREAK_QUEST_IDS.has(q.id)) {
-          setStreakCounts((prev) => {
-            const current = prev[q.id] ?? 0;
-            let serverCount: number | undefined;
-
-            if (typeof res.currentStreak === "number") serverCount = res.currentStreak;
-            if (typeof res.streak === "number") serverCount = res.streak;
-
-            return { ...prev, [q.id]: serverCount ?? current + 1 };
-          });
-        }
 
         setResultVariant("success");
         setResultTitle("Claim Successful!");
-        setResultMessage(`You claimed ${res.points ?? q.reward_points} AkibaMiles.`);
+        setResultMessage(
+          res.queued
+            ? `Your ${res.points ?? q.reward_points} AkibaMiles are on their way — they'll arrive in your wallet within a few minutes.`
+            : `You claimed ${res.points ?? q.reward_points} AkibaMiles.`
+        );
       } else if (res?.code === "already") {
         setResultVariant("already");
         setResultTitle("Already claimed");

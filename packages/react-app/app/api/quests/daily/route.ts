@@ -1,13 +1,6 @@
 // e.g. src/app/api/quests/daily/route.ts
-import { createClient } from "@supabase/supabase-js";
 import { claimQueuedDailyReward } from "@/lib/minipointQueue";
 import { isBlacklisted } from "@/lib/blacklist";
-
-// ENVIRONMENT VARIABLES
-const SUPABASE_URL = process.env.SUPABASE_URL || "";
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || "";
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 export async function POST(req: Request) {
   try {
@@ -29,31 +22,7 @@ export async function POST(req: Request) {
       return Response.json({ success: false, message: "Forbidden" }, { status: 403 });
     }
 
-    const today = new Date().toISOString().slice(0, 10); // e.g. "2025-04-15"
-
-    // 1) Check Supabase: already claimed today?
-    const { data: claimed, error: claimedErr } = await supabase
-      .from("daily_engagements")
-      .select("*")
-      .eq("user_address", addr)
-      .eq("quest_id", questId)
-      .eq("claimed_at", today)
-      .maybeSingle();
-
-    if (claimedErr) {
-      console.error("[daily-quest] claim lookup error:", claimedErr);
-      return Response.json(
-        { success: false, message: "db-error" },
-        { status: 500 },
-      );
-    }
-
-    if (claimed) {
-      return Response.json(
-        { success: false, message: "Already claimed today" },
-        { status: 400 },
-      );
-    }
+    const today = new Date().toISOString().slice(0, 10);
 
     const POINTS = 10;
     const result = await claimQueuedDailyReward({
@@ -66,8 +35,8 @@ export async function POST(req: Request) {
 
     if (!result.ok && result.code === "already") {
       return Response.json(
-        { success: false, message: "Already claimed today" },
-        { status: 400 },
+        { success: false, code: "already", message: "Already claimed today" },
+        { status: 200 },
       );
     }
 
