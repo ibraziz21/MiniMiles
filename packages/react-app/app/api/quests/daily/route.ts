@@ -42,7 +42,7 @@ export async function POST(req: Request) {
 
     if (!result.ok) {
       return Response.json(
-        { success: false, message: result.message ?? "queue-error" },
+        { success: false, message: "queue-error" },
         { status: 500 },
       );
     }

@@ -98,7 +98,7 @@ export async function POST(request: Request) {
 
     if (!result.ok) {
       return NextResponse.json(
-        { error: result.message ?? "queue-error" },
+        { error: "queue-error" },
         { status: 500 }
       );
     }

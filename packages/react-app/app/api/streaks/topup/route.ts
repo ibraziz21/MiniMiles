@@ -54,7 +54,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          message: result.message ?? "server-error",
+          message: "server-error",
           currentStreak: result.currentStreak,
           longestStreak: result.longestStreak,
         },

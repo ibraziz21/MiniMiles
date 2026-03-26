@@ -91,15 +91,8 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!result.ok) {
-      return NextResponse.json(
-        { error: result.message ?? "queue-error" },
-        { status: 500 }
-      );
-    }
-
     return NextResponse.json(
-      { minted: points, txHash: result.txHash, queued: result.queued },
+      { minted: points, queued: true },
       { status: 200 }
     );
   } catch (err) {

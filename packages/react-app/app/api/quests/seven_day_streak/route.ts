@@ -119,7 +119,7 @@ export async function POST(req: Request) {
     if (!result.ok) {
       return NextResponse.json({
         success: false,
-        message: result.message ?? "queue-error",
+        message: "queue-error",
       });
     }
 

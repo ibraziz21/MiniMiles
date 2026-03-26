@@ -95,7 +95,7 @@ export async function POST(req: Request) {
 
     if (!result.ok) {
       return NextResponse.json(
-        { error: result.message ?? "Mint failed" },
+        { error: "Mint failed" },
         { status: 500 }
       );
     }

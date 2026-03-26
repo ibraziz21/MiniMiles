@@ -218,7 +218,7 @@ export async function claimStreakReward(opts: {
       ok: false,
       code: "error",
       scopeKey: key,
-      message: result.message,
+      message: "queue-error",
       currentStreak: streak.currentStreak,
       longestStreak: streak.longestStreak,
     };
