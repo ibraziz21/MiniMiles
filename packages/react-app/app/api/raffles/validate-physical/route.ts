@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     const { raffleId, address, twitter, email, phone } = body;
     const tickets = body?.tickets; // optional
 
-    if (address && await isBlacklisted(address)) {
+    if (address && await isBlacklisted(address, "raffles/validate-physical")) {
       return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     }
 

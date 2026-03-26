@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid referrerAddress" }, { status: 400 });
   }
 
-  if (await isBlacklisted(referrerAddr)) {
+  if (await isBlacklisted(referrerAddr, "referral/claim-referrer-bonus")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

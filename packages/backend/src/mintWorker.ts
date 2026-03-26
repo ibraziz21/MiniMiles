@@ -34,17 +34,19 @@ function makeWallet() {
 function isDupe(e: any) { return e?.code === "23505"; }
 
 async function resetStalledJobs() {
-  await Promise.all([
-    supabase
-      .from("minipoint_mint_jobs")
-      .update({ status: "pending", attempts: 0, last_error: null })
-      .eq("status", "failed"),
-    supabase
-      .from("minipoint_mint_jobs")
-      .update({ status: "pending" })
-      .eq("status", "processing"),
-  ]);
-  console.log("[mintWorker] Reset failed/stuck jobs to pending");
+  // Only unstick jobs that got stuck in "processing" (worker crashed mid-run).
+  // Do NOT reset "failed" jobs — they hit MAX_JOB_ATTEMPTS for a reason.
+  // Individual retries are handled by retry_minipoint_mint_job with back-off.
+  const { data } = await supabase
+    .from("minipoint_mint_jobs")
+    .update({ status: "pending" })
+    .eq("status", "processing")
+    .select("id");
+
+  const count = data?.length ?? 0;
+  if (count > 0) {
+    console.log(`[mintWorker] Unstuck ${count} processing jobs back to pending`);
+  }
 }
 
 async function applyPayload(payload: any) {

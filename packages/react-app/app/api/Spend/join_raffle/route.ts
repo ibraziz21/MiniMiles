@@ -33,7 +33,7 @@ export async function POST(req: Request) {
       )
     }
 
-    if (await isBlacklisted(userAddress)) {
+    if (await isBlacklisted(userAddress, "Spend/join_raffle")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 

@@ -18,7 +18,7 @@ export async function POST(req: Request) {
 
     const addr = userAddress as `0x${string}`;
 
-    if (await isBlacklisted(addr)) {
+    if (await isBlacklisted(addr, "quests/daily")) {
       return Response.json({ success: false, message: "Forbidden" }, { status: 403 });
     }
 

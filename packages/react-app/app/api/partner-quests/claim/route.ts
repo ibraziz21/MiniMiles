@@ -33,7 +33,7 @@ export async function POST(request: Request) {
 
     const userLc = userAddress.toLowerCase();
 
-    if (await isBlacklisted(userLc)) {
+    if (await isBlacklisted(userLc, "partner-quests/claim")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

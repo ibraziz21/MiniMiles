@@ -77,7 +77,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid address" }, { status: 400 });
   }
 
-  if (await isBlacklisted(userAddr)) {
+  if (await isBlacklisted(userAddr, "users")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

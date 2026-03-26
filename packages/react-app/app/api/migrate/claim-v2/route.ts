@@ -54,7 +54,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing address" }, { status: 400 });
   }
 
-  if (await isBlacklisted(addr)) {
+  if (await isBlacklisted(addr, "migrate/claim-v2")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

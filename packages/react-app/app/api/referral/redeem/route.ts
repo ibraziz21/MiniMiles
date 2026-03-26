@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing address or code" }, { status: 400 });
   }
 
-  if (await isBlacklisted(addr)) {
+  if (await isBlacklisted(addr, "referral/redeem")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
