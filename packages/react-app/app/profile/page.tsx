@@ -370,7 +370,7 @@ function MilestoneCard({
 
 /* ─── Main page ──────────────────────────────────────────────── */
 export default function ProfilePage() {
-  const { address } = useWeb3();
+  const { address, waitForAuth } = useWeb3();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -416,6 +416,7 @@ export default function ProfilePage() {
 
   const claimMilestone = async (milestone: 50 | 100, turnstileToken: string) => {
     if (!address) return;
+    await waitForAuth();
     const res = await fetch('/api/profile/claim-milestone', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

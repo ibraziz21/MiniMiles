@@ -3,10 +3,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { getReferralTag, submitReferral } from '@divvi/referral-sdk';
 
-// Module-level flag — survives React StrictMode double-invoke and component
-// remounts for the lifetime of the page. Guarantees at most one sign-in
-// attempt per page load regardless of how many times the provider mounts.
-let _signInAttempted = false;
 import {
   createPublicClient,
   createWalletClient,
@@ -57,6 +53,14 @@ type Web3ContextValue = ReturnType<typeof useWeb3Logic>;
 
 const Web3Context = createContext<Web3ContextValue | null>(null);
 
+// ── Module-level auth readiness ───────────────────────────────────────────────
+// _signInAttempted: ensures at most one sign-in per page load (survives remounts).
+// _authResolve: resolves _authPromise the moment a session is established so
+//   any claim handler that calls waitForAuth() unblocks automatically.
+let _signInAttempted = false;
+let _authResolve: (() => void) | null = null;
+const _authPromise = new Promise<void>(resolve => { _authResolve = resolve; });
+
 // ── The actual logic, runs exactly once inside the provider ──────────────────
 
 function useWeb3Logic() {
@@ -79,12 +83,17 @@ function useWeb3Logic() {
 
         // Check for an existing valid session — avoids a sign-in on every
         // page navigation when the user is already authenticated.
+        const markAuthed = () => {
+          setIsAuthenticated(true);
+          _authResolve?.();
+        };
+
         try {
           const res = await fetch("/api/auth/session");
           const data = await res.json();
           if (data.authenticated && data.walletAddress === addr.toLowerCase()) {
-            setIsAuthenticated(true);
-            _signInAttempted = true; // already authenticated, don't attempt again
+            markAuthed();
+            _signInAttempted = true;
             return;
           }
         } catch { /* ignore */ }
@@ -93,28 +102,42 @@ function useWeb3Logic() {
         if (_signInAttempted) return;
         _signInAttempted = true;
 
+        const isMiniPay = !!(window as any).ethereum?.isMiniPay;
+
         try {
-          const { nonce } = await fetch(`/api/auth/nonce?address=${addr}`).then(r => r.json());
-          const message = [
-            "Sign in to MiniMiles",
-            "",
-            "This request does not trigger a blockchain transaction or cost any fees.",
-            "",
-            `Address: ${addr.toLowerCase()}`,
-            `Nonce: ${nonce}`,
-            `Issued At: ${new Date().toISOString()}`,
-          ].join("\n");
-          const hexMessage = `0x${Buffer.from(message, "utf8").toString("hex")}`;
-          const signature = await window.ethereum.request({
-            method: "personal_sign",
-            params: [hexMessage, addr],
-          });
-          const verifyRes = await fetch("/api/auth/verify", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ address: addr, message, signature }),
-          });
-          if (verifyRes.ok) setIsAuthenticated(true);
+          if (isMiniPay) {
+            // MiniPay: user is already authenticated via Google/Apple.
+            // No signature needed — just create a server session from the address.
+            const res = await fetch("/api/auth/minipay", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ address: addr }),
+            });
+            if (res.ok) markAuthed();
+          } else {
+            // Browser: full SIWE — prove ownership of the wallet via signature.
+            const { nonce } = await fetch(`/api/auth/nonce?address=${addr}`).then(r => r.json());
+            const message = [
+              "Sign in to MiniMiles",
+              "",
+              "This request does not trigger a blockchain transaction or cost any fees.",
+              "",
+              `Address: ${addr.toLowerCase()}`,
+              `Nonce: ${nonce}`,
+              `Issued At: ${new Date().toISOString()}`,
+            ].join("\n");
+            const hexMessage = `0x${Buffer.from(message, "utf8").toString("hex")}`;
+            const signature = await window.ethereum.request({
+              method: "personal_sign",
+              params: [hexMessage, addr],
+            });
+            const verifyRes = await fetch("/api/auth/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ address: addr, message, signature }),
+            });
+            if (verifyRes.ok) markAuthed();
+          }
         } catch (e) {
           // Reset on failure so a full page reload can retry
           _signInAttempted = false;
@@ -382,9 +405,33 @@ function useWeb3Logic() {
     [address, publicClient]
   );
 
+  /**
+   * Waits until the session is established (or the timeout elapses).
+   * Call this at the top of any claim handler to absorb the brief startup gap.
+   *
+   *   const { waitForAuth } = useWeb3();
+   *   const handleClaim = async () => {
+   *     await waitForAuth();
+   *     // session is now guaranteed — proceed with the API call
+   *   };
+   */
+  const waitForAuth = useCallback(
+    (timeoutMs = 5000): Promise<void> =>
+      isAuthenticated
+        ? Promise.resolve()
+        : Promise.race([
+            _authPromise,
+            new Promise<void>((_, reject) =>
+              setTimeout(() => reject(new Error("Auth timeout — please refresh")), timeoutMs)
+            ),
+          ]),
+    [isAuthenticated]
+  );
+
   return {
     address,
     isAuthenticated,
+    waitForAuth,
     getakibaMilesBalance,
     getUserAddress,
     sendCUSD,

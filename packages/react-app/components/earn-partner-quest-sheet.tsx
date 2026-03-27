@@ -59,7 +59,7 @@ const EarnPartnerQuestSheet = ({
   const [username, setUsername] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const { address, getUserAddress } = useWeb3();
+  const { address, getUserAddress, waitForAuth } = useWeb3();
 
   useEffect(() => {
     getUserAddress();
@@ -87,6 +87,7 @@ const EarnPartnerQuestSheet = ({
     }
 
     try {
+      await waitForAuth();
       setLoading(true);
       setError(null);
 

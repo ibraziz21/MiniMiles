@@ -212,7 +212,7 @@ export default function DailyChallenges({
 }: {
   showCompleted?: boolean;
 }) {
-  const { address, getUserAddress } = useWeb3();
+  const { address, getUserAddress, waitForAuth } = useWeb3();
 
   const [active, setActive] = useState<QuestRow[]>([]);
   const [completed, setCompleted] = useState<QuestRow[]>([]);
@@ -347,6 +347,7 @@ export default function DailyChallenges({
     if (showCompleted) return;
     if (!address) return;
     if (claimBusy) return;
+    await waitForAuth();
 
     const map = ACTION_BY_ID[q.id];
     if (!map) return;
