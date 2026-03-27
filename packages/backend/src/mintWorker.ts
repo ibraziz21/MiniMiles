@@ -11,10 +11,20 @@ import { supabase } from "./supabaseClient";
 const CONTRACT_ADDRESS =
   process.env.MINIPOINTS_V2_ADDRESS ?? "0xab93400000751fc17918940C202A66066885d628";
 
-const LOCK_NAME = "default";
-const MAX_JOB_ATTEMPTS = 6;
+// Jobs claimed per wallet per round. Total claimed = BATCH_SIZE × wallet count.
 const BATCH_SIZE = 400;
-const LOCK_LEASE_SECONDS = 300; // 5 min; renewed each round — stale locks from crashes expire quickly
+const LOCK_NAME = "default";
+const LOCK_LEASE_SECONDS = 300; // 5 min; renewed each round
+const MAX_JOB_ATTEMPTS = 6;
+const TX_TIMEOUT_MS = 60_000;
+const BATCH_RETRY_ATTEMPTS = 3;
+const BATCH_RETRY_DELAY_MS = 5_000;
+
+// Round-robin across these RPCs so wallets don't all hammer the same node.
+const RPC_URLS = [
+  "https://forno.celo.org",
+  "https://rpc.ankr.com/celo",
+];
 
 const BATCH_MINT_ABI = [
   "function batchMint(address[] calldata accounts, uint256[] calldata amounts) external",
@@ -24,32 +34,55 @@ const BATCH_MINT_ABI = [
   "error NullAddress()",
 ];
 
-// ── Wallet ────────────────────────────────────────────────────────────────────
-function makeWallet() {
-  const pk = process.env.RETRY_PK ?? process.env.PRIVATE_KEY;
-  if (!pk) throw new Error("No RETRY_PK or PRIVATE_KEY set");
-  const provider = new ethers.JsonRpcProvider("https://forno.celo.org");
-  const wallet = new ethers.Wallet(pk, provider);
-  const contract = new ethers.Contract(CONTRACT_ADDRESS, BATCH_MINT_ABI, wallet);
-  console.log(`[mintWorker] Using wallet: ${wallet.address}`);
-  return { wallet, contract };
+// ── Wallets ───────────────────────────────────────────────────────────────────
+// Reads MINTER_PK_1 … MINTER_PK_4 (or falls back to RETRY_PK / PRIVATE_KEY).
+// Each extra registered minter wallet = one more parallel batchMint tx per round.
+function makeWallets() {
+  const pks = [
+    process.env.MINTER_PK_1 ?? process.env.RETRY_PK ?? process.env.PRIVATE_KEY,
+    process.env.MINTER_PK_2,
+    process.env.MINTER_PK_3,
+    process.env.MINTER_PK_4,
+  ].filter((pk): pk is string => !!pk);
+
+  if (pks.length === 0) throw new Error("No minter PKs configured");
+
+  const wallets = pks.map((pk, i) => {
+    const provider = new ethers.JsonRpcProvider(RPC_URLS[i % RPC_URLS.length]);
+    const wallet = new ethers.Wallet(pk, provider);
+    const contract = new ethers.Contract(CONTRACT_ADDRESS, BATCH_MINT_ABI, wallet);
+    return { wallet, contract };
+  });
+
+  console.log(
+    `[mintWorker] ${wallets.length} wallet(s): ${wallets.map((w) => w.wallet.address).join(", ")}`
+  );
+  return wallets;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function isDupe(e: any) { return e?.code === "23505"; }
-
 function isBlacklistedError(err: any): boolean {
-  // ethers v6 decodes custom errors into errorName when the ABI includes them
   if (err?.errorName === "Blacklisted") return true;
   const msg: string = (err?.shortMessage ?? err?.message ?? "").toLowerCase();
-  return msg.includes("blacklisted") || msg.includes("0x" + "b4c62e72"); // Blacklisted() selector
+  return msg.includes("blacklisted") || msg.includes("0x" + "b4c62e72");
+}
+
+function isTransientError(err: any): boolean {
+  const msg: string = (err?.shortMessage ?? err?.message ?? "").toLowerCase();
+  return (
+    msg.includes("503") ||
+    msg.includes("service unavailable") ||
+    msg.includes("could not coalesce") ||
+    msg.includes("timeout") ||
+    msg.includes("network error") ||
+    msg.includes("econnreset") ||
+    msg.includes("econnrefused") ||
+    msg.includes("etimedout")
+  );
 }
 
 async function permanentlyFail(jobId: string, reason: string) {
-  await supabase.rpc("fail_minipoint_mint_job", {
-    p_job_id: jobId,
-    p_error: reason,
-  });
+  await supabase.rpc("fail_minipoint_mint_job", { p_job_id: jobId, p_error: reason });
 }
 
 async function renewLock(owner: string) {
@@ -66,14 +99,33 @@ async function resetStalledJobs() {
     .update({ status: "pending" })
     .eq("status", "processing")
     .select("id");
-
   const count = data?.length ?? 0;
-  if (count > 0) {
-    console.log(`[mintWorker] Unstuck ${count} processing jobs back to pending`);
-  }
+  if (count > 0) console.log(`[mintWorker] Unstuck ${count} stalled jobs`);
 }
 
-// Bulk DB side-effects + bulk complete for an entire batch
+// Single bulk fetch + mark-processing instead of N sequential RPC calls.
+async function claimBatch(count: number): Promise<any[]> {
+  const now = new Date().toISOString();
+  const { data: jobs, error } = await supabase
+    .from("minipoint_mint_jobs")
+    .select("*")
+    .eq("status", "pending")
+    .or(`run_after.is.null,run_after.lte.${now}`)
+    .order("created_at", { ascending: true })
+    .limit(count);
+
+  if (error) throw error;
+  if (!jobs || jobs.length === 0) return [];
+
+  await supabase
+    .from("minipoint_mint_jobs")
+    .update({ status: "processing", updated_at: now })
+    .in("id", jobs.map((j) => j.id));
+
+  return jobs;
+}
+
+// ── Bulk DB side-effects + complete ──────────────────────────────────────────
 async function applyBatchPayloads(jobs: any[], txHash: string) {
   const dailyRows = jobs
     .filter((j) => j.payload?.kind === "daily_engagement")
@@ -116,72 +168,48 @@ async function applyBatchPayloads(jobs: any[], txHash: string) {
 
   if (m50.length > 0) {
     const { error } = await supabase
-      .from("users")
-      .update({ profile_milestone_50_claimed: true })
-      .in("user_address", m50);
+      .from("users").update({ profile_milestone_50_claimed: true }).in("user_address", m50);
     if (error) console.error("[mintWorker] bulk milestone_50:", error.message);
   }
 
   if (m100.length > 0) {
     const { error } = await supabase
-      .from("users")
-      .update({ profile_milestone_100_claimed: true })
-      .in("user_address", m100);
+      .from("users").update({ profile_milestone_100_claimed: true }).in("user_address", m100);
     if (error) console.error("[mintWorker] bulk milestone_100:", error.message);
   }
 
-  const ids = jobs.map((j) => j.id);
   const { error: completeErr } = await supabase
     .from("minipoint_mint_jobs")
     .update({ status: "completed", tx_hash: txHash, updated_at: new Date().toISOString() })
-    .in("id", ids);
+    .in("id", jobs.map((j) => j.id));
   if (completeErr) console.error("[mintWorker] bulk complete:", completeErr.message);
 }
 
-const TX_TIMEOUT_MS = 60_000; // 60 s — abort tx.wait() if no confirmation
-const BATCH_RETRY_ATTEMPTS = 3;
-const BATCH_RETRY_DELAY_MS = 5_000;
-
-// Returns true for transient RPC/infra failures that warrant a retry.
-// Returns false for contract reverts (blacklisted address, etc.) that warrant fallback.
-function isTransientError(err: any): boolean {
-  const msg: string = (err?.shortMessage ?? err?.message ?? "").toLowerCase();
-  return (
-    msg.includes("503") ||
-    msg.includes("service unavailable") ||
-    msg.includes("could not coalesce") ||
-    msg.includes("timeout") ||
-    msg.includes("network error") ||
-    msg.includes("econnreset") ||
-    msg.includes("econnrefused") ||
-    msg.includes("etimedout")
-  );
-}
-
-// ── Batch mint a chunk of regular mint jobs ───────────────────────────────────
+// ── Mint helpers ──────────────────────────────────────────────────────────────
 async function processMintBatch(
   jobs: any[],
-  contract: ethers.Contract
-): Promise<{ txHash: string; succeeded: any[]; failed: any[] }> {
+  contract: ethers.Contract,
+  label: string
+): Promise<string> {
   const accounts = jobs.map((j) => j.user_address);
   const amounts = jobs.map((j) => ethers.parseUnits(String(j.points), 18));
 
   let lastErr: any;
   for (let attempt = 1; attempt <= BATCH_RETRY_ATTEMPTS; attempt++) {
     try {
-      console.log(`[mintWorker] batchMint sending ${jobs.length} jobs… (attempt ${attempt})`);
+      console.log(`[mintWorker] ${label} batchMint ${jobs.length} jobs… (attempt ${attempt})`);
       const tx = await contract.batchMint(accounts, amounts);
-      console.log(`[mintWorker] batchMint tx submitted: ${tx.hash}`);
+      console.log(`[mintWorker] ${label} tx submitted: ${tx.hash}`);
       const receipt = await tx.wait(1, TX_TIMEOUT_MS);
       const txHash: string = receipt.hash ?? tx.hash;
-      return { txHash, succeeded: jobs, failed: [] };
+      console.log(`[mintWorker] ${label} ✓ confirmed: ${txHash}`);
+      return txHash;
     } catch (err: any) {
       lastErr = err;
       if (isTransientError(err) && attempt < BATCH_RETRY_ATTEMPTS) {
-        console.warn(`[mintWorker] Transient RPC error on attempt ${attempt}, retrying in ${BATCH_RETRY_DELAY_MS / 1000}s: ${err?.shortMessage ?? err?.message}`);
+        console.warn(`[mintWorker] ${label} transient error attempt ${attempt}, retrying: ${err?.shortMessage ?? err?.message}`);
         await new Promise((r) => setTimeout(r, BATCH_RETRY_DELAY_MS));
       } else {
-        // Contract revert or out of retries — propagate so caller decides fallback
         throw err;
       }
     }
@@ -189,30 +217,78 @@ async function processMintBatch(
   throw lastErr;
 }
 
-// ── Fallback: mint jobs one by one if batch reverts ──────────────────────────
 async function processMintJobsIndividually(
   jobs: any[],
-  contract: ethers.Contract
+  contract: ethers.Contract,
+  label: string
 ): Promise<{ succeeded: any[]; failed: { job: any; msg: string; err: any }[] }> {
   const succeeded: any[] = [];
   const failed: { job: any; msg: string; err: any }[] = [];
 
   for (const job of jobs) {
     try {
-      const amount = ethers.parseUnits(String(job.points), 18);
-      const tx = await contract.batchMint([job.user_address], [amount]);
+      const tx = await contract.batchMint(
+        [job.user_address],
+        [ethers.parseUnits(String(job.points), 18)]
+      );
       const receipt = await tx.wait(1, TX_TIMEOUT_MS);
-      const txHash: string = receipt.hash ?? tx.hash;
-      succeeded.push({ ...job, txHash });
+      succeeded.push({ ...job, txHash: receipt.hash ?? tx.hash });
     } catch (err: any) {
       failed.push({ job, msg: err?.shortMessage ?? err?.message ?? "error", err });
     }
   }
 
+  if (succeeded.length > 0) console.log(`[mintWorker] ${label} fallback: ${succeeded.length} ok, ${failed.length} failed`);
   return { succeeded, failed };
 }
 
-// ── Main drain run ─────────────────────────────────────────────────────────────
+async function handleFailedJobs(failed: { job: any; msg: string }[]) {
+  for (const { job, msg } of failed) {
+    console.error(`[mintWorker] ✗ Job ${job.id} (${job.user_address}): ${msg}`);
+    if (isBlacklistedError({ message: msg })) {
+      await permanentlyFail(job.id, "blacklisted");
+    } else if ((job.attempts ?? 0) >= MAX_JOB_ATTEMPTS) {
+      await permanentlyFail(job.id, msg);
+    } else {
+      const delay = Math.min(30, 2 ** Math.max(1, job.attempts ?? 1));
+      await supabase.rpc("retry_minipoint_mint_job", {
+        p_job_id: job.id, p_error: msg, p_delay_seconds: delay,
+      });
+    }
+  }
+}
+
+// ── Lock state (exported for graceful shutdown) ───────────────────────────────
+let currentLockOwner: string | null = null;
+
+export async function releaseCurrentLock() {
+  if (!currentLockOwner) return;
+  try {
+    await supabase.rpc("release_minipoint_mint_queue_lock", {
+      p_lock_name: LOCK_NAME,
+      p_owner: currentLockOwner,
+    });
+    console.log("[mintWorker] Lock released on shutdown");
+  } catch (e) {
+    // best-effort
+  }
+  currentLockOwner = null;
+}
+
+// On startup, any held lock belongs to a dead process — clear it directly.
+async function clearStaleLockOnStartup() {
+  try {
+    await supabase
+      .from("minipoint_queue_locks")
+      .update({ locked: false, owner: null, expires_at: null })
+      .eq("lock_name", LOCK_NAME);
+    console.log("[mintWorker] Cleared stale lock on startup");
+  } catch {
+    // Table name may differ — silently ignore, lock will expire on its own
+  }
+}
+
+// ── Main drain run ────────────────────────────────────────────────────────────
 let isRunning = false;
 
 export async function runDrain() {
@@ -225,124 +301,103 @@ export async function runDrain() {
   try {
     await resetStalledJobs();
 
-    const { contract } = makeWallet();
+    const wallets = makeWallets();
     const owner = randomUUID();
 
-    const { data: acquired } = await supabase.rpc(
-      "acquire_minipoint_mint_queue_lock",
-      { p_lock_name: LOCK_NAME, p_owner: owner, p_lease_seconds: LOCK_LEASE_SECONDS }
-    );
+    const { data: acquired } = await supabase.rpc("acquire_minipoint_mint_queue_lock", {
+      p_lock_name: LOCK_NAME,
+      p_owner: owner,
+      p_lease_seconds: LOCK_LEASE_SECONDS,
+    });
 
     if (!acquired) {
       console.log("[mintWorker] Lock busy, skipping this run");
       return;
     }
 
+    currentLockOwner = owner;
+
     let totalMinted = 0;
     let totalMigrated = 0;
     let round = 0;
 
     try {
-      // ── Loop until the queue is empty ──────────────────────────────────────
       while (true) {
-        // Renew lease each round so a long drain doesn't lose the lock mid-flight
         await renewLock(owner);
 
-        const mintJobs: any[] = [];
-        const migrationJobs: any[] = [];
-
-        for (let i = 0; i < BATCH_SIZE; i++) {
-          const { data } = await supabase.rpc("claim_next_minipoint_mint_job", {
-            p_lock_name: LOCK_NAME,
-            p_owner: owner,
-          });
-
-          const job = (Array.isArray(data) ? data[0] : data) as any | null;
-          if (!job) break;
-
-          if (job.payload?.kind === "v2_migration") {
-            migrationJobs.push(job);
-          } else {
-            mintJobs.push(job);
-          }
-        }
-
-        if (mintJobs.length === 0 && migrationJobs.length === 0) {
+        // Claim enough jobs for all wallets in one shot
+        const allJobs = await claimBatch(BATCH_SIZE * wallets.length);
+        if (allJobs.length === 0) {
           console.log("[mintWorker] Queue empty, done.");
           break;
         }
 
+        const mintJobs = allJobs.filter((j) => j.payload?.kind !== "v2_migration");
+        const migrationJobs = allJobs.filter((j) => j.payload?.kind === "v2_migration");
+
         round++;
-        console.log(`[mintWorker] Round ${round}: ${mintJobs.length} mint, ${migrationJobs.length} migration`);
+        console.log(`[mintWorker] Round ${round}: ${mintJobs.length} mint across ${wallets.length} wallet(s), ${migrationJobs.length} migration`);
 
-        // ── Mint jobs — one batchMint tx for the whole chunk ────────────────
+        // ── Split mint jobs across wallets and fire in parallel ─────────────
         if (mintJobs.length > 0) {
-          try {
-            const { txHash } = await processMintBatch(mintJobs, contract);
-            console.log(`[mintWorker] ✓ batchMint ${mintJobs.length} — tx: ${txHash}`);
-            await applyBatchPayloads(mintJobs, txHash);
-            totalMinted += mintJobs.length;
-          } catch (batchErr: any) {
-            console.warn(`[mintWorker] batchMint failed, falling back: ${batchErr?.shortMessage ?? batchErr?.message}`);
+          const chunkSize = Math.ceil(mintJobs.length / wallets.length);
+          const chunks = wallets
+            .map((w, i) => ({
+              ...w,
+              label: `W${i + 1}`,
+              jobs: mintJobs.slice(i * chunkSize, (i + 1) * chunkSize),
+            }))
+            .filter((c) => c.jobs.length > 0);
 
-            const { succeeded, failed } = await processMintJobsIndividually(mintJobs, contract);
+          const results = await Promise.allSettled(
+            chunks.map(async ({ contract, jobs, label }) => {
+              try {
+                const txHash = await processMintBatch(jobs, contract, label);
+                await applyBatchPayloads(jobs, txHash);
+                return { minted: jobs.length };
+              } catch (batchErr: any) {
+                console.warn(`[mintWorker] ${label} batch failed, falling back: ${batchErr?.shortMessage ?? batchErr?.message}`);
+                const { succeeded, failed } = await processMintJobsIndividually(jobs, contract, label);
 
-            // Group by txHash so each group gets one bulk apply call
-            const byHash = new Map<string, any[]>();
-            for (const j of succeeded) {
-              const arr = byHash.get(j.txHash) ?? [];
-              arr.push(j);
-              byHash.set(j.txHash, arr);
-            }
-            for (const [hash, group] of byHash) {
-              await applyBatchPayloads(group, hash);
-            }
-            totalMinted += succeeded.length;
-
-            for (const { job, msg } of failed) {
-              console.error(`[mintWorker] ✗ Job ${job.id} failed: ${msg}`);
-              if (isBlacklistedError({ message: msg })) {
-                await permanentlyFail(job.id, "blacklisted");
-              } else if ((job.attempts ?? 0) >= MAX_JOB_ATTEMPTS) {
-                await permanentlyFail(job.id, msg);
-              } else {
-                const delay = Math.min(30, 2 ** Math.max(1, job.attempts ?? 1));
-                await supabase.rpc("retry_minipoint_mint_job", {
-                  p_job_id: job.id,
-                  p_error: msg,
-                  p_delay_seconds: delay,
-                });
+                const byHash = new Map<string, any[]>();
+                for (const j of succeeded) {
+                  const arr = byHash.get(j.txHash) ?? [];
+                  arr.push(j);
+                  byHash.set(j.txHash, arr);
+                }
+                for (const [hash, group] of byHash) {
+                  await applyBatchPayloads(group, hash);
+                }
+                await handleFailedJobs(failed);
+                return { minted: succeeded.length };
               }
-            }
+            })
+          );
+
+          for (const result of results) {
+            if (result.status === "fulfilled") totalMinted += result.value.minted;
           }
         }
 
-        // ── Migration jobs — each reads V1 balance on-chain, must be serial ─
+        // ── Migration jobs — serial, each reads V1 balance on-chain ─────────
         for (const job of migrationJobs) {
           try {
-            const tx = await contract.claimV2TokensFor(job.user_address);
+            const tx = await wallets[0].contract.claimV2TokensFor(job.user_address);
             const receipt = await tx.wait(1, TX_TIMEOUT_MS);
             const txHash: string = receipt.hash ?? tx.hash;
             console.log(`[mintWorker] ✓ Migrated ${job.user_address} tx: ${txHash}`);
-            await supabase.rpc("complete_minipoint_mint_job", {
-              p_job_id: job.id,
-              p_tx_hash: txHash,
-            });
+            await supabase.rpc("complete_minipoint_mint_job", { p_job_id: job.id, p_tx_hash: txHash });
             totalMigrated++;
           } catch (err: any) {
             const msg = err?.shortMessage ?? err?.message ?? "error";
-            console.error(`[mintWorker] ✗ Migration job ${job.id} failed: ${msg}`);
+            console.error(`[mintWorker] ✗ Migration ${job.id}: ${msg}`);
             if (isBlacklistedError(err)) {
               await permanentlyFail(job.id, "blacklisted");
             } else if ((job.attempts ?? 0) >= MAX_JOB_ATTEMPTS) {
               await permanentlyFail(job.id, msg);
             } else {
               const delay = Math.min(30, 2 ** Math.max(1, job.attempts ?? 1));
-              await supabase.rpc("retry_minipoint_mint_job", {
-                p_job_id: job.id,
-                p_error: msg,
-                p_delay_seconds: delay,
-              });
+              await supabase.rpc("retry_minipoint_mint_job", { p_job_id: job.id, p_error: msg, p_delay_seconds: delay });
             }
           }
         }
@@ -350,10 +405,8 @@ export async function runDrain() {
         console.log(`[mintWorker] Round ${round} done — ${totalMinted} minted, ${totalMigrated} migrated so far`);
       }
     } finally {
-      await supabase.rpc("release_minipoint_mint_queue_lock", {
-        p_lock_name: LOCK_NAME,
-        p_owner: owner,
-      });
+      await supabase.rpc("release_minipoint_mint_queue_lock", { p_lock_name: LOCK_NAME, p_owner: owner });
+      currentLockOwner = null;
     }
 
     console.log(`[mintWorker] Complete — ${totalMinted} minted, ${totalMigrated} migrated`);
@@ -364,9 +417,10 @@ export async function runDrain() {
   }
 }
 
-// ── Scheduler ──────────────────────────────────────────────────────────────────
-export function startMintWorker() {
+// ── Scheduler ─────────────────────────────────────────────────────────────────
+export async function startMintWorker() {
   console.log("[mintWorker] Starting — runs every minute");
+  await clearStaleLockOnStartup();
   runDrain().catch(console.error);
   cron.schedule("* * * * *", () => {
     runDrain().catch(console.error);
