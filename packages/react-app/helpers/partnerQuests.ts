@@ -1,4 +1,4 @@
-// lib/partner-quests.ts
+// helpers/partnerQuests.ts
 export interface ClaimResponse {
   minted?: number;
   txHash?: string;
@@ -6,14 +6,27 @@ export interface ClaimResponse {
 }
 
 export async function claimPartnerQuest(
-  userAddress: string,
+  _userAddress: string, // kept for API compat but address is taken from session server-side
   questId: string
 ): Promise<ClaimResponse> {
-  const res = await fetch("/api/partner-quests/claim", {   // ← dash not underscore
+  // Step 1: Get eligibility + attestation token
+  const eligRes = await fetch(
+    `/api/partner-quests/eligibility?questId=${encodeURIComponent(questId)}`
+  );
+  const eligData = await eligRes.json();
+
+  if (!eligRes.ok || !eligData.eligible) {
+    return { error: eligData.reason ?? eligData.error ?? "Not eligible" };
+  }
+
+  const { attestationToken } = eligData;
+
+  // Step 2: Submit claim with token
+  const claimRes = await fetch("/api/partner-quests/claim", {
     method: "POST",
-    headers: { "Content-Type": "application/json; charset=utf-8" }, // ← charset needed in MiniPay
-    body: JSON.stringify({ userAddress, questId }),
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+    body: JSON.stringify({ questId, attestationToken }),
   });
 
-  return res.json();
+  return claimRes.json();
 }

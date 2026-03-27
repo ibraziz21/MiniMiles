@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ethers, NonceManager } from "ethers";
 import { SafeFactory, EthersAdapter } from "@safe-global/protocol-kit";
+import { requireSession } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -95,6 +96,11 @@ const DEFAULT_NOUN_SEED = {
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await requireSession();
+    if (!session) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
+
     if (!BACKEND_PRIVATE_KEY) {
       throw new Error("PRIVATE_KEY env is not set");
     }
@@ -118,6 +124,10 @@ export async function POST(req: NextRequest) {
         { error: "Invalid or missing owner address" },
         { status: 400 }
       );
+    }
+
+    if (owner.toLowerCase() !== session.walletAddress) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     if (!superChainID || typeof superChainID !== "string") {

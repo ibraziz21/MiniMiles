@@ -1,6 +1,7 @@
 // app/api/users/[address]/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { requireSession } from "@/lib/auth";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -16,28 +17,32 @@ type RouteContext = {
   params: Promise<{ address?: string }>;
 };
 
-const PROFILE_FIELDS = [
-  "username",
-  "full_name",
-  "email",
-  "phone",
-  "twitter_handle",
-  "bio",
-  "interests",
-] as const;
+const VALID_COUNTRIES = new Set([
+  'Afghanistan','Albania','Algeria','Angola','Argentina','Armenia','Australia',
+  'Austria','Azerbaijan','Bahrain','Bangladesh','Belarus','Belgium','Benin',
+  'Bolivia','Bosnia and Herzegovina','Botswana','Brazil','Bulgaria','Burkina Faso',
+  'Burundi','Cambodia','Cameroon','Canada','Central African Republic','Chad','Chile',
+  'China','Colombia','Congo','Costa Rica','Croatia','Cuba','Cyprus','Czech Republic',
+  'Denmark','Dominican Republic','DR Congo','Ecuador','Egypt','El Salvador',
+  'Estonia','Ethiopia','Finland','France','Gabon','Gambia','Georgia','Germany',
+  'Ghana','Greece','Guatemala','Guinea','Haiti','Honduras','Hungary','India',
+  'Indonesia','Iran','Iraq','Ireland','Israel','Italy','Ivory Coast','Jamaica',
+  'Japan','Jordan','Kazakhstan','Kenya','Kosovo','Kuwait','Kyrgyzstan','Laos',
+  'Latvia','Lebanon','Liberia','Libya','Lithuania','Luxembourg','Madagascar',
+  'Malawi','Malaysia','Mali','Malta','Mauritania','Mauritius','Mexico','Moldova',
+  'Mongolia','Morocco','Mozambique','Myanmar','Namibia','Nepal','Netherlands',
+  'New Zealand','Nicaragua','Niger','Nigeria','North Korea','North Macedonia',
+  'Norway','Oman','Pakistan','Panama','Paraguay','Peru','Philippines','Poland',
+  'Portugal','Qatar','Romania','Russia','Rwanda','Saudi Arabia','Senegal',
+  'Serbia','Sierra Leone','Singapore','Slovakia','Slovenia','Somalia',
+  'South Africa','South Korea','South Sudan','Spain','Sri Lanka','Sudan',
+  'Sweden','Switzerland','Syria','Taiwan','Tajikistan','Tanzania','Thailand',
+  'Togo','Trinidad and Tobago','Tunisia','Turkey','Turkmenistan','Uganda',
+  'Ukraine','United Arab Emirates','United Kingdom','United States','Uruguay',
+  'Uzbekistan','Venezuela','Vietnam','Yemen','Zambia','Zimbabwe',
+]);
 
-function computeCompletion(row: Record<string, any>): number {
-  let filled = 0;
-  for (const f of PROFILE_FIELDS) {
-    const v = row[f];
-    if (f === "interests") {
-      if (Array.isArray(v) && v.length > 0) filled++;
-    } else {
-      if (v && String(v).trim()) filled++;
-    }
-  }
-  return Math.round((filled / PROFILE_FIELDS.length) * 100);
-}
+import { computeCompletion } from "@/lib/profileCompletion";
 
 export async function GET(_req: Request, { params }: RouteContext) {
   const { address: raw } = await params;
@@ -85,6 +90,12 @@ export async function PATCH(req: Request, { params }: RouteContext) {
 
   const address = raw.trim().toLowerCase();
 
+  // Verify the caller owns this address
+  const session = await requireSession();
+  if (!session || session.walletAddress !== address) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  }
+
   let body: any;
   try {
     body = await req.json();
@@ -102,47 +113,83 @@ export async function PATCH(req: Request, { params }: RouteContext) {
         { status: 400 }
       );
     }
+    // Uniqueness check — another user must not hold this username
+    const { data: taken } = await supabase
+      .from("users")
+      .select("user_address")
+      .eq("username", v)
+      .neq("user_address", address)
+      .maybeSingle();
+    if (taken) {
+      return NextResponse.json({ error: "Username already taken" }, { status: 409 });
+    }
     allowed.username = v;
   }
+
   if ("full_name" in body) {
     const v = String(body.full_name ?? "").trim();
-    if (!v) return NextResponse.json({ error: "full_name cannot be empty" }, { status: 400 });
-    allowed.full_name = v;
+    if (v && v.length < 3) {
+      return NextResponse.json({ error: "full_name must be at least 3 characters" }, { status: 400 });
+    }
+    allowed.full_name = v || null;
   }
+
   if ("email" in body) {
     const v = String(body.email ?? "").trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+    if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
       return NextResponse.json({ error: "Invalid email" }, { status: 400 });
     }
-    allowed.email = v;
+    allowed.email = v || null;
   }
+
   if ("phone" in body) {
     const v = String(body.phone ?? "").trim();
-    if (!/^\+?[0-9]{9,15}$/.test(v)) {
+    if (v && !/^\+?[0-9]{9,15}$/.test(v)) {
       return NextResponse.json({ error: "Invalid phone" }, { status: 400 });
     }
-    allowed.phone = v;
+    allowed.phone = v || null;
   }
+
   if ("twitter_handle" in body) {
     const v = String(body.twitter_handle ?? "").trim();
-    if (!v) return NextResponse.json({ error: "twitter_handle cannot be empty" }, { status: 400 });
-    allowed.twitter_handle = v;
+    if (v && !/^@?[A-Za-z0-9_]{4,15}$/.test(v)) {
+      return NextResponse.json(
+        { error: "twitter_handle must be a valid Twitter username (4–15 chars)" },
+        { status: 400 }
+      );
+    }
+    allowed.twitter_handle = v || null;
   }
+
   if ("avatar_url" in body) {
     allowed.avatar_url = String(body.avatar_url ?? "").trim() || null;
   }
+
   if ("bio" in body) {
     const v = String(body.bio ?? "").trim().slice(0, 200);
+    if (v && v.length < 20) {
+      return NextResponse.json({ error: "bio must be at least 20 characters" }, { status: 400 });
+    }
     allowed.bio = v || null;
   }
+
   if ("country" in body) {
-    allowed.country = String(body.country ?? "").trim() || null;
+    const v = String(body.country ?? "").trim();
+    if (v && !VALID_COUNTRIES.has(v)) {
+      return NextResponse.json({ error: "Invalid country" }, { status: 400 });
+    }
+    allowed.country = v || null;
   }
+
   if ("interests" in body) {
     if (!Array.isArray(body.interests)) {
       return NextResponse.json({ error: "interests must be an array" }, { status: 400 });
     }
-    allowed.interests = body.interests.slice(0, 8).map(String);
+    const items = body.interests
+      .map((i: any) => String(i).trim())
+      .filter((i: string) => i.length >= 2)
+      .slice(0, 8);
+    allowed.interests = items;
   }
 
   if (Object.keys(allowed).length === 0) {
@@ -155,6 +202,10 @@ export async function PATCH(req: Request, { params }: RouteContext) {
     .eq("user_address", address);
 
   if (error) {
+    // Unique constraint violation on username (concurrent request race)
+    if (error.code === "23505") {
+      return NextResponse.json({ error: "Username already taken" }, { status: 409 });
+    }
     console.error("[PATCH /api/users/[address]]", error);
     return NextResponse.json({ error: "DB error" }, { status: 500 });
   }

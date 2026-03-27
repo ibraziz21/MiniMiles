@@ -1,53 +1,30 @@
-/* ────────────────────────────────────────────────────────────────────────────
-   /api/quests/daily_five_txs/route.ts
-   “Send at least 5 transfers (cUSD + USDT combined) in the last 24 h”
-   ------------------------------------------------------------------------- */
-
+// app/api/quests/daily_5_tx/route.ts
 import { NextResponse } from "next/server";
 import { claimQueuedDailyReward } from "@/lib/minipointQueue";
 import { countOutgoingTransfersIn24H } from "@/helpers/graphQuestTransfer";
+import { getQuest } from "@/lib/questRegistry";
+import { requireSession } from "@/lib/auth";
 
-/* ─── route handler ─────────────────────────────────────── */
-
-export async function POST(req: Request) {
+export async function POST(_req: Request) {
   try {
-    const { userAddress, questId } = await req.json();
+    const session = await requireSession();
+    if (!session) return NextResponse.json({ success: false, message: "Authentication required" }, { status: 401 });
 
-    /* 1 ▸ already claimed today? */
+    const addr = session.walletAddress;
+    const quest = getQuest("daily_5tx");
     const today = new Date().toISOString().slice(0, 10);
-    /* 1 ▸ count transfers via subgraph */
-    const txs = await countOutgoingTransfersIn24H(userAddress);
-    if (txs < 5)
-      return NextResponse.json({
-        success: false,
-        message: `Only ${txs}/5 transfers in the last 24 h`,
-      });
-    const result = await claimQueuedDailyReward({
-      userAddress,
-      questId,
-      points: 50,
-      scopeKey: today,
-      reason: `daily-5tx:${questId}`,
-    });
 
-    if (!result.ok && result.code === "already") {
-      return NextResponse.json({ success: false, code: "already" });
-    }
+    const txs = await countOutgoingTransfersIn24H(addr);
+    if (txs < 5) return NextResponse.json({ success: false, message: `Only ${txs}/5 transfers in the last 24 h` });
 
-    if (!result.ok) {
-      return NextResponse.json(
-        { success: false, message: "queue-error" },
-        { status: 500 }
-      );
-    }
+    const result = await claimQueuedDailyReward({ userAddress: addr, questId: quest.questId, points: quest.points, scopeKey: today, reason: quest.reason });
 
-    return NextResponse.json({
-      success: true,
-      txHash: result.txHash,
-      queued: result.queued,
-    });
+    if (!result.ok && result.code === "already") return NextResponse.json({ success: false, code: "already" });
+    if (!result.ok) return NextResponse.json({ success: false, message: "queue-error" }, { status: 500 });
+
+    return NextResponse.json({ success: true, txHash: result.txHash, queued: result.queued });
   } catch (err) {
-    console.error("[DAILY-5TX]", err);
+    console.error("[daily_5tx]", err);
     return NextResponse.json({ success: false, message: "server-error" });
   }
 }

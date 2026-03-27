@@ -4,6 +4,8 @@ import { createClient } from "@supabase/supabase-js";
 import { getAddress } from "viem";
 import { isBlacklisted } from "@/lib/blacklist";
 import { enqueueSimpleMint } from "@/lib/minipointQueue";
+import { getCeloTxCount } from "@/lib/celoClient";
+import { requireSession } from "@/lib/auth";
 
 /* ── setup ───────────────────────────────────────────────────────── */
 const supabase = createClient(
@@ -16,26 +18,41 @@ const BASE_REWARD = Number(process.env.REF_BASE_REWARD ?? "100");
 const NEW_USER_BONUS = Number(process.env.REF_NEW_BONUS ?? "100");
 
 /* ── route ───────────────────────────────────────────────────────── */
-export async function POST(req: Request) {
-  let body: any;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+export async function POST(_req: Request) {
+  // Address comes from the verified session — never from the request body
+  const session = await requireSession();
+  if (!session) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
-
-  const raw = body?.userAddress;
-  if (!raw) return NextResponse.json({ error: "userAddress is required" }, { status: 400 });
 
   let userAddr: `0x${string}`;
   try {
-    userAddr = getAddress(raw) as `0x${string}`;
+    userAddr = getAddress(session.walletAddress) as `0x${string}`;
   } catch {
-    return NextResponse.json({ error: "Invalid address" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid session address" }, { status: 400 });
   }
 
   if (await isBlacklisted(userAddr, "users")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  /* 0) wallet activity gate — must have at least 1 prior tx on Celo.
+     Prevents mass-registration of fresh bot wallets for signup rewards. */
+  try {
+    const txCount = await getCeloTxCount(userAddr.toLowerCase());
+    if (txCount < 1) {
+      return NextResponse.json(
+        { error: "Wallet must have prior on-chain activity on Celo to register." },
+        { status: 403 }
+      );
+    }
+  } catch (e) {
+    console.error("[users/signup] RPC error:", e);
+    // Hard fail — do not bypass on RPC error
+    return NextResponse.json(
+      { error: "Could not verify wallet activity. Please try again." },
+      { status: 503 }
+    );
   }
 
   /* 1) claim registration slot atomically — prevents race-condition double-mints.

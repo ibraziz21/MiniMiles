@@ -137,7 +137,7 @@ function useClaimedQuestIds(address?: string) {
       const { data } = await supabase
         .from('partner_engagements')
         .select('partner_quest_id')
-        .eq('user_address', address);
+        .eq('user_address', address.toLowerCase());
       return data?.map((d) => d.partner_quest_id) ?? [];
     },
   });

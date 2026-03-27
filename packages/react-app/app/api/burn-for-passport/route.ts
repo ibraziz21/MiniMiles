@@ -2,9 +2,15 @@
 import { NextResponse } from "next/server";
 import { safeBurnMiniPoints } from "@/lib/minipoints";
 import { runPassportOp } from "@/lib/passportOps";
+import { requireSession } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
+    const session = await requireSession();
+    if (!session) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
+
     const body = await req.json().catch(() => null);
 
     if (!body || typeof body.address !== "string") {
@@ -12,6 +18,10 @@ export async function POST(req: Request) {
         { error: "Missing or invalid 'address' in body" },
         { status: 400 }
       );
+    }
+
+    if (body.address.toLowerCase() !== session.walletAddress) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     if (

@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createPublicClient, http } from "viem";
 import { celo } from "viem/chains";
 import { isBlacklisted } from "@/lib/blacklist";
+import { requireSession } from "@/lib/auth";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -14,18 +15,22 @@ const publicClient = createPublicClient({ chain: celo, transport: http() });
 
 // Minimum number of prior on-chain transactions required before a wallet
 // can be used as a referral target. Prevents freshly-created bot wallets.
-const MIN_PRIOR_TXS = 1;
+const MIN_PRIOR_TXS = Number(process.env.REFERRAL_MIN_TXS ?? "5");
 
 export async function POST(req: Request) {
+  const session = await requireSession();
+  if (!session) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  }
+
   const body = await req.json().catch(() => ({}));
-  const addrRaw = body.newAddress as string | undefined;
   const codeRaw = body.code as string | undefined;
 
-  const addr = addrRaw?.toLowerCase();
+  const addr = session.walletAddress;
   const code = codeRaw?.trim().toUpperCase();
 
-  if (!addr || !code) {
-    return NextResponse.json({ error: "Missing address or code" }, { status: 400 });
+  if (!code) {
+    return NextResponse.json({ error: "Missing code" }, { status: 400 });
   }
 
   if (await isBlacklisted(addr, "referral/redeem")) {
@@ -80,13 +85,17 @@ export async function POST(req: Request) {
     });
     if (txCount < MIN_PRIOR_TXS) {
       return NextResponse.json(
-        { error: "Your wallet must have prior on-chain activity to use a referral code" },
+        { error: `Your wallet must have at least ${MIN_PRIOR_TXS} transactions on Celo to use a referral code.` },
         { status: 403 }
       );
     }
   } catch (e) {
-    // Non-fatal: if the RPC fails, allow the redemption through
-    console.warn("[referral/redeem] wallet age check failed:", e);
+    console.error("[referral/redeem] RPC error:", e);
+    // Hard fail — do not allow bypass on RPC error
+    return NextResponse.json(
+      { error: "Could not verify wallet activity. Please try again." },
+      { status: 503 }
+    );
   }
 
   // Insert redemption row

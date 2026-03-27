@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { generateCode } from "@/lib/referrals";
+import { requireSession } from "@/lib/auth";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -9,8 +10,10 @@ const supabase = createClient(
 );
 
 export async function GET(req: NextRequest) {
-  const address = req.nextUrl.searchParams.get("address")?.toLowerCase();
-  if (!address) return NextResponse.json({ error: "missing address" }, { status: 400 });
+  const session = await requireSession();
+  if (!session) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+
+  const address = session.walletAddress;
 
   // See if they already have one
   const { data, error } = await supabase

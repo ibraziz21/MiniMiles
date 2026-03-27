@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { claimQueuedPartnerReward } from "@/lib/minipointQueue";
 import { isBlacklisted } from "@/lib/blacklist";
+import { requireSession } from "@/lib/auth";
+import { verifyClaimToken, consumeClaimToken } from "@/lib/partnerAttestation";
 
 /* ─── env / clients ─────────────────────────────────────── */
 
@@ -19,22 +21,36 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 export async function POST(request: Request) {
   try {
-    const { userAddress, questId } = (await request.json()) as {
-      userAddress?: string;
-      questId?: string;
-    };
-
-    if (!userAddress || !questId) {
-      return NextResponse.json(
-        { error: "userAddress and questId are required" },
-        { status: 400 }
-      );
+    const session = await requireSession();
+    if (!session) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
-    const userLc = userAddress.toLowerCase();
+    const { questId, attestationToken } = (await request.json()) as {
+      questId?: string;
+      attestationToken?: string;
+    };
+
+    if (!questId) {
+      return NextResponse.json({ error: "questId is required" }, { status: 400 });
+    }
+
+    if (!attestationToken) {
+      return NextResponse.json({ error: "attestationToken is required" }, { status: 400 });
+    }
+
+    const userLc = session.walletAddress;
 
     if (await isBlacklisted(userLc, "partner-quests/claim")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // Verify the attestation token issued by /eligibility
+    if (!verifyClaimToken(userLc, questId, attestationToken)) {
+      return NextResponse.json({ error: "Invalid or expired attestation token" }, { status: 403 });
+    }
+    if (!consumeClaimToken(userLc, questId, attestationToken)) {
+      return NextResponse.json({ error: "Attestation token already used" }, { status: 403 });
     }
 
     /* 1 ▸ one-time check */

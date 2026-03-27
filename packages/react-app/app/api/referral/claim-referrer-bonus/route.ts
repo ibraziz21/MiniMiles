@@ -4,13 +4,13 @@
 // wallet has been active for 7+ days with 3+ daily quest claims.
 //
 // Call this from the referrer's profile/rewards page, or as a background job.
-// POST { referrerAddress: "0x..." }
+// POST (no body required — referrer address is taken from the authenticated session)
 
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { isBlacklisted } from "@/lib/blacklist";
-import { getAddress } from "viem";
 import { enqueueSimpleMint } from "@/lib/minipointQueue";
+import { requireSession } from "@/lib/auth";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -24,20 +24,13 @@ const MIN_ENGAGEMENT_DAYS = 3;
 // Referred wallet must have been registered for this many days
 const MIN_DAYS_SINCE_REFERRAL = 7;
 
-export async function POST(req: Request) {
-  let body: any;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+export async function POST(_req: Request) {
+  const session = await requireSession();
+  if (!session) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
 
-  let referrerAddr: string;
-  try {
-    referrerAddr = getAddress(body?.referrerAddress).toLowerCase();
-  } catch {
-    return NextResponse.json({ error: "Invalid referrerAddress" }, { status: 400 });
-  }
+  const referrerAddr = session.walletAddress;
 
   if (await isBlacklisted(referrerAddr, "referral/claim-referrer-bonus")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

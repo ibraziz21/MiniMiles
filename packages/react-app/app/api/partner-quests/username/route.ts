@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAddress } from "viem";
 import { claimQueuedPartnerReward } from "@/lib/minipointQueue";
+import { requireSession } from "@/lib/auth";
 
 /* ─── env / clients ─────────────────────────────────────── */
 
@@ -21,29 +22,19 @@ const USERNAME_REWARD_POINTS = 10;
 
 export async function POST(request: Request) {
   try {
-    const { userAddress, username } = (await request.json()) as {
-      userAddress?: string;
-      username?: string;
-    };
-
-    if (!userAddress || !username) {
-      return NextResponse.json(
-        { error: "userAddress and username are required" },
-        { status: 400 },
-      );
+    const session = await requireSession();
+    if (!session) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
-    // ⬇️ Normalize address once
-    let checksumAddr: `0x${string}`;
-    try {
-      checksumAddr = getAddress(userAddress as `0x${string}`) as `0x${string}`;
-    } catch {
-      return NextResponse.json(
-        { error: "Invalid userAddress" },
-        { status: 400 },
-      );
+    const { username } = (await request.json()) as { username?: string };
+
+    if (!username) {
+      return NextResponse.json({ error: "username is required" }, { status: 400 });
     }
-    const dbAddr = checksumAddr.toLowerCase(); // ⬅️ always lowercase in DB
+
+    const checksumAddr = getAddress(session.walletAddress) as `0x${string}`;
+    const dbAddr = session.walletAddress; // already lowercase from session
 
     /* 1 ▸ one-time check in partner_engagements */
     const { data: existing, error: checkErr } = await supabase
