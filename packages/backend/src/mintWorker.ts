@@ -105,12 +105,10 @@ async function resetStalledJobs() {
 
 // Single bulk fetch + mark-processing instead of N sequential RPC calls.
 async function claimBatch(count: number): Promise<any[]> {
-  const now = new Date().toISOString();
   const { data: jobs, error } = await supabase
     .from("minipoint_mint_jobs")
     .select("*")
     .eq("status", "pending")
-    .or(`run_after.is.null,run_after.lte.${now}`)
     .order("created_at", { ascending: true })
     .limit(count);
 
@@ -119,7 +117,7 @@ async function claimBatch(count: number): Promise<any[]> {
 
   await supabase
     .from("minipoint_mint_jobs")
-    .update({ status: "processing", updated_at: now })
+    .update({ status: "processing", updated_at: new Date().toISOString() })
     .in("id", jobs.map((j) => j.id));
 
   return jobs;
