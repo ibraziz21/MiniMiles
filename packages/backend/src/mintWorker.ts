@@ -277,8 +277,8 @@ export async function releaseCurrentLock() {
 async function clearStaleLockOnStartup() {
   try {
     await supabase
-      .from("minipoint_queue_locks")
-      .update({ locked: false, owner: null, expires_at: null })
+      .from("minipoint_mint_queue_locks")
+      .update({ locked_until: new Date().toISOString() })
       .eq("lock_name", LOCK_NAME);
     console.log("[mintWorker] Cleared stale lock on startup");
   } catch {
