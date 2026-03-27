@@ -160,7 +160,7 @@ async function applyBatchPayloads(jobs: any[], txHash: string) {
   if (partnerRows.length > 0) {
     const { error } = await supabase
       .from("partner_engagements")
-      .insert(partnerRows);
+      .upsert(partnerRows, { onConflict: "user_address,partner_quest_id", ignoreDuplicates: true });
     if (error && error.code !== "23505") console.error("[mintWorker] bulk partner_engagements:", error.message);
   }
 
