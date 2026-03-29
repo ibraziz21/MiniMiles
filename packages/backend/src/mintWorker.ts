@@ -256,6 +256,9 @@ async function handleFailedJobs(failed: { job: any; msg: string }[]) {
   }
 }
 
+// ── Wallets (created once at module load) ─────────────────────────────────────
+const WALLETS = makeWallets();
+
 // ── Lock state (exported for graceful shutdown) ───────────────────────────────
 let currentLockOwner: string | null = null;
 
@@ -299,7 +302,7 @@ export async function runDrain() {
   try {
     await resetStalledJobs();
 
-    const wallets = makeWallets();
+    const wallets = WALLETS;
     const owner = randomUUID();
 
     const { data: acquired } = await supabase.rpc("acquire_minipoint_mint_queue_lock", {
