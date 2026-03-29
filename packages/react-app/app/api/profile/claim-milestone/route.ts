@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 5. Queue mint ──────────────────────────────────────────────────────────
-    const points = ms === 50 ? 50 : 100;
+    const points = ms === 50 ? 20 : 30;
 
     const result = await claimQueuedProfileMilestone({
       userAddress: address,

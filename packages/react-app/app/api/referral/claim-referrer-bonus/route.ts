@@ -17,7 +17,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!
 );
 
-const REFERRER_BONUS = Number(process.env.REF_REFERRER_BONUS ?? "100");
+const REFERRER_BONUS = Number(process.env.REF_REFERRER_BONUS ?? "25");
 
 // Referred wallet must have this many daily quest claims before referrer is paid
 const MIN_ENGAGEMENT_DAYS = 3;

@@ -553,14 +553,14 @@ export default function ProfilePage() {
             <div className="flex flex-col gap-3">
               <MilestoneCard
                 pct={50}
-                points={50}
+                points={20}
                 claimed={profile?.profile_milestone_50_claimed ?? false}
                 completion={completion}
                 onClaim={(token) => claimMilestone(50, token)}
               />
               <MilestoneCard
                 pct={100}
-                points={100}
+                points={30}
                 claimed={profile?.profile_milestone_100_claimed ?? false}
                 completion={completion}
                 onClaim={(token) => claimMilestone(100, token)}
