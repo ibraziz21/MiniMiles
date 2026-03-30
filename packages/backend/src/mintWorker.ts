@@ -40,6 +40,13 @@ const BLACKLISTED_SELECTOR = ethers.id("Blacklisted()").slice(0, 10).toLowerCase
 const UNAUTHORIZED_SELECTOR = ethers.id("Unauthorized()").slice(0, 10).toLowerCase();
 const NULL_ADDRESS_SELECTOR = ethers.id("NullAddress()").slice(0, 10).toLowerCase();
 
+type FailureKind =
+  | "blacklisted"
+  | "unauthorized"
+  | "null-address"
+  | "transient-rpc"
+  | "unknown";
+
 // ── Wallets ───────────────────────────────────────────────────────────────────
 // Reads MINTER_PK_1 … MINTER_PK_4 (or falls back to RETRY_PK / PRIVATE_KEY).
 // Each extra registered minter wallet = one more parallel batchMint tx per round.
@@ -93,6 +100,23 @@ function isPermanentContractError(err: any): boolean {
   if (isBlacklistedError(err)) return true;
   const data = getErrorDataHex(err);
   return data.startsWith(UNAUTHORIZED_SELECTOR) || data.startsWith(NULL_ADDRESS_SELECTOR);
+}
+
+function classifyFailure(err: any): FailureKind {
+  if (isBlacklistedError(err)) return "blacklisted";
+
+  const data = getErrorDataHex(err);
+  if (data.startsWith(UNAUTHORIZED_SELECTOR)) return "unauthorized";
+  if (data.startsWith(NULL_ADDRESS_SELECTOR)) return "null-address";
+  if (isTransientError(err)) return "transient-rpc";
+  return "unknown";
+}
+
+function describeFailure(err: any): string {
+  const kind = classifyFailure(err);
+  const msg = err?.shortMessage ?? err?.message ?? "error";
+  if (kind === "unknown") return msg;
+  return `${kind}: ${msg}`;
 }
 
 function isTransientError(err: any): boolean {
@@ -301,10 +325,22 @@ async function processMintJobsIndividually(
 }
 
 async function handleFailedJobs(failed: { job: any; msg: string; err: any }[]) {
+  const problematic = new Map<string, Set<FailureKind>>();
+
   for (const { job, msg, err } of failed) {
-    console.error(`[mintWorker] ✗ Job ${job.id} (${job.user_address}): ${msg}`);
-    if (isPermanentContractError(err) || isBlacklistedError(err) || isBlacklistedError({ message: msg })) {
+    const kind = classifyFailure(err);
+    const reason = describeFailure(err);
+
+    const set = problematic.get(job.user_address) ?? new Set<FailureKind>();
+    set.add(kind);
+    problematic.set(job.user_address, set);
+
+    console.error(`[mintWorker] ✗ Job ${job.id} (${job.user_address}): ${reason}`);
+
+    if (kind === "blacklisted") {
       await permanentlyFail(job.id, "blacklisted");
+    } else if (kind === "unauthorized" || kind === "null-address" || isPermanentContractError(err) || isBlacklistedError({ message: msg })) {
+      await permanentlyFail(job.id, reason);
     } else if ((job.attempts ?? 0) >= MAX_JOB_ATTEMPTS) {
       await permanentlyFail(job.id, msg);
     } else {
@@ -313,6 +349,13 @@ async function handleFailedJobs(failed: { job: any; msg: string; err: any }[]) {
         p_job_id: job.id, p_error: msg, p_delay_seconds: delay,
       });
     }
+  }
+
+  if (problematic.size > 0) {
+    const summary = [...problematic.entries()]
+      .map(([address, kinds]) => `${address} [${[...kinds].join(", ")}]`)
+      .join("; ");
+    console.warn(`[mintWorker] Problematic addresses this round: ${summary}`);
   }
 }
 
