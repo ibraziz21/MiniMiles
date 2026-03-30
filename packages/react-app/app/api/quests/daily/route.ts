@@ -3,7 +3,7 @@ import { claimQueuedDailyReward } from "@/lib/minipointQueue";
 import { isBlacklisted } from "@/lib/blacklist";
 import { getQuest } from "@/lib/questRegistry";
 import { getCeloTxCount } from "@/lib/celoClient";
-import { requireSession } from "@/lib/auth";
+import { requireSession, logSessionAge } from "@/lib/auth";
 
 // Minimum lifetime tx count before a wallet can claim daily check-in rewards.
 // Prevents fresh bot wallets with zero history from farming.
@@ -17,6 +17,7 @@ export async function POST(_req: Request) {
     }
 
     const addr = session.walletAddress;
+    logSessionAge("quests/daily", addr, session.issuedAt);
 
     if (await isBlacklisted(addr, "quests/daily")) {
       return Response.json({ success: false, message: "Forbidden" }, { status: 403 });

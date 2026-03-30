@@ -10,7 +10,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { isBlacklisted } from "@/lib/blacklist";
 import { enqueueSimpleMint } from "@/lib/minipointQueue";
-import { requireSession } from "@/lib/auth";
+import { requireSession, logSessionAge } from "@/lib/auth";
+import { hasAnyBalance } from "@/lib/celoBalanceGate";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -31,6 +32,11 @@ export async function POST(_req: Request) {
   }
 
   const referrerAddr = session.walletAddress;
+  logSessionAge("referral/claim-referrer-bonus", referrerAddr, session.issuedAt);
+
+  if (!(await hasAnyBalance(referrerAddr))) {
+    return NextResponse.json({ ok: true, paid: 0, message: "No pending referral bonuses" });
+  }
 
   if (await isBlacklisted(referrerAddr, "referral/claim-referrer-bonus")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

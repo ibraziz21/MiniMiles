@@ -69,8 +69,30 @@ export async function getSession() {
  * or null if the request is unauthenticated.
  * Use this in every reward-affecting route.
  */
-export async function requireSession(): Promise<{ walletAddress: string } | null> {
+export async function requireSession(): Promise<{ walletAddress: string; issuedAt: number } | null> {
   const session = await getSession();
   if (!session.walletAddress) return null;
-  return { walletAddress: session.walletAddress };
+  return { walletAddress: session.walletAddress, issuedAt: session.issuedAt ?? 0 };
+}
+
+// ── Session age gate ──────────────────────────────────────────────────────────
+// Minimum ms between sign-in and first claim. Default: 60 s.
+// Set SESSION_MIN_AGE_MS env var to override.
+export const SESSION_MIN_AGE_MS = Number(process.env.SESSION_MIN_AGE_MS ?? "60000");
+
+/**
+ * Logs how old the current session is relative to the minimum required age.
+ * Call this after requireSession() in every claim route.
+ * Returns true if the session is old enough, false if it would be blocked.
+ * No requests are blocked yet — this is observation-only.
+ */
+export function logSessionAge(route: string, walletAddress: string, issuedAt: number): boolean {
+  const ageMs = Date.now() - (issuedAt ?? 0);
+  const ageS = Math.round(ageMs / 1000);
+  const minS = Math.round(SESSION_MIN_AGE_MS / 1000);
+  const wouldBlock = ageMs < SESSION_MIN_AGE_MS;
+  console.log(
+    `[session-age] route=${route} addr=${walletAddress.slice(0, 8)}… age=${ageS}s min=${minS}s WOULD_BLOCK=${wouldBlock}`
+  );
+  return !wouldBlock;
 }

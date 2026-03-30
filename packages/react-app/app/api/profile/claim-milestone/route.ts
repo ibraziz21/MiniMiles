@@ -5,7 +5,8 @@ import { ethers } from "ethers";
 import { claimQueuedProfileMilestone } from "@/lib/minipointQueue";
 import { supabase as sharedSupabase } from "@/lib/supabaseClient";
 import { computeCompletion } from "@/lib/profileCompletion";
-import { requireSession } from "@/lib/auth";
+import { requireSession, logSessionAge } from "@/lib/auth";
+import { hasAnyBalance } from "@/lib/celoBalanceGate";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -62,6 +63,14 @@ export async function POST(req: NextRequest) {
     }
 
     const address = session.walletAddress;
+    logSessionAge("profile/claim-milestone", address, session.issuedAt);
+
+    if (!(await hasAnyBalance(address))) {
+      return NextResponse.json(
+        { error: "Your wallet has no balance. Top up with any amount of CELO, cUSD, USDT, or USDC to claim your profile reward." },
+        { status: 403 }
+      );
+    }
     const ms = Number(milestone) as 50 | 100;
 
     // ── 1. Turnstile verification ──────────────────────────────────────────────

@@ -35,7 +35,7 @@ export default function EarnPage() {
         <p className="font-poppins">Complete challenges to earn AkibaMiles.</p>
       </div>
       <MiniPointsCard points={Number(balance)} />
-      {/* ── Page-level Active / Completed tabs ───────────── */}
+      {/* -- Page-level Active / Completed tabs ------------─ */}
       <Tabs defaultValue="active" className="mx-4">
         <TabsList>
           <TabsTrigger
@@ -58,7 +58,7 @@ export default function EarnPage() {
           </TabsTrigger>
         </TabsList>
 
-        {/* ── ACTIVE tab ─────────────────────────── */}
+        {/* -- ACTIVE tab --------------------------─ */}
         <TabsContent value="active">
           {/* Daily (active only) */}
           <div className=" mt-6 gap-1">
@@ -71,7 +71,7 @@ export default function EarnPage() {
           <PartnerQuests openPopup={openQuest} />
         </TabsContent>
 
-        {/* ── COMPLETED tab ──────────────────────── */}
+        {/* -- COMPLETED tab ------------------------ */}
         <TabsContent value="completed">
           <h3 className="text-lg font-medium mt-6 mb-2">Completed today</h3>
           {/* reuse DailyChallenges with flag */}

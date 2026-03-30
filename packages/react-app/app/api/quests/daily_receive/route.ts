@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { claimQueuedDailyReward } from "@/lib/minipointQueue";
 import { userReceivedAtLeast1DollarIn24Hrs } from "@/helpers/graphQuestTransfer";
 import { getQuest } from "@/lib/questRegistry";
-import { requireSession } from "@/lib/auth";
+import { requireSession, logSessionAge } from "@/lib/auth";
 
 export async function POST(_req: Request) {
   try {
@@ -11,6 +11,7 @@ export async function POST(_req: Request) {
     if (!session) return NextResponse.json({ success: false, message: "Authentication required" }, { status: 401 });
 
     const addr = session.walletAddress;
+    logSessionAge("quests/daily_receive", addr, session.issuedAt);
     const quest = getQuest("daily_receive");
     const today = new Date().toISOString().slice(0, 10);
 

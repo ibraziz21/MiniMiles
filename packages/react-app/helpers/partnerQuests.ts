@@ -16,7 +16,7 @@ export async function claimPartnerQuest(
   const eligData = await eligRes.json();
 
   if (!eligRes.ok || !eligData.eligible) {
-    return { error: eligData.reason ?? eligData.error ?? "Not eligible" };
+    return { error: eligData.message ?? eligData.error ?? eligData.reason ?? "Not eligible" };
   }
 
   const { attestationToken } = eligData;

@@ -416,14 +416,12 @@ function useWeb3Logic() {
    *   };
    */
   const waitForAuth = useCallback(
-    (timeoutMs = 5000): Promise<void> =>
+    (timeoutMs = 8000): Promise<void> =>
       isAuthenticated
         ? Promise.resolve()
         : Promise.race([
             _authPromise,
-            new Promise<void>((_, reject) =>
-              setTimeout(() => reject(new Error("Auth timeout — please refresh")), timeoutMs)
-            ),
+            new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
           ]),
     [isAuthenticated]
   );

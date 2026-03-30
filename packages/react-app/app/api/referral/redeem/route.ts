@@ -5,6 +5,7 @@ import { createPublicClient, http } from "viem";
 import { celo } from "viem/chains";
 import { isBlacklisted } from "@/lib/blacklist";
 import { requireSession } from "@/lib/auth";
+import { hasAnyBalance } from "@/lib/celoBalanceGate";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -35,6 +36,13 @@ export async function POST(req: Request) {
 
   if (await isBlacklisted(addr, "referral/redeem")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (!(await hasAnyBalance(addr))) {
+    return NextResponse.json(
+      { error: "Your wallet has no balance. Top up with any amount of CELO, cUSD, USDT, or USDC before using a referral code." },
+      { status: 403 }
+    );
   }
 
   // Has this address already redeemed a code?

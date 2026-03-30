@@ -10,6 +10,7 @@ import { createClient } from "@supabase/supabase-js";
 import { requireSession } from "@/lib/auth";
 import { isBlacklisted } from "@/lib/blacklist";
 import { issueClaimToken } from "@/lib/partnerAttestation";
+import { hasAnyBalance } from "@/lib/celoBalanceGate";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -31,6 +32,14 @@ export async function GET(req: NextRequest) {
 
   if (await isBlacklisted(userLc, "partner-quests/eligibility")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (!(await hasAnyBalance(userLc))) {
+    return NextResponse.json({
+      eligible: false,
+      reason: "no-balance",
+      message: "You need a wallet balance to claim this quest. Top up with any amount of CELO, cUSD, USDT, or USDC and try again.",
+    }, { status: 403 });
   }
 
   // Verify the quest exists
