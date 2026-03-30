@@ -5,6 +5,7 @@ import { claimQueuedPartnerReward } from "@/lib/minipointQueue";
 import { isBlacklisted } from "@/lib/blacklist";
 import { requireSession } from "@/lib/auth";
 import { verifyClaimToken, consumeClaimToken } from "@/lib/partnerAttestation";
+import { hasAnyBalance } from "@/lib/celoBalanceGate";
 
 /* ─── env / clients ─────────────────────────────────────── */
 
@@ -42,6 +43,10 @@ export async function POST(request: Request) {
     const userLc = session.walletAddress;
 
     if (await isBlacklisted(userLc, "partner-quests/claim")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (!(await hasAnyBalance(userLc))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

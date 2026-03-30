@@ -19,6 +19,8 @@ const MAX_JOB_ATTEMPTS = 6;
 const TX_TIMEOUT_MS = 60_000;
 const BATCH_RETRY_ATTEMPTS = 3;
 const BATCH_RETRY_DELAY_MS = 5_000;
+const RECEIPT_POLL_MS = 5_000;
+const STALLED_JOB_AGE_MS = LOCK_LEASE_SECONDS * 1000 * 2;
 
 // Round-robin across these RPCs so wallets don't all hammer the same node.
 const RPC_URLS = [
@@ -33,6 +35,10 @@ const BATCH_MINT_ABI = [
   "error Unauthorized()",
   "error NullAddress()",
 ];
+
+const BLACKLISTED_SELECTOR = ethers.id("Blacklisted()").slice(0, 10).toLowerCase();
+const UNAUTHORIZED_SELECTOR = ethers.id("Unauthorized()").slice(0, 10).toLowerCase();
+const NULL_ADDRESS_SELECTOR = ethers.id("NullAddress()").slice(0, 10).toLowerCase();
 
 // ── Wallets ───────────────────────────────────────────────────────────────────
 // Reads MINTER_PK_1 … MINTER_PK_4 (or falls back to RETRY_PK / PRIVATE_KEY).
@@ -61,10 +67,32 @@ function makeWallets() {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+function getErrorDataHex(err: any): string {
+  const candidates = [
+    err?.data,
+    err?.error?.data,
+    err?.info?.error?.data,
+    err?.receipt?.revertReason,
+  ];
+  for (const value of candidates) {
+    if (typeof value === "string" && value.startsWith("0x")) {
+      return value.toLowerCase();
+    }
+  }
+  return "";
+}
+
 function isBlacklistedError(err: any): boolean {
   if (err?.errorName === "Blacklisted") return true;
   const msg: string = (err?.shortMessage ?? err?.message ?? "").toLowerCase();
-  return msg.includes("blacklisted") || msg.includes("0x" + "b4c62e72");
+  const data = getErrorDataHex(err);
+  return msg.includes("blacklisted") || msg.includes(BLACKLISTED_SELECTOR) || data.startsWith(BLACKLISTED_SELECTOR);
+}
+
+function isPermanentContractError(err: any): boolean {
+  if (isBlacklistedError(err)) return true;
+  const data = getErrorDataHex(err);
+  return data.startsWith(UNAUTHORIZED_SELECTOR) || data.startsWith(NULL_ADDRESS_SELECTOR);
 }
 
 function isTransientError(err: any): boolean {
@@ -77,8 +105,38 @@ function isTransientError(err: any): boolean {
     msg.includes("network error") ||
     msg.includes("econnreset") ||
     msg.includes("econnrefused") ||
-    msg.includes("etimedout")
+    msg.includes("etimedout") ||
+    msg.includes("backend is currently healthy")
   );
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForReceiptWithFallback(txHash: string, label: string) {
+  const deadline = Date.now() + TX_TIMEOUT_MS;
+  let lastErr: any = null;
+
+  while (Date.now() < deadline) {
+    for (const url of RPC_URLS) {
+      try {
+        const provider = new ethers.JsonRpcProvider(url);
+        const receipt = await provider.getTransactionReceipt(txHash);
+        if (receipt) return receipt;
+      } catch (err: any) {
+        lastErr = err;
+        if (!isTransientError(err)) throw err;
+        console.warn(
+          `[mintWorker] ${label} receipt poll transient on ${url}: ${err?.shortMessage ?? err?.message}`
+        );
+      }
+    }
+    await sleep(RECEIPT_POLL_MS);
+  }
+
+  if (lastErr) throw lastErr;
+  throw new Error(`Timed out waiting for receipt: ${txHash}`);
 }
 
 async function permanentlyFail(jobId: string, reason: string) {
@@ -94,10 +152,12 @@ async function renewLock(owner: string) {
 }
 
 async function resetStalledJobs() {
+  const cutoff = new Date(Date.now() - STALLED_JOB_AGE_MS).toISOString();
   const { data } = await supabase
     .from("minipoint_mint_jobs")
     .update({ status: "pending" })
     .eq("status", "processing")
+    .lt("updated_at", cutoff)
     .select("id");
   const count = data?.length ?? 0;
   if (count > 0) console.log(`[mintWorker] Unstuck ${count} stalled jobs`);
@@ -198,7 +258,7 @@ async function processMintBatch(
       console.log(`[mintWorker] ${label} batchMint ${jobs.length} jobs… (attempt ${attempt})`);
       const tx = await contract.batchMint(accounts, amounts);
       console.log(`[mintWorker] ${label} tx submitted: ${tx.hash}`);
-      const receipt = await tx.wait(1, TX_TIMEOUT_MS);
+      const receipt = await waitForReceiptWithFallback(tx.hash, label);
       const txHash: string = receipt.hash ?? tx.hash;
       console.log(`[mintWorker] ${label} ✓ confirmed: ${txHash}`);
       return txHash;
@@ -229,7 +289,7 @@ async function processMintJobsIndividually(
         [job.user_address],
         [ethers.parseUnits(String(job.points), 18)]
       );
-      const receipt = await tx.wait(1, TX_TIMEOUT_MS);
+      const receipt = await waitForReceiptWithFallback(tx.hash, `${label} single ${job.id}`);
       succeeded.push({ ...job, txHash: receipt.hash ?? tx.hash });
     } catch (err: any) {
       failed.push({ job, msg: err?.shortMessage ?? err?.message ?? "error", err });
@@ -240,10 +300,10 @@ async function processMintJobsIndividually(
   return { succeeded, failed };
 }
 
-async function handleFailedJobs(failed: { job: any; msg: string }[]) {
-  for (const { job, msg } of failed) {
+async function handleFailedJobs(failed: { job: any; msg: string; err: any }[]) {
+  for (const { job, msg, err } of failed) {
     console.error(`[mintWorker] ✗ Job ${job.id} (${job.user_address}): ${msg}`);
-    if (isBlacklistedError({ message: msg })) {
+    if (isPermanentContractError(err) || isBlacklistedError(err) || isBlacklistedError({ message: msg })) {
       await permanentlyFail(job.id, "blacklisted");
     } else if ((job.attempts ?? 0) >= MAX_JOB_ATTEMPTS) {
       await permanentlyFail(job.id, msg);
@@ -300,8 +360,6 @@ export async function runDrain() {
   isRunning = true;
 
   try {
-    await resetStalledJobs();
-
     const wallets = WALLETS;
     const owner = randomUUID();
 
@@ -323,6 +381,8 @@ export async function runDrain() {
     let round = 0;
 
     try {
+      await resetStalledJobs();
+
       while (true) {
         await renewLock(owner);
 
@@ -384,7 +444,7 @@ export async function runDrain() {
         for (const job of migrationJobs) {
           try {
             const tx = await wallets[0].contract.claimV2TokensFor(job.user_address);
-            const receipt = await tx.wait(1, TX_TIMEOUT_MS);
+            const receipt = await waitForReceiptWithFallback(tx.hash, `migration ${job.id}`);
             const txHash: string = receipt.hash ?? tx.hash;
             console.log(`[mintWorker] ✓ Migrated ${job.user_address} tx: ${txHash}`);
             await supabase.rpc("complete_minipoint_mint_job", { p_job_id: job.id, p_tx_hash: txHash });
