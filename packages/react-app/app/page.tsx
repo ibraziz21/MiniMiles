@@ -87,7 +87,7 @@ const SpendPartnerQuestSheet = dynamic(
   () => import("@/components/spend-partner-quest-sheet"),
   { ssr: false }
 );
-const WinningModal = dynamic(() => import("@/components/winning-modal"), {
+const OrderTrackingSheet = dynamic(() => import("@/components/order-tracking-sheet"), {
   ssr: false,
 });
 
@@ -281,7 +281,7 @@ export default function Home() {
   const { address, getUserAddress, getakibaMilesBalance } = useWeb3();
 
   const [akibaMilesBalance, setakibaMilesBalance] = useState("0");
-  const [winnerOpen, setWinnerOpen] = useState(false);
+  const [orderTrackingOpen, setOrderTrackingOpen] = useState(false);
 
   const [tokenRaffles, setTokenRaffles] = useState<TokenRaffleWithWinners[]>(
     []
@@ -663,14 +663,13 @@ const badgeButtonLabel =
 
   return (
     <main className="pb-24 font-sterling">
-      {/* 🏆 Winner modal only mounts when user opens from the header icon */}
-      {winnerOpen && (
-        <WinningModal open={winnerOpen} onOpenChange={setWinnerOpen} />
+      {orderTrackingOpen && (
+        <OrderTrackingSheet open={orderTrackingOpen} onOpenChange={setOrderTrackingOpen} />
       )}
 
       <DashboardHeader
         name={headerName}
-        onOpenWinners={() => setWinnerOpen(true)}
+        onOpenOrders={() => setOrderTrackingOpen(true)}
       />
 
       <PointsCard points={Number(akibaMilesBalance)} />

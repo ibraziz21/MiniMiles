@@ -1,15 +1,15 @@
 // src/components/dashboard-header.tsx
 import { GearSvg } from "@/lib/svg";
-import { Question, Trophy } from "@phosphor-icons/react";
+import { Package, Question } from "@phosphor-icons/react";
 import Image from "next/image";
 import Link from "next/link";
 
 export default function DashboardHeader({
   name,
-  onOpenWinners,
+  onOpenOrders,
 }: {
   name: any;
-  onOpenWinners?: () => void;
+  onOpenOrders?: () => void;
 }) {
   const initials = name && typeof name === 'string' && name.trim()
     ? name.trim().split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()
@@ -28,14 +28,14 @@ export default function DashboardHeader({
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Open latest winner modal */}
+        {/* Open order tracking */}
         <button
           type="button"
-          onClick={onOpenWinners}
-          aria-label="View latest raffle winner"
+          onClick={onOpenOrders}
+          aria-label="Track your orders"
           className="inline-flex items-center justify-center rounded-lg p-1.5 hover:bg-black/5 active:scale-[0.98]"
         >
-          <Trophy size={24} color="#238D9D" weight="duotone" />
+          <Package size={24} color="#238D9D" weight="duotone" />
         </button>
 
         {/* Settings */}
