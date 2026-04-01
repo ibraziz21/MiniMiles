@@ -10,7 +10,7 @@ import { createClient } from "@supabase/supabase-js";
 import { requireSession } from "@/lib/auth";
 import { isBlacklisted } from "@/lib/blacklist";
 import { issueClaimToken } from "@/lib/partnerAttestation";
-import { hasAnyBalance } from "@/lib/celoBalanceGate";
+import { checkStableHoldRequirement } from "@/lib/stableHoldGate";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -34,12 +34,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  if (!(await hasAnyBalance(userLc))) {
-    return NextResponse.json({
-      eligible: false,
-      reason: "no-balance",
-      message: "You need a wallet balance to claim this quest. Top up with any amount of CELO, cUSD, USDT, or USDC and try again.",
-    }, { status: 403 });
+  try {
+    const stableCheck = await checkStableHoldRequirement(userLc);
+    if (!stableCheck.ok) {
+      return NextResponse.json({
+        eligible: false,
+        reason: stableCheck.reason,
+        message: stableCheck.message,
+      }, { status: stableCheck.status });
+    }
+  } catch {
+    return NextResponse.json({ error: "Could not verify stablecoin hold history. Please try again." }, { status: 503 });
   }
 
   // Verify the quest exists

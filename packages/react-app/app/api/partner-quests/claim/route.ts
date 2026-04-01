@@ -5,7 +5,7 @@ import { claimQueuedPartnerReward } from "@/lib/minipointQueue";
 import { isBlacklisted } from "@/lib/blacklist";
 import { requireSession } from "@/lib/auth";
 import { verifyClaimToken, consumeClaimToken } from "@/lib/partnerAttestation";
-import { hasAnyBalance } from "@/lib/celoBalanceGate";
+import { checkStableHoldRequirement } from "@/lib/stableHoldGate";
 
 /* ─── env / clients ─────────────────────────────────────── */
 
@@ -46,8 +46,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    if (!(await hasAnyBalance(userLc))) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    try {
+      const stableCheck = await checkStableHoldRequirement(userLc);
+      if (!stableCheck.ok) {
+        return NextResponse.json({ error: stableCheck.message }, { status: stableCheck.status });
+      }
+    } catch {
+      return NextResponse.json({ error: "Could not verify stablecoin hold history. Please try again." }, { status: 503 });
     }
 
     // Verify the attestation token issued by /eligibility

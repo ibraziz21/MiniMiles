@@ -3,6 +3,7 @@ import express from "express";
 import * as dotenv from "dotenv";
 import questRouter from "./questRoutes";
 import { startMintWorker, runDrain, releaseCurrentLock } from "./mintWorker";
+import { startBurnBlacklistWatcher } from "./burnBlacklistWatcher";
 
 dotenv.config();
 
@@ -32,6 +33,7 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
   startMintWorker();
+  startBurnBlacklistWatcher();
 });
 
 // Release the mint queue lock before Railway (or any host) kills the process.

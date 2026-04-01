@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { createClient } from "@supabase/supabase-js";
 import { StreakInfoSheet } from "@/components/StreakDetailModal";
@@ -208,6 +208,28 @@ function sortByDesiredOrder(rows: QuestRow[]) {
   });
 }
 
+type MintStatus = "pending" | "processing" | "completed" | "failed";
+
+function MintStatusPill({ status }: { status: MintStatus }) {
+  // "failed" is treated as still processing — team reviews flagged wallets
+  if (status === "pending" || status === "processing" || status === "failed") {
+    return (
+      <span className="mt-1 inline-flex items-center gap-1.5 text-[10px] font-medium text-[#238D9D]">
+        <span className="h-1.5 w-1.5 rounded-full bg-[#238D9D] animate-pulse" />
+        Minting…
+      </span>
+    );
+  }
+  if (status === "completed") {
+    return (
+      <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-green-600">
+        ✓ Minted
+      </span>
+    );
+  }
+  return null;
+}
+
 export default function DailyChallenges({
   showCompleted = false,
 }: {
@@ -224,6 +246,12 @@ export default function DailyChallenges({
 
   // streak info sheet
   const [streakInfoOpen, setStreakInfoOpen] = useState(false);
+
+  // mint job statuses for today's quests (questId → status)
+  const [mintStatuses, setMintStatuses] = useState<Record<string, MintStatus>>({});
+  // quests claimed this session that are still minting — kept in the active list so
+  // the card stays visible with "Minting…" state instead of just disappearing
+  const mintingInSessionRef = useRef<Set<string>>(new Set());
 
   // loading + result sheets
   const [claimBusy, setClaimBusy] = useState(false);
@@ -280,7 +308,11 @@ export default function DailyChallenges({
 
       const claimed = new Set(eng?.map((e) => e.quest_id));
 
-      const activeQs = supportedQuests.filter((q) => !claimed.has(q.id));
+      // Keep quests that were just claimed this session in the active list so
+      // the card stays visible with a "Minting…" indicator instead of vanishing
+      const activeQs = supportedQuests.filter(
+        (q) => !claimed.has(q.id) || mintingInSessionRef.current.has(q.id),
+      );
       const completedQs = supportedQuests.filter((q) => claimed.has(q.id));
 
       setActive(sortByDesiredOrder(activeQs));
@@ -332,6 +364,26 @@ export default function DailyChallenges({
         console.error("[daily-challenge] streaks fetch threw:", err);
       }
 
+      // Fetch mint job statuses — only when there's something to show
+      // (avoids the extra round-trip on the home page before anything has been claimed)
+      if (address && (showCompleted || mintingInSessionRef.current.size > 0)) {
+        try {
+          const mintRes = await fetch("/api/mint-jobs/pending");
+          if (mintRes.ok) {
+            const mintData = await mintRes.json();
+            if (mintData.success && Array.isArray(mintData.jobs)) {
+              const statusMap: Record<string, MintStatus> = {};
+              for (const job of mintData.jobs) {
+                statusMap[job.questId] = job.status;
+              }
+              setMintStatuses(statusMap);
+            }
+          }
+        } catch {
+          // non-critical — silent fail
+        }
+      }
+
       setLoading(false);
     }
 
@@ -341,6 +393,47 @@ export default function DailyChallenges({
     window.addEventListener(QUESTS_REFRESH_EVENT, onRefresh);
     return () => window.removeEventListener(QUESTS_REFRESH_EVENT, onRefresh);
   }, [address]);
+
+  // Poll mint statuses every 15 s while any job is still pending/processing/failed
+  // (failed = under internal review, still shown as "Minting…" to the user)
+  useEffect(() => {
+    const needsPolling = Object.values(mintStatuses).some(
+      (s) => s === "pending" || s === "processing" || s === "failed",
+    );
+    if (!needsPolling || !address) return;
+
+    const timer = setInterval(async () => {
+      try {
+        const res = await fetch("/api/mint-jobs/pending");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && Array.isArray(data.jobs)) {
+          const map: Record<string, MintStatus> = {};
+          for (const job of data.jobs) {
+            map[job.questId] = job.status;
+          }
+          setMintStatuses(map);
+
+          // Remove quests that have finished minting from the session tracker
+          // and trigger a refresh so they move cleanly to the Completed tab
+          let anyFinished = false;
+          for (const [questId, status] of Object.entries(map)) {
+            if (status === "completed" && mintingInSessionRef.current.has(questId)) {
+              mintingInSessionRef.current.delete(questId);
+              anyFinished = true;
+            }
+          }
+          if (anyFinished) {
+            window.dispatchEvent(new Event(QUESTS_REFRESH_EVENT));
+          }
+        }
+      } catch {
+        // silent
+      }
+    }, 15_000);
+
+    return () => clearInterval(timer);
+  }, [mintStatuses, address]);
 
   const quests = showCompleted ? completed : active;
 
@@ -361,7 +454,11 @@ export default function DailyChallenges({
       const res: any = await map.action(address);
 
       if (res?.success) {
-        // Refetch all DailyChallenges instances (active + completed tabs) from DB
+        if (res.queued) {
+          // Keep the card visible in the active list with "Minting…" state
+          mintingInSessionRef.current.add(q.id);
+        }
+        // Refetch so the active list re-renders (card stays due to ref above)
         window.dispatchEvent(new Event(QUESTS_REFRESH_EVENT));
         window.dispatchEvent(new Event(BALANCE_REFRESH_EVENT));
 
@@ -369,7 +466,7 @@ export default function DailyChallenges({
         setResultTitle("Claim Successful!");
         setResultMessage(
           res.queued
-            ? `Your ${res.points ?? q.reward_points} AkibaMiles are on their way — they'll arrive in your wallet within a few minutes.`
+            ? `Your ${res.points ?? q.reward_points} AkibaMiles are being minted — this usually takes a few minutes. No need to tap again!`
             : `You claimed ${res.points ?? q.reward_points} AkibaMiles.`
         );
       } else if (res?.code === "already") {
@@ -451,14 +548,18 @@ export default function DailyChallenges({
             const streakCount = streakCounts[q.id] ?? 0;
             const showNumber = streakCount > 0;
 
+            const isMinting = !showCompleted && mintingInSessionRef.current.has(q.id);
+
             return (
               <button
                 key={q.id}
-                disabled={showCompleted || claimBusy}
+                disabled={showCompleted || claimBusy || isMinting}
                 onClick={() => runQuest(q)}
                 className={`relative h-60 w-44 flex-none rounded-xl p-4 shadow-xl ${
                   showCompleted
                     ? "cursor-default bg-blue-50 opacity-70"
+                    : isMinting
+                    ? "cursor-default border border-[#238D9D4D] bg-white opacity-70"
                     : claimBusy
                     ? "cursor-not-allowed border border-[#238D9D4D] bg-white opacity-70"
                     : "border border-[#238D9D4D] bg-white"
@@ -491,6 +592,10 @@ export default function DailyChallenges({
                     <Image src={akibaMilesSymbol} alt="" className="mr-1" />
                     {q.reward_points} AkibaMiles
                   </p>
+                  {isMinting && <MintStatusPill status="pending" />}
+                  {showCompleted && mintStatuses[q.id] && (
+                    <MintStatusPill status={mintStatuses[q.id]} />
+                  )}
                 </div>
               </button>
             );

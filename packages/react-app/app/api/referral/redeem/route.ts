@@ -1,22 +1,14 @@
 // app/api/referral/redeem/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createPublicClient, http } from "viem";
-import { celo } from "viem/chains";
 import { isBlacklisted } from "@/lib/blacklist";
 import { requireSession } from "@/lib/auth";
-import { hasAnyBalance } from "@/lib/celoBalanceGate";
+import { checkStableHoldRequirement } from "@/lib/stableHoldGate";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_KEY!
 );
-
-const publicClient = createPublicClient({ chain: celo, transport: http() });
-
-// Minimum number of prior on-chain transactions required before a wallet
-// can be used as a referral target. Prevents freshly-created bot wallets.
-const MIN_PRIOR_TXS = Number(process.env.REFERRAL_MIN_TXS ?? "5");
 
 export async function POST(req: Request) {
   const session = await requireSession();
@@ -36,13 +28,6 @@ export async function POST(req: Request) {
 
   if (await isBlacklisted(addr, "referral/redeem")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  if (!(await hasAnyBalance(addr))) {
-    return NextResponse.json(
-      { error: "Your wallet has no balance. Top up with any amount of CELO, cUSD, USDT, or USDC before using a referral code." },
-      { status: 403 }
-    );
   }
 
   // Has this address already redeemed a code?
@@ -85,23 +70,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "You cannot use your own code" }, { status: 400 });
   }
 
-  // #4 — Wallet age check: require at least MIN_PRIOR_TXS on-chain transactions
-  // This blocks freshly-created bot wallets that have never interacted with the chain.
   try {
-    const txCount = await publicClient.getTransactionCount({
-      address: addr as `0x${string}`,
-    });
-    if (txCount < MIN_PRIOR_TXS) {
-      return NextResponse.json(
-        { error: `Your wallet must have at least ${MIN_PRIOR_TXS} transactions on Celo to use a referral code.` },
-        { status: 403 }
-      );
+    const stableCheck = await checkStableHoldRequirement(addr);
+    if (!stableCheck.ok) {
+      return NextResponse.json({ error: stableCheck.message }, { status: stableCheck.status });
     }
   } catch (e) {
     console.error("[referral/redeem] RPC error:", e);
-    // Hard fail — do not allow bypass on RPC error
     return NextResponse.json(
-      { error: "Could not verify wallet activity. Please try again." },
+      { error: "Could not verify stablecoin hold history. Please try again." },
       { status: 503 }
     );
   }
