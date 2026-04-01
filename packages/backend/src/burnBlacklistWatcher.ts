@@ -196,10 +196,14 @@ export async function runBurnBlacklistWatcher() {
     console.error("[burnWatcher] Fatal:", err?.shortMessage ?? err?.message ?? err);
   } finally {
     if (lockOwner) {
-      await supabase.rpc("release_minipoint_mint_queue_lock", {
-        p_lock_name: LOCK_NAME,
-        p_owner: lockOwner,
-      }).catch(() => {});
+      try {
+        await supabase.rpc("release_minipoint_mint_queue_lock", {
+          p_lock_name: LOCK_NAME,
+          p_owner: lockOwner,
+        });
+      } catch {
+        // best-effort lock release
+      }
     }
     isRunning = false;
   }
