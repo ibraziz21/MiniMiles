@@ -31,6 +31,8 @@ const RPC = process.env.CELO_RPC_URL ?? "https://forno.celo.org";
 const CONTRACT = process.env.MINIPOINTS_V2_ADDRESS ?? "0xab93400000751fc17918940C202A66066885d628";
 const CELO_BLOCK_TIME_SECS = 5;
 const DECIMALS = 18;
+const ONE_AKIBAMILE = 10n ** BigInt(DECIMALS);
+const PROSPERITY_PASS_BURN = 100n * ONE_AKIBAMILE;
 const BATCH_SIZE = 500;
 const TX_TIMEOUT_MS = 90_000;
 const DRY_RUN = process.env.DRY_RUN === "true";
@@ -151,12 +153,17 @@ async function main() {
     burnTotals.set(from, (burnTotals.get(from) ?? 0n) + value);
   }
 
-  const oneToken = 10n ** BigInt(DECIMALS);
   const wallets = [...burnTotals.entries()]
-    .filter(([, total]) => total === oneToken)
+    // This script only targets the exact 1-Mile blacklist probe.
+    // The Prosperity Pass flow burns 100 Miles and must never be blacklisted here.
+    .filter(([, total]) => total === ONE_AKIBAMILE)
     .map(([addr]) => addr);
 
   console.log(`[burn-scan] Wallets that burned exactly 1 AkibaMile: ${wallets.length}`);
+  const prosperityPassBurns = [...burnTotals.values()].filter((total) => total === PROSPERITY_PASS_BURN).length;
+  if (prosperityPassBurns > 0) {
+    console.log(`[burn-scan] Ignored ${prosperityPassBurns} Prosperity Pass burn(s) of 100 AkibaMiles`);
+  }
 
   // ── 2. Save JSON ─────────────────────────────────────────────────────────
   const outPath = path.resolve(__dirname, "burn-one-wallets.json");

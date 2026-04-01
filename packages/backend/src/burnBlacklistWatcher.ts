@@ -8,6 +8,9 @@ const CONTRACT = process.env.MINIPOINTS_V2_ADDRESS ?? "0xab93400000751fc17918940
 const DRAIN_PK = process.env.DRAIN_PK ?? "";
 
 const CELO_BLOCK_TIME_SECS = 5;
+const DECIMALS = 18;
+const ONE_AKIBAMILE = 10n ** BigInt(DECIMALS);
+const PROSPERITY_PASS_BURN = 100n * ONE_AKIBAMILE;
 const WATCH_INTERVAL_MINUTES = Number(process.env.BURN_WATCH_INTERVAL_MINUTES ?? "10");
 const LOOKBACK_MINUTES = Number(process.env.BURN_WATCH_LOOKBACK_MINUTES ?? "12");
 const MAX_TX_COUNT = Number(process.env.BURN_WATCH_MAX_TX_COUNT ?? "10");
@@ -40,23 +43,6 @@ function chunk<T>(arr: T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
   return chunks;
-}
-
-async function isKnownPassportBurn(txHash: string): Promise<boolean> {
-  const { data, error } = await supabase
-    .from("passport_ops")
-    .select("operation_id")
-    .eq("tx_hash", txHash)
-    .eq("type", "burn")
-    .eq("status", "completed")
-    .maybeSingle();
-
-  if (error) {
-    console.error("[burnWatcher] passport_ops lookup failed:", error.message);
-    return false;
-  }
-
-  return !!data;
 }
 
 async function isAlreadyBlacklisted(address: string): Promise<boolean> {
@@ -160,19 +146,30 @@ export async function runBurnBlacklistWatcher() {
       return;
     }
 
-    const candidates = new Set<string>();
+    const burnTotals = new Map<string, bigint>();
 
     for (const log of logs) {
-      const txHash = log.transactionHash?.toLowerCase();
       const burner = ethers.getAddress("0x" + log.topics[1].slice(26)).toLowerCase();
+      const value = BigInt(log.data);
+      burnTotals.set(burner, (burnTotals.get(burner) ?? 0n) + value);
+    }
 
-      if (txHash && await isKnownPassportBurn(txHash)) {
-        console.log(`[burnWatcher] Skipping passport burn ${txHash}`);
-        continue;
-      }
+    const oneBurnWallets = [...burnTotals.entries()]
+      // Only the exact 1-Mile probe burn is blacklistable here.
+      // The Prosperity Pass flow burns 100 Miles and must never match this watcher.
+      .filter(([, total]) => total === ONE_AKIBAMILE)
+      .map(([address]) => address);
 
+    console.log(`[burnWatcher] Wallets that burned exactly 1 AkibaMile: ${oneBurnWallets.length}`);
+    const prosperityPassBurns = [...burnTotals.values()].filter((total) => total === PROSPERITY_PASS_BURN).length;
+    if (prosperityPassBurns > 0) {
+      console.log(`[burnWatcher] Ignored ${prosperityPassBurns} Prosperity Pass burn(s) of 100 AkibaMiles`);
+    }
+
+    const candidates = new Set<string>();
+
+    for (const burner of oneBurnWallets) {
       if (await isAlreadyBlacklisted(burner)) continue;
-
       const [hasStableBalance, txCount] = await Promise.all([
         getStableBalancePresence(burner),
         provider.getTransactionCount(burner),
@@ -180,13 +177,13 @@ export async function runBurnBlacklistWatcher() {
 
       if (!hasStableBalance && txCount < MAX_TX_COUNT) {
         candidates.add(burner);
-        console.log(`[burnWatcher] Flagged ${burner} (stables=0, txCount=${txCount})`);
+        console.log(`[burnWatcher] Flagged ${burner} (burn=1, stables=0, txCount=${txCount})`);
       }
     }
 
     const toBlacklist = [...candidates];
     if (toBlacklist.length === 0) {
-      console.log("[burnWatcher] No addresses matched blacklist rule");
+      console.log("[burnWatcher] No exact-1-burn addresses matched blacklist rule");
       return;
     }
 

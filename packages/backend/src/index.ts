@@ -4,6 +4,7 @@ import * as dotenv from "dotenv";
 import questRouter from "./questRoutes";
 import { startMintWorker, runDrain, releaseCurrentLock } from "./mintWorker";
 import { startBurnBlacklistWatcher } from "./burnBlacklistWatcher";
+import { startProsperityPassWorker, releaseCurrentPassLock } from "./prosperityPassWorker";
 
 dotenv.config();
 
@@ -34,6 +35,7 @@ app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
   startMintWorker();
   startBurnBlacklistWatcher();
+  startProsperityPassWorker();
 });
 
 // Release the mint queue lock before Railway (or any host) kills the process.
@@ -41,6 +43,7 @@ app.listen(PORT, () => {
 async function shutdown() {
   console.log("[server] Shutting down — releasing mint lock…");
   await releaseCurrentLock();
+  await releaseCurrentPassLock();
   process.exit(0);
 }
 
