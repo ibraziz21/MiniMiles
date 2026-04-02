@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { celo } from "viem/chains";
-import { createWalletClient, http, parseUnits } from "viem";
+import { createPublicClient, createWalletClient, http, parseUnits } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import diceAbi from "@/contexts/akibadice.json";
 
@@ -29,6 +29,13 @@ function getWalletClient() {
   });
 }
 
+function getPublicClient() {
+  return createPublicClient({
+    chain: celo,
+    transport: http(CELO_RPC_URL),
+  });
+}
+
 export async function POST(req: Request) {
   try {
     const { roundId } = await req.json();
@@ -37,6 +44,42 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: "roundId is required" },
         { status: 400 }
+      );
+    }
+
+    const publicClient = getPublicClient();
+    const [tier, filledSlots, winnerSelected, , randomBlock] =
+      (await publicClient.readContract({
+        abi: diceAbi.abi,
+        address: DICE_ADDRESS,
+        functionName: "getRoundInfo",
+        args: [BigInt(roundId)],
+      })) as [bigint, number, boolean, number, bigint, `0x${string}`];
+
+    if (winnerSelected) {
+      return NextResponse.json(
+        { ok: true, skipped: "already-resolved", roundId, tier: tier.toString() },
+        { status: 200 }
+      );
+    }
+
+    if (Number(filledSlots) === 0) {
+      return NextResponse.json(
+        { ok: true, skipped: "no-players", roundId, tier: tier.toString() },
+        { status: 200 }
+      );
+    }
+
+    if (randomBlock !== 0n) {
+      return NextResponse.json(
+        {
+          ok: true,
+          skipped: "already-requested",
+          roundId,
+          tier: tier.toString(),
+          randomBlock: randomBlock.toString(),
+        },
+        { status: 200 }
       );
     }
 

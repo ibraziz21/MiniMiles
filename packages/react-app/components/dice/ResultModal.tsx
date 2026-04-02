@@ -4,6 +4,8 @@
 import Image from "next/image";
 import { Dice3D } from "./Dice3D";
 import { akibaMilesSymbol } from "@/lib/svg";
+import type { DiceSlot } from "@/lib/diceTypes";
+import { shortAddress } from "@/lib/diceTypes";
 
 export type ResultModalProps = {
   open: boolean;
@@ -12,7 +14,10 @@ export type ResultModalProps = {
   isRolling: boolean;
   lastResultMessage: string | null;
   selectedNumber: number | null;
-  potSize: number;
+  /** Display label for the pot value (e.g. "180 Miles" or "$1.00 USDT + 100 Miles") */
+  potLabel: string;
+  /** All 6 slots from the round – used to show each player's die */
+  slots?: DiceSlot[];
 };
 
 export function ResultModal({
@@ -22,7 +27,8 @@ export function ResultModal({
   isRolling,
   lastResultMessage,
   selectedNumber,
-  potSize,
+  potLabel,
+  slots,
 }: ResultModalProps) {
   if (!open) return null;
 
@@ -33,6 +39,8 @@ export function ResultModal({
     diceResult !== null &&
     selectedNumber != null &&
     selectedNumber !== diceResult;
+
+  const showGrid = slots && slots.length === 6;
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
@@ -56,7 +64,7 @@ export function ResultModal({
                 : userWon
                 ? "You won the pot!"
                 : userLost
-                ? "You didn’t win this pot"
+                ? "You didn't win this pot"
                 : "This pot has been drawn"}
             </h2>
             <p className="text-xs text-slate-500 mt-1">
@@ -76,31 +84,61 @@ export function ResultModal({
         <div className="relative z-10 flex items-center justify-center">
           <div className="inline-flex items-center gap-2 rounded-full bg-slate-900 text-white px-3 py-1 shadow-md shadow-slate-900/40">
             <div className="h-6 w-6 rounded-full bg-emerald-500 flex items-center justify-center shadow">
-              <Image
-                src={akibaMilesSymbol}
-                alt="Akiba"
-                className="h-3 w-3"
-              />
+              <Image src={akibaMilesSymbol} alt="Akiba" className="h-3 w-3" />
             </div>
             <div className="flex flex-col leading-tight">
-              <span className="text-[10px] uppercase tracking-wide text-slate-300">
-                Pot value
-              </span>
-              <span className="text-xs font-semibold inline-flex items-center gap-1">
-                <Image
-                  src={akibaMilesSymbol}
-                  alt="Akiba"
-                  className="h-3 w-3"
-                />
-                {potSize.toLocaleString()}
-              </span>
+              <span className="text-[10px] uppercase tracking-wide text-slate-300">Pot value</span>
+              <span className="text-xs font-semibold">{potLabel}</span>
             </div>
           </div>
         </div>
 
-        {/* Dice */}
+        {/* Dice display: 6-die grid or single die */}
         <div className="relative z-10">
-          <Dice3D value={diceResult} rolling={isRolling} />
+          {showGrid ? (
+            <div className="grid grid-cols-3 gap-1.5">
+              {slots!.map((slot) => {
+                const isWinner = !isRolling && diceResult !== null && slot.number === diceResult;
+                const isMySlot = slot.number === selectedNumber;
+                const hasPlayer = !!slot.player;
+
+                return (
+                  <div key={slot.number} className="space-y-0.5">
+                    <div
+                      className={`h-20 rounded-xl transition-all ${
+                        isWinner
+                          ? "ring-2 ring-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.5)]"
+                          : !isRolling && diceResult !== null
+                          ? "opacity-40"
+                          : ""
+                      }`}
+                    >
+                      <Dice3D
+                        value={hasPlayer ? (isRolling ? null : slot.number) : null}
+                        rolling={isRolling && hasPlayer}
+                        size="mini"
+                      />
+                    </div>
+                    <div className="text-center space-y-0.5">
+                      <p className={`text-[9px] font-semibold ${isMySlot ? "text-emerald-600" : "text-slate-500"}`}>
+                        #{slot.number}{isMySlot ? " (You)" : ""}
+                      </p>
+                      {slot.player && (
+                        <p className="text-[8px] text-slate-400 truncate">
+                          {shortAddress(slot.player)}
+                        </p>
+                      )}
+                      {!slot.player && (
+                        <p className="text-[8px] text-slate-300">Empty</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <Dice3D value={diceResult} rolling={isRolling} />
+          )}
         </div>
 
         {/* Result text */}
@@ -115,18 +153,13 @@ export function ResultModal({
             <>
               <p className="text-sm text-slate-800">
                 Winning number:{" "}
-                <span className="font-semibold text-emerald-600">
-                  {diceResult}
-                </span>
+                <span className="font-semibold text-emerald-600">{diceResult}</span>
               </p>
 
               {selectedNumber != null && (
                 <p className="text-xs text-slate-500">
                   You picked{" "}
-                  <span className="font-semibold text-slate-800">
-                    #{selectedNumber}
-                  </span>
-                  .
+                  <span className="font-semibold text-slate-800">#{selectedNumber}</span>.
                 </p>
               )}
 
@@ -138,22 +171,18 @@ export function ResultModal({
 
               {userLost && (
                 <p className="text-sm text-rose-600 font-medium mt-1">
-                  You didn’t win this pot, but the next round is yours to grab.
+                  You didn't win this pot, but the next round is yours to grab.
                 </p>
               )}
 
               {!userWon && lastResultMessage && (
-                <p className="text-sm text-slate-700 mt-1">
-                  {lastResultMessage}
-                </p>
+                <p className="text-sm text-slate-700 mt-1">{lastResultMessage}</p>
               )}
             </>
           )}
 
           {!isRolling && diceResult === null && (
-            <p className="text-sm text-slate-600">
-              Waiting for the result of this pot.
-            </p>
+            <p className="text-sm text-slate-600">Waiting for the result of this pot.</p>
           )}
         </div>
 
@@ -168,9 +197,7 @@ export function ResultModal({
             </button>
             <p className="text-[11px] text-slate-500 text-center">
               Jump back into{" "}
-              <span className="font-medium text-slate-700">
-                Six-Sided Pot
-              </span>{" "}
+              <span className="font-medium text-slate-700">Six-Sided Pot</span>{" "}
               and pick a new number in the next round.
             </p>
           </div>
