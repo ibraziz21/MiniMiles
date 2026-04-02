@@ -675,6 +675,41 @@ const badgeButtonLabel =
 
       <PointsCard points={Number(akibaMilesBalance)} />
 
+      {/* Dice promo — 30 Miles tier bonus */}
+      <div className="mx-4 mt-4">
+        <Link href="/dice" className="block">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 px-4 py-3.5 shadow-lg shadow-emerald-200/50 active:scale-[0.99] transition-transform">
+            {/* decorative circles */}
+            <div className="pointer-events-none absolute -top-6 -right-6 h-24 w-24 rounded-full bg-white/10" />
+            <div className="pointer-events-none absolute -bottom-4 -left-4 h-16 w-16 rounded-full bg-white/10" />
+
+            <div className="relative flex items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-lg leading-none">🎲</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-100">
+                    Akiba Dice · 30 Miles Round
+                  </span>
+                </div>
+                <p className="text-[17px] font-extrabold text-white leading-tight">
+                  Win Miles + a bonus<br />cash reward
+                </p>
+                <p className="text-[11px] text-emerald-100/80 mt-1">
+                  6 players · 1 winner takes all
+                </p>
+              </div>
+
+              <div className="flex-shrink-0 flex flex-col items-center gap-1">
+                <div className="rounded-full bg-white/20 border border-white/30 px-3 py-1.5">
+                  <span className="text-[12px] font-bold text-white">Play →</span>
+                </div>
+                <span className="text-[9px] text-emerald-200">30 Miles entry</span>
+              </div>
+            </div>
+          </div>
+        </Link>
+      </div>
+
       {address && (
         <MigrateV2Banner
           address={address}

@@ -18,36 +18,13 @@ import MiniMilesAbi from "@/contexts/minimiles.json";
 import raffleAbi from "@/contexts/miniraffle.json";
 import diceAbi from "@/contexts/akibadice.json";
 import posthog from "posthog-js";
+import { USD_TIERS } from "@/lib/diceTypes";
+import type { DiceTier, DiceSlot, DiceRoundStateName, DiceRoundView } from "@/lib/diceTypes";
 
 const DICE_ADDRESS = "0xf77e7395Aa5c89BcC8d6e23F67a9c7914AB9702a" as const;
+/** USDT on Celo mainnet */
+const USDT_ADDRESS = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" as const;
 const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
-
-type DiceTier = 10 | 20 | 30;
-
-export type DiceSlot = {
-  number: number;
-  player: `0x${string}` | null;
-};
-
-export type DiceRoundStateName =
-  | "none"
-  | "open"
-  | "fullWaiting"
-  | "ready"
-  | "resolved";
-
-export type DiceRoundView = {
-  tier: number;
-  roundId: bigint;
-  filledSlots: number;
-  winnerSelected: boolean;
-  winningNumber: number | null;
-  randomBlock: bigint;
-  winner: `0x${string}` | null;
-  slots: DiceSlot[];
-  myNumber: number | null;
-  state: DiceRoundStateName;
-};
 
 type Web3ContextValue = ReturnType<typeof useWeb3Logic>;
 
@@ -254,12 +231,14 @@ function useWeb3Logic() {
       const dice = getDiceReadContract();
       const roundId: bigint = (await dice.read.getActiveRoundId([BigInt(tier)])) as bigint;
 
+      const usdTier = (USD_TIERS as readonly number[]).includes(Number(tier));
+
       if (roundId === 0n) {
         return {
           tier, roundId, filledSlots: 0, winnerSelected: false,
           winningNumber: null, randomBlock: 0n, winner: null,
           slots: Array.from({ length: 6 }, (_, i) => ({ number: i + 1, player: null })),
-          myNumber: null, state: "none",
+          myNumber: null, state: "none", isUsdTier: usdTier,
         };
       }
 
@@ -300,7 +279,7 @@ function useWeb3Logic() {
         randomBlock,
         winner: winner && winner.toLowerCase() !== "0x0000000000000000000000000000000000000000"
           ? (winner as `0x${string}`) : null,
-        slots, myNumber, state,
+        slots, myNumber, state, isUsdTier: usdTier,
       };
     },
     [address, publicClient]
@@ -332,6 +311,45 @@ function useWeb3Logic() {
     },
     [publicClient, address]
   );
+
+  const getStablecoinBalance = useCallback(async () => {
+    if (!address) return "0";
+    const bal = await publicClient.readContract({
+      address: USDT_ADDRESS,
+      abi: [{ name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ type: "uint256" }] }],
+      functionName: "balanceOf",
+      args: [address as `0x${string}`],
+    }) as bigint;
+    return formatUnits(bal, 6);
+  }, [address, publicClient]);
+
+  /** Approve USDT spending for the Dice contract. Call before joinDice on USD tiers. */
+  const approveUsdtForDice = useCallback(async (amount: bigint) => {
+    if (!walletClient || !address) throw new Error("Wallet not connected");
+    const chainId = await walletClient.getChainId();
+    if (chainId !== celo.id) throw new Error("Wrong network");
+
+    const hash = await walletClient.writeContract({
+      chain: walletClient.chain,
+      address: USDT_ADDRESS,
+      abi: [{ name: "approve", type: "function", stateMutability: "nonpayable", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }] }],
+      functionName: "approve",
+      account: address as `0x${string}`,
+      args: [DICE_ADDRESS, amount],
+    });
+
+    try {
+      await publicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 120_000 });
+    } catch (err: any) {
+      const m = String(err?.message || "");
+      if (/(block.*out of range|header not found|query timeout)/i.test(m)) {
+        console.warn("Ignoring provider range error while waiting for approve receipt:", err);
+      } else {
+        throw err;
+      }
+    }
+    return hash;
+  }, [walletClient, address, publicClient]);
 
   const joinDice = useCallback(
     async (tier: DiceTier, chosenNumber: number) => {
@@ -398,6 +416,7 @@ function useWeb3Logic() {
           winnerSelected, winningNumber: Number(winningNumber), randomBlock,
           winner: winner && winner.toLowerCase() !== ZERO_ADDR ? (winner as `0x${string}`) : null,
           slots, myNumber: joined ? Number(myNum) : null, state: "resolved" as DiceRoundStateName,
+          isUsdTier: (USD_TIERS as readonly number[]).includes(Number(tierOnChain)),
         };
       }
       return null;
@@ -436,6 +455,8 @@ function useWeb3Logic() {
     joinRaffle,
     fetchDiceRound,
     joinDice,
+    approveUsdtForDice,
+    getStablecoinBalance,
     getDiceTierStats,
     getDicePlayerStats,
     getLastResolvedRoundForPlayer,

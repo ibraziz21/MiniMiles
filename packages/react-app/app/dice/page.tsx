@@ -15,6 +15,7 @@ import { ResultModal } from "@/components/dice/ResultModal";
 import { DiceStatsSheet } from "@/components/dice/DiceStats";
 import { DiceHeader } from "@/components/dice/DiceHeader";
 import { DicePotCard } from "@/components/dice/DicePotCard";
+import { WinnerToast } from "@/components/dice/WinnerToast";
 
 import {
   type DiceTier,
@@ -22,14 +23,17 @@ import {
   type DiceRoundStateName,
   type TierStats,
   type PlayerStats,
-  TIERS,
+  type DiceMode,
+  type MilesTier,
+  type UsdTier,
+  MILES_TIERS,
+  USD_TIERS,
+  USD_TIER_META,
+  MILES_TIER_BONUS_USD,
+  isUsdTierType,
 } from "@/lib/diceTypes";
 
 const DBG = (...args: any[]) => console.log("[DicePage]", ...args);
-
-/* ────────────────────────────────────────────────────────────── */
-/* Page                                                          */
-/* ────────────────────────────────────────────────────────────── */
 
 export default function DicePage() {
   const router = useRouter();
@@ -37,63 +41,78 @@ export default function DicePage() {
     address,
     fetchDiceRound,
     joinDice,
+    approveUsdtForDice,
+    getStablecoinBalance,
     getDiceTierStats,
     getDicePlayerStats,
+    getLastResolvedRoundForPlayer,
   } = useWeb3();
 
+  const [mode, setMode] = useState<DiceMode>("akiba");
   const [selectedTier, setSelectedTier] = useState<DiceTier>(10);
 
   const [round, setRound] = useState<DiceRoundView | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+  const [isApproved, setIsApproved] = useState(false);
   const [selectedNumber, setSelectedNumber] = useState<number | null>(null);
+  const [stablecoinBalance, setStablecoinBalance] = useState<string | null>(null);
 
-  // modal / animation
   const [isRolling, setIsRolling] = useState(false);
   const [diceResult, setDiceResult] = useState<number | null>(null);
-  const [lastResultMessage, setLastResultMessage] = useState<string | null>(
-    null
-  );
+  const [lastResultMessage, setLastResultMessage] = useState<string | null>(null);
   const [showResultModal, setShowResultModal] = useState(false);
 
-  // stats
   const [tierStatsByTier, setTierStatsByTier] =
     useState<Partial<Record<DiceTier, TierStats>>>({});
   const [playerStats, setPlayerStats] = useState<PlayerStats>(null);
+  const [lastRoundByTier, setLastRoundByTier] =
+    useState<Partial<Record<DiceTier, DiceRoundView | null>>>({});
 
-  const currentTierStats = tierStatsByTier[selectedTier] ?? null;
   const [statsOpen, setStatsOpen] = useState(false);
+  const [winnerToast, setWinnerToast] = useState<{
+    roundId: bigint; winningNumber: number; winner: string; iWon: boolean;
+  } | null>(null);
 
-  // backend triggers (draw guard)
   const [drawingRoundId, setDrawingRoundId] = useState<bigint | null>(null);
   const [requestingRandomnessRoundId, setRequestingRandomnessRoundId] =
     useState<bigint | null>(null);
   const backgroundRandomnessRef = useRef<Set<string>>(new Set());
   const backgroundDrawRef = useRef<Set<string>>(new Set());
 
-  /* ────────────────────────────────────────────────────────────── */
-  /* Derived state                                                 */
-  /* ────────────────────────────────────────────────────────────── */
+  /* ── Derived ────────────────────────────────────────────────── */
+
+  const isUsdMode = mode === "usd";
+  const isUsdTier = isUsdTierType(selectedTier);
 
   const potSize = useMemo(() => {
     const tier = round?.tier ?? selectedTier;
-    return tier * 6;
+    return isUsdTierType(tier as DiceTier) ? 0 : (tier as number) * 6;
+  }, [round, selectedTier]);
+
+  const potLabel = useMemo(() => {
+    const tier = (round?.tier ?? selectedTier) as DiceTier;
+    if (isUsdTierType(tier)) {
+      const meta = USD_TIER_META[tier];
+      return `$${meta.payout.toFixed(2)} USDT + ${meta.miles} Miles`;
+    }
+    const bonus = MILES_TIER_BONUS_USD[tier as MilesTier];
+    const base = `${((tier as number) * 6).toLocaleString()} Miles`;
+    return bonus ? `${base} + $${bonus.toFixed(2)} USDT` : base;
   }, [round, selectedTier]);
 
   const hasWinner = !!round?.winner;
   const logicalState: DiceRoundStateName = round?.state ?? "none";
   const isFinished = hasWinner;
-
   const myNumber = round?.myNumber ?? null;
   const hasJoinedInRound = myNumber != null;
   const hasJoinedActive = hasJoinedInRound && !isFinished;
   const hasJoinedLastResolved = hasJoinedInRound && isFinished;
-
-  const displayState: DiceRoundStateName = isFinished
-    ? "resolved"
-    : logicalState;
-
+  const displayState: DiceRoundStateName = isFinished ? "resolved" : logicalState;
   const isFinishedOrNoRound = !round || isFinished;
+  const isDrawing = !!drawingRoundId && drawingRoundId === round?.roundId;
+  const currentTierStats = tierStatsByTier[selectedTier] ?? null;
 
   const canJoin =
     !!address &&
@@ -101,138 +120,123 @@ export default function DicePage() {
     !isJoining &&
     (isFinishedOrNoRound || (round?.filledSlots ?? 0) < 6);
 
-  DBG("render start", { address });
-  DBG("derived state", {
-    hasWinner,
-    logicalState,
-    isFinished,
-    myNumber,
-    hasJoinedInRound,
-    hasJoinedActive,
-  });
-  DBG("canJoin computed", {
-    selectedNumber,
-    isJoining,
-    isFinishedOrNoRound,
-    filledSlots: round?.filledSlots ?? 0,
-    canJoin,
-  });
+  /* ── Winner toast (show once per round via localStorage) ───── */
 
-  /* ────────────────────────────────────────────────────────────── */
-  /* Load round + stats                                            */
-  /* ────────────────────────────────────────────────────────────── */
+  useEffect(() => {
+    if (!round?.winner || !round.winningNumber || round.state !== "resolved") return;
+    const key = `dice_winner_seen_${round.roundId.toString()}`;
+    if (typeof window !== "undefined" && localStorage.getItem(key)) return;
+    const iWon = !!address && round.winner.toLowerCase() === address.toLowerCase();
+    setWinnerToast({
+      roundId: round.roundId,
+      winningNumber: round.winningNumber,
+      winner: round.winner,
+      iWon,
+    });
+  }, [round?.roundId, round?.winner, round?.state, address]);
+
+  function dismissWinnerToast() {
+    if (!winnerToast) return;
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`dice_winner_seen_${winnerToast.roundId.toString()}`, "1");
+    }
+    setWinnerToast(null);
+  }
+
+  /* ── Mode change ────────────────────────────────────────────── */
+
+  function handleModeChange(newMode: DiceMode) {
+    setMode(newMode);
+    const firstTier = newMode === "akiba" ? MILES_TIERS[0] : USD_TIERS[0];
+    setSelectedTier(firstTier);
+    setDrawingRoundId(null);
+    setShowResultModal(false);
+    setDiceResult(null);
+    setLastResultMessage(null);
+    setSelectedNumber(null);
+    setIsApproved(false);
+    setWinnerToast(null);
+  }
+
+  /* ── USDT balance ───────────────────────────────────────────── */
+
+  useEffect(() => {
+    if (!address || !isUsdMode) { setStablecoinBalance(null); return; }
+    getStablecoinBalance().then(setStablecoinBalance).catch(() => setStablecoinBalance(null));
+  }, [address, isUsdMode, getStablecoinBalance]);
+
+  /* ── Load round ─────────────────────────────────────────────── */
 
   const loadRound = useCallback(
     async (tier: DiceTier) => {
-      DBG("loadRound() called", { tier });
-
+      DBG("loadRound()", tier);
       setIsLoading(true);
       try {
         const view = (await fetchDiceRound(tier)) as DiceRoundView;
-        DBG("loadRound() fetched view", {
-          tier: view.tier,
-          roundId: view.roundId?.toString?.() ?? view.roundId,
-          filledSlots: view.filledSlots,
-          winner: view.winner,
-          randomBlock: view.randomBlock?.toString?.(),
-          myNumber: view.myNumber,
-          state: view.state,
-        });
-
         setRound(view);
 
-        // 🧠 IMPORTANT:
-        // If I already joined this round and it’s not resolved, keep my number.
-        // BUT DO NOT CLEAR selectedNumber when myNumber is null → that was killing the button.
         if (view.myNumber != null && !view.winner) {
-          DBG("loadRound() setting selectedNumber from myNumber", {
-            myNumber: view.myNumber,
-          });
           setSelectedNumber(view.myNumber);
-        } else {
-          DBG("loadRound() leaving selectedNumber as-is", {
-            selectedNumber,
-          });
         }
 
-        // Tier stats
         getDiceTierStats(tier)
-          .then((stats) => {
-            DBG("getDiceTierStats() result", { tier, stats });
-            setTierStatsByTier((prev) => ({
-              ...prev,
-              [tier]: stats,
-            }));
-          })
-          .catch((e) =>
-            console.warn("[DicePage] getDiceTierStats error", e)
-          );
+          .then((s) => setTierStatsByTier((p) => ({ ...p, [tier]: s })))
+          .catch(() => {});
 
-        // Player stats only if we have an address
         if (address) {
-          getDicePlayerStats()
-            .then((ps) => {
-              DBG("getDicePlayerStats() result", ps);
-              setPlayerStats(ps);
-            })
-            .catch((e) =>
-              console.warn("[DicePage] getDicePlayerStats error", e)
-            );
+          getDicePlayerStats().then(setPlayerStats).catch(() => {});
         }
 
         return view;
       } catch (e) {
-        console.error("[DicePage] Failed to load dice round:", e);
+        console.error("[DicePage] loadRound failed:", e);
         return null;
       } finally {
         setIsLoading(false);
       }
     },
-    [fetchDiceRound, getDiceTierStats, getDicePlayerStats, address, selectedNumber]
+    [fetchDiceRound, getDiceTierStats, getDicePlayerStats, address]
   );
 
-  // initial load + on tier change
+  useEffect(() => { loadRound(selectedTier); }, [selectedTier, loadRound]);
   useEffect(() => {
-    DBG("useEffect initial load / tier change", { selectedTier });
-    loadRound(selectedTier);
+    const id = setInterval(() => loadRound(selectedTier), 20000);
+    return () => clearInterval(id);
   }, [selectedTier, loadRound]);
 
-  // poll every 20s so state stays fresh
-  useEffect(() => {
-    DBG("setting up polling interval");
-    const id = setInterval(() => {
-      DBG("poll tick → loadRound()", { selectedTier });
-      loadRound(selectedTier);
-    }, 20000);
-    return () => {
-      DBG("clearing polling interval");
-      clearInterval(id);
-    };
-  }, [selectedTier, loadRound]);
+  /* ── Last round per tier (for stats sheet) ──────────────────── */
+
+  const loadLastRounds = useCallback(async () => {
+    if (!address) return;
+    const allTiers: DiceTier[] = [...MILES_TIERS, ...USD_TIERS];
+    const results = await Promise.allSettled(
+      allTiers.map((t) => getLastResolvedRoundForPlayer(t))
+    );
+    const map: Partial<Record<DiceTier, DiceRoundView | null>> = {};
+    results.forEach((r, i) => {
+      map[allTiers[i]] = r.status === "fulfilled" ? (r.value as DiceRoundView | null) : null;
+    });
+    setLastRoundByTier(map);
+  }, [address, getLastResolvedRoundForPlayer]);
+
+  useEffect(() => { loadLastRounds(); }, [loadLastRounds]);
+
+  /* ── Sweep all tiers ────────────────────────────────────────── */
 
   const sweepAllTiers = useCallback(async () => {
-    const tiers = [...TIERS];
-
-    for (const tier of tiers) {
+    const allTiers: DiceTier[] = [...MILES_TIERS, ...USD_TIERS];
+    for (const tier of allTiers) {
       let view: DiceRoundView | null = null;
-      try {
-        view = await fetchDiceRound(tier);
-      } catch (e) {
-        console.warn("[DicePage] sweep fetchDiceRound failed", { tier, e });
-        continue;
-      }
-
+      try { view = await fetchDiceRound(tier); } catch { continue; }
       if (!view || view.roundId === 0n) continue;
 
       const key = `${tier}-${view.roundId.toString()}`;
+      const hasPlayers = view.filledSlots > 0;
       const isFull = view.filledSlots === 6;
       const noWinner = !view.winner;
 
       if (
-        isFull &&
-        noWinner &&
-        view.randomBlock === 0n &&
-        view.state !== "resolved" &&
+        hasPlayers && noWinner && view.randomBlock === 0n && view.state !== "resolved" &&
         !(tier === selectedTier && requestingRandomnessRoundId === view.roundId) &&
         !backgroundRandomnessRef.current.has(key)
       ) {
@@ -241,30 +245,14 @@ export default function DicePage() {
           const res = await fetch("/api/dice/randomness", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              roundId: view.roundId.toString(),
-              tier,
-            }),
+            body: JSON.stringify({ roundId: view.roundId.toString(), tier }),
           });
-          DBG("background randomness API response", {
-            tier,
-            roundId: view.roundId.toString(),
-            ok: res.ok,
-            status: res.status,
-          });
-          if (!res.ok) {
-            backgroundRandomnessRef.current.delete(key);
-          }
-        } catch (e) {
-          console.error("[DicePage] background randomness failed", e);
-          backgroundRandomnessRef.current.delete(key);
-        }
+          if (!res.ok) backgroundRandomnessRef.current.delete(key);
+        } catch { backgroundRandomnessRef.current.delete(key); }
       }
 
       if (
-        isFull &&
-        noWinner &&
-        view.state === "ready" &&
+        isFull && noWinner && view.state === "ready" &&
         !(tier === selectedTier && drawingRoundId === view.roundId) &&
         !backgroundDrawRef.current.has(key)
       ) {
@@ -275,113 +263,50 @@ export default function DicePage() {
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ roundId: view.roundId.toString() }),
           });
-          DBG("background draw API response", {
-            tier,
-            roundId: view.roundId.toString(),
-            ok: res.ok,
-            status: res.status,
-          });
-          if (!res.ok) {
-            backgroundDrawRef.current.delete(key);
-          }
-        } catch (e) {
-          console.error("[DicePage] background draw failed", e);
-          backgroundDrawRef.current.delete(key);
-        }
+          if (!res.ok) backgroundDrawRef.current.delete(key);
+        } catch { backgroundDrawRef.current.delete(key); }
       }
     }
   }, [fetchDiceRound, selectedTier, requestingRandomnessRoundId, drawingRoundId]);
 
   useEffect(() => {
     sweepAllTiers();
-    const id = setInterval(() => {
-      sweepAllTiers();
-    }, 20000);
+    const id = setInterval(sweepAllTiers, 20000);
     return () => clearInterval(id);
   }, [sweepAllTiers]);
 
-  /* ────────────────────────────────────────────────────────────── */
-  /* Backend triggers: randomness + draw + modal                   */
-  /* ────────────────────────────────────────────────────────────── */
+  /* ── Randomness trigger ─────────────────────────────────────── */
 
   useEffect(() => {
     if (!round) return;
-
-    const isFull = round.filledSlots === 6;
-    const noWinner = !round.winner;
-    const needsRandom = round.randomBlock === 0n;
-    const shouldRequestRandomness =
-      isFull && noWinner && needsRandom && round.state !== "resolved";
-
-    DBG("randomness effect check", {
-      roundId: round.roundId?.toString?.() ?? round.roundId,
-      filledSlots: round.filledSlots,
-      winner: round.winner,
-      randomBlock: round.randomBlock?.toString?.(),
-      state: round.state,
-      shouldRequestRandomness,
-      requestingRandomnessRoundId:
-        requestingRandomnessRoundId?.toString?.(),
-    });
-
-    if (!shouldRequestRandomness) return;
-    if (requestingRandomnessRoundId === round.roundId) return;
+    const shouldRequest =
+      round.filledSlots > 0 && !round.winner && round.randomBlock === 0n && round.state !== "resolved";
+    if (!shouldRequest || requestingRandomnessRoundId === round.roundId) return;
 
     setRequestingRandomnessRoundId(round.roundId);
-
     (async () => {
       try {
         const res = await fetch("/api/dice/randomness", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            roundId: round.roundId.toString(),
-            tier: selectedTier,
-          }),
+          body: JSON.stringify({ roundId: round.roundId.toString(), tier: selectedTier }),
         });
-        DBG("randomness API response (effect)", {
-          ok: res.ok,
-          status: res.status,
-        });
-        if (!res.ok) {
-          setRequestingRandomnessRoundId(null);
-        } else {
-          await loadRound(selectedTier);
-        }
-      } catch (e) {
-        console.error("[DicePage] request randomness failed (effect)", e);
+        if (!res.ok) { setRequestingRandomnessRoundId(null); return; }
+        await loadRound(selectedTier);
+      } catch {
         setRequestingRandomnessRoundId(null);
       }
     })();
   }, [round, requestingRandomnessRoundId, selectedTier, loadRound]);
 
+  /* ── Draw trigger ───────────────────────────────────────────── */
+
   useEffect(() => {
     if (!round) return;
-
-    const isFull = round.filledSlots === 6;
-    const noWinner = !round.winner;
-    const readyToDraw = isFull && noWinner && round.state === "ready";
-
-    DBG("draw effect check", {
-      roundId: round.roundId?.toString?.() ?? round.roundId,
-      filledSlots: round.filledSlots,
-      winner: round.winner,
-      state: round.state,
-      isFull,
-      noWinner,
-      readyToDraw,
-      drawingRoundId: drawingRoundId?.toString?.(),
-    });
-
-    if (!readyToDraw) return;
-    if (drawingRoundId === round.roundId) return;
-
-    DBG("draw conditions met → triggering /api/dice/draw", {
-      roundId: round.roundId?.toString?.(),
-    });
+    const readyToDraw = round.filledSlots === 6 && !round.winner && round.state === "ready";
+    if (!readyToDraw || drawingRoundId === round.roundId) return;
 
     setDrawingRoundId(round.roundId);
-
     setShowResultModal(true);
     setIsRolling(true);
     setDiceResult(null);
@@ -394,257 +319,165 @@ export default function DicePage() {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ roundId: round.roundId.toString() }),
         });
-
-        DBG("draw API response", { ok: res.ok, status: res.status });
-        if (!res.ok) {
-          setDrawingRoundId(null);
-        }
+        if (!res.ok) setDrawingRoundId(null);
 
         const updated = await loadRound(selectedTier);
         if (!updated) return;
 
         const winning = updated.winningNumber ?? null;
-        DBG("post-draw updated round", {
-          winning,
-          myNumber: updated.myNumber,
-        });
-
         if (!winning) {
-          setLastResultMessage(
-            "Draw transaction sent. Waiting for the result…"
-          );
+          setLastResultMessage("Draw sent. Waiting for result…");
           return;
         }
-
         setDiceResult(winning);
-
-        const myNum = updated.myNumber;
-        if (myNum && myNum !== winning) {
-          setLastResultMessage(
-            `Winning number was ${winning}. Better luck next time.`
-          );
+        if (updated.myNumber && updated.myNumber !== winning) {
+          setLastResultMessage(`Winning number was ${winning}. Better luck next time.`);
         }
-      } catch (e) {
-        console.error("[DicePage] draw API failed:", e);
-        setLastResultMessage(
-          "Something went wrong while drawing this pot. Please refresh."
-        );
+        // Refresh last rounds after a draw
+        loadLastRounds();
+      } catch {
+        setLastResultMessage("Something went wrong. Please refresh.");
         setDrawingRoundId(null);
       } finally {
         setIsRolling(false);
       }
     })();
-  }, [round, drawingRoundId, selectedTier, loadRound]);
+  }, [round, drawingRoundId, selectedTier, loadRound, loadLastRounds]);
 
-  /* ────────────────────────────────────────────────────────────── */
-  /* Handlers                                                      */
-  /* ────────────────────────────────────────────────────────────── */
+  /* ── Handlers ───────────────────────────────────────────────── */
 
   function handleSelectNumber(n: number) {
-    DBG("handleSelectNumber()", {
-      n,
-      roundId: round?.roundId?.toString?.(),
-      roundState: round?.state,
-      winner: round?.winner,
-      myNumber: round?.myNumber,
-    });
-
-    // If no round yet (no active pot) or round is resolved, just allow picking.
-    // We rely on on-chain logic to open a new round on join.
-    if (!round || round.winner) {
-      DBG("no active round or already resolved → free select", { n });
-      setSelectedNumber(n);
-      return;
-    }
-
-    // If I've already joined this round, don't allow changing
-    if (round.myNumber != null) {
-      DBG("already joined this round, ignoring selection");
-      return;
-    }
-
+    if (!round || round.winner) { setSelectedNumber(n); return; }
+    if (round.myNumber != null) return;
     const slot = round.slots.find((s) => s.number === n);
-    if (!slot) {
-      DBG("no slot found for n", { n });
-      return;
-    }
-
-    // If slot is taken by someone else, ignore
-    if (
-      slot.player &&
-      address &&
-      slot.player.toLowerCase() !== address.toLowerCase()
-    ) {
-      DBG("slot taken by other player", {
-        n,
-        slotPlayer: slot.player,
-        address,
-      });
-      return;
-    }
-
-    DBG("selection accepted", { n });
+    if (!slot) return;
+    if (slot.player && address && slot.player.toLowerCase() !== address.toLowerCase()) return;
     setSelectedNumber(n);
+    setIsApproved(false);
+  }
+
+  async function handleApprove() {
+    if (!selectedNumber || !canJoin || isApproving || isApproved || !isUsdTier) return;
+    const usdMeta = USD_TIER_META[selectedTier as UsdTier];
+    if (!usdMeta) return;
+    const entryUnits = BigInt(Math.round(usdMeta.entry * 1_000_000));
+    try {
+      setIsApproving(true);
+      await approveUsdtForDice(entryUnits);
+      setIsApproved(true);
+    } catch (e) {
+      console.error("[DicePage] approve failed:", e);
+    } finally {
+      setIsApproving(false);
+    }
   }
 
   async function handleJoin() {
-    DBG("handleJoin() start", {
-      selectedNumber,
-      canJoin,
-      address,
-      roundId: round?.roundId?.toString?.(),
-    });
-
-    if (!selectedNumber || !canJoin) {
-      DBG("handleJoin() guard failed", {
-        selectedNumber,
-        canJoin,
-      });
-      return;
-    }
-
+    if (!selectedNumber || !canJoin) return;
+    if (isUsdTier && !isApproved) return;
     try {
       setIsJoining(true);
-
-      DBG("calling joinDice()", {
-        tier: selectedTier,
-        selectedNumber,
-      });
-
       await joinDice(selectedTier, selectedNumber);
-
-      DBG("joinDice() success, refreshing round");
-
       const updated = (await fetchDiceRound(selectedTier)) as DiceRoundView;
-      DBG("post-join fetched round", {
-        roundId: updated.roundId?.toString?.(),
-        filledSlots: updated.filledSlots,
-        myNumber: updated.myNumber,
-        state: updated.state,
-      });
-
       setRound(updated);
       setSelectedNumber(updated.myNumber ?? selectedNumber);
+      setIsApproved(false);
 
-      // If this is the FIRST player, request randomness early.
-      if (
-        updated.filledSlots === 1 &&
-        updated.randomBlock === 0n &&
-        !updated.winner
-      ) {
-        DBG("first player joined → requesting randomness", {
-          roundId: updated.roundId?.toString?.(),
-        });
+      // If first player, request randomness early
+      if (updated.filledSlots === 1 && updated.randomBlock === 0n && !updated.winner) {
         setRequestingRandomnessRoundId(updated.roundId);
         try {
           const res = await fetch("/api/dice/randomness", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              roundId: updated.roundId.toString(),
-              tier: selectedTier,
-            }),
+            body: JSON.stringify({ roundId: updated.roundId.toString(), tier: selectedTier }),
           });
-          DBG("randomness API response", {
-            ok: res.ok,
-            status: res.status,
-          });
-          if (!res.ok) {
-            setRequestingRandomnessRoundId(null);
-          } else {
-            await loadRound(selectedTier);
-          }
-        } catch (e) {
-          console.error("[DicePage] request randomness failed", e);
-          setRequestingRandomnessRoundId(null);
-        }
+          if (!res.ok) setRequestingRandomnessRoundId(null);
+          else await loadRound(selectedTier);
+        } catch { setRequestingRandomnessRoundId(null); }
       }
 
-      // Refresh stats async (don’t block UX)
       getDiceTierStats(selectedTier)
-        .then((stats) => {
-          DBG("refresh tier stats after join", { tier: selectedTier, stats });
-          setTierStatsByTier((prev) => ({
-            ...prev,
-            [selectedTier]: stats,
-          }));
-        })
-        .catch((e) =>
-          console.error("[DicePage] getDiceTierStats after join failed", e)
-        );
-
-      getDicePlayerStats()
-        .then((ps) => {
-          DBG("refresh player stats after join", ps);
-          setPlayerStats(ps);
-        })
-        .catch((e) =>
-          console.error("[DicePage] getDicePlayerStats after join failed", e)
-        );
+        .then((s) => setTierStatsByTier((p) => ({ ...p, [selectedTier]: s })))
+        .catch(() => {});
+      getDicePlayerStats().then(setPlayerStats).catch(() => {});
+      if (isUsdTier) getStablecoinBalance().then(setStablecoinBalance).catch(() => {});
     } catch (e) {
       console.error("[DicePage] joinDice failed:", e);
     } finally {
       setIsJoining(false);
-      DBG("handleJoin() end");
     }
   }
 
-  DBG("render end snapshot", {
-    address,
-    selectedTier,
-    roundId: round?.roundId?.toString?.(),
-    filledSlots: round?.filledSlots,
-    selectedNumber,
-    isJoining,
-    canJoin,
-  });
-
-  /* ────────────────────────────────────────────────────────────── */
-  /* Render                                                        */
-  /* ────────────────────────────────────────────────────────────── */
+  /* ── Render ─────────────────────────────────────────────────── */
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-emerald-50/40 via-white to-white text-slate-900">
-      <div className="max-w-md mx-auto px-4 pb-24 pt-6 space-y-6 relative">
-        <div className="pointer-events-none absolute -top-10 right-0 opacity-60 blur-sm">
-          <div className="h-24 w-24 rounded-full bg-emerald-200/40" />
+    <main className="min-h-dvh bg-gradient-to-b from-emerald-50/40 via-white to-white text-slate-900">
+      <div className="w-full max-w-md mx-auto px-4 pt-4 pb-28 space-y-3">
+
+        {/* Header */}
+        <div>
+          <DiceHeader
+            onBack={() => router.back()}
+            mode={mode}
+            onModeChange={handleModeChange}
+            selectedTier={selectedTier}
+            onTierChange={(tier) => {
+              setSelectedTier(tier);
+              setRound(null);
+              setDrawingRoundId(null);
+              setShowResultModal(false);
+              setDiceResult(null);
+              setLastResultMessage(null);
+              setSelectedNumber(null);
+              setIsApproved(false);
+            }}
+            tierStats={currentTierStats}
+            playerStats={playerStats}
+            onOpenStats={() => setStatsOpen(true)}
+            stablecoinBalance={stablecoinBalance}
+          />
         </div>
 
-        <DiceHeader
-          onBack={() => router.back()}
-          selectedTier={selectedTier}
-          onTierChange={(tier) => {
-            DBG("tier change via header", { tier });
-            setSelectedTier(tier);
-            setDrawingRoundId(null);
-            setShowResultModal(false);
-            setDiceResult(null);
-            setLastResultMessage(null);
-          }}
-          tierStats={currentTierStats}
-          playerStats={playerStats}
-          onOpenStats={() => setStatsOpen(true)}
-        />
-
-        <DicePotCard
-          round={round}
-          selectedTier={selectedTier}
-          potSize={potSize}
-          selectedNumber={selectedNumber}
-          myNumber={myNumber}
-          isFinished={isFinished}
-          hasJoinedActive={hasJoinedActive}
-          hasJoinedLastResolved={hasJoinedLastResolved}
-          displayState={displayState}
-          onSelectNumber={handleSelectNumber}
-          onJoin={handleJoin}
-          canJoin={canJoin}
-          isJoining={isJoining}
-          isLoading={isLoading}
-        />
+        {/* Pot card — natural height */}
+        <div>
+          <DicePotCard
+            round={round}
+            selectedTier={selectedTier}
+            potSize={potSize}
+            selectedNumber={selectedNumber}
+            myNumber={myNumber}
+            isFinished={isFinished}
+            hasJoinedActive={hasJoinedActive}
+            hasJoinedLastResolved={hasJoinedLastResolved}
+            displayState={displayState}
+            onSelectNumber={handleSelectNumber}
+            onJoin={handleJoin}
+            onApprove={handleApprove}
+            canJoin={canJoin}
+            isJoining={isJoining}
+            isApproving={isApproving}
+            isApproved={isApproved}
+            isLoading={isLoading}
+            isDrawing={isDrawing}
+            myAddress={address}
+          />
+        </div>
       </div>
 
-      {/* Result modal – opened when we’re drawing & you are in the round */}
+      {/* Winner toast — shown once per round, dismissed to localStorage */}
+      {winnerToast && (
+        <WinnerToast
+          roundId={winnerToast.roundId}
+          winningNumber={winnerToast.winningNumber}
+          winner={winnerToast.winner}
+          potLabel={potLabel}
+          iWon={winnerToast.iWon}
+          onClose={dismissWinnerToast}
+        />
+      )}
+
+      {/* Overlays */}
       <ResultModal
         open={showResultModal && hasJoinedInRound}
         onClose={() => setShowResultModal(false)}
@@ -652,7 +485,8 @@ export default function DicePage() {
         isRolling={isRolling}
         lastResultMessage={lastResultMessage}
         selectedNumber={myNumber}
-        potSize={potSize}
+        potLabel={potLabel}
+        slots={round?.slots}
       />
 
       <DiceStatsSheet
@@ -661,6 +495,8 @@ export default function DicePage() {
         selectedTier={selectedTier}
         tierStatsByTier={tierStatsByTier}
         playerStats={playerStats}
+        lastRoundByTier={lastRoundByTier}
+        myAddress={address}
       />
     </main>
   );

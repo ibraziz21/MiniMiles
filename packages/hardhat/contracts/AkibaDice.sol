@@ -5,23 +5,51 @@ import "./MiniPoints.sol"; // IMiniPoints
 import "witnet-solidity-bridge/contracts/interfaces/IWitRandomness.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title Akiba Dice Game
 /// @notice 6-player pots. Each player picks a unique number 1-6 for a given tier.
 ///         When the pot fills, randomness is requested and one number wins the full pot.
+///         V2: adds USDT-denominated USD tiers and optional USDT bonus on the 30-Miles tier.
 contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
+    using SafeERC20 for IERC20;
+
     /* ────────────────────────────────────────────────────────────── */
     /* Types & storage                                                */
     /* ────────────────────────────────────────────────────────────── */
 
+    /// @dev All economic parameters are snapshotted at round-open time so that
+    ///      subsequent owner reconfiguration cannot affect in-flight rounds.
     struct DiceRound {
-        uint256 id;             // round id
-        uint256 tier;           // entry cost in MiniPoints for this pot (e.g. 10, 20, 30)
-        uint8   filledSlots;    // 0–6
-        bool    winnerSelected; // true once resolved
-        uint8   winningNumber;  // 1–6 when drawn
-        uint256 randomBlock;    // Witnet randomization block (kept as-is for now)
-        address winner;         // winner address
+        uint256 id;
+        uint256 tier;
+        uint8   filledSlots;
+        bool    winnerSelected;
+        uint8   winningNumber;
+        uint256 randomBlock;
+        address winner;
+
+        // ── Config snapshot (immutable once the round is opened) ──────
+        /// True when players pay stablecoin; false when they burn AkibaMiles.
+        bool    isUsd;
+        /// Stablecoin token address (non-zero for USD tiers only).
+        address stablecoinSnap;
+        /// MiniPoints token address (always snapshotted).
+        address miniPointsSnap;
+        /// Per-player entry amount.
+        ///   Miles tier → raw AkibaMiles (18-dec), e.g. 10e18.
+        ///   USD  tier  → USDT amount    (6-dec),  e.g. 250_000.
+        uint256 entryAmountSnap;
+        /// Winner payout in the *primary* token.
+        ///   Miles tier → raw AkibaMiles (18-dec), e.g. 60e18.
+        ///   USD  tier  → USDT amount    (6-dec),  e.g. 1_000_000.
+        uint256 payoutAmountSnap;
+        /// Secondary bonus snapshotted at round-open.
+        ///   Miles tier → USDT bonus     (6-dec),  e.g. 100_000 for $0.10.
+        ///   USD  tier  → AkibaMiles     (18-dec), e.g. 100e18.
+        uint256 bonusSnap;
+
         // mapping: chosen number => player
         mapping(uint8 => address) playerByNumber;
     }
@@ -37,80 +65,89 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
 
     /// @notice Per-tier aggregate stats.
     struct TierStats {
-        uint64 roundsCreated;
-        uint64 roundsResolved;
-        uint128 totalStaked;   // sum of all entry amounts for this tier
-        uint128 totalPayout;   // sum of all payouts for this tier
+        uint64  roundsCreated;
+        uint64  roundsResolved;
+        /// Cumulative entry amounts for completed rounds only (same unit as the tier's token).
+        uint128 totalStaked;
+        uint128 totalPayout;
     }
 
     /// @notice Per-player aggregate stats.
     struct PlayerStats {
-        uint64 roundsJoined;
-        uint64 roundsWon;
+        uint64  roundsJoined;
+        uint64  roundsWon;
         uint128 totalStaked;
         uint128 totalWon;
     }
 
-    /// @notice owner (same pattern as AkibaRaffle)
     address public owner;
-
-    /// @notice Akiba MiniPoints (same token used across the app)
     IMiniPoints public miniPoints;
 
-    /// @notice Witnet Randomness provider (kept as-is for now)
     IWitRandomness public constant RNG =
         IWitRandomness(0xC0FFEE98AD1434aCbDB894BbB752e138c1006fAB);
 
-    /// @notice Next round id to use when creating new pots
     uint256 public nextRoundId;
 
-    /// @notice All dice rounds (id => round)
     mapping(uint256 => DiceRound) private _rounds;
-
-    /// @notice The currently open round per tier (entry cost)
-    ///         e.g. activeRoundByTier[10] = roundId
     mapping(uint256 => uint256) public activeRoundByTier;
-
-    /// @notice Allowed tiers (e.g. 10, 20, 30). Only these can be used in joinTier.
     mapping(uint256 => bool) public allowedTier;
-
-    /// @notice Tracks whether an address has already joined a specific round.
-    ///         Enforces "one entry per address per round".
     mapping(uint256 => mapping(address => bool)) public hasJoinedRound;
 
-    /// @notice Per-tier aggregate stats.
     mapping(uint256 => TierStats) public tierStats;
-
-    /// @notice Per-player aggregate stats.
     mapping(address => PlayerStats) public playerStats;
 
-    /// @notice Global aggregates.
-    uint64 public totalRoundsCreated;
-    uint64 public totalRoundsResolved;
-    uint64 public totalRoundsCancelled;
-    uint128 public totalStakedGlobal;
+    uint64  public totalRoundsCreated;
+    uint64  public totalRoundsResolved;
+    uint64  public totalRoundsCancelled;
+    uint128 public totalStakedGlobal;  // mixed-unit global counter (informational)
     uint128 public totalPayoutGlobal;
+
+    /* ── V2 storage (owner-mutable config – NOT read mid-round) ──── */
+
+    /// @notice ERC-20 stablecoin used for USD tiers (USDT on Celo).
+    IERC20 public stablecoin;
+
+    /// @notice True if the tier's entry is in stablecoin (not AkibaMiles).
+    mapping(uint256 => bool) public isUsdTier;
+
+    /// @notice Stablecoin entry amount per USD tier (6 decimals, e.g. 250000 = $0.25).
+    mapping(uint256 => uint256) public usdcEntryAmount;
+
+    /// @notice Stablecoin winner payout per USD tier (6 decimals).
+    mapping(uint256 => uint256) public usdcPayoutAmount;
+
+    /// @notice AkibaMiles winner bonus per USD tier (18 decimals).
+    mapping(uint256 => uint256) public milesPayoutAmount;
+
+    /// @notice Optional stablecoin bonus for Miles-based tiers (6 decimals).
+    mapping(uint256 => uint256) public usdcBonusAmount;
+
+    /// @notice Treasury wallet – receives house revenue from USD tiers.
+    address public treasury;
+
+    /// @notice Owner-deposited USDT reserved exclusively for Miles-tier bonuses.
+    ///         Tracked separately so USD-round collateral cannot subsidise bonuses.
+    uint256 public bonusPool;
 
     /* ────────────────────────────────────────────────────────────── */
     /* Events                                                        */
     /* ────────────────────────────────────────────────────────────── */
 
     event RoundOpened(uint256 indexed roundId, uint256 indexed tier);
-    event Joined(
-        uint256 indexed roundId,
-        uint8 indexed number,
-        address indexed player
-    );
+    event Joined(uint256 indexed roundId, uint8 indexed number, address indexed player);
     event RandomnessRequested(uint256 indexed roundId, uint256 randomBlock);
     event RoundResolved(
-        uint256 indexed roundId,
-        uint8 indexed winningNumber,
-        address indexed winner,
-        uint256 payout
+        uint256 indexed roundId, uint8 indexed winningNumber,
+        address indexed winner, uint256 payout
     );
     event RoundCancelled(uint256 indexed roundId);
     event OwnershipTransferred(address indexed oldOwner, address indexed newOwner);
     event AllowedTierSet(uint256 indexed tier, bool allowed);
+    event UsdTierConfigured(uint256 indexed tier, uint256 entry, uint256 payout, uint256 miles);
+    event MilesTierBonusSet(uint256 indexed tier, uint256 bonus);
+    event TreasurySet(address indexed treasury);
+    event BonusPoolDeposited(address indexed from, uint256 amount);
+    event BonusPoolWithdrawn(address indexed to, uint256 amount);
 
     /* ────────────────────────────────────────────────────────────── */
     /* Modifiers                                                     */
@@ -127,12 +164,9 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     /* ────────────────────────────────────────────────────────────── */
-    /* Initializer & UUPS                                             */
+    /* Initializers & UUPS                                           */
     /* ────────────────────────────────────────────────────────────── */
 
-    /// @notice Initialize upgradeable contract
-    /// @param _miniPoints address of the MiniPoints token
-    /// @param _owner      owner (admin) address
     function initialize(address _miniPoints, address _owner) public initializer {
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
@@ -143,7 +177,6 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
         owner = _owner;
         nextRoundId = 1;
 
-        // Default tiers used by Akiba UI (10, 20, 30)
         allowedTier[10] = true;
         allowedTier[20] = true;
         allowedTier[30] = true;
@@ -154,37 +187,40 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
         emit AllowedTierSet(30, true);
     }
 
+    /// @notice V2 reinitializer – sets stablecoin and treasury.
+    function initializeV2(
+        address _stablecoin,
+        address _treasury
+    ) public reinitializer(2) onlyOwner {
+        require(_stablecoin != address(0), "Dice: invalid stablecoin");
+        require(_treasury != address(0), "Dice: invalid treasury");
+        stablecoin = IERC20(_stablecoin);
+        treasury = _treasury;
+        emit TreasurySet(_treasury);
+    }
+
     function setMiniPoints(address _mp) external onlyOwner {
         miniPoints = IMiniPoints(_mp);
     }
 
-    function _authorizeUpgrade(
-        address newImplementation
-    ) internal override onlyOwner {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     /* ────────────────────────────────────────────────────────────── */
     /* Core game logic                                               */
     /* ────────────────────────────────────────────────────────────── */
 
     /// @notice Join a pot for a given tier by picking a number 1–6.
-    ///         If there is no active round for this tier, a new one is opened.
-    ///         If the current round is full or already resolved, a new one is opened.
-    /// @param tier         Entry cost in MiniPoints (must be an allowed tier)
-    /// @param chosenNumber Number between 1 and 6 (inclusive)
+    ///         The round's economic configuration is snapshotted once on creation;
+    ///         subsequent owner changes do not affect existing rounds.
     function joinTier(uint256 tier, uint8 chosenNumber) external nonReentrant {
         require(allowedTier[tier], "Dice: tier not allowed");
         require(chosenNumber >= 1 && chosenNumber <= 6, "Dice: bad number");
 
-        // Find or open the active round for this tier
         uint256 roundId = activeRoundByTier[tier];
         DiceRound storage round = _rounds[roundId];
 
-        if (
-            roundId == 0 ||
-            round.filledSlots == 6 ||
-            round.winnerSelected
-        ) {
-            // open new round
+        // ── Open a new round if none exists or the current one is closed ──
+        if (roundId == 0 || round.filledSlots == 6 || round.winnerSelected) {
             roundId = nextRoundId++;
             round = _rounds[roundId];
             round.id = roundId;
@@ -195,59 +231,68 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
             round.randomBlock = 0;
             round.winner = address(0);
 
+            // ── Snapshot economic config at creation ─────────────────────
+            bool usd = isUsdTier[tier];
+            round.isUsd = usd;
+            round.miniPointsSnap = address(miniPoints);
+
+            if (usd) {
+                uint256 entry = usdcEntryAmount[tier];
+                require(entry > 0, "Dice: USD tier not configured");
+                require(address(stablecoin) != address(0), "Dice: stablecoin not set");
+                round.stablecoinSnap   = address(stablecoin);
+                round.entryAmountSnap  = entry;
+                round.payoutAmountSnap = usdcPayoutAmount[tier];
+                round.bonusSnap        = milesPayoutAmount[tier]; // AkibaMiles bonus (18-dec)
+            } else {
+                // Snapshot the stablecoin address even for Miles rounds so that the
+                // optional USDT bonus can be paid from bonusPool using the snapshotted token.
+                round.stablecoinSnap   = address(stablecoin);
+                round.entryAmountSnap  = tier * 10 ** 18;
+                round.payoutAmountSnap = tier * 6 * 10 ** 18;
+                round.bonusSnap        = usdcBonusAmount[tier]; // USDT bonus (6-dec)
+            }
+            // ─────────────────────────────────────────────────────────────
+
             activeRoundByTier[tier] = roundId;
-
-            // stats
             totalRoundsCreated += 1;
-            TierStats storage tsOpen = tierStats[tier];
-            tsOpen.roundsCreated += 1;
-
+            tierStats[tier].roundsCreated += 1;
             emit RoundOpened(roundId, tier);
         }
 
-        // Enforce one entry per address per round
-        require(
-            !hasJoinedRound[roundId][msg.sender],
-            "Dice: already joined"
-        );
+        require(!hasJoinedRound[roundId][msg.sender], "Dice: already joined");
+        require(round.playerByNumber[chosenNumber] == address(0), "Dice: number taken");
 
-        // Slot must be free
-        require(
-            round.playerByNumber[chosenNumber] == address(0),
-            "Dice: number taken"
-        );
+        // ── Collect entry using the round's snapshotted config ────────────
+        uint256 entryAmount;
+        if (round.isUsd) {
+            entryAmount = round.entryAmountSnap;
+            IERC20(round.stablecoinSnap).safeTransferFrom(
+                msg.sender, address(this), entryAmount
+            );
+        } else {
+            entryAmount = _milesEntry(round);
+            IMiniPoints(_mpAddr(round)).burn(msg.sender, entryAmount);
+        }
 
-        uint entry = tier * 10 ** 18; // MiniPoints have 18 decimals
-
-        // Burn the player's entry cost in MiniPoints
-        miniPoints.burn(msg.sender, entry);
-
-        // Assign the slot
         round.playerByNumber[chosenNumber] = msg.sender;
         round.filledSlots += 1;
         hasJoinedRound[roundId][msg.sender] = true;
 
-        // stats: staking & player stats
-        TierStats storage ts = tierStats[tier];
-        ts.totalStaked += uint128(tier);
-        totalStakedGlobal += uint128(tier);
-
-        PlayerStats storage ps = playerStats[msg.sender];
-        ps.roundsJoined += 1;
-        ps.totalStaked += uint128(tier);
+        // ── Stats (recorded in the token's native units) ──────────────────
+        uint128 entryForStats = uint128(entryAmount);
+        tierStats[tier].totalStaked     += entryForStats;
+        totalStakedGlobal               += entryForStats;
+        playerStats[msg.sender].roundsJoined += 1;
+        playerStats[msg.sender].totalStaked  += entryForStats;
 
         emit Joined(roundId, chosenNumber, msg.sender);
 
-        // ── Auto-draw hook: if this join makes pot full, try to auto-resolve
         if (round.filledSlots == 6) {
             _tryAutoDraw(roundId);
         }
     }
 
-    /// @notice Request randomness for a pot as soon as there is at least 1 player.
-    /// @dev This should be called "early", e.g. right after the first join, so that
-    ///      randomness is likely ready by the time the 6th player joins.
-    ///      `msg.value` is forwarded to Witnet; any leftover is refunded.
     function requestRoundRandomness(
         uint256 roundId
     ) external payable nonReentrant roundExists(roundId) {
@@ -266,80 +311,112 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
         emit RandomnessRequested(roundId, round.randomBlock);
     }
 
-    /// @notice Draw the winner for a pot once randomness is available,
-    ///         and pay out the full pot in MiniPoints.
-    /// @dev Still usable as a manual fallback draw, even with auto-draw enabled.
-    function drawRound(
-        uint256 roundId
-    ) external nonReentrant roundExists(roundId) {
+    function drawRound(uint256 roundId) external nonReentrant roundExists(roundId) {
         DiceRound storage round = _rounds[roundId];
         require(round.filledSlots == 6, "Dice: pot not full");
         require(!round.winnerSelected, "Dice: already resolved");
         require(round.randomBlock != 0, "Dice: randomness not requested");
-        require(
-            RNG.isRandomized(round.randomBlock),
-            "Dice: randomness pending"
-        );
-
+        require(RNG.isRandomized(round.randomBlock), "Dice: randomness pending");
         _finalizeRound(roundId);
     }
 
-    /// @notice Internal: try to auto-draw the round if all preconditions are met.
-    ///         Used from joinTier when the 6th player joins.
     function _tryAutoDraw(uint256 roundId) internal {
         DiceRound storage round = _rounds[roundId];
-
-        // Must be full
         if (round.filledSlots != 6) return;
-        // Already resolved
         if (round.winnerSelected) return;
-        // Randomness must have been requested earlier
         if (round.randomBlock == 0) return;
-        // Randomness must be ready
         if (!RNG.isRandomized(round.randomBlock)) return;
-
         _finalizeRound(roundId);
     }
 
-    /// @notice Internal: core logic to pick winner, mint payout, update stats and emit event.
+    // ── Snapshot fallbacks for rounds created before V2 ──────────────
+    // Pre-V2 rounds have miniPointsSnap/entryAmountSnap == 0; fall back to
+    // the live contract values so those rounds remain playable and pay out correctly.
+
+    function _mpAddr(DiceRound storage round) private view returns (address) {
+        return round.miniPointsSnap != address(0) ? round.miniPointsSnap : address(miniPoints);
+    }
+
+    function _milesEntry(DiceRound storage round) private view returns (uint256) {
+        return round.entryAmountSnap != 0 ? round.entryAmountSnap : round.tier * 10 ** 18;
+    }
+
+    function _milesPayout(DiceRound storage round) private view returns (uint256) {
+        return round.payoutAmountSnap != 0 ? round.payoutAmountSnap : round.tier * 6 * 10 ** 18;
+    }
+
+    /// @dev All payouts use the round's snapshotted config, never the current globals.
     function _finalizeRound(uint256 roundId) internal {
         DiceRound storage round = _rounds[roundId];
 
-        // Draw a number in [0,5], then map to [1,6]
         bytes32 entropy = RNG.fetchRandomnessAfter(round.randomBlock);
-        uint256 pick = uint256(keccak256(abi.encode(entropy, uint256(0)))) % 6;
+        // Use roundId as salt so concurrent rounds sharing the same Witnet block
+        // produce distinct winning numbers.
+        uint256 pick = uint256(keccak256(abi.encode(entropy, roundId))) % 6;
         uint8 winningNumber = uint8(pick + 1);
 
         address winner = round.playerByNumber[winningNumber];
         require(winner != address(0), "Dice: empty winner slot");
 
-        uint256 payout = (round.tier * 6) *10 ** 18; // MiniPoints have 18 decimals
-
         round.winnerSelected = true;
-        round.winningNumber = winningNumber;
-        round.winner = winner;
+        round.winningNumber  = winningNumber;
+        round.winner         = winner;
 
-        // Mint the full pot in MiniPoints to winner
-        miniPoints.mint(winner, payout);
+        uint256 payoutForStats;
 
-        // stats
+        if (round.isUsd) {
+            // ── USD tier: USDT to winner + house revenue to treasury ──────
+            uint256 winnerPayout = round.payoutAmountSnap;
+            IERC20(round.stablecoinSnap).safeTransfer(winner, winnerPayout);
+
+            uint256 totalCollected = round.entryAmountSnap * 6;
+            uint256 houseRevenue   = totalCollected > winnerPayout
+                ? totalCollected - winnerPayout : 0;
+            if (houseRevenue > 0 && treasury != address(0)) {
+                IERC20(round.stablecoinSnap).safeTransfer(treasury, houseRevenue);
+            }
+
+            // AkibaMiles bonus (bonusSnap = miles in 18-dec for USD rounds)
+            uint256 milesBonus = round.bonusSnap;
+            if (milesBonus > 0) {
+                IMiniPoints(round.miniPointsSnap).mint(winner, milesBonus);
+            }
+
+            payoutForStats = winnerPayout;
+        } else {
+            // ── Miles tier: mint full pot + optional USDT bonus ───────────
+            // Use fallback values for rounds created before V2 (snapshots are zero).
+            uint256 milesPayout = _milesPayout(round);
+            IMiniPoints(_mpAddr(round)).mint(winner, milesPayout);
+
+            // bonusSnap = USDT bonus in 6-dec; paid only from the dedicated bonusPool —
+            // never from USD-round collateral held in the contract balance.
+            // Pre-V2 rounds have bonusSnap=0 so this branch is safely skipped for them.
+            uint256 usdtBonus = round.bonusSnap;
+            if (usdtBonus > 0 && round.stablecoinSnap != address(0) && bonusPool >= usdtBonus) {
+                bonusPool -= usdtBonus;
+                IERC20(round.stablecoinSnap).safeTransfer(winner, usdtBonus);
+            }
+
+            payoutForStats = milesPayout;
+        }
+
         totalRoundsResolved += 1;
-        totalPayoutGlobal += uint128(payout);
+        totalPayoutGlobal   += uint128(payoutForStats);
 
         TierStats storage ts = tierStats[round.tier];
         ts.roundsResolved += 1;
-        ts.totalPayout += uint128(payout);
+        ts.totalPayout    += uint128(payoutForStats);
 
         PlayerStats storage ps = playerStats[winner];
         ps.roundsWon += 1;
-        ps.totalWon += uint128(payout);
+        ps.totalWon  += uint128(payoutForStats);
 
-        emit RoundResolved(roundId, winningNumber, winner, payout);
+        emit RoundResolved(roundId, winningNumber, winner, payoutForStats);
     }
 
-    /// @notice Owner can cancel an unresolved *not-full* round and refund players in MiniPoints.
-    /// @dev Safety valve in case a pot gets stuck / never fills.
-    ///      Cannot cancel a full pot or one where randomness has been requested.
+    /// @notice Owner can cancel a stuck not-full round. Refunds players and
+    ///         reverses their stats contributions.
     function cancelRound(
         uint256 roundId
     ) external nonReentrant onlyOwner roundExists(roundId) {
@@ -348,21 +425,40 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
         require(round.filledSlots < 6, "Dice: full pot");
         require(round.randomBlock == 0, "Dice: randomness requested");
 
-        // Refund each occupied slot and clear hasJoinedRound
+        // Use fallback for pre-V2 rounds where snapshots are zero.
+        uint256 refundAmount = round.isUsd ? round.entryAmountSnap : _milesEntry(round);
+        uint128 refundForStats = uint128(refundAmount);
+
         for (uint8 n = 1; n <= 6; n++) {
             address player = round.playerByNumber[n];
-            if (player != address(0)) {
-                miniPoints.mint(player, round.tier);
-                round.playerByNumber[n] = address(0);
-                hasJoinedRound[roundId][player] = false;
+            if (player == address(0)) continue;
+
+            // Refund using snapshotted token (with V2 fallback for Miles rounds).
+            if (round.isUsd) {
+                IERC20(round.stablecoinSnap).safeTransfer(player, refundAmount);
+            } else {
+                IMiniPoints(_mpAddr(round)).mint(player, refundAmount);
             }
+
+            // Reverse join stats
+            PlayerStats storage ps = playerStats[player];
+            if (ps.roundsJoined > 0) ps.roundsJoined -= 1;
+            if (ps.totalStaked >= refundForStats) ps.totalStaked -= refundForStats;
+
+            round.playerByNumber[n] = address(0);
+            hasJoinedRound[roundId][player] = false;
         }
 
-        round.filledSlots = 0;
-        round.winnerSelected = true; // mark as closed to prevent reuse
+        // Reverse tier + global staked counters
+        uint128 totalRefunded = refundForStats * uint128(round.filledSlots);
+        TierStats storage ts = tierStats[round.tier];
+        if (ts.totalStaked >= totalRefunded) ts.totalStaked -= totalRefunded;
+        if (totalStakedGlobal >= totalRefunded) totalStakedGlobal -= totalRefunded;
+
+        round.filledSlots    = 0;
+        round.winnerSelected = true; // mark closed
 
         totalRoundsCancelled += 1;
-
         emit RoundCancelled(roundId);
     }
 
@@ -370,44 +466,22 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
     /* View helpers                                                  */
     /* ────────────────────────────────────────────────────────────── */
 
-    /// @notice Returns basic info about a round (no slot mappings).
-    function getRoundInfo(
-        uint256 roundId
-    )
-        external
-        view
-        roundExists(roundId)
+    function getRoundInfo(uint256 roundId)
+        external view roundExists(roundId)
         returns (
-            uint256 tier,
-            uint8 filledSlots,
-            bool winnerSelected,
-            uint8 winningNumber,
-            uint256 randomBlock,
-            address winner
+            uint256 tier, uint8 filledSlots, bool winnerSelected,
+            uint8 winningNumber, uint256 randomBlock, address winner
         )
     {
-        DiceRound storage round = _rounds[roundId];
-        return (
-            round.tier,
-            round.filledSlots,
-            round.winnerSelected,
-            round.winningNumber,
-            round.randomBlock,
-            round.winner
-        );
+        DiceRound storage r = _rounds[roundId];
+        return (r.tier, r.filledSlots, r.winnerSelected, r.winningNumber, r.randomBlock, r.winner);
     }
 
-    /// @notice Returns all 6 slots (players + numbers) for a round.
-    function getRoundSlots(
-        uint256 roundId
-    )
-        external
-        view
-        roundExists(roundId)
+    function getRoundSlots(uint256 roundId)
+        external view roundExists(roundId)
         returns (address[6] memory players, uint8[6] memory numbers)
     {
         DiceRound storage round = _rounds[roundId];
-
         for (uint8 i = 0; i < 6; i++) {
             uint8 num = i + 1;
             players[i] = round.playerByNumber[num];
@@ -415,137 +489,128 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
         }
     }
 
-    /// @notice Returns the player who picked a given number in a round.
     function getRoundSlotPlayer(
-        uint256 roundId,
-        uint8 number
+        uint256 roundId, uint8 number
     ) external view roundExists(roundId) returns (address) {
         require(number >= 1 && number <= 6, "Dice: bad number");
         return _rounds[roundId].playerByNumber[number];
     }
 
-    /// @notice Returns the number this player picked in a given round, if any.
     function getMyNumberInRound(
-        uint256 roundId,
-        address player
+        uint256 roundId, address player
     ) external view roundExists(roundId) returns (bool joined, uint8 number) {
         DiceRound storage round = _rounds[roundId];
-
         for (uint8 n = 1; n <= 6; n++) {
-            if (round.playerByNumber[n] == player) {
-                return (true, n);
-            }
+            if (round.playerByNumber[n] == player) return (true, n);
         }
         return (false, 0);
     }
 
-    /// @notice Returns the active round id for a given tier (0 if none yet).
     function getActiveRoundId(uint256 tier) external view returns (uint256) {
         return activeRoundByTier[tier];
     }
 
-    /// @notice Returns a summarized "state" enum for the given round id.
     function getRoundState(uint256 roundId)
-        external
-        view
-        roundExists(roundId)
-        returns (RoundState)
+        external view roundExists(roundId) returns (RoundState)
     {
         DiceRound storage r = _rounds[roundId];
-
-        if (r.winnerSelected) {
-            return RoundState.Resolved;
-        }
-
-        if (r.filledSlots < 6) {
-            return RoundState.Open;
-        }
-
-        // full pot here
-        if (r.randomBlock == 0) {
-            return RoundState.FullWaiting;
-        }
-
-        if (!RNG.isRandomized(r.randomBlock)) {
-            return RoundState.FullWaiting;
-        }
-
+        if (r.winnerSelected) return RoundState.Resolved;
+        if (r.filledSlots < 6) return RoundState.Open;
+        if (r.randomBlock == 0 || !RNG.isRandomized(r.randomBlock)) return RoundState.FullWaiting;
         return RoundState.Ready;
     }
 
-    /// @notice Returns the current active entry (if any) for a player in a given tier.
-    ///         Helps the FE know if the user already joined the current pot.
     function getMyActiveEntryForTier(
-        uint256 tier,
-        address player
-    )
-        external
-        view
-        returns (bool joined, uint256 roundId, uint8 number)
-    {
+        uint256 tier, address player
+    ) external view returns (bool joined, uint256 roundId, uint8 number) {
         roundId = activeRoundByTier[tier];
         if (roundId == 0) return (false, 0, 0);
-
         DiceRound storage round = _rounds[roundId];
-
         for (uint8 n = 1; n <= 6; n++) {
-            if (round.playerByNumber[n] == player) {
-                return (true, roundId, n);
-            }
+            if (round.playerByNumber[n] == player) return (true, roundId, n);
         }
-
         return (false, roundId, 0);
     }
 
-    /// @notice Returns aggregate stats for a given tier.
     function getTierStats(uint256 tier)
-        external
-        view
-        returns (
-            uint64 roundsCreated,
-            uint64 roundsResolved,
-            uint128 totalStaked,
-            uint128 totalPayout
-        )
+        external view
+        returns (uint64 roundsCreated, uint64 roundsResolved, uint128 totalStaked, uint128 totalPayout)
     {
         TierStats storage ts = tierStats[tier];
-        return (
-            ts.roundsCreated,
-            ts.roundsResolved,
-            ts.totalStaked,
-            ts.totalPayout
-        );
+        return (ts.roundsCreated, ts.roundsResolved, ts.totalStaked, ts.totalPayout);
     }
 
-    /// @notice Returns aggregate stats for a given player.
     function getPlayerStats(address player)
-        external
-        view
-        returns (
-            uint64 roundsJoined,
-            uint64 roundsWon,
-            uint128 totalStaked,
-            uint128 totalWon
-        )
+        external view
+        returns (uint64 roundsJoined, uint64 roundsWon, uint128 totalStaked, uint128 totalWon)
     {
         PlayerStats storage ps = playerStats[player];
-        return (
-            ps.roundsJoined,
-            ps.roundsWon,
-            ps.totalStaked,
-            ps.totalWon
-        );
+        return (ps.roundsJoined, ps.roundsWon, ps.totalStaked, ps.totalWon);
     }
 
     /* ────────────────────────────────────────────────────────────── */
     /* Admin                                                         */
     /* ────────────────────────────────────────────────────────────── */
 
-    /// @notice Set whether a tier is allowed for new rounds.
-    ///         E.g. keep 10/20/30, or add/remove others.
     function setAllowedTier(uint256 tier, bool allowed) external onlyOwner {
         allowedTier[tier] = allowed;
         emit AllowedTierSet(tier, allowed);
+    }
+
+    /// @notice Configure a USD-denominated tier.
+    ///         Only affects rounds opened after this call.
+    function setupUsdTier(
+        uint256 tierId,
+        uint256 entryAmount,
+        uint256 payoutAmount,
+        uint256 milesAmount
+    ) external onlyOwner {
+        require(entryAmount > 0, "Dice: zero entry");
+        require(payoutAmount > 0, "Dice: zero payout");
+        require(payoutAmount <= entryAmount * 6, "Dice: payout exceeds pot");
+        isUsdTier[tierId]       = true;
+        allowedTier[tierId]     = true;
+        usdcEntryAmount[tierId] = entryAmount;
+        usdcPayoutAmount[tierId]= payoutAmount;
+        milesPayoutAmount[tierId]= milesAmount;
+        emit UsdTierConfigured(tierId, entryAmount, payoutAmount, milesAmount);
+    }
+
+    /// @notice Set optional USDT bonus for a Miles-based tier.
+    ///         Only affects rounds opened after this call.
+    function setMilesTierBonus(uint256 tier, uint256 bonus) external onlyOwner {
+        require(!isUsdTier[tier], "Dice: use setupUsdTier for USD tiers");
+        usdcBonusAmount[tier] = bonus;
+        emit MilesTierBonusSet(tier, bonus);
+    }
+
+    function setTreasury(address _treasury) external onlyOwner {
+        require(_treasury != address(0), "Dice: zero address");
+        treasury = _treasury;
+        emit TreasurySet(_treasury);
+    }
+
+    function setStablecoin(address _stablecoin) external onlyOwner {
+        require(_stablecoin != address(0), "Dice: zero address");
+        stablecoin = IERC20(_stablecoin);
+    }
+
+    /// @notice Deposit USDT into the bonus pool. Only these funds are used to pay
+    ///         Miles-tier USDT bonuses. USD-round collateral is never touched.
+    function depositBonusPool(uint256 amount) external onlyOwner {
+        require(amount > 0, "Dice: zero amount");
+        stablecoin.safeTransferFrom(msg.sender, address(this), amount);
+        bonusPool += amount;
+        emit BonusPoolDeposited(msg.sender, amount);
+    }
+
+    /// @notice Withdraw from the bonus pool only. Cannot touch USD-round collateral.
+    function withdrawBonusPool(address to, uint256 amount) external onlyOwner {
+        require(to != address(0), "Dice: zero address");
+        require(bonusPool >= amount, "Dice: insufficient bonus pool");
+        bonusPool -= amount;
+        stablecoin.safeTransfer(to, amount);
+        emit BonusPoolWithdrawn(to, amount);
     }
 
     function transferOwnership(address newOwner) external onlyOwner {
@@ -554,6 +619,49 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
         owner = newOwner;
     }
 
-    // Adjusted gap for new storage vars
-    uint256[40] private __gap;
+    /// @notice One-time migration for rounds created before V2.
+    ///
+    ///         The V2 upgrade inserted six config-snapshot fields into DiceRound
+    ///         *before* the playerByNumber mapping, shifting the mapping's storage
+    ///         slot from struct-offset 5 (V1) to struct-offset 10 (V2).  Player
+    ///         addresses written by V1 therefore sit at slot-5 positions while V2+
+    ///         reads slot-10 positions — returning address(0) for every number even
+    ///         though filledSlots > 0.
+    ///
+    ///         This function reads each player address directly from the V1 slot
+    ///         via assembly and writes it into the V2 slot, making all existing
+    ///         view functions and game logic see the correct data again.
+    ///
+    ///         Safe to call multiple times; skips any number whose V2 slot already
+    ///         has a player (handles the case where a post-V2 join raced a V1 slot).
+    function migrateV1PlayerSlots(uint256 roundId) external onlyOwner roundExists(roundId) {
+        DiceRound storage round = _rounds[roundId];
+        require(round.miniPointsSnap == address(0), "Dice: not a pre-V2 round");
+        require(!round.winnerSelected, "Dice: round already resolved");
+
+        // Slot of the _rounds mapping in contract storage.
+        uint256 roundsSlot;
+        assembly { roundsSlot := _rounds.slot }
+
+        // Base storage slot of the struct _rounds[roundId].
+        uint256 structBase = uint256(keccak256(abi.encode(roundId, roundsSlot)));
+
+        // V1: playerByNumber occupied struct-relative slot 5.
+        uint256 v1MapBase = structBase + 5;
+
+        for (uint8 n = 1; n <= 6; n++) {
+            // V1 player slot = keccak256(number, v1MapBase)
+            bytes32 v1Slot = keccak256(abi.encode(uint256(n), v1MapBase));
+            address v1Player;
+            assembly { v1Player := sload(v1Slot) }
+
+            // Write to V2 slot only if V1 had a player and V2 slot is still empty.
+            if (v1Player != address(0) && round.playerByNumber[n] == address(0)) {
+                round.playerByNumber[n] = v1Player;
+            }
+        }
+    }
+
+    // 32 slots remain after the 8 V2 variables consumed from the original gap of 40
+    uint256[32] private __gap;
 }
