@@ -198,8 +198,8 @@ export async function POST(req: Request) {
         reason: `voucher-refund:burn_${burnTxHash}`,
       }).catch((e) => console.error("[vouchers/issue] refund mint failed", e));
 
-      // Audit void row
-      supabase.from("issued_vouchers").insert({
+      // Audit void row (fire-and-forget — suppress errors)
+      void supabase.from("issued_vouchers").insert({
         user_address: addr,
         merchant_id,
         voucher_template_id: template_id,
@@ -207,7 +207,7 @@ export async function POST(req: Request) {
         qr_payload: "{}",
         status: "void",
         burn_tx_hash: burnTxHash,
-      }).catch(() => {});
+      });
 
       return NextResponse.json({ error: "Voucher record failed — refund initiated" }, { status: 500 });
     }

@@ -308,9 +308,14 @@ export async function POST(req: Request) {
         payment_method: "onchain_transfer",
         payment_currency: currency,
         payment_ref: delivery_fee_tx_hash,
-        status: "completed",
+        // Delivery details
+        recipient_name,
+        phone,
+        city,
+        location_details: location_details ?? null,
+        // Order starts at "placed" — fulfillment lifecycle proceeds from here
+        status: "placed",
         error: null,
-        completed_at: new Date().toISOString(),
       })
       .select("id, status, paid_kes")
       .single();
