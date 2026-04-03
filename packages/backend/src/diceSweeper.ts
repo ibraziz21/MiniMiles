@@ -4,17 +4,17 @@
 //   - randomness is requested as soon as a round has any players and no randomBlock
 //   - rounds in "Ready" state are drawn immediately
 //
-// The sweeper maintains a watched-rounds registry so rounds are never lost when
-// the contract's active-round pointer advances to a new round while the previous
-// one is still waiting for randomness or a draw.  A round stays in the registry
-// until it is confirmed resolved; restarts re-discover any unresolved rounds
-// on the first sweep.
+// The sweeper persists unresolved rounds in Supabase so Railway restarts do not
+// lose tracked backlog. A small tier watch-state table is also used so the
+// worker can detect when an active round pointer advances before the prior round
+// was resolved.
 
 import * as dotenv from "dotenv";
 dotenv.config();
 
 import cron from "node-cron";
 import { ethers } from "ethers";
+import { supabase } from "./supabaseClient";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -36,13 +36,12 @@ const ACTIVE_TIERS: number[] = process.env.DICE_TIERS
   ? process.env.DICE_TIERS.split(",").map((t) => Number(t.trim()))
   : DEFAULT_TIERS;
 
-// A round is evicted from the registry if it stays unresolved for longer than
-// this — acts as a safety valve against accumulating truly dead rounds.
-const MAX_WATCH_AGE_MS = Number(
-  process.env.DICE_MAX_WATCH_AGE_HOURS ?? "48"
-) * 60 * 60 * 1000;
-
 const FEE_BUFFER_BPS = Number(process.env.DICE_FEE_BUFFER_BPS ?? "1000"); // 10 %
+const UNRESOLVED_RETRY_INTERVAL_SECONDS = Number(
+  process.env.DICE_UNRESOLVED_RETRY_INTERVAL_SECONDS ?? "300"
+);
+const UNRESOLVED_TABLE = "dice_unresolved_rounds";
+const TIER_STATE_TABLE = "dice_tier_watch_state";
 
 // ── ABIs ──────────────────────────────────────────────────────────────────────
 
@@ -75,39 +74,188 @@ function stateName(s: number): string {
   );
 }
 
-// ── Watched-round registry ────────────────────────────────────────────────────
-//
-// Key: roundId as decimal string
-// Value: tier the round belongs to + when we first saw it
-//
-// Rounds are added when discovered via getActiveRoundId or from a prior sweep.
-// They are removed only when confirmed resolved (winnerSelected == true).
+// ── Persisted unresolved-round registry ───────────────────────────────────────
 
-interface WatchEntry {
+interface UnresolvedRoundEntry {
+  roundId: string;
   tier: number;
-  firstSeenAt: number; // Date.now()
+  reason: "advanced-before-resolved";
+  firstSeenAt: string;
+  lastCheckedAt: string;
+  filledSlots: number;
+  randomBlock: string;
+  state: string;
+  lastAction: string;
+  lastError?: string;
 }
 
-const watchedRounds = new Map<string, WatchEntry>();
+interface TierWatchStateRow {
+  tier: number;
+  active_round_id: string;
+}
 
-function registerRound(roundId: bigint, tier: number): void {
-  const key = roundId.toString();
-  if (!watchedRounds.has(key)) {
-    watchedRounds.set(key, { tier, firstSeenAt: Date.now() });
-    console.log(`[diceSweeper] Registered new round #${key} (tier ${tier})`);
+interface UnresolvedRoundRow {
+  round_id: string;
+  tier: number;
+  first_seen_at: string;
+  last_seen_at: string;
+  last_retry_at: string | null;
+  retry_count: number;
+  random_block: string;
+  filled_slots: number;
+  round_state: string;
+  active: boolean;
+  source: string;
+  last_error: string | null;
+  last_action: string | null;
+}
+
+function rowToEntry(row: UnresolvedRoundRow): UnresolvedRoundEntry {
+  return {
+    roundId: String(row.round_id),
+    tier: Number(row.tier),
+    reason: "advanced-before-resolved",
+    firstSeenAt: row.first_seen_at,
+    lastCheckedAt: row.last_seen_at,
+    filledSlots: Number(row.filled_slots),
+    randomBlock: String(row.random_block),
+    state: String(row.round_state),
+    lastAction: row.last_action ?? "tracked",
+    lastError: row.last_error ?? undefined,
+  };
+}
+
+async function loadTierWatchState(): Promise<Record<string, string>> {
+  const { data, error } = await supabase
+    .from(TIER_STATE_TABLE)
+    .select("tier, active_round_id");
+
+  if (error) {
+    console.warn("[diceSweeper] failed loading tier watch state:", error.message);
+    return {};
+  }
+
+  return ((data ?? []) as TierWatchStateRow[]).reduce<Record<string, string>>(
+    (acc, row) => {
+      acc[String(row.tier)] = String(row.active_round_id);
+      return acc;
+    },
+    {}
+  );
+}
+
+async function setTierWatchState(tier: number, activeRoundId: string): Promise<void> {
+  const { error } = await supabase.from(TIER_STATE_TABLE).upsert(
+    {
+      tier,
+      active_round_id: activeRoundId,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "tier" }
+  );
+
+  if (error) {
+    console.warn(
+      `[diceSweeper] failed saving tier watch state tier=${tier} round=${activeRoundId}: ${error.message}`
+    );
   }
 }
 
-function evictStaleRounds(): void {
-  const now = Date.now();
-  for (const [id, entry] of watchedRounds) {
-    if (now - entry.firstSeenAt > MAX_WATCH_AGE_MS) {
-      console.warn(
-        `[diceSweeper] Evicting stale round #${id} (tier ${entry.tier}) — ` +
-          `watched for ${Math.round((now - entry.firstSeenAt) / 3_600_000)}h`
-      );
-      watchedRounds.delete(id);
-    }
+async function upsertUnresolvedRound(entry: UnresolvedRoundEntry): Promise<void> {
+  const { error } = await supabase.from(UNRESOLVED_TABLE).upsert(
+    {
+      round_id: entry.roundId,
+      tier: entry.tier,
+      first_seen_at: entry.firstSeenAt,
+      last_seen_at: entry.lastCheckedAt,
+      random_block: entry.randomBlock,
+      filled_slots: entry.filledSlots,
+      round_state: entry.state,
+      active: true,
+      source: entry.reason,
+      last_error: entry.lastError ?? null,
+      last_action: entry.lastAction,
+    },
+    { onConflict: "round_id" }
+  );
+
+  if (error) {
+    console.warn(
+      `[diceSweeper] failed upserting unresolved round=${entry.roundId}: ${error.message}`
+    );
+  }
+}
+
+async function markResolvedRound(roundId: string): Promise<void> {
+  const { error } = await supabase
+    .from(UNRESOLVED_TABLE)
+    .update({
+      active: false,
+      last_seen_at: new Date().toISOString(),
+      last_error: null,
+      last_action: "resolved",
+    })
+    .eq("round_id", roundId)
+    .eq("active", true);
+
+  if (error) {
+    console.warn(
+      `[diceSweeper] failed marking unresolved round=${roundId} resolved: ${error.message}`
+    );
+  }
+}
+
+async function loadActiveUnresolvedRounds(): Promise<UnresolvedRoundEntry[]> {
+  const { data, error } = await supabase
+    .from(UNRESOLVED_TABLE)
+    .select(
+      "round_id, tier, first_seen_at, last_seen_at, last_retry_at, retry_count, random_block, filled_slots, round_state, active, source, last_error, last_action"
+    )
+    .eq("active", true)
+    .order("first_seen_at", { ascending: true });
+
+  if (error) {
+    console.warn("[diceSweeper] failed loading unresolved rounds:", error.message);
+    return [];
+  }
+
+  return ((data ?? []) as UnresolvedRoundRow[]).map(rowToEntry);
+}
+
+async function incrementRetry(
+  roundId: string,
+  lastError: string | null,
+  lastAction: string
+): Promise<void> {
+  const { data, error } = await supabase
+    .from(UNRESOLVED_TABLE)
+    .select("retry_count")
+    .eq("round_id", roundId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn(
+      `[diceSweeper] failed reading retry count for round=${roundId}: ${error.message}`
+    );
+    return;
+  }
+
+  const retryCount = Number((data as { retry_count?: number } | null)?.retry_count ?? 0) + 1;
+  const { error: updateError } = await supabase
+    .from(UNRESOLVED_TABLE)
+    .update({
+      last_retry_at: new Date().toISOString(),
+      retry_count: retryCount,
+      last_seen_at: new Date().toISOString(),
+      last_error: lastError,
+      last_action: lastAction,
+    })
+    .eq("round_id", roundId);
+
+  if (updateError) {
+    console.warn(
+      `[diceSweeper] failed marking retry for round=${roundId}: ${updateError.message}`
+    );
   }
 }
 
@@ -144,31 +292,13 @@ export async function runDiceSweep(): Promise<RoundResult[]> {
   const wallet = new ethers.Wallet(RELAYER_PK, provider);
   const dice = new ethers.Contract(DICE_ADDRESS, DICE_ABI, wallet);
   const rng = new ethers.Contract(WITNET_RNG_ADDRESS, WITNET_ABI, provider);
+  const tierWatchState = await loadTierWatchState();
 
-  // ── Step 1: discover current active rounds and add to registry ────────────
-  await discoverActiveRounds(dice);
-
-  // ── Step 2: evict rounds that have been stuck beyond the age limit ─────────
-  evictStaleRounds();
-
-  if (watchedRounds.size === 0) {
-    console.log("[diceSweeper] No rounds to process.");
-    return [];
-  }
-
-  // ── Step 3: estimate Witnet fee once for the whole sweep ───────────────────
   const witnetFee = await estimateFee(provider, rng);
-
-  // ── Step 4: process every watched round ────────────────────────────────────
   const results: RoundResult[] = [];
 
-  for (const [roundIdStr, entry] of [...watchedRounds]) {
-    const result = await processRound(
-      BigInt(roundIdStr),
-      entry.tier,
-      dice,
-      witnetFee
-    );
+  for (const tier of ACTIVE_TIERS) {
+    const result = await processTier(tier, dice, witnetFee, tierWatchState);
     results.push(result);
 
     console.log(
@@ -178,40 +308,11 @@ export async function runDiceSweep(): Promise<RoundResult[]> {
         (result.txHash ? ` tx=${result.txHash}` : "") +
         (result.error ? ` error=${result.error}` : "")
     );
-
-    // Remove resolved rounds from the registry.
-    if (
-      result.action === "drew" ||
-      result.action === "skip-already-resolved"
-    ) {
-      watchedRounds.delete(roundIdStr);
-    }
   }
 
-  console.log(
-    `[diceSweeper] Sweep done. Watching ${watchedRounds.size} round(s).`
-  );
+  const unresolved = await loadActiveUnresolvedRounds();
+  console.log(`[diceSweeper] Sweep done. Tracked unresolved=${unresolved.length}.`);
   return results;
-}
-
-// ── Discovery ─────────────────────────────────────────────────────────────────
-// Reads the current active round per tier and registers any we haven't seen.
-
-async function discoverActiveRounds(dice: ethers.Contract): Promise<void> {
-  await Promise.allSettled(
-    ACTIVE_TIERS.map(async (tier) => {
-      try {
-        const roundId: bigint = await dice.getActiveRoundId(BigInt(tier));
-        if (roundId > 0n) {
-          registerRound(roundId, tier);
-        }
-      } catch (err: any) {
-        console.warn(
-          `[diceSweeper] discoverActiveRounds tier=${tier}: ${err?.message}`
-        );
-      }
-    })
-  );
 }
 
 // ── Fee estimation ────────────────────────────────────────────────────────────
@@ -237,7 +338,76 @@ async function estimateFee(
   }
 }
 
-// ── Round processing ──────────────────────────────────────────────────────────
+// ── Tier + unresolved processing ──────────────────────────────────────────────
+
+async function processTier(
+  tier: number,
+  dice: ethers.Contract,
+  witnetFee: bigint,
+  tierWatchState: Record<string, string>
+): Promise<RoundResult> {
+  const activeRoundId = (await dice.getActiveRoundId(BigInt(tier))) as bigint;
+  if (activeRoundId === 0n) {
+    return {
+      roundId: "0",
+      tier,
+      filledSlots: 0,
+      randomBlock: "0",
+      state: "None",
+      action: "skip-no-players",
+    };
+  }
+
+  const activeRoundIdStr = activeRoundId.toString();
+  const previousActiveRoundId = tierWatchState[String(tier)];
+
+  if (previousActiveRoundId && previousActiveRoundId !== activeRoundIdStr) {
+    try {
+      const [, prevFilledSlots, prevWinnerSelected, , prevRandomBlock] =
+        (await dice.getRoundInfo(BigInt(previousActiveRoundId))) as [
+          bigint,
+          number,
+          boolean,
+          number,
+          bigint,
+          string,
+        ];
+
+      if (!prevWinnerSelected) {
+        const prevStateNum = Number(
+          (await dice.getRoundState(BigInt(previousActiveRoundId))) as bigint
+        ) as RoundStateValue;
+
+        await upsertUnresolvedRound({
+          roundId: previousActiveRoundId,
+          tier,
+          reason: "advanced-before-resolved",
+          firstSeenAt: new Date().toISOString(),
+          lastCheckedAt: new Date().toISOString(),
+          filledSlots: Number(prevFilledSlots),
+          randomBlock: prevRandomBlock.toString(),
+          state: stateName(prevStateNum),
+          lastAction: "tracked",
+        });
+        console.warn(
+          `[diceSweeper] tracked unresolved round=${previousActiveRoundId} tier=${tier} because active round advanced to ${activeRoundIdStr}`
+        );
+      } else {
+        await markResolvedRound(previousActiveRoundId);
+      }
+    } catch (err: any) {
+      console.warn(
+        `[diceSweeper] failed checking prior active round tier=${tier} round=${previousActiveRoundId}: ${err?.message ?? err}`
+      );
+    }
+  }
+
+  tierWatchState[String(tier)] = activeRoundIdStr;
+  await setTierWatchState(tier, activeRoundIdStr);
+  await markResolvedRound(activeRoundIdStr);
+
+  return processRound(activeRoundId, tier, dice, witnetFee);
+}
 
 async function processRound(
   roundId: bigint,
@@ -282,11 +452,6 @@ async function processRound(
     ) as RoundStateValue;
     base.state = stateName(stateNum);
 
-    // ── Request randomness ────────────────────────────────────────────────────
-    // Triggered for any round with players that hasn't had randomness requested
-    // yet, regardless of whether it is full.  This means partial rounds that
-    // are unlikely to fill can still get randomness requested early (the
-    // contract enforces fullness on draw, not on randomize).
     if (randomBlock === 0n && stateNum !== RoundState.Resolved) {
       try {
         const tx = await dice.requestRoundRandomness(roundId, {
@@ -310,7 +475,6 @@ async function processRound(
       }
     }
 
-    // ── Draw ──────────────────────────────────────────────────────────────────
     if (stateNum === RoundState.Ready) {
       try {
         const tx = await dice.drawRound(roundId);
@@ -332,7 +496,6 @@ async function processRound(
       }
     }
 
-    // Randomness has been requested but is not ready yet — nothing to do.
     return { ...base, action: "skip-randomness-pending" };
   } catch (err: any) {
     return {
@@ -341,6 +504,91 @@ async function processRound(
       error: err?.shortMessage ?? err?.message ?? String(err),
     };
   }
+}
+
+export async function retryTrackedUnresolvedRounds(): Promise<UnresolvedRoundEntry[]> {
+  if (!RELAYER_PK) {
+    console.warn("[diceSweeper] CELO_RELAYER_PK not set — unresolved retry skipped");
+    return [];
+  }
+
+  const unresolvedRounds = await loadActiveUnresolvedRounds();
+  if (unresolvedRounds.length === 0) {
+    return [];
+  }
+
+  const provider = new ethers.JsonRpcProvider(CELO_RPC_URL);
+  const wallet = new ethers.Wallet(RELAYER_PK, provider);
+  const dice = new ethers.Contract(DICE_ADDRESS, DICE_ABI, wallet);
+  const rng = new ethers.Contract(WITNET_RNG_ADDRESS, WITNET_ABI, provider);
+  const witnetFee = await estimateFee(provider, rng);
+
+  for (const entry of unresolvedRounds) {
+    try {
+      const [, filledSlots, winnerSelected, , randomBlock] =
+        (await dice.getRoundInfo(BigInt(entry.roundId))) as [
+          bigint,
+          number,
+          boolean,
+          number,
+          bigint,
+          string,
+        ];
+
+      if (winnerSelected) {
+        await markResolvedRound(entry.roundId);
+        continue;
+      }
+
+      const stateNum = Number(
+        (await dice.getRoundState(BigInt(entry.roundId))) as bigint
+      ) as RoundStateValue;
+
+      const updated: UnresolvedRoundEntry = {
+        ...entry,
+        lastCheckedAt: new Date().toISOString(),
+        filledSlots: Number(filledSlots),
+        randomBlock: randomBlock.toString(),
+        state: stateName(stateNum),
+        lastAction: "checked",
+        lastError: undefined,
+      };
+
+      if (randomBlock === 0n && Number(filledSlots) > 0) {
+        try {
+          const tx = await dice.requestRoundRandomness(BigInt(entry.roundId), {
+            value: witnetFee,
+          });
+          const receipt = await tx.wait();
+          updated.lastAction = "requested-randomness";
+          await incrementRetry(entry.roundId, null, updated.lastAction);
+          console.log(
+            `[diceSweeper] retried unresolved round=${entry.roundId} tx=${receipt?.hash ?? tx.hash}`
+          );
+        } catch (err: any) {
+          updated.lastAction = "error";
+          updated.lastError = err?.shortMessage ?? err?.message ?? String(err);
+          await incrementRetry(entry.roundId, updated.lastError, updated.lastAction);
+          console.warn(
+            `[diceSweeper] unresolved retry failed round=${entry.roundId}: ${updated.lastError}`
+          );
+        }
+      }
+
+      await upsertUnresolvedRound(updated);
+    } catch (err: any) {
+      const lastError = err?.shortMessage ?? err?.message ?? String(err);
+      await incrementRetry(entry.roundId, lastError, "error");
+      await upsertUnresolvedRound({
+        ...entry,
+        lastCheckedAt: new Date().toISOString(),
+        lastAction: "error",
+        lastError,
+      });
+    }
+  }
+
+  return loadActiveUnresolvedRounds();
 }
 
 // ── Worker entry point ────────────────────────────────────────────────────────
@@ -355,10 +603,9 @@ export function startDiceSweeper(): void {
 
   console.log(
     `[diceSweeper] Starting — tiers=[${ACTIVE_TIERS.join(",")}] ` +
-      `interval=${SWEEP_INTERVAL_SECONDS}s address=${DICE_ADDRESS}`
+      `interval=${SWEEP_INTERVAL_SECONDS}s address=${DICE_ADDRESS} unresolvedTable=${UNRESOLVED_TABLE}`
   );
 
-  // Run once immediately so rounds aren't blocked until the first cron tick.
   runDiceSweep().catch((err) =>
     console.error("[diceSweeper] initial sweep error:", err)
   );
@@ -381,4 +628,16 @@ export function startDiceSweeper(): void {
     });
     console.log(`[diceSweeper] Cron: "${cronExpr}"`);
   }
+
+  const retryMinutes = Math.max(
+    1,
+    Math.round(UNRESOLVED_RETRY_INTERVAL_SECONDS / 60)
+  );
+  const retryCronExpr = `*/${retryMinutes} * * * *`;
+  cron.schedule(retryCronExpr, () => {
+    retryTrackedUnresolvedRounds().catch((err) =>
+      console.error("[diceSweeper] unresolved retry error:", err)
+    );
+  });
+  console.log(`[diceSweeper] Unresolved retry cron: "${retryCronExpr}"`);
 }
