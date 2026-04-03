@@ -68,8 +68,22 @@ export function WinnerToast({ roundId, winningNumber, winner, pot, iWon, onClose
     const milesStr = pot.miles > 0 ? `${pot.miles.toLocaleString()} AkibaMiles` : "";
     const usdtStr = pot.usdt > 0 ? `$${pot.usdt.toFixed(2)} USDT` : "";
     const rewardStr = [milesStr, usdtStr].filter(Boolean).join(" + ");
+    let referralCode = "";
+    try {
+      const refRes = await fetch("/api/referral/code");
+      if (refRes.ok) {
+        const refData = await refRes.json();
+        referralCode = typeof refData?.code === "string" ? refData.code : "";
+      }
+    } catch {
+      // non-critical: share still works without a referral code
+    }
+
+    const cta = referralCode
+      ? `Play at app.akibamiles.com/dice and use my referral code: ${referralCode}`
+      : "Play at app.akibamiles.com/dice";
     const text = encodeURIComponent(
-      `I just won ${rewardStr} on Akiba Dice! 🎲🎉 Play at akibamiles.com/dice`
+      `I just won ${rewardStr} on Akiba Dice! 🎲🎉 ${cta}`
     );
     window.open(`https://twitter.com/intent/tweet?text=${text}`, "_blank", "noopener");
 
