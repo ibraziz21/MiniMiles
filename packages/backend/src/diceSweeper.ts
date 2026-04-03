@@ -4,9 +4,11 @@
 //   - randomness is requested as soon as a round has any players and no randomBlock
 //   - rounds in "Ready" state are drawn immediately
 //
-// Designed to run inside the existing backend process alongside other workers.
-// It is fully idempotent: contract-level reverts for "already requested" /
-// "already resolved" are treated as non-fatal skips, not errors.
+// The sweeper maintains a watched-rounds registry so rounds are never lost when
+// the contract's active-round pointer advances to a new round while the previous
+// one is still waiting for randomness or a draw.  A round stays in the registry
+// until it is confirmed resolved; restarts re-discover any unresolved rounds
+// on the first sweep.
 
 import * as dotenv from "dotenv";
 dotenv.config();
@@ -25,23 +27,24 @@ const CELO_RPC_URL = process.env.CELO_RPC_URL ?? "https://forno.celo.org";
 
 const RELAYER_PK = process.env.CELO_RELAYER_PK ?? "";
 
-// Sweep interval in seconds. Defaults to 60 s (same cadence as mintWorker).
 const SWEEP_INTERVAL_SECONDS = Number(
   process.env.DICE_SWEEP_INTERVAL_SECONDS ?? "60"
 );
 
-// Optional override: comma-separated list of tier IDs to scan.
-// Default: all known tiers (Miles 10/20/30 + USD 250/500/1000).
 const DEFAULT_TIERS = [10, 20, 30, 250, 500, 1000];
 const ACTIVE_TIERS: number[] = process.env.DICE_TIERS
   ? process.env.DICE_TIERS.split(",").map((t) => Number(t.trim()))
   : DEFAULT_TIERS;
 
-// Small percentage buffer added on top of the Witnet fee estimate so we don't
-// land exactly on the minimum and risk rejection due to gas-price fluctuation.
+// A round is evicted from the registry if it stays unresolved for longer than
+// this — acts as a safety valve against accumulating truly dead rounds.
+const MAX_WATCH_AGE_MS = Number(
+  process.env.DICE_MAX_WATCH_AGE_HOURS ?? "48"
+) * 60 * 60 * 1000;
+
 const FEE_BUFFER_BPS = Number(process.env.DICE_FEE_BUFFER_BPS ?? "1000"); // 10 %
 
-// ── ABIs (minimal — only functions this worker calls) ─────────────────────────
+// ── ABIs ──────────────────────────────────────────────────────────────────────
 
 const DICE_ABI = [
   "function getActiveRoundId(uint256 tier) external view returns (uint256)",
@@ -55,7 +58,7 @@ const WITNET_ABI = [
   "function estimateRandomizeFee(uint256 evmGasPrice) external view returns (uint256)",
 ];
 
-// ── Round state enum (mirrors AkibaDiceGame.RoundState) ──────────────────────
+// ── Round state enum ──────────────────────────────────────────────────────────
 
 const RoundState = {
   None: 0,
@@ -64,19 +67,53 @@ const RoundState = {
   Ready: 3,
   Resolved: 4,
 } as const;
-
 type RoundStateValue = (typeof RoundState)[keyof typeof RoundState];
 
-function stateName(s: RoundStateValue): string {
+function stateName(s: number): string {
   return (
     Object.entries(RoundState).find(([, v]) => v === s)?.[0] ?? `Unknown(${s})`
   );
 }
 
-// ── Action result type ────────────────────────────────────────────────────────
+// ── Watched-round registry ────────────────────────────────────────────────────
+//
+// Key: roundId as decimal string
+// Value: tier the round belongs to + when we first saw it
+//
+// Rounds are added when discovered via getActiveRoundId or from a prior sweep.
+// They are removed only when confirmed resolved (winnerSelected == true).
+
+interface WatchEntry {
+  tier: number;
+  firstSeenAt: number; // Date.now()
+}
+
+const watchedRounds = new Map<string, WatchEntry>();
+
+function registerRound(roundId: bigint, tier: number): void {
+  const key = roundId.toString();
+  if (!watchedRounds.has(key)) {
+    watchedRounds.set(key, { tier, firstSeenAt: Date.now() });
+    console.log(`[diceSweeper] Registered new round #${key} (tier ${tier})`);
+  }
+}
+
+function evictStaleRounds(): void {
+  const now = Date.now();
+  for (const [id, entry] of watchedRounds) {
+    if (now - entry.firstSeenAt > MAX_WATCH_AGE_MS) {
+      console.warn(
+        `[diceSweeper] Evicting stale round #${id} (tier ${entry.tier}) — ` +
+          `watched for ${Math.round((now - entry.firstSeenAt) / 3_600_000)}h`
+      );
+      watchedRounds.delete(id);
+    }
+  }
+}
+
+// ── Result type ───────────────────────────────────────────────────────────────
 
 type SweepAction =
-  | "skip-no-round"
   | "skip-no-players"
   | "skip-already-resolved"
   | "skip-randomness-pending"
@@ -84,9 +121,9 @@ type SweepAction =
   | "drew"
   | "error";
 
-interface TierResult {
-  tier: number;
+interface RoundResult {
   roundId: string;
+  tier: number;
   filledSlots: number;
   randomBlock: string;
   state: string;
@@ -95,9 +132,9 @@ interface TierResult {
   error?: string;
 }
 
-// ── Core sweep logic ──────────────────────────────────────────────────────────
+// ── Core sweep ────────────────────────────────────────────────────────────────
 
-export async function runDiceSweep(): Promise<TierResult[]> {
+export async function runDiceSweep(): Promise<RoundResult[]> {
   if (!RELAYER_PK) {
     console.warn("[diceSweeper] CELO_RELAYER_PK not set — sweep skipped");
     return [];
@@ -108,66 +145,115 @@ export async function runDiceSweep(): Promise<TierResult[]> {
   const dice = new ethers.Contract(DICE_ADDRESS, DICE_ABI, wallet);
   const rng = new ethers.Contract(WITNET_RNG_ADDRESS, WITNET_ABI, provider);
 
-  // Estimate the Witnet fee once per sweep (uses current gas price).
-  let witnetFee: bigint;
+  // ── Step 1: discover current active rounds and add to registry ────────────
+  await discoverActiveRounds(dice);
+
+  // ── Step 2: evict rounds that have been stuck beyond the age limit ─────────
+  evictStaleRounds();
+
+  if (watchedRounds.size === 0) {
+    console.log("[diceSweeper] No rounds to process.");
+    return [];
+  }
+
+  // ── Step 3: estimate Witnet fee once for the whole sweep ───────────────────
+  const witnetFee = await estimateFee(provider, rng);
+
+  // ── Step 4: process every watched round ────────────────────────────────────
+  const results: RoundResult[] = [];
+
+  for (const [roundIdStr, entry] of [...watchedRounds]) {
+    const result = await processRound(
+      BigInt(roundIdStr),
+      entry.tier,
+      dice,
+      witnetFee
+    );
+    results.push(result);
+
+    console.log(
+      `[diceSweeper] round=${result.roundId} tier=${result.tier} ` +
+        `slots=${result.filledSlots} randomBlock=${result.randomBlock} ` +
+        `state=${result.state} action=${result.action}` +
+        (result.txHash ? ` tx=${result.txHash}` : "") +
+        (result.error ? ` error=${result.error}` : "")
+    );
+
+    // Remove resolved rounds from the registry.
+    if (
+      result.action === "drew" ||
+      result.action === "skip-already-resolved"
+    ) {
+      watchedRounds.delete(roundIdStr);
+    }
+  }
+
+  console.log(
+    `[diceSweeper] Sweep done. Watching ${watchedRounds.size} round(s).`
+  );
+  return results;
+}
+
+// ── Discovery ─────────────────────────────────────────────────────────────────
+// Reads the current active round per tier and registers any we haven't seen.
+
+async function discoverActiveRounds(dice: ethers.Contract): Promise<void> {
+  await Promise.allSettled(
+    ACTIVE_TIERS.map(async (tier) => {
+      try {
+        const roundId: bigint = await dice.getActiveRoundId(BigInt(tier));
+        if (roundId > 0n) {
+          registerRound(roundId, tier);
+        }
+      } catch (err: any) {
+        console.warn(
+          `[diceSweeper] discoverActiveRounds tier=${tier}: ${err?.message}`
+        );
+      }
+    })
+  );
+}
+
+// ── Fee estimation ────────────────────────────────────────────────────────────
+
+async function estimateFee(
+  provider: ethers.JsonRpcProvider,
+  rng: ethers.Contract
+): Promise<bigint> {
   try {
-    const feeInfo = await provider.getFeeData();
-    const gasPrice = feeInfo.gasPrice ?? ethers.parseUnits("5", "gwei");
-    const rawFee: bigint = await rng.estimateRandomizeFee(gasPrice);
-    // Apply buffer: fee * (10000 + BPS) / 10000
-    witnetFee = (rawFee * BigInt(10_000 + FEE_BUFFER_BPS)) / 10_000n;
+    const feeData = await provider.getFeeData();
+    const gasPrice = feeData.gasPrice ?? ethers.parseUnits("5", "gwei");
+    const raw: bigint = await rng.estimateRandomizeFee(gasPrice);
+    return (raw * BigInt(10_000 + FEE_BUFFER_BPS)) / 10_000n;
   } catch (err: any) {
-    // If fee estimation fails (e.g. RNG contract unreachable), fall back to
-    // the env override or a conservative 0.015 CELO default.
     const fallback = process.env.WITNET_FEE_WEI
       ? BigInt(process.env.WITNET_FEE_WEI)
       : ethers.parseEther("0.015");
     console.warn(
-      `[diceSweeper] estimateRandomizeFee failed (${err?.message}), using fallback ${ethers.formatEther(fallback)} CELO`
+      `[diceSweeper] estimateRandomizeFee failed (${err?.message}), ` +
+        `using fallback ${ethers.formatEther(fallback)} CELO`
     );
-    witnetFee = fallback;
+    return fallback;
   }
-
-  const results: TierResult[] = [];
-
-  for (const tier of ACTIVE_TIERS) {
-    const result = await processTier(tier, dice, witnetFee);
-    results.push(result);
-
-    // Structured log per tier.
-    console.log(
-      `[diceSweeper] tier=${tier} round=${result.roundId} slots=${result.filledSlots} ` +
-        `randomBlock=${result.randomBlock} state=${result.state} action=${result.action}` +
-        (result.txHash ? ` tx=${result.txHash}` : "") +
-        (result.error ? ` error=${result.error}` : "")
-    );
-  }
-
-  return results;
 }
 
-async function processTier(
+// ── Round processing ──────────────────────────────────────────────────────────
+
+async function processRound(
+  roundId: bigint,
   tier: number,
   dice: ethers.Contract,
   witnetFee: bigint
-): Promise<TierResult> {
-  const base: Omit<TierResult, "action"> = {
+): Promise<RoundResult> {
+  const base: Omit<RoundResult, "action"> = {
+    roundId: roundId.toString(),
     tier,
-    roundId: "0",
     filledSlots: 0,
     randomBlock: "0",
-    state: "None",
+    state: "Unknown",
   };
 
   try {
-    const roundId: bigint = await dice.getActiveRoundId(BigInt(tier));
-
-    if (roundId === 0n) {
-      return { ...base, action: "skip-no-round" };
-    }
-
-    base.roundId = roundId.toString();
-
     const [, filledSlots, winnerSelected, , randomBlock] =
       (await dice.getRoundInfo(roundId)) as [
         bigint,
@@ -191,13 +277,16 @@ async function processTier(
       return { ...base, action: "skip-no-players" };
     }
 
-    const rawState: bigint = await dice.getRoundState(roundId);
-    const stateNum = Number(rawState) as RoundStateValue;
+    const stateNum = Number(
+      (await dice.getRoundState(roundId)) as bigint
+    ) as RoundStateValue;
     base.state = stateName(stateNum);
 
-    // ── Action: request randomness ────────────────────────────────────────────
-    // Trigger as soon as any player has joined and randomBlock is not yet set.
-    // This handles both partially-filled (Open) and full-but-waiting rounds.
+    // ── Request randomness ────────────────────────────────────────────────────
+    // Triggered for any round with players that hasn't had randomness requested
+    // yet, regardless of whether it is full.  This means partial rounds that
+    // are unlikely to fill can still get randomness requested early (the
+    // contract enforces fullness on draw, not on randomize).
     if (randomBlock === 0n && stateNum !== RoundState.Resolved) {
       try {
         const tx = await dice.requestRoundRandomness(roundId, {
@@ -211,18 +300,17 @@ async function processTier(
         };
       } catch (err: any) {
         const msg: string = err?.message ?? "";
-        // Non-fatal: randomness was already requested by another process.
         if (
           msg.includes("already requested") ||
           msg.includes("randomness requested")
         ) {
           return { ...base, action: "skip-randomness-pending" };
         }
-        throw err; // re-throw unexpected errors
+        throw err;
       }
     }
 
-    // ── Action: draw ─────────────────────────────────────────────────────────
+    // ── Draw ──────────────────────────────────────────────────────────────────
     if (stateNum === RoundState.Ready) {
       try {
         const tx = await dice.drawRound(roundId);
@@ -244,7 +332,7 @@ async function processTier(
       }
     }
 
-    // ── FullWaiting with randomBlock set — nothing to do yet ─────────────────
+    // Randomness has been requested but is not ready yet — nothing to do.
     return { ...base, action: "skip-randomness-pending" };
   } catch (err: any) {
     return {
@@ -255,7 +343,7 @@ async function processTier(
   }
 }
 
-// ── Worker entry point (called from index.ts) ─────────────────────────────────
+// ── Worker entry point ────────────────────────────────────────────────────────
 
 export function startDiceSweeper(): void {
   if (!RELAYER_PK) {
@@ -270,14 +358,11 @@ export function startDiceSweeper(): void {
       `interval=${SWEEP_INTERVAL_SECONDS}s address=${DICE_ADDRESS}`
   );
 
-  // Run once immediately on startup so rounds aren't blocked until the first
-  // scheduled tick.
+  // Run once immediately so rounds aren't blocked until the first cron tick.
   runDiceSweep().catch((err) =>
     console.error("[diceSweeper] initial sweep error:", err)
   );
 
-  // Schedule recurring sweeps.  node-cron only supports minute-granularity in
-  // cron syntax, so for sub-minute intervals we use setInterval directly.
   if (SWEEP_INTERVAL_SECONDS < 60) {
     setInterval(
       () =>
@@ -287,7 +372,6 @@ export function startDiceSweeper(): void {
       SWEEP_INTERVAL_SECONDS * 1000
     );
   } else {
-    // Round up to nearest minute for cron expression.
     const minutes = Math.round(SWEEP_INTERVAL_SECONDS / 60);
     const cronExpr = `*/${minutes} * * * *`;
     cron.schedule(cronExpr, () => {
