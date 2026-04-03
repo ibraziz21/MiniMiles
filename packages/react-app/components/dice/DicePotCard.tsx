@@ -1,7 +1,7 @@
 // components/dice/DicePotCard.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import {
   DiceRoundView,
@@ -61,6 +61,26 @@ export function DicePotCard({
 }: DicePotCardProps) {
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
 
+  // Track which slots were empty last poll so we can flash newly-filled ones
+  const prevPlayersRef = useRef<Record<number, string | null>>({});
+  const [flashingSlots, setFlashingSlots] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (!round || isFinished) return;
+    const prev = prevPlayersRef.current;
+    const newlyFilled: number[] = [];
+    for (const slot of round.slots) {
+      const hadPlayer = !!prev[slot.number];
+      const hasPlayer = !!slot.player;
+      if (!hadPlayer && hasPlayer) newlyFilled.push(slot.number);
+      prev[slot.number] = slot.player;
+    }
+    if (newlyFilled.length === 0) return;
+    setFlashingSlots(new Set(newlyFilled));
+    const t = setTimeout(() => setFlashingSlots(new Set()), 700);
+    return () => clearTimeout(t);
+  }, [round?.slots, isFinished]);
+
   const isUsd = isUsdTierType(selectedTier);
   const usdMeta = isUsd ? USD_TIER_META[selectedTier as UsdTier] : null;
   const milesTierBonus = !isUsd ? MILES_TIER_BONUS_USD[selectedTier as MilesTier] : undefined;
@@ -88,13 +108,13 @@ export function DicePotCard({
   // Colors
   const accentGradient = isUsd
     ? "from-blue-400 via-blue-300 to-indigo-400"
-    : "from-emerald-400 via-emerald-300 to-emerald-500";
+    : "from-[#238D9D] via-[#2aa8ba] to-[#1a7080]";
   const numberBubbleCls = isUsd
     ? "from-blue-500 via-blue-400 to-indigo-400"
-    : "from-emerald-500 via-emerald-400 to-teal-400";
+    : "from-[#238D9D] via-[#2aa8ba] to-[#1a7080]";
   const joinBtnCls = isUsd
     ? "bg-gradient-to-r from-blue-500 to-indigo-400 text-white shadow-md shadow-blue-200 hover:brightness-110 active:scale-[0.98]"
-    : "bg-gradient-to-r from-emerald-500 to-teal-400 text-white shadow-md shadow-emerald-200 hover:brightness-110 active:scale-[0.98]";
+    : "bg-gradient-to-r from-[#238D9D] to-[#1a7080] text-white shadow-md shadow-[#238D9D]/30 hover:brightness-110 active:scale-[0.98]";
 
   // Single-button USD approve→join label
   function usdBtnLabel() {
@@ -115,9 +135,9 @@ export function DicePotCard({
     : "bg-gradient-to-r from-slate-700 to-slate-600 text-white shadow-md hover:brightness-110 active:scale-[0.98]";
 
   return (
-    <section className="relative rounded-3xl border border-slate-100 bg-white/95 shadow-[0_8px_24px_rgba(16,185,129,0.12)]">
+    <section className="relative rounded-3xl border border-slate-100 bg-white/95 shadow-[0_8px_24px_rgba(35,141,157,0.12)]">
       <div className={`absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r ${accentGradient}`} />
-      <div className="pointer-events-none absolute -top-6 -right-4 h-14 w-14 rounded-full bg-emerald-100/60 blur-2xl" />
+      <div className="pointer-events-none absolute -top-6 -right-4 h-14 w-14 rounded-full bg-[#238D9D]/10 blur-2xl" />
 
       <div className="p-3 space-y-2">
 
@@ -156,7 +176,7 @@ export function DicePotCard({
                 style={{ width: `${fillPercent}%` }}
               />
             </div>
-            <p className="text-[9px] text-emerald-600">
+            <p className="text-[9px] text-[#238D9D]">
               {isResolved ? "New pot" : slotsLeft > 0 ? `${slotsLeft} slot${slotsLeft === 1 ? "" : "s"} left` : "Full"}
             </p>
           </div>
@@ -173,33 +193,34 @@ export function DicePotCard({
             const isSelected = selectedNumber === n && !hasJoinedActive && !isTakenByOther;
             const disabled = isTakenByOther || hasJoinedActive;
 
+            const isFlashing = flashingSlots.has(n);
             const base = "group relative aspect-[4/3] rounded-2xl border text-center flex flex-col items-center justify-center transition-all overflow-hidden";
 
             const cls = isMine
               ? isUsd
                 ? "border-blue-500 bg-blue-50 shadow-[0_0_0_1px_rgba(59,130,246,0.4)]"
-                : "border-emerald-500 bg-emerald-50 shadow-[0_0_0_1px_rgba(16,185,129,0.4)]"
+                : "border-[#238D9D] bg-[#238D9D]/5 shadow-[0_0_0_1px_rgba(35,141,157,0.4)]"
               : isTakenByOther
               ? "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"
               : isSelected
               ? isUsd
                 ? "border-blue-500 bg-blue-50/60 scale-[1.01]"
-                : "border-emerald-500 bg-emerald-50/60 scale-[1.01]"
-              : "border-slate-200 bg-slate-50 hover:border-emerald-300 hover:bg-emerald-50/60 active:scale-[0.98]";
+                : "border-[#238D9D] bg-[#238D9D]/5 scale-[1.01]"
+              : "border-slate-200 bg-slate-50 hover:border-[#238D9D]/40 hover:bg-[#238D9D]/5 active:scale-[0.98]";
 
             return (
               <button
                 key={n}
                 disabled={disabled}
                 onClick={() => onSelectNumber(n)}
-                className={`${base} ${cls}`}
+                className={`${base} ${cls} ${isFlashing ? "animate-slot-flash" : ""}`}
               >
                 <div className="relative z-10 flex flex-col items-center justify-center gap-0.5">
                   <div className={`h-7 w-7 rounded-full bg-gradient-to-br ${numberBubbleCls} flex items-center justify-center shadow`}>
                     <span className="text-[14px] font-extrabold text-white drop-shadow-sm">{n}</span>
                   </div>
                   {isMine && (
-                    <span className={`text-[8px] uppercase tracking-wide font-semibold ${isUsd ? "text-blue-700" : "text-emerald-700"}`}>
+                    <span className={`text-[8px] uppercase tracking-wide font-semibold ${isUsd ? "text-blue-700" : "text-[#238D9D]"}`}>
                       You
                     </span>
                   )}
@@ -207,7 +228,7 @@ export function DicePotCard({
                     <span className="text-[7px] text-slate-500">{shortAddress(player)}</span>
                   )}
                   {!player && !isMine && !isResolved && (
-                    <span className={`text-[8px] font-medium ${isUsd ? "text-blue-600" : "text-emerald-600"}`}>
+                    <span className={`text-[8px] font-medium ${isUsd ? "text-blue-600" : "text-[#238D9D]"}`}>
                       Free
                     </span>
                   )}
@@ -260,7 +281,7 @@ export function DicePotCard({
                     {usdBtnLabel()}
                   </button>
                   {isApproved && (
-                    <p className="text-[9px] text-emerald-600 text-center">✓ USDT approved — ready to join</p>
+                    <p className="text-[9px] text-[#238D9D] text-center">✓ USDT approved — ready to join</p>
                   )}
                 </div>
               ) : (

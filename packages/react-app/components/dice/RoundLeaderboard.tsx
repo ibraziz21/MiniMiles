@@ -70,7 +70,7 @@ export function RoundLeaderboard({ round, myAddress, isDrawing }: RoundLeaderboa
             key={slot.number}
             className={`flex items-center gap-2.5 px-3 py-1.5 transition-colors ${
               isWinner
-                ? "bg-emerald-50 border-l-2 border-emerald-500"
+                ? "bg-[#238D9D]/5 border-l-2 border-[#238D9D]"
                 : isMe
                 ? "bg-blue-50/40"
                 : ""
@@ -79,8 +79,8 @@ export function RoundLeaderboard({ round, myAddress, isDrawing }: RoundLeaderboa
             {/* number badge */}
             <div className={`flex h-6 w-6 items-center justify-center rounded-full shadow-sm flex-shrink-0 ${
               isWinner
-                ? "bg-emerald-500"
-                : "bg-gradient-to-br from-emerald-500 to-teal-400"
+                ? "bg-[#238D9D]"
+                : "bg-gradient-to-br from-[#238D9D] to-[#1a7080]"
             }`}>
               <span className="text-[11px] font-extrabold text-white">{slot.number}</span>
             </div>
@@ -98,7 +98,7 @@ export function RoundLeaderboard({ round, myAddress, isDrawing }: RoundLeaderboa
                     </span>
                   )}
                   {isWinner && (
-                    <span className="rounded-full bg-emerald-100 border border-emerald-200 px-1.5 py-0.5 text-[8px] font-bold text-emerald-700">
+                    <span className="rounded-full bg-[#238D9D]/10 border border-[#238D9D]/20 px-1.5 py-0.5 text-[8px] font-bold text-[#238D9D]">
                       🏆 Winner
                     </span>
                   )}
@@ -111,11 +111,11 @@ export function RoundLeaderboard({ round, myAddress, isDrawing }: RoundLeaderboa
             {/* status */}
             <div className="flex-shrink-0">
               {isWinner ? (
-                <span className="text-emerald-500 text-[13px]">★</span>
+                <span className="text-[#238D9D] text-[13px]">★</span>
               ) : hasPl && isDrawing ? (
-                <div className="h-3.5 w-3.5 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+                <div className="h-3.5 w-3.5 rounded-full border-2 border-[#238D9D] border-t-transparent animate-spin" />
               ) : hasPl ? (
-                <div className="h-2 w-2 rounded-full bg-emerald-400" />
+                <div className="h-2 w-2 rounded-full bg-[#238D9D]" />
               ) : (
                 <div className="h-2 w-2 rounded-full bg-slate-200" />
               )}

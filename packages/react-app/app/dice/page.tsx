@@ -16,6 +16,8 @@ import { DiceStatsSheet } from "@/components/dice/DiceStats";
 import { DiceHeader } from "@/components/dice/DiceHeader";
 import { DicePotCard } from "@/components/dice/DicePotCard";
 import { WinnerToast } from "@/components/dice/WinnerToast";
+import { WinFeedTicker } from "@/components/dice/WinFeedTicker";
+import { RoundHistoryFeed } from "@/components/dice/RoundHistoryFeed";
 
 import {
   type DiceTier,
@@ -91,6 +93,17 @@ export default function DicePage() {
     return isUsdTierType(tier as DiceTier) ? 0 : (tier as number) * 6;
   }, [round, selectedTier]);
 
+  const pot = useMemo(() => {
+    const tier = (round?.tier ?? selectedTier) as DiceTier;
+    if (isUsdTierType(tier)) {
+      const meta = USD_TIER_META[tier];
+      return { miles: meta.miles, usdt: meta.payout };
+    }
+    const bonus = MILES_TIER_BONUS_USD[tier as MilesTier] ?? 0;
+    return { miles: (tier as number) * 6, usdt: bonus };
+  }, [round, selectedTier]);
+
+  // Keep a plain string for ResultModal which still uses text
   const potLabel = useMemo(() => {
     const tier = (round?.tier ?? selectedTier) as DiceTier;
     if (isUsdTierType(tier)) {
@@ -120,10 +133,20 @@ export default function DicePage() {
     !isJoining &&
     (isFinishedOrNoRound || (round?.filledSlots ?? 0) < 6);
 
-  /* ── Winner toast (show once per round via localStorage) ───── */
+  /* ── Winner toast + refresh stats when round resolves ───────── */
 
   useEffect(() => {
     if (!round?.winner || !round.winningNumber || round.state !== "resolved") return;
+
+    // Refresh player stats and last-round history so stats sheet is up to date
+    if (address) {
+      getDicePlayerStats().then(setPlayerStats).catch(() => {});
+      loadLastRounds();
+    }
+    getDiceTierStats(selectedTier)
+      .then((s) => setTierStatsByTier((p) => ({ ...p, [selectedTier]: s })))
+      .catch(() => {});
+
     const key = `dice_winner_seen_${round.roundId.toString()}`;
     if (typeof window !== "undefined" && localStorage.getItem(key)) return;
     const iWon = !!address && round.winner.toLowerCase() === address.toLowerCase();
@@ -133,7 +156,7 @@ export default function DicePage() {
       winner: round.winner,
       iWon,
     });
-  }, [round?.roundId, round?.winner, round?.state, address]);
+  }, [round?.roundId, round?.winner, round?.state, address]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function dismissWinnerToast() {
     if (!winnerToast) return;
@@ -412,7 +435,7 @@ export default function DicePage() {
   /* ── Render ─────────────────────────────────────────────────── */
 
   return (
-    <main className="min-h-dvh bg-gradient-to-b from-emerald-50/40 via-white to-white text-slate-900">
+    <main className="min-h-dvh bg-gradient-to-b from-[#238D9D]/5 via-white to-white text-slate-900">
       <div className="w-full max-w-md mx-auto px-4 pt-4 pb-28 space-y-3">
 
         {/* Header */}
@@ -439,6 +462,9 @@ export default function DicePage() {
           />
         </div>
 
+        {/* Live win feed */}
+        <WinFeedTicker />
+
         {/* Pot card — natural height */}
         <div>
           <DicePotCard
@@ -463,6 +489,9 @@ export default function DicePage() {
             myAddress={address}
           />
         </div>
+
+        {/* Round history */}
+        <RoundHistoryFeed tier={selectedTier} />
       </div>
 
       {/* Winner toast — shown once per round, dismissed to localStorage */}
@@ -471,7 +500,7 @@ export default function DicePage() {
           roundId={winnerToast.roundId}
           winningNumber={winnerToast.winningNumber}
           winner={winnerToast.winner}
-          potLabel={potLabel}
+          pot={pot}
           iWon={winnerToast.iWon}
           onClose={dismissWinnerToast}
         />
@@ -497,6 +526,7 @@ export default function DicePage() {
         playerStats={playerStats}
         lastRoundByTier={lastRoundByTier}
         myAddress={address}
+        onTierChange={(tier) => { setSelectedTier(tier); }}
       />
     </main>
   );

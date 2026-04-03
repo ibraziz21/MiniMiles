@@ -1,6 +1,8 @@
 import Cash from "../public/svg/cash.svg";
 import akibaMilesSymbol from "../public/svg/minimiles-symbol.svg"
 import akibaMilesSymbolAlt from "../public/svg/minimiles-symbol-alt.svg"
+import usdtSymbol from "../public/svg/usdt-symbol.svg"
+import usdtSymbolAlt from "../public/svg/usdt-symbol-alt.svg"
 import Door from "../public/svg/door.svg"
 import Celo from "../public/svg/celo.svg";
 import MiniPay from "../public/svg/minipay.svg"
@@ -40,6 +42,8 @@ export {
     GloDollar,
     Mento,
     akibaMilesSymbolAlt,
+    usdtSymbol,
+    usdtSymbolAlt,
     Earn,
     Spend,
     User,

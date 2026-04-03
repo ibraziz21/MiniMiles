@@ -28,7 +28,7 @@ import {
   bag,
   docking, camera, washmachine, chair
 } from "@/lib/img";
-import { akibaMilesSymbol, RefreshSvg } from "@/lib/svg";
+import { akibaMilesSymbol, akibaMilesSymbolAlt, RefreshSvg } from "@/lib/svg";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -678,7 +678,7 @@ const badgeButtonLabel =
       {/* Dice promo — 30 Miles tier bonus */}
       <div className="mx-4 mt-4">
         <Link href="/dice" className="block">
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 px-4 py-3.5 shadow-lg shadow-emerald-200/50 active:scale-[0.99] transition-transform">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#238D9D] via-[#1d7a89] to-[#155f6a] px-4 py-3.5 shadow-lg shadow-[#238D9D]/30 active:scale-[0.99] transition-transform">
             {/* decorative circles */}
             <div className="pointer-events-none absolute -top-6 -right-6 h-24 w-24 rounded-full bg-white/10" />
             <div className="pointer-events-none absolute -bottom-4 -left-4 h-16 w-16 rounded-full bg-white/10" />
@@ -687,14 +687,18 @@ const badgeButtonLabel =
               <div className="space-y-0.5">
                 <div className="flex items-center gap-1.5">
                   <span className="text-lg leading-none">🎲</span>
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-100">
-                    Akiba Dice · 30 Miles Round
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-white/70 flex items-center gap-1">
+                    Akiba Dice ·
+                    <Image src={akibaMilesSymbolAlt} alt="" width={11} height={11} className="inline" />
+                    30 Round
                   </span>
                 </div>
-                <p className="text-[17px] font-extrabold text-white leading-tight">
-                  Win Miles + a bonus<br />cash reward
+                <p className="text-[17px] font-extrabold text-white leading-tight flex items-center gap-1.5 flex-wrap">
+                  Win
+                  <Image src={akibaMilesSymbolAlt} alt="" width={16} height={16} className="inline" />
+                  + a bonus cash reward
                 </p>
-                <p className="text-[11px] text-emerald-100/80 mt-1">
+                <p className="text-[11px] text-white/60 mt-1">
                   6 players · 1 winner takes all
                 </p>
               </div>
@@ -703,7 +707,10 @@ const badgeButtonLabel =
                 <div className="rounded-full bg-white/20 border border-white/30 px-3 py-1.5">
                   <span className="text-[12px] font-bold text-white">Play →</span>
                 </div>
-                <span className="text-[9px] text-emerald-200">30 Miles entry</span>
+                <span className="text-[9px] text-white/60 flex items-center gap-0.5">
+                  <Image src={akibaMilesSymbolAlt} alt="" width={10} height={10} className="inline" />
+                  30 entry
+                </span>
               </div>
             </div>
           </div>

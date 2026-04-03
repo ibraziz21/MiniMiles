@@ -5,7 +5,7 @@ import Image from "next/image";
 import { BarChart3 } from "lucide-react";
 import type { DiceTier, MilesTier, UsdTier, TierStats, PlayerStats, DiceMode } from "@/lib/diceTypes";
 import { MILES_TIERS, USD_TIERS, USD_TIER_META, MILES_TIER_BONUS_USD } from "@/lib/diceTypes";
-import { akibaMilesSymbol } from "@/lib/svg";
+import { akibaMilesSymbol, usdtSymbol } from "@/lib/svg";
 
 type DiceHeaderProps = {
   onBack: () => void;
@@ -38,7 +38,7 @@ export function DiceHeader({
       <div className="flex items-center justify-between">
         <button
           onClick={onBack}
-          className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600 shadow-sm hover:border-emerald-300 hover:text-emerald-700 active:scale-[0.97] transition"
+          className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600 shadow-sm hover:border-[#238D9D]/40 hover:text-[#238D9D] active:scale-[0.97] transition"
         >
           <span>←</span>
           <span className="font-medium">Back</span>
@@ -47,7 +47,7 @@ export function DiceHeader({
         <div className="flex items-center gap-1.5">
           <span className="text-base">🎲</span>
           <span className="text-[13px] font-semibold text-slate-900">Akiba Dice</span>
-          <span className="rounded-full bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700">
+          <span className="rounded-full bg-[#238D9D]/10 border border-[#238D9D]/20 px-1.5 py-0.5 text-[9px] font-medium text-[#238D9D]">
             Beta
           </span>
         </div>
@@ -55,10 +55,13 @@ export function DiceHeader({
         {hasStats ? (
           <button
             onClick={onOpenStats}
-            className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 shadow-sm hover:border-emerald-300 active:scale-[0.97] transition"
+            className="relative inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 shadow-sm hover:border-[#238D9D]/40 active:scale-[0.97] transition"
           >
             <BarChart3 className="h-3 w-3" />
             <span>Stats</span>
+            {(playerStats?.roundsWon ?? 0) >= 2 && (
+              <span className="absolute -top-2 -right-2 text-[13px] leading-none" title="On a roll!">🔥</span>
+            )}
           </button>
         ) : (
           <div className="w-14" />
@@ -72,18 +75,18 @@ export function DiceHeader({
             onClick={() => onModeChange("akiba")}
             className={`flex items-center justify-center gap-1 rounded-lg py-1.5 text-[11px] font-semibold transition-all ${
               mode === "akiba"
-                ? "bg-white shadow-sm text-emerald-700 border border-emerald-100"
+                ? "bg-white shadow-sm text-[#238D9D] border border-[#238D9D]/20"
                 : "text-slate-500 hover:text-slate-700"
             }`}
           >
-            <Image src={akibaMilesSymbol} alt="Miles" className="h-3 w-3" />
+            <Image src={akibaMilesSymbol} alt="Miles" width={12} height={12} className="h-3 w-3" />
             Akiba
           </button>
 
-          {/* USD tab — locked until release */}
+          {/* USDT tab — locked until release */}
           <div className="relative flex items-center justify-center gap-1 rounded-lg py-1.5 text-[11px] font-semibold text-slate-300 cursor-not-allowed select-none">
-            <span className="text-[12px] opacity-40">💵</span>
-            <span className="opacity-40">USD</span>
+            <Image src={usdtSymbol} alt="USDT" width={12} height={12} className="opacity-40" />
+            <span className="opacity-40">USDT</span>
             <span className="absolute -top-1.5 -right-1 rounded-full bg-slate-400 px-1.5 py-0.5 text-[7px] font-bold text-white leading-none shadow">
               Soon
             </span>
@@ -103,11 +106,11 @@ export function DiceHeader({
                 onClick={() => onTierChange(tier)}
                 className={`relative flex flex-col items-center justify-center rounded-xl border py-1.5 text-center transition-all ${
                   isActive
-                    ? "border-emerald-500 bg-white shadow-sm shadow-emerald-100 scale-[1.01]"
-                    : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300"
+                    ? "border-[#238D9D] bg-white shadow-sm shadow-[#238D9D]/20 scale-[1.01]"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-[#238D9D]/40"
                 }`}
               >
-                <span className={`inline-flex items-center gap-0.5 text-[12px] font-bold ${isActive ? "text-emerald-700" : "text-slate-800"}`}>
+                <span className={`inline-flex items-center gap-0.5 text-[12px] font-bold ${isActive ? "text-[#238D9D]" : "text-slate-800"}`}>
                   {tier}
                   <Image src={akibaMilesSymbol} alt="M" className="h-2.5 w-2.5" />
                 </span>
@@ -139,7 +142,7 @@ export function DiceHeader({
                 <span className={`text-[12px] font-bold ${isActive ? "text-blue-700" : "text-slate-800"}`}>
                   ${meta.entry.toFixed(2)}
                 </span>
-                <span className="text-[8px] text-emerald-600 font-medium">→ ${meta.payout.toFixed(2)}</span>
+                <span className="text-[8px] text-[#238D9D] font-medium">→ ${meta.payout.toFixed(2)}</span>
               </button>
             );
           })}

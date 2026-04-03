@@ -5,6 +5,16 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes slot-flash {
+  0%   { background-color: rgba(35,141,157,0.25); transform: scale(1.04); }
+  60%  { background-color: rgba(35,141,157,0.10); transform: scale(1.01); }
+  100% { background-color: transparent;           transform: scale(1);    }
+}
+
+.animate-slot-flash {
+  animation: slot-flash 0.7s ease-out forwards;
+}
+
 @font-face {
   font-family: "Sterling";
   font-style: normal;

@@ -46,15 +46,15 @@ export function ResultModal({
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
       <div className="w-full max-w-md mx-4 rounded-3xl bg-white shadow-2xl border border-slate-200 p-5 space-y-4 relative overflow-hidden">
         {/* Accent gradient halo */}
-        <div className="pointer-events-none absolute -top-24 -right-24 h-48 w-48 rounded-full bg-emerald-300/30 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 -left-24 h-48 w-48 rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="pointer-events-none absolute -top-24 -right-24 h-48 w-48 rounded-full bg-[#238D9D]/20 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 -left-24 h-48 w-48 rounded-full bg-[#238D9D]/10 blur-3xl" />
 
         {/* Header */}
         <div className="flex items-start justify-between gap-3 relative z-10">
           <div className="space-y-1">
-            <div className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 border border-emerald-100">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              <span className="text-[10px] font-medium text-emerald-700 tracking-wide uppercase">
+            <div className="inline-flex items-center gap-1 rounded-full bg-[#238D9D]/10 px-2 py-0.5 border border-[#238D9D]/20">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#238D9D]" />
+              <span className="text-[10px] font-medium text-[#238D9D] tracking-wide uppercase">
                 Akiba Dice
               </span>
             </div>
@@ -83,7 +83,7 @@ export function ResultModal({
         {/* Pot chip */}
         <div className="relative z-10 flex items-center justify-center">
           <div className="inline-flex items-center gap-2 rounded-full bg-slate-900 text-white px-3 py-1 shadow-md shadow-slate-900/40">
-            <div className="h-6 w-6 rounded-full bg-emerald-500 flex items-center justify-center shadow">
+            <div className="h-6 w-6 rounded-full bg-[#238D9D] flex items-center justify-center shadow">
               <Image src={akibaMilesSymbol} alt="Akiba" className="h-3 w-3" />
             </div>
             <div className="flex flex-col leading-tight">
@@ -107,7 +107,7 @@ export function ResultModal({
                     <div
                       className={`h-20 rounded-xl transition-all ${
                         isWinner
-                          ? "ring-2 ring-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.5)]"
+                          ? "ring-2 ring-[#238D9D] shadow-[0_0_12px_rgba(35,141,157,0.5)]"
                           : !isRolling && diceResult !== null
                           ? "opacity-40"
                           : ""
@@ -120,7 +120,7 @@ export function ResultModal({
                       />
                     </div>
                     <div className="text-center space-y-0.5">
-                      <p className={`text-[9px] font-semibold ${isMySlot ? "text-emerald-600" : "text-slate-500"}`}>
+                      <p className={`text-[9px] font-semibold ${isMySlot ? "text-[#238D9D]" : "text-slate-500"}`}>
                         #{slot.number}{isMySlot ? " (You)" : ""}
                       </p>
                       {slot.player && (
@@ -153,7 +153,7 @@ export function ResultModal({
             <>
               <p className="text-sm text-slate-800">
                 Winning number:{" "}
-                <span className="font-semibold text-emerald-600">{diceResult}</span>
+                <span className="font-semibold text-[#238D9D]">{diceResult}</span>
               </p>
 
               {selectedNumber != null && (
@@ -164,7 +164,7 @@ export function ResultModal({
               )}
 
               {userWon && (
-                <p className="text-sm text-emerald-700 font-medium mt-1">
+                <p className="text-sm text-[#238D9D] font-medium mt-1">
                   You take the whole pot 🎉
                 </p>
               )}
@@ -191,7 +191,7 @@ export function ResultModal({
           <div className="relative z-10 flex flex-col gap-2 pt-2">
             <button
               onClick={onClose}
-              className="w-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 text-white text-sm font-medium py-2.5 hover:brightness-110 shadow-md shadow-emerald-200"
+              className="w-full rounded-full bg-gradient-to-r from-[#238D9D] to-[#1a7080] text-white text-sm font-medium py-2.5 hover:brightness-110 shadow-md shadow-[#238D9D]/30"
             >
               Close
             </button>
