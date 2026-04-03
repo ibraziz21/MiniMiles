@@ -259,6 +259,27 @@ async function incrementRetry(
   }
 }
 
+async function updateTrackedRound(entry: UnresolvedRoundEntry): Promise<void> {
+  const { error } = await supabase
+    .from(UNRESOLVED_TABLE)
+    .update({
+      last_seen_at: entry.lastCheckedAt,
+      random_block: entry.randomBlock,
+      filled_slots: entry.filledSlots,
+      round_state: entry.state,
+      last_error: entry.lastError ?? null,
+      last_action: entry.lastAction,
+    })
+    .eq("round_id", entry.roundId)
+    .eq("active", true);
+
+  if (error) {
+    console.warn(
+      `[diceSweeper] failed updating tracked round=${entry.roundId}: ${error.message}`
+    );
+  }
+}
+
 // ── Result type ───────────────────────────────────────────────────────────────
 
 type SweepAction =
@@ -525,65 +546,53 @@ export async function retryTrackedUnresolvedRounds(): Promise<UnresolvedRoundEnt
 
   for (const entry of unresolvedRounds) {
     try {
-      const [, filledSlots, winnerSelected, , randomBlock] =
-        (await dice.getRoundInfo(BigInt(entry.roundId))) as [
-          bigint,
-          number,
-          boolean,
-          number,
-          bigint,
-          string,
-        ];
+      const result = await processRound(
+        BigInt(entry.roundId),
+        entry.tier,
+        dice,
+        witnetFee
+      );
 
-      if (winnerSelected) {
+      if (
+        result.action === "drew" ||
+        (result.action === "skip-already-resolved" && result.state === stateName(RoundState.Resolved))
+      ) {
+        await incrementRetry(entry.roundId, null, result.action);
         await markResolvedRound(entry.roundId);
         continue;
       }
 
-      const stateNum = Number(
-        (await dice.getRoundState(BigInt(entry.roundId))) as bigint
-      ) as RoundStateValue;
-
       const updated: UnresolvedRoundEntry = {
         ...entry,
         lastCheckedAt: new Date().toISOString(),
-        filledSlots: Number(filledSlots),
-        randomBlock: randomBlock.toString(),
-        state: stateName(stateNum),
-        lastAction: "checked",
-        lastError: undefined,
+        filledSlots: result.filledSlots,
+        randomBlock: result.randomBlock,
+        state: result.state,
+        lastAction: result.action === "skip-no-players" ? "checked" : result.action,
+        lastError: result.error,
       };
 
-      if (randomBlock === 0n && Number(filledSlots) > 0) {
-        try {
-          const tx = await dice.requestRoundRandomness(BigInt(entry.roundId), {
-            value: witnetFee,
-          });
-          const receipt = await tx.wait();
-          updated.lastAction = "requested-randomness";
-          await incrementRetry(entry.roundId, null, updated.lastAction);
-          console.log(
-            `[diceSweeper] retried unresolved round=${entry.roundId} tx=${receipt?.hash ?? tx.hash}`
-          );
-        } catch (err: any) {
-          updated.lastAction = "error";
-          updated.lastError = err?.shortMessage ?? err?.message ?? String(err);
-          await incrementRetry(
-            entry.roundId,
-            updated.lastError ?? null,
-            updated.lastAction
-          );
-          console.warn(
-            `[diceSweeper] unresolved retry failed round=${entry.roundId}: ${updated.lastError}`
-          );
-        }
+      await incrementRetry(
+        entry.roundId,
+        updated.lastError ?? null,
+        updated.lastAction
+      );
+
+      if (updated.lastAction === "requested-randomness" || updated.lastAction === "drew") {
+        console.log(
+          `[diceSweeper] retried unresolved round=${entry.roundId} action=${updated.lastAction}`
+        );
+      } else if (updated.lastAction === "error") {
+        console.warn(
+          `[diceSweeper] unresolved retry failed round=${entry.roundId}: ${updated.lastError}`
+        );
       }
 
-      await upsertUnresolvedRound(updated);
+      await updateTrackedRound(updated);
     } catch (err: any) {
       const lastError = err?.shortMessage ?? err?.message ?? String(err);
       await incrementRetry(entry.roundId, lastError, "error");
-      await upsertUnresolvedRound({
+      await updateTrackedRound({
         ...entry,
         lastCheckedAt: new Date().toISOString(),
         lastAction: "error",
