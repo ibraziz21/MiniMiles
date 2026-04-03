@@ -5,6 +5,7 @@ import questRouter from "./questRoutes";
 import { startMintWorker, runDrain, releaseCurrentLock } from "./mintWorker";
 import { startBurnBlacklistWatcher } from "./burnBlacklistWatcher";
 import { startProsperityPassWorker, releaseCurrentPassLock } from "./prosperityPassWorker";
+import { startDiceSweeper, runDiceSweep } from "./diceSweeper";
 
 dotenv.config();
 
@@ -16,6 +17,22 @@ app.use("/claim", questRouter);
 
 app.get("/", (req, res) => {
   res.send("Welcome to the Minimiles Daily Quests Backend!");
+});
+
+// Manual one-shot dice sweep (protected)
+app.post("/dice/sweep", async (req, res) => {
+  const secret = process.env.ADMIN_QUEUE_SECRET ?? "";
+  const auth = req.headers.authorization;
+  if (!secret || auth !== `Bearer ${secret}`) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  try {
+    const results = await runDiceSweep();
+    res.json({ ok: true, results });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? "sweep failed" });
+  }
 });
 
 // Manual trigger (protected)
@@ -36,6 +53,7 @@ app.listen(PORT, () => {
   startMintWorker();
   startBurnBlacklistWatcher();
   startProsperityPassWorker();
+  startDiceSweeper();
 });
 
 // Release the mint queue lock before Railway (or any host) kills the process.

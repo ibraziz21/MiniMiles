@@ -463,6 +463,11 @@ export async function runProsperityPassDrain() {
 
 export async function startProsperityPassWorker() {
   console.log("[passWorker] Starting — runs every minute");
+  if (!PASS_RELAYER_KEY) {
+    console.warn(
+      "[passWorker] PASS_RELAYER_KEY/BADGES_RELAYER_KEY missing — jobs can be queued but will never burn or mint a Prosperity Pass."
+    );
+  }
   runProsperityPassDrain().catch(console.error);
   cron.schedule("* * * * *", () => {
     runProsperityPassDrain().catch(console.error);
