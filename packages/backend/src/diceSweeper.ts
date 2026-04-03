@@ -568,7 +568,11 @@ export async function retryTrackedUnresolvedRounds(): Promise<UnresolvedRoundEnt
         } catch (err: any) {
           updated.lastAction = "error";
           updated.lastError = err?.shortMessage ?? err?.message ?? String(err);
-          await incrementRetry(entry.roundId, updated.lastError, updated.lastAction);
+          await incrementRetry(
+            entry.roundId,
+            updated.lastError ?? null,
+            updated.lastAction
+          );
           console.warn(
             `[diceSweeper] unresolved retry failed round=${entry.roundId}: ${updated.lastError}`
           );
