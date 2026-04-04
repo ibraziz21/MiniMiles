@@ -64,10 +64,24 @@ export async function POST(_req: Request) {
 
   if (insertErr) {
     if (insertErr.code === "23505") {
-      return NextResponse.json({ success: true, already: true });
+      // Row already exists — check if they're already a member.
+      // If not (e.g. a previous attempt failed mid-flight), mark them now
+      // so they aren't stuck in an infinite onboarding loop.
+      const { data: existing } = await supabase
+        .from("users")
+        .select("is_member")
+        .eq("user_address", userAddr.toLowerCase())
+        .single();
+
+      if (existing?.is_member) {
+        return NextResponse.json({ success: true, already: true });
+      }
+
+      // Not yet a member — fall through to mint + mark below
+    } else {
+      console.error("insert users err:", insertErr);
+      return NextResponse.json({ error: "DB error" }, { status: 500 });
     }
-    console.error("insert users err:", insertErr);
-    return NextResponse.json({ error: "DB error" }, { status: 500 });
   }
 
   /* 2) referral check */
