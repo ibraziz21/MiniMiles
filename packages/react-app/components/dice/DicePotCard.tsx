@@ -13,6 +13,7 @@ import {
   MILES_TIER_BONUS_USD,
   shortAddress,
   isUsdTierType,
+  formatUsdt,
 } from "@/lib/diceTypes";
 import { akibaMilesSymbol } from "@/lib/svg";
 import { RoundLeaderboard } from "./RoundLeaderboard";
@@ -37,6 +38,7 @@ type DicePotCardProps = {
   isLoading: boolean;
   isDrawing: boolean;
   myAddress: string | null;
+  bonusPool: bigint | null;
 };
 
 export function DicePotCard({
@@ -58,6 +60,7 @@ export function DicePotCard({
   isLoading,
   isDrawing,
   myAddress,
+  bonusPool,
 }: DicePotCardProps) {
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
 
@@ -181,6 +184,30 @@ export function DicePotCard({
             </p>
           </div>
         </div>
+
+        {/* ── Tier-30 bonus info banner ────────────────────── */}
+        {!isUsd && milesTierBonus && (
+          <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+            <span className="mt-px text-[13px] leading-none">💰</span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-semibold text-amber-800 leading-snug">
+                  ${milesTierBonus.toFixed(2)} USDT bonus for the winner
+                </p>
+                {bonusPool != null && (
+                  <span className={`shrink-0 text-[9px] font-semibold tabular-nums ${bonusPool === 0n ? "text-red-500" : "text-amber-700"}`}>
+                    Pool: {formatUsdt(bonusPool)}
+                  </span>
+                )}
+              </div>
+              <p className="text-[9px] text-amber-600 leading-snug mt-0.5">
+                {bonusPool === 0n
+                  ? "Bonus pool is currently empty — bonus may not be paid."
+                  : "Subject to availability — paid from the bonus pool while funds last."}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ── Numbers grid ─────────────────────────────────── */}
         <div className="grid grid-cols-3 gap-1.5">

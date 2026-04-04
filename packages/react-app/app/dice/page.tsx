@@ -46,6 +46,7 @@ export default function DicePage() {
     getStablecoinBalance,
     getDiceTierStats,
     getDicePlayerStats,
+    getDiceBonusPool,
     getLastResolvedRoundForPlayer,
   } = useWeb3();
 
@@ -59,6 +60,7 @@ export default function DicePage() {
   const [isApproved, setIsApproved] = useState(false);
   const [selectedNumber, setSelectedNumber] = useState<number | null>(null);
   const [stablecoinBalance, setStablecoinBalance] = useState<string | null>(null);
+  const [bonusPool, setBonusPool] = useState<bigint | null>(null);
 
   const [isRolling, setIsRolling] = useState(false);
   const [diceResult, setDiceResult] = useState<number | null>(null);
@@ -176,6 +178,17 @@ export default function DicePage() {
     setIsApproved(false);
     setWinnerToast(null);
   }
+
+  /* ── Bonus pool balance (tier 30 only) ──────────────────────── */
+
+  useEffect(() => {
+    if (selectedTier !== 30) { setBonusPool(null); return; }
+    getDiceBonusPool().then(setBonusPool).catch(() => setBonusPool(null));
+    const id = setInterval(() => {
+      getDiceBonusPool().then(setBonusPool).catch(() => {});
+    }, 20000);
+    return () => clearInterval(id);
+  }, [selectedTier, getDiceBonusPool]);
 
   /* ── USDT balance ───────────────────────────────────────────── */
 
@@ -483,6 +496,7 @@ export default function DicePage() {
             isLoading={isLoading}
             isDrawing={isDrawing}
             myAddress={address}
+            bonusPool={bonusPool}
           />
         </div>
 

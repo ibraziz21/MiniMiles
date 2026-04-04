@@ -381,6 +381,11 @@ function useWeb3Logic() {
     [walletClient, address, publicClient]
   );
 
+  const getDiceBonusPool = useCallback(async (): Promise<bigint> => {
+    const dice = getDiceReadContract();
+    return (await dice.read.bonusPool([])) as bigint;
+  }, [publicClient]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const getLastResolvedRoundForPlayer = useCallback(
     async (tier: DiceTier, player?: `0x${string}`) => {
       const p = (player as `0x${string}`) || (address as `0x${string}`) || null;
@@ -459,6 +464,7 @@ function useWeb3Logic() {
     getStablecoinBalance,
     getDiceTierStats,
     getDicePlayerStats,
+    getDiceBonusPool,
     getLastResolvedRoundForPlayer,
   };
 }
