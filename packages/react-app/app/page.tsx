@@ -696,7 +696,7 @@ const badgeButtonLabel =
                 <p className="text-[17px] font-extrabold text-white leading-tight flex items-center gap-1.5 flex-wrap">
                   Win
                   <Image src={akibaMilesSymbolAlt} alt="" width={16} height={16} className="inline" />
-                  + a bonus cash reward
+                  180
                 </p>
                 <p className="text-[11px] text-white/60 mt-1">
                   6 players · 1 winner takes all

@@ -4,7 +4,7 @@
 import Image from "next/image";
 import { BarChart3 } from "lucide-react";
 import type { DiceTier, MilesTier, UsdTier, TierStats, PlayerStats, DiceMode } from "@/lib/diceTypes";
-import { MILES_TIERS, USD_TIERS, USD_TIER_META, MILES_TIER_BONUS_USD } from "@/lib/diceTypes";
+import { MILES_TIERS, USD_TIERS, USD_TIER_META } from "@/lib/diceTypes";
 import { akibaMilesSymbol, usdtSymbol } from "@/lib/svg";
 
 type DiceHeaderProps = {
@@ -98,7 +98,6 @@ export function DiceHeader({
       {mode === "akiba" ? (
         <div className="grid grid-cols-3 gap-1.5">
           {MILES_TIERS.map((tier) => {
-            const bonus = MILES_TIER_BONUS_USD[tier];
             const isActive = tier === selectedTier;
             return (
               <button
@@ -115,11 +114,6 @@ export function DiceHeader({
                   <Image src={akibaMilesSymbol} alt="M" className="h-2.5 w-2.5" />
                 </span>
                 <span className="text-[8px] text-slate-400">entry</span>
-                {bonus && (
-                  <span className="absolute -top-1.5 right-1 rounded-full bg-blue-500 px-1 py-0.5 text-[7px] font-bold text-white shadow">
-                    +${bonus.toFixed(2)}
-                  </span>
-                )}
               </button>
             );
           })}

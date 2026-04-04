@@ -83,7 +83,9 @@ export function DicePotCard({
 
   const isUsd = isUsdTierType(selectedTier);
   const usdMeta = isUsd ? USD_TIER_META[selectedTier as UsdTier] : null;
-  const milesTierBonus = !isUsd ? MILES_TIER_BONUS_USD[selectedTier as MilesTier] : undefined;
+  const milesTierBonus = isUsd
+    ? null
+    : MILES_TIER_BONUS_USD[selectedTier as MilesTier] ?? null;
 
   const filledCount = isFinished ? 0 : round?.filledSlots ?? 0;
   const slotsLeft = 6 - filledCount;
@@ -97,8 +99,6 @@ export function DicePotCard({
   // Pot value
   const potValueLine = isUsd && usdMeta
     ? `$${usdMeta.payout.toFixed(2)} USDT + ${usdMeta.miles} Miles`
-    : milesTierBonus
-    ? `${potSize.toLocaleString()} Miles + $${milesTierBonus.toFixed(2)} USDT`
     : `${potSize.toLocaleString()} Miles`;
 
   const entryLine = isUsd && usdMeta

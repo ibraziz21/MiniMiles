@@ -31,7 +31,6 @@ import {
   MILES_TIERS,
   USD_TIERS,
   USD_TIER_META,
-  MILES_TIER_BONUS_USD,
   isUsdTierType,
 } from "@/lib/diceTypes";
 
@@ -99,8 +98,7 @@ export default function DicePage() {
       const meta = USD_TIER_META[tier];
       return { miles: meta.miles, usdt: meta.payout };
     }
-    const bonus = MILES_TIER_BONUS_USD[tier as MilesTier] ?? 0;
-    return { miles: (tier as number) * 6, usdt: bonus };
+    return { miles: (tier as number) * 6, usdt: 0 };
   }, [round, selectedTier]);
 
   // Keep a plain string for ResultModal which still uses text
@@ -110,9 +108,7 @@ export default function DicePage() {
       const meta = USD_TIER_META[tier];
       return `$${meta.payout.toFixed(2)} USDT + ${meta.miles} Miles`;
     }
-    const bonus = MILES_TIER_BONUS_USD[tier as MilesTier];
-    const base = `${((tier as number) * 6).toLocaleString()} Miles`;
-    return bonus ? `${base} + $${bonus.toFixed(2)} USDT` : base;
+    return `${((tier as number) * 6).toLocaleString()} Miles`;
   }, [round, selectedTier]);
 
   const hasWinner = !!round?.winner;
