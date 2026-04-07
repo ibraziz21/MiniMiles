@@ -9,7 +9,10 @@
     "react-app:dev": "yarn workspace @celo-composer-minipay-template/react-app dev",
     "react-app:build": "yarn workspace @celo-composer-minipay-template/react-app build",
     "react-app:start": "yarn workspace @celo-composer-minipay-template/react-app start",
-    "react-app:lint": "yarn workspace @celo-composer-minipay-template/react-app lint"
+    "react-app:lint": "yarn workspace @celo-composer-minipay-template/react-app lint",
+    "merchant:dev": "pnpm --filter @minimiles/merchant-dashboard dev",
+    "merchant:build": "pnpm --filter @minimiles/merchant-dashboard build",
+    "merchant:start": "pnpm --filter @minimiles/merchant-dashboard start"
   },
   "repository": {
     "type": "git",

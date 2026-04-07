@@ -11,7 +11,16 @@ const nextConfig = {
     return config;
   },
   images: {
-    domains: ['cdn-production-opera-website.operacdn.com'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+      {
+        protocol: 'http',
+        hostname: '**',
+      },
+    ],
   },
   devIndicators: false,
   allowedDevOrigins: ['192.168.100.6'],

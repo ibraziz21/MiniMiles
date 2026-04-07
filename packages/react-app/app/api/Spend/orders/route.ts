@@ -21,26 +21,20 @@ import { isBlacklisted } from "@/lib/blacklist";
 
 const KES_RATE = 130;
 
+function normalizeCity(value: string): string {
+  return value.trim().toLowerCase();
+}
+
 function toVoucherEnumValue(template: {
-  title?: string | null;
   voucher_type?: string | null;
   applicable_category?: string | null;
 } | null): string | null {
   if (!template) return null;
 
   const category = template.applicable_category?.trim();
-  const title = template.title?.trim();
 
   if (template.voucher_type === "free" && category) {
     return `${category}_FREE`.replace(/\s+/g, "_").toUpperCase();
-  }
-
-  if (title) {
-    return title.replace(/\s+/g, "_").toUpperCase();
-  }
-
-  if (category) {
-    return category.replace(/\s+/g, "_").toUpperCase();
   }
 
   return null;
@@ -196,6 +190,34 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Product not found or inactive" }, { status: 404 });
     }
 
+    const { data: partnerSettings, error: settingsErr } = await supabase
+      .from("partner_settings")
+      .select("store_active,delivery_cities")
+      .eq("partner_id", product.merchant_id)
+      .maybeSingle();
+
+    if (settingsErr) {
+      console.error("[orders] failed to fetch partner settings", settingsErr);
+      return NextResponse.json({ error: "Merchant settings unavailable" }, { status: 500 });
+    }
+
+    if (partnerSettings?.store_active === false) {
+      return NextResponse.json({ error: "Merchant is not accepting orders right now" }, { status: 409 });
+    }
+
+    if (partnerSettings?.delivery_cities?.length) {
+      const allowedCities = partnerSettings.delivery_cities
+        .map((allowedCity: string) => normalizeCity(allowedCity))
+        .filter(Boolean);
+
+      if (!allowedCities.includes(normalizeCity(city))) {
+        return NextResponse.json(
+          { error: "Delivery is not available in the selected city for this merchant" },
+          { status: 400 },
+        );
+      }
+    }
+
     // ── Fetch voucher (if provided) ───────────────────────────────────────────
     let voucher: any = null;
     let voucherRules: any = null;
@@ -289,7 +311,6 @@ export async function POST(req: Request) {
     const discountKes = pricing.voucher_applied
       ? Math.max(0, productPriceKes - discountedProductKes)
       : null;
-    const fallbackVoucherLabel = product.name.trim().toUpperCase().replace(/\s+/g, "_");
 
     const { data: order, error: oErr } = await supabase
       .from("merchant_transactions")
@@ -297,11 +318,18 @@ export async function POST(req: Request) {
         partner_id: product.merchant_id,
         akiba_username: userRow?.username ?? addr.slice(2, 10),
         user_address: addr,
+        product_id: String(product.id),
+        item_name: product.name,
+        item_category: product.category ?? "general",
         category: product.category ?? "general",
         action: "redeem",
         quote_kes: productPriceKes,
         labor_kes: deliveryFeeKes,
-        voucher: merchantVoucherValue ?? fallbackVoucherLabel,
+        amount_kes: pricing.total_kes,
+        amount_cusd: pricing.total_cusd,
+        voucher: merchantVoucherValue,
+        voucher_id: voucher?.id ?? null,
+        voucher_code: voucher?.code ?? null,
         miles_cost: "0",
         discount_kes: discountKes,
         paid_kes: pricing.total_kes,
@@ -330,6 +358,20 @@ export async function POST(req: Request) {
           .eq("id", voucher.id);
       }
       return NextResponse.json({ error: "Failed to create order" }, { status: 500 });
+    }
+
+    // ── Notify merchant dashboard of new order (fire-and-forget) ─────────────
+    const merchantDashboardUrl = process.env.MERCHANT_DASHBOARD_URL;
+    const webhookSecret = process.env.INTERNAL_WEBHOOK_SECRET;
+    if (merchantDashboardUrl && webhookSecret) {
+      fetch(`${merchantDashboardUrl}/api/internal/new-order`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-webhook-secret": webhookSecret,
+        },
+        body: JSON.stringify({ orderId: order.id }),
+      }).catch((err) => console.error("[orders] merchant notify failed:", err));
     }
 
     return NextResponse.json(
