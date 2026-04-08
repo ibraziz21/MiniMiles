@@ -6,6 +6,7 @@ import RaffleImg4 from "../public/img/raffle-4.png";
 import RaffleImg5 from "../public/img/raffle-5.png";
 import laptop from "../public/img/laptop.png";
 import Dice from "../public/img/dice.png"
+import claw from "../public/img/claw.jpg"
 import bicycle from "../public/img/bicycle.png"
 import airpods from "../public/img/airpods.png"
 import nft1 from "../public/img/nft-1.png"
@@ -45,6 +46,7 @@ export {
   laptop,
   docking,
   Dice,
+  claw,
   bicycle,
   airpods,
   nft1,

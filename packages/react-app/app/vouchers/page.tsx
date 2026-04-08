@@ -5,11 +5,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { useWeb3 } from "@/contexts/useWeb3";
 import { akibaMilesSymbol } from "@/lib/svg";
-import { Spinner, Tag, ShoppingBag, ArrowLeft } from "@phosphor-icons/react";
+import { Spinner, Tag, ShoppingBag, ArrowLeft, Ticket, Fire } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import dynamic from "next/dynamic";
 import type { IssuedVoucher, SpendMerchant } from "@/components/voucher-order-sheet";
+import { RewardClass } from "@/lib/clawTypes";
 
 const VoucherOrderSheet = dynamic(() => import("@/components/voucher-order-sheet"), { ssr: false });
 
@@ -144,6 +145,112 @@ function VoucherCard({
   );
 }
 
+// ── Claw voucher types ─────────────────────────────────────────────────────
+
+type ClawVoucherRaw = {
+  voucherId: string;
+  sessionId: string;
+  owner: string;
+  tierId: number;
+  rewardClass: number;
+  discountBps: number;
+  maxValue: string;
+  expiresAt: number;
+  redeemed: boolean;
+  burned: boolean;
+  merchantId: string;
+  voucherStatus: "active" | "redeemed" | "expired" | "burned";
+};
+
+const CLAW_TIER_NAMES: Record<number, string> = { 0: "Basic", 1: "Boosted", 2: "Premium" };
+const CLAW_STATUS_STYLE: Record<string, string> = {
+  active:   "bg-[#06B6D433] text-[#0891B2]",
+  redeemed: "bg-gray-100 text-gray-500",
+  expired:  "bg-red-50 text-red-400",
+  burned:   "bg-gray-100 text-gray-400",
+};
+const CLAW_STATUS_LABEL: Record<string, string> = {
+  active:   "Active",
+  redeemed: "Used",
+  expired:  "Expired",
+  burned:   "Burned",
+};
+
+function clawDiscountLabel(v: ClawVoucherRaw): string {
+  if (v.rewardClass === RewardClass.Legendary) return "100% off (capped)";
+  if (v.rewardClass === RewardClass.Rare)      return "20% off";
+  return `${(v.discountBps / 100).toFixed(0)}% off`;
+}
+
+function ClawVoucherCard({ voucher }: { voucher: ClawVoucherRaw }) {
+  const isActive = voucher.voucherStatus === "active";
+  const expiresDate = new Date(voucher.expiresAt * 1000).toLocaleDateString("en-KE", {
+    day: "numeric", month: "short", year: "numeric",
+  });
+
+  return (
+    <div
+      className={`border rounded-2xl p-4 bg-white transition-all ${
+        isActive ? "border-[#06B6D433]" : "border-gray-100 opacity-70"
+      }`}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <span
+          className={`text-xs rounded-full px-2.5 py-0.5 font-medium ${
+            CLAW_STATUS_STYLE[voucher.voucherStatus] ?? "bg-gray-100 text-gray-400"
+          }`}
+        >
+          {CLAW_STATUS_LABEL[voucher.voucherStatus] ?? voucher.voucherStatus}
+        </span>
+        <span className="text-xs text-gray-400">Expires {expiresDate}</span>
+      </div>
+
+      <div className="flex items-center gap-2 mb-2">
+        <div className="w-8 h-8 rounded-lg bg-[#06B6D411] shrink-0 flex items-center justify-center">
+          {voucher.rewardClass === RewardClass.Legendary ? (
+            <span className="text-base">⭐</span>
+          ) : (
+            <span className="text-[#0891B2]"><Ticket size={16} /></span>
+          )}
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs text-gray-400 truncate">
+            Akiba Claw · {CLAW_TIER_NAMES[voucher.tierId] ?? "—"} tier
+          </p>
+          <p className="font-semibold text-sm">
+            {voucher.rewardClass === RewardClass.Legendary ? "Legendary Voucher" : "Rare Voucher"}
+          </p>
+        </div>
+      </div>
+
+      <p className="text-[#0891B2] font-bold text-base mb-1">{clawDiscountLabel(voucher)}</p>
+      <p className="text-xs text-gray-400 mb-3">Valid at any participating merchant</p>
+
+      <div className="bg-gray-50 rounded-xl px-3 py-2 flex items-center justify-between">
+        <span className="font-mono text-xs tracking-widest text-gray-700 font-bold truncate">
+          #{voucher.voucherId}
+        </span>
+        <button
+          onClick={() => navigator.clipboard.writeText(voucher.voucherId)}
+          className="text-xs text-[#0891B2] font-medium shrink-0 ml-2"
+        >
+          Copy ID
+        </button>
+      </div>
+
+      {isActive && (
+        <Link
+          href="/claw"
+          className="mt-3 w-full bg-[#06B6D4] text-white rounded-xl h-10 text-sm font-medium flex items-center justify-center gap-1.5"
+        >
+          <span><Fire size={15} weight="bold" /></span>
+          Manage in Claw
+        </Link>
+      )}
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function VouchersPage() {
@@ -152,6 +259,9 @@ export default function VouchersPage() {
   const [vouchers, setVouchers] = useState<VoucherWithMeta[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const [clawVouchers, setClawVouchers] = useState<ClawVoucherRaw[]>([]);
+  const [clawLoading, setClawLoading] = useState(false);
 
   // Order sheet state
   const [orderOpen, setOrderOpen] = useState(false);
@@ -177,6 +287,20 @@ export default function VouchersPage() {
         setVouchers([]);
       })
       .finally(() => setLoading(false));
+  }, [address]);
+
+  // Load claw vouchers
+  useEffect(() => {
+    if (!address) return;
+    setClawLoading(true);
+    fetch(`/api/claw/vouchers/user/${address}`)
+      .then(async (r) => {
+        if (!r.ok) return;
+        const d = await r.json();
+        setClawVouchers(d.vouchers ?? []);
+      })
+      .catch(() => {})
+      .finally(() => setClawLoading(false));
   }, [address]);
 
   const handleOrder = (voucher: IssuedVoucher, merchant: SpendMerchant) => {
@@ -297,15 +421,59 @@ export default function VouchersPage() {
 
         {/* ── CLAW PRIZES ────────────────────────────────────────── */}
         <TabsContent value="claw">
-          <div className="flex flex-col items-center justify-center py-16 text-center px-6">
-            <div className="w-16 h-16 rounded-full bg-[#238D9D0D] flex items-center justify-center mb-4">
-              <Image src={akibaMilesSymbol} alt="" width={32} height={32} />
+          {clawLoading ? (
+            <div className="flex justify-center py-16">
+              <span className="animate-spin inline-flex text-[#06B6D4]"><Spinner size={32} /></span>
             </div>
-            <h3 className="font-semibold text-base mb-1">Claw prizes show up here</h3>
-            <p className="text-sm text-gray-400">
-              Win a Rare or Legendary item in the Claw game and your prize voucher will appear here.
-            </p>
-          </div>
+          ) : !address ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+              <div className="w-16 h-16 rounded-full bg-[#06B6D40D] flex items-center justify-center mb-4">
+                <span className="text-[#06B6D4]"><Ticket size={28} /></span>
+              </div>
+              <h3 className="font-semibold text-base mb-1">Connect your wallet</h3>
+              <p className="text-sm text-gray-400">Open AkibaMiles in MiniPay to see your claw prizes.</p>
+            </div>
+          ) : clawVouchers.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+              <div className="w-16 h-16 rounded-full bg-[#06B6D40D] flex items-center justify-center mb-4">
+                <Image src={akibaMilesSymbol} alt="" width={32} height={32} />
+              </div>
+              <h3 className="font-semibold text-base mb-1">No claw prizes yet</h3>
+              <p className="text-sm text-gray-400 mb-5">
+                Win a Rare or Legendary item in the Claw game to earn a prize voucher.
+              </p>
+              <Link href="/claw">
+                <Button title="Play Akiba Claw" className="bg-[#06B6D4] text-white rounded-xl px-6 h-11 font-medium" />
+              </Link>
+            </div>
+          ) : (
+            <>
+              {clawVouchers.filter((v) => v.voucherStatus === "active").length > 0 && (
+                <section className="mb-6">
+                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Active</h3>
+                  <div className="space-y-3">
+                    {clawVouchers
+                      .filter((v) => v.voucherStatus === "active")
+                      .map((v) => (
+                        <ClawVoucherCard key={v.voucherId} voucher={v} />
+                      ))}
+                  </div>
+                </section>
+              )}
+              {clawVouchers.filter((v) => v.voucherStatus !== "active").length > 0 && (
+                <section>
+                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Past</h3>
+                  <div className="space-y-3">
+                    {clawVouchers
+                      .filter((v) => v.voucherStatus !== "active")
+                      .map((v) => (
+                        <ClawVoucherCard key={v.voucherId} voucher={v} />
+                      ))}
+                  </div>
+                </section>
+              )}
+            </>
+          )}
         </TabsContent>
       </Tabs>
 

@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
 import type { Address } from 'viem'
 import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
-import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5, pods, phone, jbl,bag, sambuds, tv, soundbar, ps5, ebike, usdt, docking,camera,washmachine,chair} from '@/lib/img';
+import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5, pods, phone, jbl,bag, sambuds, tv, soundbar, ps5, ebike, usdt, docking,camera,washmachine,chair, claw } from '@/lib/img';
 import { Coin, akibaMilesSymbol } from '@/lib/svg';
 import { Question, ShoppingBag, Spinner } from '@phosphor-icons/react';
 import { StaticImageData } from 'next/image';
@@ -215,8 +215,9 @@ const nftRaffles = [
 ];
 
 const upcomingGames = [
-  { name: "Dice", date: "xx/xx/xx", image: Dice },
-  { name: "Coin flip", date: "xx/xx/xx", image: Coin },
+  { name: "Dice", date: "live", image: Dice, href: "/dice", locked: false },
+  { name: "Akiba Claw", date: "live", image: claw, href: "/claw", locked: false },
+  { name: "Coin flip", date: "xx/xx/xx", image: Coin, href: "", locked: true },
 ];
 
 const Page = () => {
@@ -440,23 +441,20 @@ const Page = () => {
         <SectionHeading title="Games" />
         <div className="flex space-x-3 overflow-x-auto px-4">
   {upcomingGames.map((game, idx) => {
-    const locked = game.name !== 'Dice'; // Dice is live, others locked
-
     const card = (
       <GameCard
         name={game.name}
         date={game.date}
         image={game.image}
-        locked={locked}
+        locked={game.locked}
       />
     );
 
-    if (!locked && game.name === 'Dice') {
-      // Dice is live → clickable
+    if (!game.locked && game.href) {
       return (
         <Link
           key={idx}
-          href="/dice"
+          href={game.href}
           className="shrink-0"
         >
           {card}
