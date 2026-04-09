@@ -107,6 +107,11 @@ export function DicePotCard({
   const entryLine = isUsd && usdMeta
     ? `$${usdMeta.entry.toFixed(2)} USDT`
     : `${selectedTier.toLocaleString()} Miles`;
+  const bonusLabel = milesTierBonus == null
+    ? null
+    : milesTierBonus < 0.01
+      ? `$${milesTierBonus.toFixed(3)}`
+      : `$${milesTierBonus.toFixed(2)}`;
 
   // Colors
   const accentGradient = isUsd
@@ -192,7 +197,7 @@ export function DicePotCard({
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[10px] font-semibold text-amber-800 leading-snug">
-                  ${milesTierBonus.toFixed(2)} USDT bonus for the winner
+                  {bonusLabel} USDT bonus for the winner
                 </p>
                 {bonusPool != null && (
                   <span className={`shrink-0 text-[9px] font-semibold tabular-nums ${bonusPool === 0n ? "text-red-500" : "text-amber-700"}`}>

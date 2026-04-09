@@ -32,7 +32,9 @@ export const USD_TIER_META: Record<UsdTier, UsdTierMeta> = {
 
 /** USDT bonus awarded to the winner of specific Miles tiers (in USD). */
 export const MILES_TIER_BONUS_USD: Partial<Record<MilesTier, number>> = {
-  30: 0.10,
+  10: 0.005,
+  20: 0.01,
+  30: 0.025,
 };
 
 // ── Round types ──────────────────────────────────────────────────

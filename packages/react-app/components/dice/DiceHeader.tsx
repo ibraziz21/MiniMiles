@@ -20,6 +20,10 @@ type DiceHeaderProps = {
   allowUsdMode?: boolean;
 };
 
+function formatBonusUsd(bonus: number) {
+  return bonus < 0.01 ? bonus.toFixed(3) : bonus.toFixed(2);
+}
+
 export function DiceHeader({
   onBack,
   mode,
@@ -119,7 +123,7 @@ export function DiceHeader({
               >
                 {bonus && (
                   <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full bg-amber-400 px-1.5 py-0.5 text-[7px] font-bold text-white leading-none shadow-sm whitespace-nowrap">
-                    +${bonus.toFixed(2)}
+                    +${formatBonusUsd(bonus)}
                   </span>
                 )}
                 <span className={`inline-flex items-center gap-0.5 text-[12px] font-bold ${isActive ? "text-[#238D9D]" : "text-slate-800"}`}>

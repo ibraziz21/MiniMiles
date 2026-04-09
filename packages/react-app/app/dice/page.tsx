@@ -30,6 +30,7 @@ import {
   type MilesTier,
   type UsdTier,
   MILES_TIERS,
+  MILES_TIER_BONUS_USD,
   USD_TIERS,
   USD_TIER_META,
   isUsdTierType,
@@ -188,16 +189,16 @@ export default function DicePage() {
     handleModeChange("akiba");
   }, [allowUsdDice, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── Bonus pool balance (tier 30 only) ──────────────────────── */
+  /* ── Bonus pool balance (Miles tiers with USDT bonus) ───────── */
 
   useEffect(() => {
-    if (selectedTier !== 30) { setBonusPool(null); return; }
+    if (isUsdTier || !MILES_TIER_BONUS_USD[selectedTier as MilesTier]) { setBonusPool(null); return; }
     getDiceBonusPool().then(setBonusPool).catch(() => setBonusPool(null));
     const id = setInterval(() => {
       getDiceBonusPool().then(setBonusPool).catch(() => {});
     }, 20000);
     return () => clearInterval(id);
-  }, [selectedTier, getDiceBonusPool]);
+  }, [isUsdTier, selectedTier, getDiceBonusPool]);
 
   /* ── USDT balance ───────────────────────────────────────────── */
 
