@@ -127,6 +127,8 @@ export async function POST(req: Request) {
       success: true,
       txHash: result.txHash,
       queued: result.queued,
+      points: result.points,
+      vaultBoost: result.vaultBoost,
     });
   } catch (err) {
     console.error("[seven_day_streak]", err);

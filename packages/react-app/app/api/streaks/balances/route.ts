@@ -69,7 +69,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      points,
+      points: result.points,
       txHash: result.txHash,
       queued: result.queued,
       claimedAt: result.scopeKey, // YYYY-MM-DD

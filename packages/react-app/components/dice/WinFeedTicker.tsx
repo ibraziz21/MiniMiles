@@ -21,7 +21,7 @@ function shortAddr(addr: string) {
 
 const POLL_INTERVAL = 30_000;
 
-export function WinFeedTicker() {
+export function WinFeedTicker({ showUsdWins = true }: { showUsdWins?: boolean }) {
   const [wins, setWins] = useState<WinEntry[]>([]);
   const [visible, setVisible] = useState(true);
   const seenRef = useRef<Set<string>>(new Set());
@@ -31,9 +31,9 @@ export function WinFeedTicker() {
       const res = await fetch("/api/dice/recent-wins");
       if (!res.ok) return;
       const data = await res.json();
-      const fresh: WinEntry[] = (data.wins ?? []).filter(
-        (w: WinEntry) => !seenRef.current.has(w.roundId)
-      );
+      const fresh: WinEntry[] = (data.wins ?? [])
+        .filter((w: WinEntry) => showUsdWins || w.pot.usdt <= 0)
+        .filter((w: WinEntry) => !seenRef.current.has(w.roundId));
       if (fresh.length === 0) return;
       fresh.forEach((w) => seenRef.current.add(w.roundId));
       setWins((prev) => [...fresh, ...prev].slice(0, 20));
@@ -46,7 +46,7 @@ export function WinFeedTicker() {
     fetchWins();
     const id = setInterval(fetchWins, POLL_INTERVAL);
     return () => clearInterval(id);
-  }, []);
+  }, [showUsdWins]);
 
   if (!visible || wins.length === 0) return null;
 

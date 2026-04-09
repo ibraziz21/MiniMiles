@@ -24,6 +24,7 @@ type Props = {
   lastRoundByTier?: Partial<Record<DiceTier, DiceRoundView | null>>;
   myAddress?: string | null;
   onTierChange?: (tier: DiceTier) => void;
+  allowUsdTiers?: boolean;
 };
 
 const NUMBER_COLORS: Record<number, string> = {
@@ -67,6 +68,7 @@ export function DiceStatsSheet({
   lastRoundByTier = {},
   myAddress,
   onTierChange,
+  allowUsdTiers = true,
 }: Props) {
   if (!open) return null;
 
@@ -84,7 +86,7 @@ export function DiceStatsSheet({
   const totalWon = playerStats?.totalWon ?? 0n;
   const isNet = totalWon >= totalStaked;
 
-  const allTiers: DiceTier[] = [...MILES_TIERS, ...USD_TIERS];
+  const allTiers: DiceTier[] = allowUsdTiers ? [...MILES_TIERS, ...USD_TIERS] : [...MILES_TIERS];
   const lastRoundEntries = allTiers
     .map((t) => ({ tier: t, round: lastRoundByTier[t] ?? null }))
     .filter((x) => !!x.round);
@@ -247,6 +249,7 @@ export function DiceStatsSheet({
                   );
                 })}
               </div>
+              {allowUsdTiers && (
               <div className="grid grid-cols-3 gap-1.5">
                 {([...USD_TIERS] as DiceTier[]).map((tier) => {
                   const stats = tierStatsByTier[tier];
@@ -273,6 +276,7 @@ export function DiceStatsSheet({
                   );
                 })}
               </div>
+              )}
             </div>
 
             {/* Recent rounds */}

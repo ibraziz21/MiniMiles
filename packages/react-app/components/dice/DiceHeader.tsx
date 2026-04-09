@@ -17,6 +17,7 @@ type DiceHeaderProps = {
   playerStats: PlayerStats;
   onOpenStats: () => void;
   stablecoinBalance: string | null;
+  allowUsdMode?: boolean;
 };
 
 export function DiceHeader({
@@ -29,6 +30,7 @@ export function DiceHeader({
   playerStats,
   onOpenStats,
   stablecoinBalance,
+  allowUsdMode = true,
 }: DiceHeaderProps) {
   const hasStats = !!tierStats || !!playerStats;
 
@@ -70,7 +72,7 @@ export function DiceHeader({
 
       {/* Row 2: Mode toggle + USDT balance (if USD mode) */}
       <div className="flex items-center gap-2">
-        <div className="flex-1 grid grid-cols-2 gap-1 rounded-xl border border-slate-200 bg-slate-50 p-0.5">
+        <div className={`flex-1 grid ${allowUsdMode ? "grid-cols-2" : "grid-cols-1"} gap-1 rounded-xl border border-slate-200 bg-slate-50 p-0.5`}>
           <button
             onClick={() => onModeChange("akiba")}
             className={`flex items-center justify-center gap-1 rounded-lg py-1.5 text-[11px] font-semibold transition-all ${
@@ -83,14 +85,19 @@ export function DiceHeader({
             Akiba
           </button>
 
-          {/* USDT tab — locked until release */}
-          <div className="relative flex items-center justify-center gap-1 rounded-lg py-1.5 text-[11px] font-semibold text-slate-300 cursor-not-allowed select-none">
-            <Image src={usdtSymbol} alt="USDT" width={12} height={12} className="opacity-40" />
-            <span className="opacity-40">USDT</span>
-            <span className="absolute -top-1.5 -right-1 rounded-full bg-slate-400 px-1.5 py-0.5 text-[7px] font-bold text-white leading-none shadow">
-              Soon
-            </span>
-          </div>
+          {allowUsdMode && (
+            <button
+              onClick={() => onModeChange("usd")}
+              className={`flex items-center justify-center gap-1 rounded-lg py-1.5 text-[11px] font-semibold transition-all ${
+                mode === "usd"
+                  ? "bg-white shadow-sm text-blue-600 border border-blue-200"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <Image src={usdtSymbol} alt="USDT" width={12} height={12} />
+              USDT
+            </button>
+          )}
         </div>
       </div>
 
@@ -124,7 +131,7 @@ export function DiceHeader({
             );
           })}
         </div>
-      ) : (
+      ) : allowUsdMode ? (
         <div className="grid grid-cols-3 gap-1.5">
           {USD_TIERS.map((tier) => {
             const meta = USD_TIER_META[tier];
@@ -147,7 +154,7 @@ export function DiceHeader({
             );
           })}
         </div>
-      )}
+      ) : null}
     </header>
   );
 }

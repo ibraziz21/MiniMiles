@@ -18,6 +18,7 @@ import { DicePotCard } from "@/components/dice/DicePotCard";
 import { WinnerToast } from "@/components/dice/WinnerToast";
 import { WinFeedTicker } from "@/components/dice/WinFeedTicker";
 import { RoundHistoryFeed } from "@/components/dice/RoundHistoryFeed";
+import { useIsMiniPay } from "@/hooks/useIsMiniPay";
 
 import {
   type DiceTier,
@@ -51,6 +52,8 @@ export default function DicePage() {
   } = useWeb3();
 
   const [mode, setMode] = useState<DiceMode>("akiba");
+  const isMiniPay = useIsMiniPay();
+  const allowUsdDice = isMiniPay === false;
   const [selectedTier, setSelectedTier] = useState<DiceTier>(10);
 
   const [round, setRound] = useState<DiceRoundView | null>(null);
@@ -167,6 +170,7 @@ export default function DicePage() {
   /* ── Mode change ────────────────────────────────────────────── */
 
   function handleModeChange(newMode: DiceMode) {
+    if (newMode === "usd" && !allowUsdDice) return;
     setMode(newMode);
     const firstTier = newMode === "akiba" ? MILES_TIERS[0] : USD_TIERS[0];
     setSelectedTier(firstTier);
@@ -178,6 +182,11 @@ export default function DicePage() {
     setIsApproved(false);
     setWinnerToast(null);
   }
+
+  useEffect(() => {
+    if (allowUsdDice || mode !== "usd") return;
+    handleModeChange("akiba");
+  }, [allowUsdDice, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Bonus pool balance (tier 30 only) ──────────────────────── */
 
@@ -193,9 +202,9 @@ export default function DicePage() {
   /* ── USDT balance ───────────────────────────────────────────── */
 
   useEffect(() => {
-    if (!address || !isUsdMode) { setStablecoinBalance(null); return; }
+    if (!address || !isUsdMode || !allowUsdDice) { setStablecoinBalance(null); return; }
     getStablecoinBalance().then(setStablecoinBalance).catch(() => setStablecoinBalance(null));
-  }, [address, isUsdMode, getStablecoinBalance]);
+  }, [address, isUsdMode, allowUsdDice, getStablecoinBalance]);
 
   /* ── Load round ─────────────────────────────────────────────── */
 
@@ -240,7 +249,7 @@ export default function DicePage() {
 
   const loadLastRounds = useCallback(async () => {
     if (!address) return;
-    const allTiers: DiceTier[] = [...MILES_TIERS, ...USD_TIERS];
+    const allTiers: DiceTier[] = allowUsdDice ? [...MILES_TIERS, ...USD_TIERS] : [...MILES_TIERS];
     const results = await Promise.allSettled(
       allTiers.map((t) => getLastResolvedRoundForPlayer(t))
     );
@@ -249,14 +258,14 @@ export default function DicePage() {
       map[allTiers[i]] = r.status === "fulfilled" ? (r.value as DiceRoundView | null) : null;
     });
     setLastRoundByTier(map);
-  }, [address, getLastResolvedRoundForPlayer]);
+  }, [address, allowUsdDice, getLastResolvedRoundForPlayer]);
 
   useEffect(() => { loadLastRounds(); }, [loadLastRounds]);
 
   /* ── Sweep all tiers ────────────────────────────────────────── */
 
   const sweepAllTiers = useCallback(async () => {
-    const allTiers: DiceTier[] = [...MILES_TIERS, ...USD_TIERS];
+    const allTiers: DiceTier[] = allowUsdDice ? [...MILES_TIERS, ...USD_TIERS] : [...MILES_TIERS];
     for (const tier of allTiers) {
       let view: DiceRoundView | null = null;
       try { view = await fetchDiceRound(tier); } catch { continue; }
@@ -299,7 +308,7 @@ export default function DicePage() {
         } catch { backgroundDrawRef.current.delete(key); }
       }
     }
-  }, [fetchDiceRound, selectedTier, requestingRandomnessRoundId, drawingRoundId]);
+  }, [fetchDiceRound, selectedTier, allowUsdDice, requestingRandomnessRoundId, drawingRoundId]);
 
   useEffect(() => {
     sweepAllTiers();
@@ -389,7 +398,7 @@ export default function DicePage() {
   }
 
   async function handleApprove() {
-    if (!selectedNumber || !canJoin || isApproving || isApproved || !isUsdTier) return;
+    if (!allowUsdDice || !selectedNumber || !canJoin || isApproving || isApproved || !isUsdTier) return;
     const usdMeta = USD_TIER_META[selectedTier as UsdTier];
     if (!usdMeta) return;
     const entryUnits = BigInt(Math.round(usdMeta.entry * 1_000_000));
@@ -406,7 +415,7 @@ export default function DicePage() {
 
   async function handleJoin() {
     if (!selectedNumber || !canJoin) return;
-    if (isUsdTier && !isApproved) return;
+    if (isUsdTier && (!allowUsdDice || !isApproved)) return;
     try {
       setIsJoining(true);
       await joinDice(selectedTier, selectedNumber);
@@ -468,11 +477,12 @@ export default function DicePage() {
             playerStats={playerStats}
             onOpenStats={() => setStatsOpen(true)}
             stablecoinBalance={stablecoinBalance}
+            allowUsdMode={allowUsdDice}
           />
         </div>
 
         {/* Live win feed */}
-        <WinFeedTicker />
+        <WinFeedTicker showUsdWins={allowUsdDice} />
 
         {/* Pot card — natural height */}
         <div>
@@ -537,6 +547,7 @@ export default function DicePage() {
         lastRoundByTier={lastRoundByTier}
         myAddress={address}
         onTierChange={(tier) => { setSelectedTier(tier); }}
+        allowUsdTiers={allowUsdDice}
       />
     </main>
   );

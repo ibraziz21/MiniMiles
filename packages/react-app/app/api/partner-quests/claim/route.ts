@@ -118,7 +118,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(
-      { minted: points, queued: true },
+      { minted: result.minted, points: result.points, basePoints: result.basePoints, vaultBoost: result.vaultBoost, queued: true },
       { status: 200 }
     );
   } catch (err) {

@@ -16,7 +16,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 export type StreakScope = "daily" | "weekly";
 
 type StreakClaimResult =
-  | { ok: true; txHash?: string; scopeKey: string; queued?: boolean; currentStreak: number; longestStreak: number }
+  | { ok: true; txHash?: string; scopeKey: string; queued?: boolean; points: number; currentStreak: number; longestStreak: number }
   | { ok: false; code: "already"; scopeKey: string; currentStreak: number; longestStreak: number }
   | { ok: false; code: "error"; scopeKey: string; message?: string; currentStreak: number; longestStreak: number };
 
@@ -235,6 +235,7 @@ export async function claimStreakReward(opts: {
     ok: true,
     txHash: result.txHash,
     queued: result.queued,
+    points: result.points,
     scopeKey: key,
     currentStreak: streak.currentStreak,
     longestStreak: streak.longestStreak,

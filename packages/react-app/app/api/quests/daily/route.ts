@@ -73,7 +73,7 @@ export async function POST(_req: Request) {
     }
 
     return Response.json(
-      { success: true, txHash: result.txHash, queued: result.queued },
+      { success: true, txHash: result.txHash, queued: result.queued, points: result.points, vaultBoost: result.vaultBoost },
       { status: 200 }
     );
   } catch (err: any) {

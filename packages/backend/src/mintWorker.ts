@@ -260,6 +260,13 @@ async function applyBatchPayloads(jobs: any[], txHash: string) {
     if (error) console.error("[mintWorker] bulk milestone_100:", error.message);
   }
 
+  // vault_daily_reward — no extra DB side-effects needed after mint.
+  // The vault_reward_snapshots row is already marked complete by the scheduler
+  // before jobs are enqueued. Nothing to do here beyond completing the job row.
+
+  // poll_completion — no extra side-effects: poll_responses.reward_queued is
+  // set at submit time (or by the watcher on retry). Nothing to do here.
+
   const { error: completeErr } = await supabase
     .from("minipoint_mint_jobs")
     .update({ status: "completed", tx_hash: txHash, updated_at: new Date().toISOString() })

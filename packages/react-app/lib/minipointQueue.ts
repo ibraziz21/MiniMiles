@@ -6,6 +6,8 @@ type DailyEngagementPayload = {
   questId: string;
   claimedAt: string;
   pointsAwarded: number;
+  basePoints?: number;
+  vaultBoost?: QuestVaultBoost;
 };
 
 type PartnerEngagementPayload = {
@@ -14,6 +16,8 @@ type PartnerEngagementPayload = {
   questId: string;
   claimedAt: string;
   pointsAwarded: number;
+  basePoints?: number;
+  vaultBoost?: QuestVaultBoost;
 };
 
 type ProfileMilestonePayload = {
@@ -33,12 +37,31 @@ type ReferralBonusPayload = {
   referredAddress: string;   // the referred wallet that triggered the bonus
 };
 
+export type VaultDailyRewardPayload = {
+  kind: "vault_daily_reward";
+  userAddress: string;
+  snapshotDate: string;      // YYYY-MM-DD
+  balanceUsdt: string;       // principal at snapshot time (6-dec numeric as string)
+  milesAwarded: number;
+};
+
+type PollCompletionPayload = {
+  kind: "poll_completion";
+  userAddress: string;
+  pollId: string;
+  pollSlug: string;
+  pointsAwarded: number;
+  submittedAt: string;
+};
+
 type MintJobPayload =
   | DailyEngagementPayload
   | PartnerEngagementPayload
   | ProfileMilestonePayload
   | NewUserSignupPayload
-  | ReferralBonusPayload;
+  | ReferralBonusPayload
+  | VaultDailyRewardPayload
+  | PollCompletionPayload;
 
 type MintJobRow = {
   id: string;
@@ -53,8 +76,74 @@ type MintJobRow = {
   payload: MintJobPayload;
 };
 
+type QuestVaultBoost = {
+  applied: boolean;
+  multiplier: number;
+  balanceUsdt?: string;
+  minBalanceUsdt: number;
+};
+
+type QuestReward = {
+  basePoints: number;
+  awardedPoints: number;
+  vaultBoost: QuestVaultBoost;
+};
+
+const VAULT_QUEST_REWARD_MULTIPLIER = Number(
+  process.env.VAULT_QUEST_REWARD_MULTIPLIER ??
+    process.env.NEXT_PUBLIC_VAULT_QUEST_REWARD_MULTIPLIER ??
+    "1.5"
+);
+const VAULT_QUEST_BOOST_MIN_BALANCE = Number(
+  process.env.VAULT_QUEST_BOOST_MIN_BALANCE ??
+    process.env.NEXT_PUBLIC_VAULT_QUEST_BOOST_MIN_BALANCE ??
+    "0.000001"
+);
+
 function isDuplicateError(error: any) {
   return error?.code === "23505";
+}
+
+async function getVaultBalanceUsdt(userAddress: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("vault_positions")
+    .select("balance_usdt")
+    .eq("wallet_address", userAddress.toLowerCase())
+    .maybeSingle();
+
+  if (error) {
+    console.error("[minipointQueue] vault position lookup failed", error.message);
+    return null;
+  }
+
+  return data?.balance_usdt == null ? null : String(data.balance_usdt);
+}
+
+async function computeQuestReward(userAddress: string, basePoints: number): Promise<QuestReward> {
+  const multiplier =
+    Number.isFinite(VAULT_QUEST_REWARD_MULTIPLIER) && VAULT_QUEST_REWARD_MULTIPLIER > 1
+      ? VAULT_QUEST_REWARD_MULTIPLIER
+      : 1;
+  const minBalanceUsdt =
+    Number.isFinite(VAULT_QUEST_BOOST_MIN_BALANCE) && VAULT_QUEST_BOOST_MIN_BALANCE > 0
+      ? VAULT_QUEST_BOOST_MIN_BALANCE
+      : 0;
+
+  const balanceUsdt = multiplier > 1 ? await getVaultBalanceUsdt(userAddress) : null;
+  const balance = Number(balanceUsdt ?? "0");
+  const applied = multiplier > 1 && Number.isFinite(balance) && balance >= minBalanceUsdt;
+  const awardedPoints = applied ? Math.ceil(basePoints * multiplier) : basePoints;
+
+  return {
+    basePoints,
+    awardedPoints,
+    vaultBoost: {
+      applied,
+      multiplier,
+      balanceUsdt: balanceUsdt ?? undefined,
+      minBalanceUsdt,
+    },
+  };
 }
 
 async function getMintJob(idempotencyKey: string): Promise<MintJobRow | null> {
@@ -120,22 +209,33 @@ export async function claimQueuedDailyReward(opts: {
   if (claimed) return { ok: false as const, code: "already" as const, scopeKey };
 
   const idempotencyKey = `daily:${questId}:${userLc}:${scopeKey}`;
+  const reward = await computeQuestReward(userLc, points);
 
   await ensureMintJob({
     idempotencyKey,
     userAddress: userLc,
-    points,
+    points: reward.awardedPoints,
     reason,
     payload: {
       kind: "daily_engagement",
       userAddress: userLc,
       questId,
       claimedAt: scopeKey,
-      pointsAwarded: points,
+      pointsAwarded: reward.awardedPoints,
+      basePoints: reward.basePoints,
+      vaultBoost: reward.vaultBoost,
     },
   });
 
-  return { ok: true as const, queued: true, txHash: undefined, scopeKey };
+  return {
+    ok: true as const,
+    queued: true,
+    txHash: undefined,
+    scopeKey,
+    points: reward.awardedPoints,
+    basePoints: reward.basePoints,
+    vaultBoost: reward.vaultBoost,
+  };
 }
 
 export async function claimQueuedProfileMilestone(opts: {
@@ -178,22 +278,33 @@ export async function claimQueuedPartnerReward(opts: {
   if (existing && existing.length > 0) return { ok: false as const, code: "already" as const };
 
   const idempotencyKey = `partner:${questId}:${userLc}`;
+  const reward = await computeQuestReward(userLc, points);
 
   await ensureMintJob({
     idempotencyKey,
     userAddress: userLc,
-    points,
+    points: reward.awardedPoints,
     reason,
     payload: {
       kind: "partner_engagement",
       userAddress: userLc,
       questId,
       claimedAt: new Date().toISOString(),
-      pointsAwarded: points,
+      pointsAwarded: reward.awardedPoints,
+      basePoints: reward.basePoints,
+      vaultBoost: reward.vaultBoost,
     },
   });
 
-  return { ok: true as const, queued: true, txHash: undefined, minted: points };
+  return {
+    ok: true as const,
+    queued: true,
+    txHash: undefined,
+    minted: reward.awardedPoints,
+    points: reward.awardedPoints,
+    basePoints: reward.basePoints,
+    vaultBoost: reward.vaultBoost,
+  };
 }
 
 export async function enqueueSimpleMint(opts: {
@@ -204,4 +315,55 @@ export async function enqueueSimpleMint(opts: {
   payload: NewUserSignupPayload | ReferralBonusPayload;
 }) {
   await ensureMintJob(opts);
+}
+
+export async function claimQueuedPollReward(opts: {
+  userAddress: string;
+  pollId: string;
+  pollSlug: string;
+  points: number;
+}) {
+  const { userAddress, pollId, pollSlug, points } = opts;
+  const userLc = userAddress.toLowerCase();
+  const idempotencyKey = `poll-completion:${pollId}:${userLc}`;
+
+  await ensureMintJob({
+    idempotencyKey,
+    userAddress: userLc,
+    points,
+    reason: `poll-completion:${pollSlug}`,
+    payload: {
+      kind: "poll_completion",
+      userAddress: userLc,
+      pollId,
+      pollSlug,
+      pointsAwarded: points,
+      submittedAt: new Date().toISOString(),
+    },
+  });
+}
+
+export async function enqueueVaultDailyReward(opts: {
+  userAddress: string;
+  snapshotDate: string;   // YYYY-MM-DD
+  balanceUsdt: string;    // numeric string e.g. "250.000000"
+  miles: number;
+}) {
+  const { userAddress, snapshotDate, balanceUsdt, miles } = opts;
+  const userLc = userAddress.toLowerCase();
+  const idempotencyKey = `vault-daily-reward:${snapshotDate}:${userLc}`;
+
+  await ensureMintJob({
+    idempotencyKey,
+    userAddress: userLc,
+    points: miles,
+    reason: `vault-daily-reward:${snapshotDate}`,
+    payload: {
+      kind: "vault_daily_reward",
+      userAddress: userLc,
+      snapshotDate,
+      balanceUsdt,
+      milesAwarded: miles,
+    },
+  });
 }

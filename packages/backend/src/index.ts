@@ -6,6 +6,8 @@ import { startMintWorker, runDrain, releaseCurrentLock } from "./mintWorker";
 import { startBurnBlacklistWatcher } from "./burnBlacklistWatcher";
 import { startProsperityPassWorker, releaseCurrentPassLock } from "./prosperityPassWorker";
 import { startDiceSweeper, runDiceSweep } from "./diceSweeper";
+import { startVaultEventWatcher } from "./vaultEventWatcher";
+import { startVaultRewardScheduler } from "./vaultRewardScheduler";
 
 dotenv.config();
 
@@ -54,6 +56,8 @@ app.listen(PORT, () => {
   startBurnBlacklistWatcher();
   startProsperityPassWorker();
   startDiceSweeper();
+  startVaultEventWatcher();
+  startVaultRewardScheduler();
 });
 
 // Release the mint queue lock before Railway (or any host) kills the process.
