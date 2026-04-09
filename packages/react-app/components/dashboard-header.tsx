@@ -1,19 +1,34 @@
 // src/components/dashboard-header.tsx
 import { GearSvg } from "@/lib/svg";
-import { Question, Trophy } from "@phosphor-icons/react";
+import { Fire, Question, Trophy } from "@phosphor-icons/react";
 import Image from "next/image";
 import Link from "next/link";
 
 export default function DashboardHeader({
   name,
   onOpenWinners,
+  onOpenStreaks,
+  streakCount = 0,
+  claimableStreakCount = 0,
+  urgentStreakCount = 0,
 }: {
   name: any;
   onOpenWinners?: () => void;
+  onOpenStreaks?: () => void;
+  streakCount?: number;
+  claimableStreakCount?: number;
+  urgentStreakCount?: number;
 }) {
   const initials = name && typeof name === 'string' && name.trim()
     ? name.trim().split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()
     : '?';
+
+  const hasActivity = claimableStreakCount > 0 || streakCount > 0;
+  const isUrgent = urgentStreakCount > 0;
+  const isClaimable = claimableStreakCount > 0;
+
+  // Badge count: claimable takes priority over active
+  const badgeCount = claimableStreakCount > 0 ? claimableStreakCount : streakCount;
 
   return (
     <div className="px-4 pt-4 flex justify-between items-center">
@@ -28,6 +43,41 @@ export default function DashboardHeader({
       </div>
 
       <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onOpenStreaks}
+          aria-label="View active streaks"
+          className="relative inline-flex items-center justify-center rounded-lg p-1.5 hover:bg-black/5 active:scale-[0.98]"
+        >
+          {/* Pulse ring when urgent or claimable */}
+          {(isUrgent || isClaimable) && (
+            <span
+              className={[
+                "absolute inset-0 rounded-lg animate-ping opacity-30",
+                isUrgent ? "bg-amber-400" : "bg-[#238D9D]",
+              ].join(" ")}
+              style={{ animationDuration: isUrgent ? "1s" : "2s" }}
+            />
+          )}
+
+          <Fire
+            size={24}
+            weight="duotone"
+            color={isUrgent ? "#D97706" : isClaimable ? "#238D9D" : streakCount > 0 ? "#238D9D" : "#9CA3AF"}
+          />
+
+          {hasActivity && (
+            <span
+              className={[
+                "absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold leading-none text-white",
+                isUrgent ? "bg-amber-500" : "bg-[#238D9D]",
+              ].join(" ")}
+            >
+              {badgeCount}
+            </span>
+          )}
+        </button>
+
         {/* Open latest winner modal */}
         <button
           type="button"

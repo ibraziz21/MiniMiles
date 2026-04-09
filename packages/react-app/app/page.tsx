@@ -44,6 +44,7 @@ import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";import { ProsperityPassCard } from "@/components/prosperity-claim";
 import { BadgesSection } from "@/components/BadgesSection";
+import { ActiveStreaksSheet } from "@/components/active-streaks-sheet";
 
 // Passport helper
 import { fetchSuperAccountForOwner } from "@/lib/prosperity-pass";
@@ -282,6 +283,8 @@ export default function Home() {
 
   const [akibaMilesBalance, setakibaMilesBalance] = useState("0");
   const [winnerOpen, setWinnerOpen] = useState(false);
+  const [streakSheetOpen, setStreakSheetOpen] = useState(false);
+  const [streakSummary, setStreakSummary] = useState({ activeCount: 0, claimableCount: 0, urgentCount: 0 });
 
   const [tokenRaffles, setTokenRaffles] = useState<TokenRaffleWithWinners[]>(
     []
@@ -668,9 +671,20 @@ const badgeButtonLabel =
         <WinningModal open={winnerOpen} onOpenChange={setWinnerOpen} />
       )}
 
+      <ActiveStreaksSheet
+        open={streakSheetOpen}
+        onOpenChange={setStreakSheetOpen}
+        onSummaryChange={setStreakSummary}
+        userAddress={address ?? undefined}
+      />
+
       <DashboardHeader
         name={headerName}
         onOpenWinners={() => setWinnerOpen(true)}
+        onOpenStreaks={() => setStreakSheetOpen(true)}
+        streakCount={streakSummary.activeCount}
+        claimableStreakCount={streakSummary.claimableCount}
+        urgentStreakCount={streakSummary.urgentCount}
       />
 
       <PointsCard points={Number(akibaMilesBalance)} />
