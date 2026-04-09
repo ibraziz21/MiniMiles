@@ -4,7 +4,7 @@
 import Image from "next/image";
 import { BarChart3 } from "lucide-react";
 import type { DiceTier, MilesTier, UsdTier, TierStats, PlayerStats, DiceMode } from "@/lib/diceTypes";
-import { MILES_TIERS, USD_TIERS, USD_TIER_META, MILES_TIER_BONUS_USD } from "@/lib/diceTypes";
+import { MILES_TIERS, USD_TIERS, USD_TIER_META, MILES_TIER_BONUS_USD, formatBonusUsd } from "@/lib/diceTypes";
 import { akibaMilesSymbol, usdtSymbol } from "@/lib/svg";
 
 type DiceHeaderProps = {
@@ -19,10 +19,6 @@ type DiceHeaderProps = {
   stablecoinBalance: string | null;
   allowUsdMode?: boolean;
 };
-
-function formatBonusUsd(bonus: number) {
-  return bonus < 0.01 ? bonus.toFixed(3) : bonus.toFixed(2);
-}
 
 export function DiceHeader({
   onBack,

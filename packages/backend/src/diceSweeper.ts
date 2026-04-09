@@ -36,7 +36,7 @@ const ACTIVE_TIERS: number[] = process.env.DICE_TIERS
   ? process.env.DICE_TIERS.split(",").map((t) => Number(t.trim()))
   : DEFAULT_TIERS;
 
-const FEE_BUFFER_BPS = Number(process.env.DICE_FEE_BUFFER_BPS ?? "1000"); // 10 %
+const FEE_BUFFER_BPS = Number(process.env.DICE_FEE_BUFFER_BPS ?? "0"); // no buffer — Witnet rejects excess
 const UNRESOLVED_RETRY_INTERVAL_SECONDS = Number(
   process.env.DICE_UNRESOLVED_RETRY_INTERVAL_SECONDS ?? "300"
 );

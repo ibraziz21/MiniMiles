@@ -14,6 +14,7 @@ import {
   shortAddress,
   isUsdTierType,
   formatUsdt,
+  formatBonusUsd,
 } from "@/lib/diceTypes";
 import { akibaMilesSymbol } from "@/lib/svg";
 import { RoundLeaderboard } from "./RoundLeaderboard";
@@ -107,11 +108,7 @@ export function DicePotCard({
   const entryLine = isUsd && usdMeta
     ? `$${usdMeta.entry.toFixed(2)} USDT`
     : `${selectedTier.toLocaleString()} Miles`;
-  const bonusLabel = milesTierBonus == null
-    ? null
-    : milesTierBonus < 0.01
-      ? `$${milesTierBonus.toFixed(3)}`
-      : `$${milesTierBonus.toFixed(2)}`;
+  const bonusLabel = milesTierBonus == null ? null : `$${formatBonusUsd(milesTierBonus)}`;
 
   // Colors
   const accentGradient = isUsd
@@ -166,7 +163,7 @@ export function DicePotCard({
                 <Image src={akibaMilesSymbol} alt="M" className="h-3.5 w-3.5" />
                 <span className="text-[15px] font-bold text-slate-900">{potSize.toLocaleString()}</span>
                 {milesTierBonus && (
-                  <span className="text-[10px] font-semibold text-blue-600">+ ${milesTierBonus.toFixed(2)}</span>
+                  <span className="text-[10px] font-semibold text-blue-600">+ ${formatBonusUsd(milesTierBonus)}</span>
                 )}
               </div>
             )}

@@ -109,6 +109,10 @@ export function isUsdTierType(tier: DiceTier): tier is UsdTier {
   return (USD_TIERS as readonly number[]).includes(tier);
 }
 
+export function formatBonusUsd(bonus: number) {
+  return Number(bonus.toFixed(6)).toString();
+}
+
 /** Human-readable pot value string for a given tier and mode. */
 export function tierPotLabel(tier: DiceTier): string {
   if (isUsdTierType(tier)) {
@@ -117,7 +121,7 @@ export function tierPotLabel(tier: DiceTier): string {
   }
   const bonus = MILES_TIER_BONUS_USD[tier as MilesTier];
   const base = `${(tier * 6).toLocaleString()} Miles`;
-  return bonus ? `${base} + $${bonus.toFixed(2)}` : base;
+  return bonus ? `${base} + $${formatBonusUsd(bonus)}` : base;
 }
 
 export function stateLabel(state: DiceRoundStateName) {
