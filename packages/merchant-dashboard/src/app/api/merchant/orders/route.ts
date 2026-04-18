@@ -2,8 +2,10 @@
 // Returns paginated orders for the authenticated merchant.
 // Query params:
 //   status  — filter by OrderStatus (optional)
+//   from    — ISO date string start (optional, e.g. 2025-01-01)
+//   to      — ISO date string end   (optional, e.g. 2025-01-31)
 //   page    — 1-indexed page number (default: 1)
-//   limit   — page size (default: 20, max: 100)
+//   limit   — page size (default: 20, max: 500)
 
 import { NextResponse } from "next/server";
 import { requireMerchantSession } from "@/lib/auth";
@@ -17,8 +19,10 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const statusFilter = searchParams.get("status") as OrderStatus | null;
+  const from = searchParams.get("from");
+  const to = searchParams.get("to");
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
-  const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") ?? "20", 10)));
+  const limit = Math.min(500, Math.max(1, parseInt(searchParams.get("limit") ?? "20", 10)));
   const offset = (page - 1) * limit;
 
   if (statusFilter && !ORDER_STATUSES.includes(statusFilter)) {
@@ -42,6 +46,12 @@ export async function GET(req: Request) {
 
   if (statusFilter) {
     query = query.eq("status", statusFilter);
+  }
+  if (from) {
+    query = query.gte("created_at", `${from}T00:00:00.000Z`);
+  }
+  if (to) {
+    query = query.lte("created_at", `${to}T23:59:59.999Z`);
   }
 
   const { data, error, count } = await query;

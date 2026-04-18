@@ -97,6 +97,7 @@ export interface PartnerSettings {
   notify_new_order: boolean;
   notify_stale_order: boolean;
   stale_threshold_hours: number;
+  wallet_address: string | null;
   updated_at: string;
 }
 
@@ -191,10 +192,53 @@ export interface OrdersListResponse {
   pageSize: number;
 }
 
+export interface MonthlyFinanceBucket {
+  month: string; // "YYYY-MM"
+  items_sold: number;
+  value_sold_cusd: number;
+  in_flight_cusd: number;
+  vouchers_used: number;
+}
+
+export interface VoucherStats {
+  active_templates: number;
+  outstanding_issued: number;
+  expiring_soon: number;
+}
+
 export interface OrderStatsResponse {
   new_orders: number;
   by_status: Record<OrderStatus, number>;
   recent_orders: MerchantOrder[];
+  monthly: MonthlyFinanceBucket[];
+  voucher_stats: VoucherStats;
+}
+
+// ── Finance ───────────────────────────────────────────────────────────────────
+
+export interface FinanceMonthly {
+  month: string; // "YYYY-MM"
+  revenue_cusd: number;
+  order_count: number;
+}
+
+export interface FinanceStats {
+  // Revenue
+  total_revenue_cusd: number;
+  this_month_revenue_cusd: number;
+  last_month_revenue_cusd: number;
+  // Orders
+  total_completed_orders: number;
+  this_month_completed_orders: number;
+  // Vouchers
+  active_voucher_templates: number;
+  issued_vouchers_outstanding: number; // issued but not redeemed
+  // Estimates
+  estimated_receivable_cusd: number; // revenue from orders in flight (accepted/packed/out_for_delivery)
+  // Monthly breakdown (last 6 months)
+  monthly: FinanceMonthly[];
+  // Payment details
+  wallet_address: string | null;
 }
 
 // ── Session ───────────────────────────────────────────────────────────────────

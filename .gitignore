@@ -2,6 +2,12 @@ node_modules
 .env
 packages/*/.env
 
+# Local env variants; keep committed examples/templates.
+.env.local
+.env.*.local
+packages/*/.env.local
+packages/*/.env.*.local
+
 # IntelliJ project files
 *.iml
 *.ipr
@@ -23,6 +29,26 @@ dist/
 nbdist/
 nbactions.xml
 nb-configuration.xml
+
+# Build outputs / generated framework files
+.next/
+out/
+coverage/
+*.tsbuildinfo
+packages/*/.next/
+packages/*/out/
+packages/*/coverage/
+
+# Hardhat / generated contract artifacts
+artifacts/
+cache/
+typechain/
+typechain-types/
+packages/*/artifacts/
+packages/*/cache/
+packages/*/typechain/
+packages/*/typechain-types/
+packages/*/ignition/deployments/
 
 usdtGraph
 cusdGraph

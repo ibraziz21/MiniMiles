@@ -62,6 +62,7 @@ export async function PATCH(req: Request) {
   const allowed = [
     "store_active", "logo_url", "support_email", "support_phone",
     "delivery_cities", "notify_new_order", "notify_stale_order", "stale_threshold_hours",
+    "wallet_address",
   ];
   const updates: Record<string, unknown> = {};
   for (const key of allowed) {
@@ -80,6 +81,16 @@ export async function PATCH(req: Request) {
     updates.delivery_cities = [...new Set((updates.delivery_cities as string[]).map((c) => c.trim()).filter(Boolean))];
     if ((updates.delivery_cities as string[]).length === 0) {
       return NextResponse.json({ error: "delivery_cities cannot be empty" }, { status: 400 });
+    }
+  }
+
+  if ("wallet_address" in updates) {
+    if (updates.wallet_address !== null && typeof updates.wallet_address !== "string") {
+      return NextResponse.json({ error: "wallet_address must be a string or null" }, { status: 400 });
+    }
+    // Basic EVM address format check
+    if (updates.wallet_address && !/^0x[0-9a-fA-F]{40}$/.test(updates.wallet_address as string)) {
+      return NextResponse.json({ error: "wallet_address must be a valid EVM address (0x...)" }, { status: 400 });
     }
   }
 

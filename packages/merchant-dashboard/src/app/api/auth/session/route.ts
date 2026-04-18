@@ -16,6 +16,7 @@ export async function GET() {
       email: session.email,
       partnerId: session.partnerId,
       partnerName: session.partnerName,
+      role: session.role ?? "staff",
     },
   });
 }

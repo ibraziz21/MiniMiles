@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, ShoppingBag, Package, Tag, BarChart2, Users, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, ShoppingBag, Package, Tag, BarChart2, Users, Settings, LogOut, Landmark, FileText } from "lucide-react";
 import { BrandMark } from "./BrandMark";
 
 interface SidebarProps {
@@ -16,6 +16,8 @@ const navItems = [
   { href: "/orders", label: "Orders", icon: ShoppingBag },
   { href: "/products", label: "Products", icon: Package },
   { href: "/vouchers", label: "Vouchers", icon: Tag },
+  { href: "/finance", label: "Finance", icon: Landmark },
+  { href: "/invoices", label: "Invoices", icon: FileText },
   { href: "/analytics", label: "Analytics", icon: BarChart2 },
   { href: "/team", label: "Team", icon: Users },
   { href: "/settings", label: "Settings", icon: Settings },
