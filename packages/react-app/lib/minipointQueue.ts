@@ -33,12 +33,22 @@ type ReferralBonusPayload = {
   referredAddress: string;   // the referred wallet that triggered the bonus
 };
 
+export type PollCompletionPayload = {
+  kind: "poll_completion";
+  userAddress: string;
+  pollId: string;
+  pollSlug: string;
+  pointsAwarded: number;
+  submittedAt: string;
+};
+
 type MintJobPayload =
   | DailyEngagementPayload
   | PartnerEngagementPayload
   | ProfileMilestonePayload
   | NewUserSignupPayload
-  | ReferralBonusPayload;
+  | ReferralBonusPayload
+  | PollCompletionPayload;
 
 type MintJobRow = {
   id: string;
@@ -204,4 +214,32 @@ export async function enqueueSimpleMint(opts: {
   payload: NewUserSignupPayload | ReferralBonusPayload;
 }) {
   await ensureMintJob(opts);
+}
+
+export async function claimQueuedPollReward(opts: {
+  userAddress: string;
+  pollId: string;
+  pollSlug: string;
+  points: number;
+}) {
+  const { userAddress, pollId, pollSlug, points } = opts;
+  const userLc = userAddress.toLowerCase();
+  const idempotencyKey = `poll-completion:${pollId}:${userLc}`;
+
+  await ensureMintJob({
+    idempotencyKey,
+    userAddress: userLc,
+    points,
+    reason: `poll-completion:${pollSlug}`,
+    payload: {
+      kind: "poll_completion",
+      userAddress: userLc,
+      pollId,
+      pollSlug,
+      pointsAwarded: points,
+      submittedAt: new Date().toISOString(),
+    },
+  });
+
+  return { ok: true as const, queued: true, txHash: undefined, points };
 }

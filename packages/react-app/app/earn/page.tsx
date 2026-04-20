@@ -5,6 +5,8 @@ import DailyChallenges from "@/components/daily-challenge";
 import PartnerQuests from "@/components/partner-quests";
 import EarnPartnerQuestSheet from "@/components/earn-partner-quest-sheet";
 import SuccessModal from "@/components/success-modal";
+import VerifiedInsights from "@/components/verified-insights";
+import PollSheet from "@/components/poll-sheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useWeb3 } from "@/contexts/useWeb3";
 import React, { useEffect, useState } from "react";
@@ -15,6 +17,11 @@ export default function EarnPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [quest, setQuest] = useState<any>(null);
   const [success, setSuccess] = useState(false);
+
+  // Verified Insights state
+  const [activePollId, setActivePollId] = useState<string | null>(null);
+  const [pollSheetOpen, setPollSheetOpen] = useState(false);
+  const [pollRefreshKey, setPollRefreshKey] = useState(0);
 
   /* wallet + balance */
   useEffect(() => { getUserAddress(); }, [getUserAddress]);
@@ -27,6 +34,20 @@ export default function EarnPage() {
   }, [address, getakibaMilesBalance]);
 
   const openQuest = (q: any) => { setQuest(q); setSheetOpen(true); };
+
+  const handleOpenPoll = (pollId: string) => {
+    setActivePollId(pollId);
+    setPollSheetOpen(true);
+  };
+
+  const handlePollSuccess = (rewardPoints: number) => {
+    // Refresh poll list so completion state updates
+    setPollRefreshKey((k) => k + 1);
+    if (rewardPoints > 0) {
+      // Reuse the existing success modal
+      setSuccess(true);
+    }
+  };
 
   return (
     <main className="pb-24 font-sterling">
@@ -67,8 +88,13 @@ export default function EarnPage() {
         </div>
           <DailyChallenges />
 
-
           <PartnerQuests openPopup={openQuest} />
+
+          {/* ── Verified Insights ───────────────────── */}
+          <VerifiedInsights
+            onOpenPoll={handleOpenPoll}
+            refreshKey={pollRefreshKey}
+          />
         </TabsContent>
 
         {/* -- COMPLETED tab ------------------------ */}
@@ -89,6 +115,12 @@ export default function EarnPage() {
         onOpenChange={setSheetOpen}
         quest={quest}
         setOpenSuccess={setSuccess}
+      />
+      <PollSheet
+        pollId={activePollId}
+        open={pollSheetOpen}
+        onOpenChange={setPollSheetOpen}
+        onSuccess={handlePollSuccess}
       />
       <SuccessModal openSuccess={success} setOpenSuccess={setSuccess} />
     </main>

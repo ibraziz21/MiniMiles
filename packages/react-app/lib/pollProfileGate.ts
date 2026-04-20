@@ -37,9 +37,11 @@ export async function checkPollProfileGate(
     .maybeSingle();
 
   if (error) {
-    // Degrade gracefully on DB error — don't block the user
+    // Fail closed on DB error for the submit path — do not award rewards when
+    // we cannot verify eligibility. The caller (GET list) can choose to treat
+    // this as ineligible; the submit route will reject with not_eligible.
     console.error("[pollProfileGate] DB error", error);
-    return { ok: true, completionPct: 0 };
+    return { ok: false, completionPct: 0, missing: ["profile data (DB error — please retry)"] };
   }
 
   const row = data ?? {};

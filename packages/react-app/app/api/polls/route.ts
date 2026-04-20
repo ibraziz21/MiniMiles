@@ -5,12 +5,13 @@ import { supabase } from "@/lib/supabaseClient";
 import { requireSession } from "@/lib/auth";
 import { isBlacklisted } from "@/lib/blacklist";
 import { checkPollProfileGate } from "@/lib/pollProfileGate";
+import { checkPollRewardEligibility } from "@/lib/pollEligibility";
 import type { PollRow, PollSummary } from "@/types/polls";
 
 export async function GET() {
   try {
     const session = await requireSession();
-    const walletAddress = session?.walletAddress ?? null;
+    const walletAddress = session?.walletAddress?.toLowerCase() ?? null;
 
     // Blacklist check — blacklisted wallets see no eligible polls
     if (walletAddress && await isBlacklisted(walletAddress, "polls")) {
@@ -46,14 +47,38 @@ export async function GET() {
       }
     }
 
-    // Profile completion check — one DB query, reused across all polls
-    // We compute it once because all reward-bearing polls share the same wallet.
-    // Individual polls may have different min_profile_pct thresholds.
+    // Fetch user profile data needed for targeting gates (one query)
+    let userCountry: string | null = null;
+    let userTraitVerified = false;
+    let stablecoinEligible: boolean | null = null; // null = not yet checked
+
+    if (walletAddress) {
+      const { data: userRow } = await supabase
+        .from("users")
+        .select("country, trait_verification_status")
+        .eq("user_address", walletAddress)
+        .maybeSingle();
+
+      const row = userRow as { country?: string; trait_verification_status?: string } | null;
+      userCountry = row?.country?.toUpperCase() ?? null;
+      userTraitVerified = row?.trait_verification_status === "verified";
+    }
+
+    // Profile completion — one DB query reused across all polls
     const maxMinPct = Math.max(...(polls as PollRow[]).map((p) => p.min_profile_pct ?? 0));
     let profilePct = 100; // default pass when no gate needed
     if (walletAddress && maxMinPct > 0) {
       const gate = await checkPollProfileGate(walletAddress, maxMinPct);
       profilePct = gate.completionPct;
+    }
+
+    // Stablecoin / reward eligibility — only fetch once if any poll needs it
+    const needsEligibilityCheck = (polls as PollRow[]).some(
+      (p) => p.require_stablecoin_holder || p.reward_points > 0
+    );
+    if (walletAddress && needsEligibilityCheck) {
+      const eligibility = await checkPollRewardEligibility(walletAddress);
+      stablecoinEligible = eligibility.eligible;
     }
 
     const now = new Date();
@@ -80,6 +105,30 @@ export async function GET() {
         ineligible_reason = "closed";
       }
 
+      // Country gate
+      if (eligible && walletAddress && poll.require_country) {
+        if (!userCountry || userCountry !== poll.require_country.toUpperCase()) {
+          eligible = false;
+          ineligible_reason = "wrong_region";
+        }
+      }
+
+      // Stablecoin holder gate
+      if (eligible && walletAddress && poll.require_stablecoin_holder) {
+        if (stablecoinEligible === false) {
+          eligible = false;
+          ineligible_reason = "not_eligible";
+        }
+      }
+
+      // Self Protocol verification gates
+      if (eligible && walletAddress && (poll.require_trait_verified_age || poll.require_trait_verified_country)) {
+        if (!userTraitVerified) {
+          eligible = false;
+          ineligible_reason = "verification_required";
+        }
+      }
+
       // Profile completion gate
       const minPct = poll.min_profile_pct ?? 0;
       if (eligible && walletAddress && minPct > 0 && profilePct < minPct) {
@@ -87,8 +136,14 @@ export async function GET() {
         ineligible_reason = "profile_incomplete";
       }
 
-      // Future gates (require_country, require_stablecoin_holder, Self Protocol)
-      // are left as pass-through at MVP — hook them in here when ready.
+      // Reward eligibility gate (for reward-bearing polls that don't already
+      // gate on stablecoin holder — avoids double-checking)
+      if (eligible && walletAddress && poll.reward_points > 0 && !poll.require_stablecoin_holder) {
+        if (stablecoinEligible === false) {
+          eligible = false;
+          ineligible_reason = "not_eligible";
+        }
+      }
 
       return {
         id: poll.id,

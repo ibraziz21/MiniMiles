@@ -7,6 +7,8 @@ export type QuestionKind = "single_choice" | "multi_select" | "short_text";
 
 export type PollStatus = "draft" | "active" | "closed";
 
+export const POLL_TERMS_VERSION = "akiba-verified-insights-v1";
+
 // ── DB row shapes (server-side) ───────────────────────────────────────────────
 
 export interface PollRow {
@@ -56,6 +58,9 @@ export interface PollResponseRow {
   wallet_address: string;
   reward_queued: boolean;
   reward_points_awarded: number | null;
+  accepted_terms: boolean;
+  terms_version: string | null;
+  accepted_terms_at: string | null;
   // Future Self Protocol verification metadata
   verification_source: string | null;
   trait_verification_status: "verified" | "unverified" | null;
@@ -94,10 +99,13 @@ export interface PollSummary {
   eligible: boolean;
   /**
    * Set when eligible is false. Known values:
-   *   "profile_incomplete" — wallet needs to complete more of their profile
-   *   "not_started"        — poll hasn't opened yet
-   *   "closed"             — poll has ended
-   *   "auth_required"      — not signed in
+   *   "profile_incomplete"    — wallet needs to complete more of their profile
+   *   "not_started"           — poll hasn't opened yet
+   *   "closed"                — poll has ended
+   *   "auth_required"         — not signed in
+   *   "wrong_region"          — wallet's country does not match require_country
+   *   "not_eligible"          — general eligibility gate (stablecoin, reward history)
+   *   "verification_required" — Self Protocol trait verification needed
    */
   ineligible_reason?: string;
   questions?: PollQuestion[]; // only in detail response
@@ -116,6 +124,8 @@ export interface PollAnswerPayload {
 export interface PollSubmitRequest {
   poll_id: string;
   answers: PollAnswerPayload[];
+  accepted_terms: boolean;
+  terms_version: string;
 }
 
 export interface PollSubmitResponse {

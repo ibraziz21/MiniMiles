@@ -234,6 +234,9 @@ async function applyBatchPayloads(jobs: any[], txHash: string) {
     .filter((j) => j.payload?.kind === "profile_milestone" && j.payload.milestone !== 50)
     .map((j) => j.payload.userAddress.toLowerCase());
 
+  // poll_completion: reconcile reward_queued status back onto the response row
+  const pollJobs = jobs.filter((j) => j.payload?.kind === "poll_completion");
+
   if (dailyRows.length > 0) {
     const { error } = await supabase
       .from("daily_engagements")
@@ -258,6 +261,18 @@ async function applyBatchPayloads(jobs: any[], txHash: string) {
     const { error } = await supabase
       .from("users").update({ profile_milestone_100_claimed: true }).in("user_address", m100);
     if (error) console.error("[mintWorker] bulk milestone_100:", error.message);
+  }
+
+  // For each confirmed poll_completion job, mark the matching poll_responses
+  // row as reward_queued=true (it was already set at submit time, but if the
+  // enqueue failed there and a retry succeeded here, this closes the gap).
+  for (const job of pollJobs) {
+    const { error } = await supabase
+      .from("poll_responses")
+      .update({ reward_queued: true })
+      .eq("poll_id", job.payload.pollId)
+      .eq("wallet_address", job.payload.userAddress);
+    if (error) console.error(`[mintWorker] poll_completion reconcile ${job.id}:`, error.message);
   }
 
   const { error: completeErr } = await supabase

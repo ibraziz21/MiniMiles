@@ -7,11 +7,12 @@ import Image from "next/image";
 import { akibaMilesSymbol } from "@/lib/svg";
 import { CheckCircle2, ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import Link from "next/link";
-import type {
-  PollSummary,
-  PollQuestion,
-  PollAnswerPayload,
-  PollSubmitResponse,
+import {
+  POLL_TERMS_VERSION,
+  type PollSummary,
+  type PollQuestion,
+  type PollAnswerPayload,
+  type PollSubmitResponse,
 } from "@/types/polls";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -347,19 +348,17 @@ function QuestionSlide({
 function ReviewScreen({
   questions,
   answers,
-  rewardPoints,
-  submitting,
+  acceptedTerms,
   error,
+  onAcceptedTermsChange,
   onEdit,
-  onSubmit,
 }: {
   questions: PollQuestion[];
   answers: AnswerState;
-  rewardPoints: number;
-  submitting: boolean;
+  acceptedTerms: boolean;
   error: string | null;
+  onAcceptedTermsChange: (accepted: boolean) => void;
   onEdit: (index: number) => void;
-  onSubmit: () => void;
 }) {
   return (
     <div className="px-4 pt-4 pb-2">
@@ -402,6 +401,21 @@ function ReviewScreen({
           );
         })}
       </div>
+
+      <label className="mb-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-[#C8EEED] bg-[#F0FAF9] px-4 py-3">
+        <input
+          type="checkbox"
+          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#238D9D] focus:ring-[#238D9D]"
+          checked={acceptedTerms}
+          onChange={(e) => onAcceptedTermsChange(e.target.checked)}
+        />
+        <span className="text-xs leading-relaxed text-gray-600">
+          I agree that Akiba may use my wallet-linked responses to improve products,
+          rewards, games, and merchant partnerships, and may share aggregated insights
+          with partners. Individual responses are not sold. Rewards may be withheld for
+          abuse, duplicate submissions, or ineligible wallets.
+        </span>
+      </label>
 
       {error && (
         <p className="text-xs text-red-500 text-center mb-3">{error}</p>
@@ -501,6 +515,7 @@ const PollSheet = ({ pollId, open, onOpenChange, onSuccess }: PollSheetProps) =>
   const [direction, setDirection] = useState<"forward" | "backward">("forward");
   const [slideKey, setSlideKey] = useState(0);
   const [doneReward, setDoneReward] = useState(0);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   // Load poll when sheet opens; restore draft if one exists
   useEffect(() => {
@@ -517,6 +532,7 @@ const PollSheet = ({ pollId, open, onOpenChange, onSuccess }: PollSheetProps) =>
         // Restore draft — but only if the poll isn't already completed
         if (!data.poll.completed) {
           const draft = loadDraft(pollId);
+          setAcceptedTerms(false);
           if (draft && Object.keys(draft.answers).length > 0) {
             setAnswers(draft.answers);
             setCurrentIndex(draft.currentIndex ?? 0);
@@ -529,6 +545,7 @@ const PollSheet = ({ pollId, open, onOpenChange, onSuccess }: PollSheetProps) =>
         } else {
           setAnswers({});
           setCurrentIndex(0);
+          setAcceptedTerms(false);
           setStep("intro");
         }
       })
@@ -591,6 +608,10 @@ const PollSheet = ({ pollId, open, onOpenChange, onSuccess }: PollSheetProps) =>
 
   const handleSubmit = async () => {
     if (!poll?.questions) return;
+    if (!acceptedTerms) {
+      setError("Please accept the poll terms before submitting.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
 
@@ -601,6 +622,8 @@ const PollSheet = ({ pollId, open, onOpenChange, onSuccess }: PollSheetProps) =>
         body: JSON.stringify({
           poll_id: poll.id,
           answers: buildPayload(questions, answers),
+          accepted_terms: true,
+          terms_version: POLL_TERMS_VERSION,
         }),
       });
       const data: PollSubmitResponse = await res.json();
@@ -695,50 +718,125 @@ const PollSheet = ({ pollId, open, onOpenChange, onSuccess }: PollSheetProps) =>
 
       {/* Privacy note */}
       <p className="text-center text-[11px] text-gray-400 leading-relaxed pt-1">
-        🔒 Your answers are used in aggregate to improve Akiba features.
-        Individual responses are never shared or sold.
+        Your responses are linked to your wallet for rewards and eligibility.
+        Akiba uses them for product analysis and partner-level aggregate insights.
       </p>
     </div>
   );
 
-  // ── Profile-locked screen ─────────────────────────────────────────────────
-  const ProfileLockedScreen = () => (
-    <div className="px-4 pb-8 pt-4 flex flex-col items-center text-center space-y-5">
-      <div className="h-16 w-16 rounded-full bg-amber-100 flex items-center justify-center">
-        <svg viewBox="0 0 24 24" fill="none" className="h-8 w-8 text-amber-500" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-        </svg>
+  // ── Ineligible screens (all non-profile-incomplete reasons) ─────────────
+  const IneligibleScreen = ({ reason }: { reason: string }) => {
+    const config: Record<string, { icon: React.ReactNode; title: string; body: string; cta?: React.ReactNode }> = {
+      profile_incomplete: {
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" className="h-8 w-8 text-amber-500" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+        ),
+        title: "Profile required",
+        body: "Complete your Akiba profile to unlock Verified Insights. Your answers are more valuable when we know a bit about you.",
+        cta: (
+          <Link
+            href="/profile"
+            className="w-full flex items-center justify-center gap-2 rounded-2xl py-4 bg-[#238D9D] text-white text-sm font-semibold hover:bg-[#1b6b76] transition-colors"
+            onClick={() => onOpenChange(false)}
+          >
+            Complete my profile
+            <ChevronRight className="h-4 w-4" />
+          </Link>
+        ),
+      },
+      auth_required: {
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" className="h-8 w-8 text-[#238D9D]" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+          </svg>
+        ),
+        title: "Sign in to participate",
+        body: "Connect your wallet to unlock surveys and earn Akiba Miles.",
+      },
+      not_started: {
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" className="h-8 w-8 text-gray-400" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+          </svg>
+        ),
+        title: "Survey not open yet",
+        body: "This survey hasn't started yet. Check back soon.",
+      },
+      closed: {
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" className="h-8 w-8 text-gray-400" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+          </svg>
+        ),
+        title: "Survey closed",
+        body: "This survey is no longer accepting responses.",
+      },
+      wrong_region: {
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" className="h-8 w-8 text-gray-400" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" />
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+          </svg>
+        ),
+        title: "Not available in your region",
+        body: "This survey is only available in certain regions at this time.",
+      },
+      verification_required: {
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" className="h-8 w-8 text-[#238D9D]" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+        ),
+        title: "Verification required",
+        body: "This survey requires identity verification via Self Protocol. Verification will be available soon.",
+      },
+      not_eligible: {
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" className="h-8 w-8 text-gray-400" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+          </svg>
+        ),
+        title: "Not eligible",
+        body: "You don't currently meet the requirements for this survey. Keep using Akiba and check back later.",
+      },
+    };
+
+    const { icon, title, body, cta } = config[reason] ?? config["not_eligible"];
+
+    return (
+      <div className="px-4 pb-8 pt-4 flex flex-col items-center text-center space-y-5">
+        <div className="h-16 w-16 rounded-full bg-gray-100 flex items-center justify-center">
+          {icon}
+        </div>
+        <div>
+          <p className="text-lg font-semibold text-gray-900">{title}</p>
+          <p className="text-sm text-gray-500 mt-1 leading-relaxed">{body}</p>
+        </div>
+        {cta ?? (
+          <button
+            type="button"
+            className="w-full flex items-center justify-center gap-2 rounded-2xl py-4 border-2 border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors"
+            onClick={() => onOpenChange(false)}
+          >
+            Close
+          </button>
+        )}
+        {cta && (
+          <button
+            type="button"
+            className="text-xs text-gray-400 hover:text-gray-600"
+            onClick={() => onOpenChange(false)}
+          >
+            Maybe later
+          </button>
+        )}
       </div>
-      <div>
-        <p className="text-lg font-semibold text-gray-900">Profile required</p>
-        <p className="text-sm text-gray-500 mt-1 leading-relaxed">
-          Complete your Akiba profile to unlock Verified Insights.
-        </p>
-      </div>
-      <div className="w-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-left space-y-1">
-        <p className="text-xs font-semibold text-amber-700">Why we ask</p>
-        <p className="text-xs text-amber-600 leading-relaxed">
-          Your profile helps us send you the right surveys and makes your answers more valuable for research.
-        </p>
-      </div>
-      <Link
-        href="/profile"
-        className="w-full flex items-center justify-center gap-2 rounded-2xl py-4 bg-[#238D9D] text-white text-sm font-semibold hover:bg-[#1b6b76] transition-colors"
-        onClick={() => onOpenChange(false)}
-      >
-        Complete my profile
-        <ChevronRight className="h-4 w-4" />
-      </Link>
-      <button
-        type="button"
-        className="text-xs text-gray-400 hover:text-gray-600"
-        onClick={() => onOpenChange(false)}
-      >
-        Maybe later
-      </button>
-    </div>
-  );
+    );
+  };
+
 
   // ── Derive header subtitle for review step ────────────────────────────────
   const headerSub =
@@ -826,13 +924,13 @@ const PollSheet = ({ pollId, open, onOpenChange, onSuccess }: PollSheetProps) =>
             </div>
           )}
 
-          {/* Intro — profile-locked variant */}
-          {!loading && !poll?.completed && step === "intro" && poll?.ineligible_reason === "profile_incomplete" && (
-            <ProfileLockedScreen />
+          {/* Ineligible state — any reason that blocks participation */}
+          {!loading && !poll?.completed && step === "intro" && poll && !poll.eligible && (
+            <IneligibleScreen reason={poll.ineligible_reason ?? "not_eligible"} />
           )}
 
-          {/* Intro — normal */}
-          {!loading && !poll?.completed && step === "intro" && poll && poll.ineligible_reason !== "profile_incomplete" && (
+          {/* Intro — eligible, not yet completed */}
+          {!loading && !poll?.completed && step === "intro" && poll?.eligible && (
             <IntroScreen />
           )}
 
@@ -857,11 +955,10 @@ const PollSheet = ({ pollId, open, onOpenChange, onSuccess }: PollSheetProps) =>
             <ReviewScreen
               questions={questions}
               answers={answers}
-              rewardPoints={poll?.reward_points ?? 0}
-              submitting={submitting}
+              acceptedTerms={acceptedTerms}
               error={error}
+              onAcceptedTermsChange={setAcceptedTerms}
               onEdit={editFromReview}
-              onSubmit={handleSubmit}
             />
           )}
 
@@ -918,7 +1015,7 @@ const PollSheet = ({ pollId, open, onOpenChange, onSuccess }: PollSheetProps) =>
             <Button
               className="flex-1 rounded-2xl py-5 bg-[#238D9D] text-white hover:bg-[#1b6b76] disabled:opacity-50"
               title={submitting ? "Submitting…" : error ? "Retry" : `Submit & Earn ${poll?.reward_points}`}
-              disabled={submitting || !allAnswered(questions, answers)}
+              disabled={submitting || !acceptedTerms || !allAnswered(questions, answers)}
               onClick={handleSubmit}
             >
               {submitting ? (

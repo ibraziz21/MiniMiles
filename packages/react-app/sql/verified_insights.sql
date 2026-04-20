@@ -79,6 +79,9 @@ CREATE TABLE IF NOT EXISTS poll_responses (
   wallet_address          text        NOT NULL,   -- lowercase 0x…
   reward_queued           bool        NOT NULL DEFAULT false,
   reward_points_awarded   int,
+  accepted_terms          bool        NOT NULL DEFAULT false,
+  terms_version           text,
+  accepted_terms_at       timestamptz,
   -- Future Self Protocol verification metadata
   verification_source     text,                  -- e.g. "self_protocol" or NULL
   trait_verification_status text                 -- e.g. "verified" / "unverified" / NULL
@@ -89,6 +92,12 @@ CREATE TABLE IF NOT EXISTS poll_responses (
 
 CREATE INDEX IF NOT EXISTS idx_poll_responses_wallet  ON poll_responses (wallet_address);
 CREATE INDEX IF NOT EXISTS idx_poll_responses_poll_id ON poll_responses (poll_id);
+
+-- Existing environments may already have poll_responses from an earlier draft.
+ALTER TABLE poll_responses
+  ADD COLUMN IF NOT EXISTS accepted_terms bool NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS terms_version text,
+  ADD COLUMN IF NOT EXISTS accepted_terms_at timestamptz;
 
 
 -- ── 5. poll_response_answers ─────────────────────────────────────────────
@@ -149,29 +158,28 @@ DROP POLICY IF EXISTS "service_role_all" ON poll_audience_rules;
 -- Service role (server-side API) bypasses RLS by design.
 
 
--- ── 8. Seed — Merchant / Voucher Launch Survey ───────────────────────────
--- One sample poll with a richer set of market-research questions
--- for the internal pilot.
+-- ── 8. Seed — Akiba Verified Insights Poll v1 ─────────────────────────────
+-- One production-ready poll that captures demographics, reward preferences,
+-- merchant/voucher demand, game direction, Dice feedback, and claw/voucher
+-- validation.
 -- Run this block once after the schema migration.
 
 DO $$
 DECLARE
   v_poll_id    uuid;
-  v_q1_id      uuid;
-  v_q2_id      uuid;
-  v_q3_id      uuid;
-  v_q4_id      uuid;
-  v_q5_id      uuid;
-  v_q6_id      uuid;
-  v_q7_id      uuid;
-  v_q8_id      uuid;
+  v_q_id       uuid;
 BEGIN
+  -- Retire the older seed campaign so only this v1 poll is active by default.
+  UPDATE polls
+  SET status = 'closed', updated_at = now()
+  WHERE slug = 'merchant-vouchers-launch-2026';
+
   -- Upsert poll so seed content can evolve during development.
   INSERT INTO polls (slug, title, description, reward_points, status)
   VALUES (
-    'merchant-vouchers-launch-2026',
-    'Merchant & Voucher Launch Survey',
-    'Help shape Akiba''s upcoming merchant and voucher experience. Tell us how you shop, what discounts matter, and how delivery and redemption should work. Takes ~3 min.',
+    'akiba-verified-insights-v1',
+    'Akiba Verified Insights Poll',
+    'Help shape Akiba''s vouchers, games, rewards, and next product direction. Takes about 3 minutes.',
     50,
     'active'
   )
@@ -182,89 +190,191 @@ BEGIN
         status = EXCLUDED.status
   RETURNING id INTO v_poll_id;
 
-  -- Clear existing seeded questions/options so reruns keep content in sync.
+  -- Safely reseed questions/options ONLY when no responses exist yet.
+  -- Once real submissions exist, DELETE FROM poll_questions would cascade to
+  -- poll_response_answers via ON DELETE CASCADE and permanently destroy survey
+  -- data. In that case, skip the content update and raise a notice instead.
+  -- To update questions on a live poll: close the old poll (status='closed'),
+  -- create a new poll with a versioned slug, and seed the new one.
+  IF EXISTS (SELECT 1 FROM poll_responses WHERE poll_id = v_poll_id LIMIT 1) THEN
+    RAISE NOTICE 'Seed skipped for poll % — responses already exist. To change questions, create a new poll slug.', v_poll_id;
+    RETURN;
+  END IF;
+
+  -- No responses yet — safe to clear and reseed questions/options.
   DELETE FROM poll_questions WHERE poll_id = v_poll_id;
 
-  -- Question 1: single choice
+  -- Question 1: age group
   INSERT INTO poll_questions (poll_id, position, question, kind)
-  VALUES (v_poll_id, 1, 'Which voucher reward would make you most likely to redeem with an Akiba merchant partner?', 'single_choice')
-  RETURNING id INTO v_q1_id;
+  VALUES (v_poll_id, 1, 'Which age group are you in?', 'single_choice')
+  RETURNING id INTO v_q_id;
 
   INSERT INTO poll_options (question_id, position, label) VALUES
-    (v_q1_id, 1, 'Percentage discount voucher'),
-    (v_q1_id, 2, 'Fixed amount off voucher'),
-    (v_q1_id, 3, 'Buy-one-get-one offer'),
-    (v_q1_id, 4, 'Free delivery / convenience perk'),
-    (v_q1_id, 5, 'Cashback in Akiba Miles');
+    (v_q_id, 1, '18-24'),
+    (v_q_id, 2, '25-34'),
+    (v_q_id, 3, '35-44'),
+    (v_q_id, 4, '45+'),
+    (v_q_id, 5, 'Prefer not to say');
 
-  -- Question 2: single choice
+  -- Question 2: country
   INSERT INTO poll_questions (poll_id, position, question, kind)
-  VALUES (v_poll_id, 2, 'What matters most when redeeming a voucher at a merchant?', 'single_choice')
-  RETURNING id INTO v_q2_id;
+  VALUES (v_poll_id, 2, 'Which country are you currently based in?', 'single_choice')
+  RETURNING id INTO v_q_id;
 
   INSERT INTO poll_options (question_id, position, label) VALUES
-    (v_q2_id, 1, 'Fast checkout and simple redemption'),
-    (v_q2_id, 2, 'Big discount value'),
-    (v_q2_id, 3, 'Long expiry window'),
-    (v_q2_id, 4, 'Usable at many merchants'),
-    (v_q2_id, 5, 'Clear terms with no surprises');
+    (v_q_id, 1, 'Kenya'),
+    (v_q_id, 2, 'Nigeria'),
+    (v_q_id, 3, 'Ghana'),
+    (v_q_id, 4, 'Uganda'),
+    (v_q_id, 5, 'Tanzania'),
+    (v_q_id, 6, 'South Africa'),
+    (v_q_id, 7, 'Other');
 
-  -- Question 3: multi select (max 3 picks)
+  -- Question 3: reward preference
+  INSERT INTO poll_questions (poll_id, position, question, kind)
+  VALUES (v_poll_id, 3, 'What type of rewards are most useful to you?', 'single_choice')
+  RETURNING id INTO v_q_id;
+
+  INSERT INTO poll_options (question_id, position, label) VALUES
+    (v_q_id, 1, 'Cash / stablecoins'),
+    (v_q_id, 2, 'Airtime or data'),
+    (v_q_id, 3, 'Grocery discounts'),
+    (v_q_id, 4, 'Food / restaurant vouchers'),
+    (v_q_id, 5, 'Transport discounts'),
+    (v_q_id, 6, 'Electronics / gadget raffles'),
+    (v_q_id, 7, 'AkibaMiles points');
+
+  -- Question 4: referral motivation
+  INSERT INTO poll_questions (poll_id, position, question, kind)
+  VALUES (v_poll_id, 4, 'What reward would make you invite friends?', 'single_choice')
+  RETURNING id INTO v_q_id;
+
+  INSERT INTO poll_options (question_id, position, label) VALUES
+    (v_q_id, 1, 'USDT bonus'),
+    (v_q_id, 2, 'AkibaMiles bonus'),
+    (v_q_id, 3, 'Voucher reward'),
+    (v_q_id, 4, 'Free game entries'),
+    (v_q_id, 5, 'Raffle tickets');
+
+  -- Question 5: voucher type
+  INSERT INTO poll_questions (poll_id, position, question, kind)
+  VALUES (v_poll_id, 5, 'Which voucher type would make you most likely to use an Akiba merchant?', 'single_choice')
+  RETURNING id INTO v_q_id;
+
+  INSERT INTO poll_options (question_id, position, label) VALUES
+    (v_q_id, 1, 'Fixed amount off'),
+    (v_q_id, 2, 'Percentage discount'),
+    (v_q_id, 3, 'Buy-one-get-one'),
+    (v_q_id, 4, 'Free delivery'),
+    (v_q_id, 5, 'Cashback in AkibaMiles'),
+    (v_q_id, 6, 'Mystery reward');
+
+  -- Question 6: merchant categories
   INSERT INTO poll_questions (poll_id, position, question, kind, max_choices)
-  VALUES (v_poll_id, 3, 'Which 3 merchant categories should Akiba prioritize first for vouchers?', 'multi_select', 3)
-  RETURNING id INTO v_q3_id;
+  VALUES (v_poll_id, 6, 'What merchant categories should Akiba prioritize?', 'multi_select', 3)
+  RETURNING id INTO v_q_id;
 
   INSERT INTO poll_options (question_id, position, label) VALUES
-    (v_q3_id, 1, 'Supermarkets and groceries'),
-    (v_q3_id, 2, 'Restaurants and cafes'),
-    (v_q3_id, 3, 'Pharmacies and health shops'),
-    (v_q3_id, 4, 'Transport and delivery'),
-    (v_q3_id, 5, 'Airtime and utilities'),
-    (v_q3_id, 6, 'Fashion and beauty'),
-    (v_q3_id, 7, 'Electronics'),
-    (v_q3_id, 8, 'Entertainment');
+    (v_q_id, 1, 'Groceries / supermarkets'),
+    (v_q_id, 2, 'Restaurants / cafes'),
+    (v_q_id, 3, 'Airtime / data'),
+    (v_q_id, 4, 'Transport / delivery'),
+    (v_q_id, 5, 'Electronics'),
+    (v_q_id, 6, 'Fashion / beauty'),
+    (v_q_id, 7, 'Pharmacies / health');
 
-  -- Question 4: single choice
+  -- Question 7: voucher blocker
   INSERT INTO poll_questions (poll_id, position, question, kind)
-  VALUES (v_poll_id, 4, 'How much would you typically spend in one order if you had a strong Akiba voucher?', 'single_choice')
-  RETURNING id INTO v_q4_id;
+  VALUES (v_poll_id, 7, 'What would stop you from using a voucher?', 'single_choice')
+  RETURNING id INTO v_q_id;
 
   INSERT INTO poll_options (question_id, position, label) VALUES
-    (v_q4_id, 1, 'Under $5 / 5 USDT'),
-    (v_q4_id, 2, '$5 - $10 / 5-10 USDT'),
-    (v_q4_id, 3, '$11 - $25 / 11-25 USDT'),
-    (v_q4_id, 4, '$26 - $50 / 26-50 USDT'),
-    (v_q4_id, 5, 'Above $50 / 50+ USDT');
+    (v_q_id, 1, 'Voucher value is too low'),
+    (v_q_id, 2, 'Merchant is too far'),
+    (v_q_id, 3, 'Redemption is confusing'),
+    (v_q_id, 4, 'Too many conditions'),
+    (v_q_id, 5, 'I prefer cash rewards'),
+    (v_q_id, 6, 'I do not trust the merchant');
 
-  -- Question 5: single choice
-  INSERT INTO poll_questions (poll_id, position, question, kind)
-  VALUES (v_poll_id, 5, 'What is the maximum delivery fee you would pay for a discounted or free item ordered through Akiba?', 'single_choice')
-  RETURNING id INTO v_q5_id;
-
-  INSERT INTO poll_options (question_id, position, label) VALUES
-    (v_q5_id, 1, 'I would only redeem if delivery is free'),
-    (v_q5_id, 2, 'Up to $1 / 1 USDT'),
-    (v_q5_id, 3, 'Up to $2 / 2 USDT'),
-    (v_q5_id, 4, 'Up to $5 / 5 USDT'),
-    (v_q5_id, 5, 'I prefer pickup instead of paying delivery');
-
-  -- Question 6: single choice
-  INSERT INTO poll_questions (poll_id, position, question, kind)
-  VALUES (v_poll_id, 6, 'What minimum discount would make a voucher feel worth using?', 'single_choice')
-  RETURNING id INTO v_q6_id;
+  -- Question 8: skill games
+  INSERT INTO poll_questions (poll_id, position, question, kind, max_choices)
+  VALUES (v_poll_id, 8, 'Which skill-based games would you play most?', 'multi_select', 2)
+  RETURNING id INTO v_q_id;
 
   INSERT INTO poll_options (question_id, position, label) VALUES
-    (v_q6_id, 1, '5% off'),
-    (v_q6_id, 2, '10% off'),
-    (v_q6_id, 3, '15% off'),
-    (v_q6_id, 4, '20% off'),
-    (v_q6_id, 5, 'I care more about a fixed cash amount than a percentage');
+    (v_q_id, 1, 'Click Tile (fast tapping)'),
+    (v_q_id, 2, 'Memory Match'),
+    (v_q_id, 3, 'Flappy-style game'),
+    (v_q_id, 4, 'Subway runner'),
+    (v_q_id, 5, 'Trivia / quiz'),
+    (v_q_id, 6, 'Prediction game');
 
-  -- Question 7: short text
+  -- Question 9: game reward style
   INSERT INTO poll_questions (poll_id, position, question, kind)
-  VALUES (v_poll_id, 7, 'If Akiba launched merchant vouchers next month, what would make you trust and use them regularly?', 'short_text')
-  RETURNING id INTO v_q7_id;
+  VALUES (v_poll_id, 9, 'What reward style motivates you most in games?', 'single_choice')
+  RETURNING id INTO v_q_id;
 
-  RAISE NOTICE 'Seed complete — poll id: %', v_poll_id;
+  INSERT INTO poll_options (question_id, position, label) VALUES
+    (v_q_id, 1, 'Stablecoin prizes'),
+    (v_q_id, 2, 'Winner-takes-all pools'),
+    (v_q_id, 3, 'Guaranteed small rewards'),
+    (v_q_id, 4, 'Leaderboards'),
+    (v_q_id, 5, 'Voucher rewards'),
+    (v_q_id, 6, 'Raffle entries');
+
+  -- Question 10: weather prediction game
+  INSERT INTO poll_questions (poll_id, position, question, kind)
+  VALUES (v_poll_id, 10, 'Would you play a monthly prediction game (10 Miles entry, 20 Miles if correct, plus prizes)?', 'single_choice')
+  RETURNING id INTO v_q_id;
+
+  INSERT INTO poll_options (question_id, position, label) VALUES
+    (v_q_id, 1, 'Yes, definitely'),
+    (v_q_id, 2, 'Maybe (if prizes are good)'),
+    (v_q_id, 3, 'Maybe (if simple to understand)'),
+    (v_q_id, 4, 'No, prefer fast games');
+
+  -- Question 11: Dice feedback
+  INSERT INTO poll_questions (poll_id, position, question, kind)
+  VALUES (v_poll_id, 11, 'What is the biggest issue with Dice today?', 'single_choice')
+  RETURNING id INTO v_q_id;
+
+  INSERT INTO poll_options (question_id, position, label) VALUES
+    (v_q_id, 1, 'Waiting for players'),
+    (v_q_id, 2, 'Slow result / randomness'),
+    (v_q_id, 3, 'Prize not attractive'),
+    (v_q_id, 4, 'Entry cost too high'),
+    (v_q_id, 5, 'Do not trust results'),
+    (v_q_id, 6, 'Do not understand it');
+
+  -- Question 12: claw voucher game
+  INSERT INTO poll_questions (poll_id, position, question, kind)
+  VALUES (v_poll_id, 12, 'Would you play a claw-style game for vouchers?', 'single_choice')
+  RETURNING id INTO v_q_id;
+
+  INSERT INTO poll_options (question_id, position, label) VALUES
+    (v_q_id, 1, 'Yes'),
+    (v_q_id, 2, 'Maybe (if cheap)'),
+    (v_q_id, 3, 'Maybe (if vouchers are useful)'),
+    (v_q_id, 4, 'No');
+
+  -- Question 13: product direction
+  INSERT INTO poll_questions (poll_id, position, question, kind)
+  VALUES (v_poll_id, 13, 'Which feature should Akiba build next?', 'single_choice')
+  RETURNING id INTO v_q_id;
+
+  INSERT INTO poll_options (question_id, position, label) VALUES
+    (v_q_id, 1, 'Merchant vouchers'),
+    (v_q_id, 2, 'More skill games'),
+    (v_q_id, 3, 'Improve Dice'),
+    (v_q_id, 4, 'Claw voucher game'),
+    (v_q_id, 5, 'Better rewards marketplace'),
+    (v_q_id, 6, 'Leaderboards');
+
+  -- Question 14: open insight
+  INSERT INTO poll_questions (poll_id, position, question, kind)
+  VALUES (v_poll_id, 14, 'If you could change one thing about Akiba, what would it be?', 'short_text')
+  RETURNING id INTO v_q_id;
+
+  RAISE NOTICE 'Seed complete — Akiba Verified Insights Poll v1 id: %', v_poll_id;
 END
 $$;
