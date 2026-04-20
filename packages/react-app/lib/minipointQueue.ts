@@ -45,7 +45,7 @@ export type VaultDailyRewardPayload = {
   milesAwarded: number;
 };
 
-type PollCompletionPayload = {
+export type PollCompletionPayload = {
   kind: "poll_completion";
   userAddress: string;
   pollId: string;
@@ -341,6 +341,8 @@ export async function claimQueuedPollReward(opts: {
       submittedAt: new Date().toISOString(),
     },
   });
+
+  return { ok: true as const, queued: true, txHash: undefined, points };
 }
 
 export async function enqueueVaultDailyReward(opts: {

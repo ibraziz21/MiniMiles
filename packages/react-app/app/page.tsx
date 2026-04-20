@@ -45,6 +45,10 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";import { ProsperityPassCard } from "@/components/prosperity-claim";
 import { BadgesSection } from "@/components/BadgesSection";
 import { ActiveStreaksSheet } from "@/components/active-streaks-sheet";
+import {
+  BadgeClaimLoadingSheet,
+  BadgeClaimSuccessSheet,
+} from "@/components/BadgeClaimSuccessSheet";
 
 // Passport helper
 import { fetchSuperAccountForOwner } from "@/lib/prosperity-pass";
@@ -62,23 +66,6 @@ const SUPABASE_ANON_KEY =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-
-const BadgeClaimSuccessSheet = dynamic(
-  () =>
-    import("@/components/BadgeClaimSuccessSheet").then(
-      (m) => m.BadgeClaimSuccessSheet
-    ),
-  { ssr: false }
-);
-
-const BadgeClaimLoadingSheet = dynamic(
-  () =>
-    import("@/components/BadgeClaimSuccessSheet").then(
-      (m) => m.BadgeClaimLoadingSheet
-    ),
-  { ssr: false }
-);
 
 const PhysicalRaffleSheet = dynamic(
   () => import("@/components/physical-raffle-sheet"),
