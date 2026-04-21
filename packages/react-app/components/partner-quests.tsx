@@ -31,8 +31,10 @@ export interface Quest {
 
 /* ─── Quest IDs ──────────────────────────────────────────── */
 
-const FOLLOW_ID   = '99da9e3d-5332-419e-aa40-5cb9d6e3a7ab';
-const TELEGRAM_ID = '2679ab21-f8cf-446f-8efb-36b549f73fa0';
+const FOLLOW_ID    = '99da9e3d-5332-419e-aa40-5cb9d6e3a7ab';
+const TELEGRAM_ID  = '2679ab21-f8cf-446f-8efb-36b549f73fa0';
+const YOUTUBE_ID   = '5405c0bb-03de-4b7a-80e1-c28982dcfbc2';
+const TIKTOK_ID    = '4d7cb8f0-78c0-4f60-a8b5-b8091166b981';
 
 /* ─── Partner groups ─────────────────────────────────────── */
 
@@ -50,7 +52,7 @@ const PARTNER_GROUPS: PartnerGroup[] = [
     id: 'akibamiles',
     img: akibaMilesSymbolAlt,
     title: 'AkibaMiles',
-    description: 'Follow & Join Community',
+    description: 'Follow, Join & Subscribe',
     color: '#238D9D1A',
     quests: [
       {
@@ -77,6 +79,32 @@ const PARTNER_GROUPS: PartnerGroup[] = [
         instructions: [
           { title: 'Open Telegram', text: 'Open the Telegram App' },
           { title: 'Join Group', text: 'Hit the Join Group button' },
+        ],
+      },
+      {
+        id: YOUTUBE_ID,
+        isLocked: false,
+        title: 'Subscribe on YouTube',
+        description: 'Subscribe to the AkibaMiles YouTube channel',
+        reward: '20 akibaMiles',
+        color: '#238D9D1A',
+        actionLink: 'https://www.youtube.com/channel/UC3zx6mtu-eDDxG3EkEbZldw',
+        instructions: [
+          { title: 'Open YouTube', text: 'Go to the AkibaMiles YouTube channel.' },
+          { title: 'Subscribe', text: 'Hit the Subscribe button and confirm.' },
+        ],
+      },
+      {
+        id: TIKTOK_ID,
+        isLocked: false,
+        title: 'Like our latest TikTok',
+        description: 'Like the latest AkibaMiles TikTok post',
+        reward: '10 akibaMiles',
+        color: '#238D9D1A',
+        actionLink: 'https://vt.tiktok.com/ZS9J7BEbj/',
+        instructions: [
+          { title: 'Open TikTok', text: 'Go to our latest AkibaMiles TikTok post.' },
+          { title: 'Like', text: 'Tap the heart to like the video.' },
         ],
       },
     ],
