@@ -34,7 +34,7 @@ export interface Quest {
 const FOLLOW_ID    = '99da9e3d-5332-419e-aa40-5cb9d6e3a7ab';
 const TELEGRAM_ID  = '2679ab21-f8cf-446f-8efb-36b549f73fa0';
 const YOUTUBE_ID   = '5405c0bb-03de-4b7a-80e1-c28982dcfbc2';
-const TIKTOK_ID    = '4d7cb8f0-78c0-4f60-a8b5-b8091166b981';
+const TIKTOK_ID    = 'c3d24b83-de1e-465f-b703-f52895f73a03';
 
 /* ─── Partner groups ─────────────────────────────────────── */
 
@@ -97,14 +97,14 @@ const PARTNER_GROUPS: PartnerGroup[] = [
       {
         id: TIKTOK_ID,
         isLocked: false,
-        title: 'Like our latest TikTok',
-        description: 'Like the latest AkibaMiles TikTok post',
-        reward: '10 akibaMiles',
+        title: 'Follow on TikTok',
+        description: 'Follow AkibaMiles on TikTok',
+        reward: '20 akibaMiles',
         color: '#238D9D1A',
-        actionLink: 'https://vt.tiktok.com/ZS9J7BEbj/',
+        actionLink: 'https://www.tiktok.com/@akibamiles',
         instructions: [
-          { title: 'Open TikTok', text: 'Go to our latest AkibaMiles TikTok post.' },
-          { title: 'Like', text: 'Tap the heart to like the video.' },
+          { title: 'Open TikTok', text: 'Go to the @akibamiles profile page.' },
+          { title: 'Follow', text: 'Hit the Follow button and confirm.' },
         ],
       },
     ],
