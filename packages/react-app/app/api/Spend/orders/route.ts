@@ -18,6 +18,7 @@ import { celoClient } from "@/lib/celoClient";
 import { supabase } from "@/lib/supabaseClient";
 import { calculateOrderTotal } from "@/lib/spendOrderPricing";
 import { isBlacklisted } from "@/lib/blacklist";
+import { requireSession } from "@/lib/auth";
 
 const KES_RATE = 130;
 
@@ -133,9 +134,18 @@ async function verifyPayment(params: {
 
 export async function POST(req: Request) {
   try {
+    // ── Authentication ────────────────────────────────────────────────────────
+    const session = await requireSession();
+    if (!session) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
+
+    // user_address is taken from the session, not the request body, so the
+    // caller cannot forge orders on behalf of another address.
+    const addr = session.walletAddress.toLowerCase() as `0x${string}`;
+
     const body = await req.json();
     const {
-      user_address,
       product_id,
       voucher_code,
       recipient_name,
@@ -147,7 +157,7 @@ export async function POST(req: Request) {
     } = body;
 
     // ── Validation ────────────────────────────────────────────────────────────
-    if (!user_address || !product_id || !recipient_name || !phone || !city || !delivery_fee_tx_hash || !currency) {
+    if (!product_id || !recipient_name || !phone || !city || !delivery_fee_tx_hash || !currency) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
@@ -162,11 +172,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Payment address not configured" }, { status: 500 });
     }
 
-    if (await isBlacklisted(user_address, "Spend/orders")) {
+    if (await isBlacklisted(addr, "Spend/orders")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-
-    const addr = user_address.toLowerCase() as `0x${string}`;
 
     // ── Replay protection — tx hash uniqueness ────────────────────────────────
     const { data: existingOrder } = await supabase
@@ -218,32 +226,49 @@ export async function POST(req: Request) {
       }
     }
 
-    // ── Fetch voucher (if provided) ───────────────────────────────────────────
+    // ── Atomically claim voucher (if provided) ────────────────────────────────
+    // UPDATE ... WHERE status = 'issued' RETURNING * is a single atomic operation.
+    // If two requests race, only the one whose UPDATE touches a row proceeds;
+    // the other gets 0 rows back and is rejected here — before pricing is
+    // calculated and before any order is inserted.
+    // The voucher is set to 'claiming' for the lifetime of this request.
+    // On any subsequent failure it is reset back to 'issued'.
     let voucher: any = null;
     let voucherRules: any = null;
     let merchantVoucherValue: string | null = null;
     if (voucher_code) {
-      const { data: v } = await supabase
+      const { data: claimed, error: claimErr } = await supabase
         .from("issued_vouchers")
-        .select("id, code, status, voucher_template_id, user_address")
+        .update({ status: "claiming" })
         .eq("code", voucher_code)
         .eq("user_address", addr)
+        .eq("status", "issued") // atomic guard — only one concurrent request wins
+        .select("id, code, status, voucher_template_id, user_address")
         .maybeSingle();
 
-      if (!v) {
-        return NextResponse.json({ error: "Voucher not found" }, { status: 404 });
+      if (claimErr) {
+        console.error("[orders] voucher claim error", claimErr);
+        return NextResponse.json({ error: "Failed to reserve voucher" }, { status: 500 });
       }
-      if (v.status !== "issued") {
-        return NextResponse.json({ error: `Voucher is ${v.status}` }, { status: 409 });
+      if (!claimed) {
+        // 0 rows updated — either not found, wrong owner, or already claimed/redeemed
+        const { data: existing } = await supabase
+          .from("issued_vouchers")
+          .select("status")
+          .eq("code", voucher_code)
+          .eq("user_address", addr)
+          .maybeSingle();
+        const reason = !existing ? "not found" : existing.status;
+        return NextResponse.json({ error: `Voucher ${reason}` }, { status: existing ? 409 : 404 });
       }
-      voucher = v;
+      voucher = claimed;
 
-      // Fetch template rules directly — rules_snapshot in issued_vouchers is legacy string[]
-      if (v.voucher_template_id) {
+      // Fetch template rules
+      if (claimed.voucher_template_id) {
         const { data: tpl } = await supabase
           .from("spend_voucher_templates")
           .select("title, voucher_type, discount_percent, discount_cusd, applicable_category")
-          .eq("id", v.voucher_template_id)
+          .eq("id", claimed.voucher_template_id)
           .single();
 
         if (tpl) {
@@ -293,18 +318,24 @@ export async function POST(req: Request) {
       });
     } catch (verifyErr: any) {
       console.error("[orders] payment verification failed", verifyErr.message);
+      // Release the voucher claim so the user can retry with a valid payment
+      if (voucher) {
+        await supabase
+          .from("issued_vouchers")
+          .update({ status: "issued" })
+          .eq("id", voucher.id)
+          .eq("status", "claiming");
+      }
       return NextResponse.json({ error: verifyErr.message }, { status: 422 });
     }
 
-    // ── Mark voucher redeemed (before inserting order) ────────────────────────
-    if (voucher) {
-      await supabase
-        .from("issued_vouchers")
-        .update({ status: "redeemed" })
-        .eq("id", voucher.id);
-    }
-
     // ── Insert order ──────────────────────────────────────────────────────────
+    // Order is inserted BEFORE marking the voucher redeemed.
+    // If the insert fails the voucher stays "issued" (safe to retry).
+    // If the voucher update fails after a successful insert we have an order with
+    // an unredeemed voucher — the DB unique constraint on payment_ref prevents
+    // a duplicate order being created on retry, and the voucher status can be
+    // corrected by a background job or support action.
     const productPriceKes = Math.round(Number(product.price_cusd) * KES_RATE);
     const discountedProductKes = Math.round(pricing.discounted_product_cusd * KES_RATE);
     const deliveryFeeKes = Math.round(pricing.delivery_fee_cusd * KES_RATE);
@@ -321,7 +352,9 @@ export async function POST(req: Request) {
         product_id: String(product.id),
         item_name: product.name,
         item_category: product.category ?? "general",
-        category: product.category ?? "general",
+        // Legacy column is a Postgres enum in production. Keep rich product
+        // categories in item_category; use the stable legacy bucket here.
+        category: "general",
         action: "redeem",
         quote_kes: productPriceKes,
         labor_kes: deliveryFeeKes,
@@ -350,14 +383,32 @@ export async function POST(req: Request) {
 
     if (oErr || !order) {
       console.error("[orders] insert failed", oErr);
-      // Revert voucher redeem if order insert fails
+      // Release the voucher claim so the user can retry
       if (voucher) {
         await supabase
           .from("issued_vouchers")
           .update({ status: "issued" })
-          .eq("id", voucher.id);
+          .eq("id", voucher.id)
+          .eq("status", "claiming");
       }
       return NextResponse.json({ error: "Failed to create order" }, { status: 500 });
+    }
+
+    // ── Finalize voucher as redeemed ──────────────────────────────────────────
+    if (voucher) {
+      const { error: vErr } = await supabase
+        .from("issued_vouchers")
+        .update({ status: "redeemed" })
+        .eq("id", voucher.id)
+        .eq("status", "claiming");
+
+      if (vErr) {
+        console.error("[orders] voucher finalize failed after order insert — needs reconciliation", {
+          order_id: order.id,
+          voucher_id: voucher.id,
+          error: vErr,
+        });
+      }
     }
 
     // ── Notify merchant dashboard of new order (fire-and-forget) ─────────────

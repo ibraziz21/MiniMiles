@@ -1,6 +1,7 @@
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { sessionOptions } from "./session";
+import { supabase } from "./supabase";
 import type { MerchantSessionData } from "@/types";
 
 // ── Session helpers ───────────────────────────────────────────────────────────
@@ -12,11 +13,22 @@ export async function getSession() {
 
 /**
  * Returns the authenticated merchant session, or null.
- * Use this in every protected API route.
+ * Re-validates is_active on every call so deactivated accounts are rejected
+ * immediately rather than waiting for the session cookie to expire.
  */
 export async function requireMerchantSession(): Promise<MerchantSessionData | null> {
   const session = await getSession();
   if (!session.merchantUserId || !session.partnerId) return null;
+
+  // Re-check that the account is still active on every request
+  const { data: user } = await supabase
+    .from("merchant_users")
+    .select("is_active")
+    .eq("id", session.merchantUserId)
+    .single();
+
+  if (!user || user.is_active === false) return null;
+
   return {
     merchantUserId: session.merchantUserId,
     email: session.email,

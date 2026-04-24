@@ -8,6 +8,7 @@ export async function GET() {
     .from("partners")
     .select(
       `id, slug, name, country, image_url,
+       partner_settings(logo_url),
        spend_voucher_templates(count)`,
     )
     .eq("spend_voucher_templates.active", true)
@@ -23,7 +24,7 @@ export async function GET() {
     slug: m.slug,
     name: m.name,
     country: m.country,
-    image_url: m.image_url,
+    image_url: m.partner_settings?.logo_url ?? m.image_url,
     template_count: m.spend_voucher_templates?.[0]?.count ?? 0,
   }));
 

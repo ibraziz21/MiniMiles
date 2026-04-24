@@ -97,6 +97,44 @@ export async function sendNewOrderEmail(params: {
   return true;
 }
 
+export async function sendStuckRewardEmail(params: {
+  partnerId: string;
+  partnerName: string;
+  orderId: string;
+  itemName: string;
+  recipientName: string;
+  hoursStuck: number;
+}): Promise<boolean> {
+  const { partnerId, partnerName, orderId, itemName, recipientName, hoursStuck } = params;
+
+  const emails = await getActiveMerchantEmails(partnerId);
+  if (emails.length === 0) return false;
+
+  const dashboardUrl = process.env.MERCHANT_DASHBOARD_URL ?? "http://localhost:3001";
+  const subject = `⚠️ Reward not sent — ${itemName} | ${partnerName}`;
+  const html = `
+    <h2>Order Reward Stuck</h2>
+    <p>An order has been confirmed received but the AkibaMiles reward has not been sent after <strong>${hoursStuck} hours</strong>.</p>
+    <p><strong>Item:</strong> ${itemName}</p>
+    <p><strong>Recipient:</strong> ${recipientName}</p>
+    <p>The reward worker will retry automatically. If this persists, check the mint job queue.</p>
+    <p><a href="${dashboardUrl}/orders/${orderId}">View Order →</a></p>
+  `;
+
+  const sent = await sendEmail({ to: emails, subject, html });
+  if (!sent) return false;
+
+  await logNotification({
+    partnerId,
+    type: "stuck_reward",
+    orderId,
+    subject,
+    bodyPreview: `Reward stuck (${hoursStuck}h): ${itemName} for ${recipientName}`,
+  });
+
+  return true;
+}
+
 export async function sendStaleOrderEmail(params: {
   partnerId: string;
   partnerName: string;

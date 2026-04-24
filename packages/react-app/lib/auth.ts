@@ -2,30 +2,27 @@ import { randomBytes } from "crypto";
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { SessionData, sessionOptions } from "./session";
+import { supabase } from "./supabaseClient";
 
-// ── Random per-request nonces ─────────────────────────────────────────────────
-// Each call to generateNonce() produces a fresh random token stored in memory
-// with a 10-min TTL. verifyNonce() finds and deletes it atomically — so the
-// same nonce can never be used twice even if the signed payload is captured.
-// This also means retries (component remount, page reload) always get a new
-// nonce rather than the same deterministic one.
+// ── DB-backed sign-in nonces ──────────────────────────────────────────────────
+// Nonces are stored in the `auth_nonces` table (see sql/auth_nonces.sql).
+// One outstanding nonce per address — issuing a new one overwrites the old one
+// via upsert. verifyNonce DELETEs the row so the same nonce can never be reused.
+// This survives multi-instance deployments (Vercel, etc.) unlike an in-memory Map.
 
-const NONCE_TTL_MS = 10 * 60 * 1000;
+const NONCE_TTL_SEC = 10 * 60; // 10 minutes
 
-type NonceEntry = { nonce: string; expiresAt: number };
-// address → pending nonce. One outstanding nonce per address at a time.
-const _pendingNonces = new Map<string, NonceEntry>();
-
-export function generateNonce(address: string): string {
+export async function generateNonce(address: string): Promise<string> {
   const nonce = randomBytes(16).toString("hex");
-  const now = Date.now();
-  _pendingNonces.set(address.toLowerCase(), { nonce, expiresAt: now + NONCE_TTL_MS });
-  // Lazy GC
-  if (Math.random() < 0.05) {
-    for (const [k, v] of _pendingNonces) {
-      if (v.expiresAt < now) _pendingNonces.delete(k);
-    }
-  }
+  const expiresAt = new Date(Date.now() + NONCE_TTL_SEC * 1000).toISOString();
+
+  await supabase
+    .from("auth_nonces")
+    .upsert(
+      { address: address.toLowerCase(), nonce, expires_at: expiresAt },
+      { onConflict: "address" },
+    );
+
   return nonce;
 }
 
@@ -33,16 +30,24 @@ export function generateNonce(address: string): string {
  * Verifies and atomically consumes the nonce for an address.
  * Returns false if not found, expired, or already used.
  */
-export function verifyNonce(address: string, nonce: string): boolean {
-  const entry = _pendingNonces.get(address.toLowerCase());
-  if (!entry) return false;
-  if (entry.expiresAt < Date.now()) {
-    _pendingNonces.delete(address.toLowerCase());
+export async function verifyNonce(address: string, nonce: string): Promise<boolean> {
+  const addr = address.toLowerCase();
+
+  // Delete the row only if address + nonce + not-expired all match.
+  // count = 0 means no match → reject. count = 1 means consumed → accept.
+  const { count, error } = await supabase
+    .from("auth_nonces")
+    .delete({ count: "exact" })
+    .eq("address", addr)
+    .eq("nonce", nonce)
+    .gt("expires_at", new Date().toISOString());
+
+  if (error) {
+    console.error("[auth] nonce verification DB error", error);
     return false;
   }
-  if (entry.nonce !== nonce) return false;
-  _pendingNonces.delete(address.toLowerCase()); // consume — one-time use
-  return true;
+
+  return (count ?? 0) > 0;
 }
 
 export function buildSignInMessage(address: string, nonce: string): string {

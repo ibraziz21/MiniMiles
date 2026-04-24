@@ -1,16 +1,28 @@
 // GET /api/Spend/vouchers/user/[address]
-// Returns all vouchers (non-void) for a given user address.
+// Returns all vouchers (non-void) for the authenticated user.
+// Session is required and must match the requested address.
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
+import { requireSession } from "@/lib/auth";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ address: string }> },
 ) {
+  const session = await requireSession();
+  if (!session) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  }
+
   const { address: rawAddress } = await params;
   const address = rawAddress?.toLowerCase();
   if (!address) {
     return NextResponse.json({ error: "address is required" }, { status: 400 });
+  }
+
+  // Users may only fetch their own vouchers
+  if (session.walletAddress.toLowerCase() !== address) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   // Step 1: fetch vouchers (no join — avoids FK auto-detection issues)

@@ -11,6 +11,32 @@ import { writeAuditLog } from "@/lib/audit";
 import type { MerchantActionStatus } from "@/types";
 import { VALID_TRANSITIONS, FINAL_STATES } from "@/types";
 
+// Dynamically import from react-app — avoids a hard package dependency while
+// keeping cancellation logic in a single place.
+// In a monorepo with shared packages this would be a direct import from @akiba/lib.
+const REACT_APP_URL = process.env.REACT_APP_INTERNAL_URL;
+
+async function triggerCancellationCompensation(orderId: string): Promise<void> {
+  if (!REACT_APP_URL) {
+    // Fallback: call the compensation logic via internal webhook if configured,
+    // otherwise log for manual follow-up.
+    console.warn("[orders/cancel] REACT_APP_INTERNAL_URL not set — cancellation compensation skipped for order", orderId);
+    return;
+  }
+  try {
+    await fetch(`${REACT_APP_URL}/api/internal/cancel-compensation`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-webhook-secret": process.env.INTERNAL_WEBHOOK_SECRET ?? "",
+      },
+      body: JSON.stringify({ orderId }),
+    });
+  } catch (err) {
+    console.error("[orders/cancel] compensation webhook failed", orderId, err);
+  }
+}
+
 const TIMESTAMP_FOR_STATUS: Record<string, string> = {
   accepted: "accepted_at",
   packed: "packed_at",
@@ -118,6 +144,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     orderId: id,
     metadata: { previous_status: order.status, new_status: newStatus },
   });
+
+  // Trigger compensation flow for cancellations (voucher reinstatement + refund record)
+  if (newStatus === "cancelled") {
+    void triggerCancellationCompensation(id);
+  }
 
   return NextResponse.json({ ok: true, id, status: newStatus });
 }

@@ -11,7 +11,7 @@ export async function GET(
 
   const { data: merchant, error: mErr } = await supabase
     .from("partners")
-    .select("id, slug, name, country, image_url")
+    .select("id, slug, name, country, image_url, partner_settings(logo_url)")
     .eq("slug", slug)
     .single();
 
@@ -34,5 +34,11 @@ export async function GET(
     return NextResponse.json({ error: "Failed to fetch templates" }, { status: 500 });
   }
 
-  return NextResponse.json({ merchant, templates: templates ?? [] });
+  return NextResponse.json({
+    merchant: {
+      ...merchant,
+      image_url: (merchant as any).partner_settings?.logo_url ?? merchant.image_url,
+    },
+    templates: templates ?? [],
+  });
 }

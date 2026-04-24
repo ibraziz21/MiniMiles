@@ -7,7 +7,7 @@
 
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { sendStaleOrderEmail } from "@/lib/notify";
+import { sendStaleOrderEmail, sendStuckRewardEmail } from "@/lib/notify";
 
 export async function POST(req: Request) {
   const secret = req.headers.get("x-webhook-secret");
@@ -82,6 +82,58 @@ export async function POST(req: Request) {
         });
 
         if (sent) reminded++;
+      }
+    }
+
+    // ── Stuck reward sweep ────────────────────────────────────────────────────
+    // Orders in "received" with miles_reward_status = "pending" for > 1 hour
+    // mean the customer confirmed delivery but never got their AkibaMiles.
+    const STUCK_REWARD_HOURS = 1;
+    const stuckCutoff = new Date(now - STUCK_REWARD_HOURS * 60 * 60 * 1000).toISOString();
+
+    const { data: stuckOrders } = await supabase
+      .from("merchant_transactions")
+      .select("id, item_name, recipient_name, partner_id, received_at")
+      .eq("status", "received")
+      .eq("miles_reward_status", "pending")
+      .lt("received_at", stuckCutoff);
+
+    if (stuckOrders && stuckOrders.length > 0) {
+      // Group by partner so we only fetch partner names once per partner
+      const partnerIds = [...new Set(stuckOrders.map((o) => o.partner_id))];
+      const { data: partners } = await supabase
+        .from("partners")
+        .select("id, name")
+        .in("id", partnerIds);
+
+      const partnerNameMap = Object.fromEntries(
+        (partners ?? []).map((p) => [p.id, p.name]),
+      );
+
+      for (const order of stuckOrders) {
+        // Debounce: only alert once per stuck-reward window
+        const { data: recentNotif } = await supabase
+          .from("merchant_notification_log")
+          .select("id")
+          .eq("order_id", order.id)
+          .eq("type", "stuck_reward")
+          .gte("sent_at", stuckCutoff)
+          .maybeSingle();
+
+        if (recentNotif) continue;
+
+        const hoursStuck = Math.floor(
+          (now - new Date(order.received_at).getTime()) / (1000 * 60 * 60),
+        );
+
+        await sendStuckRewardEmail({
+          partnerId: order.partner_id,
+          partnerName: partnerNameMap[order.partner_id] ?? "Merchant",
+          orderId: order.id,
+          itemName: order.item_name ?? "Order",
+          recipientName: order.recipient_name ?? "Customer",
+          hoursStuck,
+        });
       }
     }
 

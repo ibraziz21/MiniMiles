@@ -30,6 +30,11 @@ const DEPLOY_BLOCK = BigInt(process.env.NEXT_PUBLIC_CLAW_DEPLOY_BLOCK ?? "615998
 const SS = { NONE: 0, PENDING: 1, SETTLED: 2, CLAIMED: 3, BURNED: 4, REFUNDED: 5 };
 
 export async function POST(_req: Request) {
+  const secret = process.env.ADMIN_QUEUE_SECRET ?? "";
+  if (secret && _req.headers.get("authorization") !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
   if (!RELAYER_PK || RELAYER_PK.length < 10) {
     return NextResponse.json({ error: "Relayer not configured" }, { status: 500 });
   }
@@ -52,9 +57,9 @@ export async function POST(_req: Request) {
         functionName: "getActiveBatchInventory",
       })) as any;
       results.activeBatch = {
-        batchId: inv.batchId.toString(),
-        totalRemaining: inv.totalRemaining.toString(),
-        active: inv.active,
+        batchId: (inv.batchId ?? inv[0]).toString(),
+        totalRemaining: (inv.totalRemaining ?? inv[6]).toString(),
+        active: Boolean(inv.active ?? inv[8]),
       };
     } catch {
       results.activeBatch = { error: "could not read batch inventory" };

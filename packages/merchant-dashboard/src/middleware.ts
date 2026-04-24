@@ -4,7 +4,18 @@ import { getIronSession } from "iron-session";
 import { sessionOptions } from "@/lib/session";
 import type { MerchantSessionData } from "@/types";
 
-const PUBLIC_PATHS = ["/login", "/api/auth/login", "/api/auth/logout"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/accept-invite",
+  "/reset-password",       // page — token is in the query string, no session needed
+  "/api/auth/login",
+  "/api/auth/logout",
+  "/api/auth/accept-invite",
+  "/api/auth/confirm-reset",   // step 2: token consumption — no session needed
+  // /api/auth/reset-password is intentionally NOT public:
+  //   step 1 (issue token) requires an owner/manager session
+  //   step 2 (consume token) is handled by the route itself without a session check
+];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

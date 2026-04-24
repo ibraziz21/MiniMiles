@@ -58,6 +58,13 @@ const USDT_ABI = [
   },
 ] as const;
 
+type BatchStatus = {
+  active: boolean;
+  batchId: string;
+  totalRemaining: string;
+  manifestReady: boolean;
+};
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function getPublicClient() {
@@ -80,6 +87,7 @@ export default function ClawPage() {
   const [lastLegendaryAt, setLastLegendaryAt] = useState<bigint>(0n);
   const [sessions, setSessions]         = useState<GameSession[]>([]);
   const [vouchers, setVouchers]         = useState<ClawVoucher[]>([]);
+  const [batchStatus, setBatchStatus]   = useState<BatchStatus | null>(null);
 
   // Active session = most recent non-refunded session
   const [activeSession, setActiveSession] = useState<GameSession | null>(null);
@@ -98,6 +106,25 @@ export default function ClawPage() {
   // Prevent double-settle
   const settlingRef = useRef<Set<string>>(new Set());
   const pollRef     = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const loadBatchStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/claw/rotate/ensure", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to load claw batch");
+      setBatchStatus({
+        active: Boolean(data.active),
+        batchId: String(data.batchId ?? "0"),
+        totalRemaining: String(data.totalRemaining ?? "0"),
+        manifestReady: Boolean(data.manifestReady),
+      });
+      return data;
+    } catch (e) {
+      console.error("[ClawPage] batch status error", e);
+      setBatchStatus(null);
+      return null;
+    }
+  }, []);
 
   // ── Tier / balance load ─────────────────────────────────────────────────
   const loadChainData = useCallback(async () => {
@@ -321,10 +348,10 @@ export default function ClawPage() {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([loadChainData(), loadSessions(), loadVouchers()]).finally(() =>
+    Promise.all([loadChainData(), loadSessions(), loadVouchers(), loadBatchStatus()]).finally(() =>
       setLoading(false)
     );
-  }, [loadChainData, loadSessions, loadVouchers]);
+  }, [loadChainData, loadSessions, loadVouchers, loadBatchStatus]);
 
   useEffect(() => {
     const firstActiveTier = tiers.findIndex((tier) => tier?.active);
@@ -340,9 +367,10 @@ export default function ClawPage() {
       loadChainData();
       loadSessions();
       loadVouchers();
+      loadBatchStatus();
     }, 3000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [loadChainData, loadSessions, loadVouchers]);
+  }, [loadChainData, loadSessions, loadVouchers, loadBatchStatus]);
 
   // ── Derived: selected tier config ───────────────────────────────────────
   const tierConfig = tiers[selectedTier] ?? null;
@@ -369,7 +397,11 @@ export default function ClawPage() {
   const isLegendaryCooldownActive = cooldownEndsAt > nowSec;
 
   let startBlocker: string | null = null;
-  if (tierConfig && !tierConfig.active) {
+  if (!batchStatus) {
+    startBlocker = "Checking claw batch...";
+  } else if (!batchStatus.active || BigInt(batchStatus.totalRemaining) === 0n || !batchStatus.manifestReady) {
+    startBlocker = "The claw batch is being prepared.";
+  } else if (tierConfig && !tierConfig.active) {
     startBlocker = "This tier is not active yet.";
   } else if (unresolvedCount > 0n) {
     startBlocker = "Finish your current claw session before starting another one.";
@@ -407,6 +439,17 @@ export default function ClawPage() {
     setStarting(true);
     setMachineState("starting");
     try {
+      const latestBatch = await loadBatchStatus();
+      if (
+        !latestBatch?.active ||
+        BigInt(String(latestBatch?.totalRemaining ?? "0")) === 0n ||
+        !latestBatch?.manifestReady
+      ) {
+        toast.error("The claw batch is being prepared.");
+        setMachineState("idle");
+        return;
+      }
+
       await startClawGame(selectedTier);
 
       setMachineState("pending");

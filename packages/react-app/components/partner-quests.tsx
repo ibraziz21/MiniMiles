@@ -33,6 +33,7 @@ export interface Quest {
 
 const FOLLOW_ID   = '99da9e3d-5332-419e-aa40-5cb9d6e3a7ab';
 const TELEGRAM_ID = '2679ab21-f8cf-446f-8efb-36b549f73fa0';
+const TIKTOK_ID   = 'c3d24b83-de1e-465f-b703-f52895f73a03';
 
 /* ─── Partner groups ─────────────────────────────────────── */
 

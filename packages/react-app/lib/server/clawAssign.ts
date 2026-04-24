@@ -23,16 +23,17 @@ import { privateKeyToAccount } from "viem/accounts";
 import { supabase } from "@/lib/supabaseClient";
 import batchRngAbi from "@/contexts/merkleBatchRng.json";
 import clawAbi from "@/contexts/akibaClawGame.json";
-import { getBatchPlayOutcome } from "./clawBatchStore";
+import { getBatchPlayOutcomeAsync } from "./clawBatchStore";
 
 const CLAW_GAME = (process.env.NEXT_PUBLIC_CLAW_GAME_ADDRESS ??
   "0x32cd4449A49786f8e9C68A5466d46E4dbC5197B3") as `0x${string}`;
 const BATCH_RNG = (process.env.NEXT_PUBLIC_BATCH_RNG_ADDRESS ??
   "0x249Ce901411809a8A0fECa6102D9F439bbf3751e") as `0x${string}`;
 const RPC_URL = process.env.CELO_RPC_URL ?? "https://forno.celo.org";
-const RELAYER_PK = (process.env.CELO_RELAYER_PK ??
-  process.env.PRIVATE_KEY ??
-  "") as `0x${string}`;
+const RAW_RELAYER_PK = process.env.CELO_RELAYER_PK ?? process.env.PRIVATE_KEY ?? "";
+const RELAYER_PK = (RAW_RELAYER_PK.startsWith("0x")
+  ? RAW_RELAYER_PK
+  : `0x${RAW_RELAYER_PK}`) as `0x${string}`;
 
 // ── Shared viem clients ────────────────────────────────────────────────────
 
@@ -71,30 +72,38 @@ export type SettleResult =
 // ── Assignment ────────────────────────────────────────────────────────────
 
 /**
- * Idempotently assigns the next available play slot from the active on-chain
- * batch to the given sessionId.
+ * Idempotently loads the play slot that MerkleBatchRng assigned on-chain
+ * during startGame(), then mirrors it to Supabase for audit/retry visibility.
  *
  * - If the session already has a row in claw_batch_plays, returns it (idempotent).
- * - If no active batch exists on-chain, returns { ok: false, reason: "no_active_batch" }.
+ * - If the session was never registered by the RNG, returns { ok: false, reason: "no_active_batch" }.
  * - Only stores (session_id, batch_id, play_index) in Supabase — no outcome data.
- *
- * IMPORTANT: play_index assignment here is sequential from the DB count of
- * rows for this batch_id. This works when the batch store has pre-allocated
- * all plays 0..N-1 upfront (the standard batch-builder pattern).
- *
- * TODO (production): In a high-concurrency environment, use a Postgres
- * advisory lock or a queue-based atomic counter to prevent two concurrent
- * assigns from claiming the same play_index. For low-volume usage the
- * upsert uniqueness on session_id is sufficient protection against double
- * assignment of the same session, but does not prevent two different sessions
- * from racing to the same play_index. Mitigate by making play_index a unique
- * constraint on (batch_id, play_index) and catching the conflict.
  */
 export async function assignBatchPlay(
   sessionId: string,
   pub: ReturnType<typeof getClients>["pub"]
 ): Promise<AssignResult> {
-  // Fast path: already assigned
+  let batchId: string;
+  let playIndex: number;
+  try {
+    const sessionPlay = (await pub.readContract({
+      address: BATCH_RNG,
+      abi: batchRngAbi,
+      functionName: "getSessionPlay",
+      args: [BigInt(sessionId)],
+    })) as any;
+
+    batchId = (sessionPlay.batchId ?? sessionPlay[0]).toString();
+    playIndex = Number(sessionPlay.playIndex ?? sessionPlay[1]);
+  } catch (e: any) {
+    return { ok: false, reason: "db_error" };
+  }
+
+  if (batchId === "0") {
+    return { ok: false, reason: "no_active_batch" };
+  }
+
+  // Fast path: already tracked locally. Chain remains the source of truth.
   const { data: existing } = await supabase
     .from("claw_batch_plays")
     .select("batch_id, play_index")
@@ -102,52 +111,16 @@ export async function assignBatchPlay(
     .single();
 
   if (existing) {
-    return { ok: true, batchId: existing.batch_id, playIndex: Number(existing.play_index) };
+    if (existing.batch_id !== batchId || Number(existing.play_index) !== playIndex) {
+      await supabase
+        .from("claw_batch_plays")
+        .update({ batch_id: batchId, play_index: playIndex })
+        .eq("session_id", sessionId);
+    }
+    return { ok: true, batchId, playIndex };
   }
 
-  // Read active batch from chain
-  let batchId: string;
-  let totalPlays: number;
-  let active: boolean;
-  try {
-    const inv = (await pub.readContract({
-      address: BATCH_RNG,
-      abi: batchRngAbi,
-      functionName: "getActiveBatchInventory",
-    })) as {
-      batchId: bigint;
-      totalRemaining: bigint;
-      totalPlays: bigint;
-      active: boolean;
-    };
-    batchId = inv.batchId.toString();
-    totalPlays = Number(inv.totalPlays);
-    active = inv.active;
-  } catch (e: any) {
-    return { ok: false, reason: "db_error" };
-  }
-
-  if (!active || batchId === "0") {
-    return { ok: false, reason: "no_active_batch" };
-  }
-
-  // Determine next play_index: count existing assignments for this batch
-  const { count, error: countErr } = await supabase
-    .from("claw_batch_plays")
-    .select("id", { count: "exact", head: true })
-    .eq("batch_id", batchId);
-
-  if (countErr) {
-    return { ok: false, reason: "db_error" };
-  }
-
-  const playIndex = count ?? 0;
-
-  if (playIndex >= totalPlays) {
-    return { ok: false, reason: "batch_full" };
-  }
-
-  // Insert assignment — unique constraint on session_id prevents duplicate rows
+  // Track the on-chain assignment locally for audit/retry visibility only.
   const { error: insertErr } = await supabase.from("claw_batch_plays").insert({
     session_id: sessionId,
     batch_id: batchId,
@@ -208,7 +181,7 @@ export async function settleSession(
   await logSettle(sessionIdStr, "assign", `batch=${batchId} idx=${playIndex}`, true);
 
   // ── Step 2: Load outcome from server-only batch store ─────────────────
-  const outcome = getBatchPlayOutcome(batchId, playIndex);
+  const outcome = await getBatchPlayOutcomeAsync(batchId, playIndex);
 
   if (!outcome) {
     // Batch store not configured or play index not found.
@@ -232,9 +205,10 @@ export async function settleSession(
       abi: batchRngAbi,
       functionName: "getSessionPlay",
       args: [sessionId],
-    })) as { batchId: bigint; playIndex: bigint; committedClass: number };
+    })) as any;
 
-    if (existing.committedClass !== 0) {
+    const committedClass = Number(existing.committedClass ?? existing[2]);
+    if (committedClass !== 0) {
       await logSettle(sessionIdStr, "commit_outcome", "already committed on-chain", true);
     } else {
       const proof = outcome.proof as `0x${string}`[];
@@ -258,6 +232,37 @@ export async function settleSession(
   } catch (err: any) {
     await logSettle(sessionIdStr, "commit_outcome", err?.message ?? String(err), false);
     return { ok: false, retryable: true, reason: `commitOutcome failed: ${err?.message}` };
+  }
+
+  // ── Step 3.5: settleGame explicitly ───────────────────────────────────
+  // MerkleBatchRng attempts to auto-settle after commitOutcome, but that is
+  // best-effort and can fail without reverting the commit. The relayer should
+  // always make the game settlement idempotently explicit before claimReward.
+  try {
+    const session = (await pub.readContract({
+      address: CLAW_GAME,
+      abi: clawAbi.abi,
+      functionName: "getSession",
+      args: [sessionId],
+    })) as any;
+
+    if (Number(session.status) === 1) {
+      const settleHash = await wal.writeContract({
+        address: CLAW_GAME,
+        abi: clawAbi.abi,
+        functionName: "settleGame",
+        args: [sessionId],
+        account,
+        chain: celo,
+      });
+      await pub.waitForTransactionReceipt({ hash: settleHash, confirmations: 1, timeout: 60_000 });
+      await logSettle(sessionIdStr, "settle_game", settleHash, true);
+    } else {
+      await logSettle(sessionIdStr, "settle_game", `already status=${Number(session.status)}`, true);
+    }
+  } catch (err: any) {
+    await logSettle(sessionIdStr, "settle_game", err?.message ?? String(err), false);
+    return { ok: false, retryable: true, reason: `settleGame failed: ${err?.message}` };
   }
 
   // ── Step 4: claimReward ───────────────────────────────────────────────

@@ -19,7 +19,8 @@ alter table merchant_transactions
   add column if not exists dispatched_at    timestamptz,  -- out_for_delivery
   add column if not exists delivered_at     timestamptz,
   add column if not exists received_at      timestamptz,  -- customer confirmed
-  add column if not exists cancelled_at     timestamptz;
+  add column if not exists cancelled_at     timestamptz,
+  add column if not exists completed_at     timestamptz;  -- reward enqueued + order finalised
 
 -- ── 3. AkibaMiles reward tracking ───────────────────────────────────────────
 alter table merchant_transactions
@@ -38,6 +39,7 @@ alter type tx_status add value if not exists 'packed';
 alter type tx_status add value if not exists 'out_for_delivery';
 alter type tx_status add value if not exists 'delivered';
 alter type tx_status add value if not exists 'received';
+alter type tx_status add value if not exists 'completed';
 alter type tx_status add value if not exists 'cancelled';
 
 -- ── 5. Indexes for merchant dashboard + reward worker queries ────────────────

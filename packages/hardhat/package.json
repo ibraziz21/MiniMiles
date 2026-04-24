@@ -43,6 +43,11 @@
     "clean": "hardhat clean",
     "run:node": "hardhat node",
     "test": "hardhat test",
+    "claw:batch:dry": "hardhat run --no-compile scripts/open-claw-batch.ts --network celo",
+    "claw:batch:open": "CLAW_BATCH_OPEN=1 hardhat run --no-compile scripts/open-claw-batch.ts --network celo",
+    "claw:batch:upload": "hardhat run --no-compile scripts/upload-claw-manifest.ts --network celo",
+    "claw:sessions": "hardhat run --no-compile scripts/find-claw-sessions.ts --network celo",
+    "claw:settle": "hardhat run --no-compile scripts/settle-claw-session.ts --network celo",
     "prettier": "prettier --write 'contracts/**/*.sol' '**/*.ts'"
   }
 }

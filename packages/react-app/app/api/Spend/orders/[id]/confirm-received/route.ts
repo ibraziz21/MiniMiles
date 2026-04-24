@@ -56,19 +56,32 @@ export async function POST(
   }
 
   // ── Enqueue AkibaMiles reward ─────────────────────────────────────────────────
+  let rewardEnqueued = false;
   try {
     await processOrderMilesReward(id);
+    rewardEnqueued = true;
   } catch (rewardErr: any) {
-    // Reward failure is non-fatal — order is already confirmed received.
-    // The reward worker / admin can retry via /orders/rewards/process.
-    console.error("[confirm-received] reward enqueue failed", rewardErr?.message);
+    // Log for the retry worker — order stays "received" so the reward job
+    // can pick it up. Do NOT advance to "completed" yet.
+    console.error("[confirm-received] reward enqueue failed — order stays 'received' for retry", rewardErr?.message);
   }
 
-  // ── Mark completed ────────────────────────────────────────────────────────────
-  await supabase
-    .from("merchant_transactions")
-    .update({ status: "completed", completed_at: new Date().toISOString() })
-    .eq("id", id);
+  // ── Mark completed (only when reward was successfully enqueued) ───────────────
+  if (rewardEnqueued) {
+    const { error: completeErr } = await supabase
+      .from("merchant_transactions")
+      .update({ status: "completed", completed_at: new Date().toISOString() })
+      .eq("id", id);
 
-  return NextResponse.json({ ok: true, id, status: "completed" });
+    if (completeErr) {
+      console.error("[confirm-received] failed to mark completed", completeErr);
+      // Reward is queued; return success so the customer isn't blocked.
+      // The status update will be corrected by the reward worker on completion.
+    }
+
+    return NextResponse.json({ ok: true, id, status: "completed" });
+  }
+
+  // Reward enqueue failed — order is "received", reward will be retried
+  return NextResponse.json({ ok: true, id, status: "received" });
 }

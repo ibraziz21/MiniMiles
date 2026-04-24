@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
 import { verifyPassword } from "@/lib/auth";
+import { checkLoginRateLimit, recordLoginFailure, recordLoginSuccess } from "@/lib/loginRateLimit";
 
 export async function POST(req: Request) {
   let body: { email?: string; password?: string };
@@ -21,23 +22,48 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "email and password are required" }, { status: 400 });
   }
 
+  // 0. Rate limit check — before any DB lookup to avoid timing oracles
+  const rateLimit = await checkLoginRateLimit(email);
+  if (!rateLimit.allowed) {
+    const retryAfterSec = Math.ceil((rateLimit.retryAfter.getTime() - Date.now()) / 1000);
+    return NextResponse.json(
+      { error: "Too many failed attempts. Try again later." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(retryAfterSec) },
+      },
+    );
+  }
+
   // 1. Look up merchant user
   const { data: merchant, error } = await supabase
     .from("merchant_users")
-    .select("id, email, password_hash, partner_id, name, role, partners(name)")
+    .select("id, email, password_hash, partner_id, name, role, is_active, partners(name)")
     .eq("email", email.toLowerCase().trim())
     .single();
 
   // Deliberately vague error — don't reveal whether the account exists
   if (error || !merchant) {
+    await recordLoginFailure(email);
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
   // 2. Verify password
   const valid = await verifyPassword(password, merchant.password_hash);
   if (!valid) {
+    await recordLoginFailure(email);
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
+
+  // 3. Reject deactivated accounts (checked after password to keep timing consistent)
+  if (merchant.is_active === false) {
+    // Don't count deactivated-account attempts toward the failure counter —
+    // the owner may re-activate the account later and shouldn't find it locked.
+    return NextResponse.json({ error: "Account is disabled" }, { status: 403 });
+  }
+
+  // Success — reset failure counter
+  await recordLoginSuccess(email);
 
   const partnerName =
     // @ts-expect-error — Supabase nested join typing

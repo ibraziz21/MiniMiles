@@ -12,6 +12,6 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: "Valid address required" }, { status: 400 });
   }
 
-  const nonce = generateNonce(address);
+  const nonce = await generateNonce(address);
   return Response.json({ nonce });
 }

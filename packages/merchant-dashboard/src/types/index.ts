@@ -118,7 +118,7 @@ export interface MerchantUser {
 
 // ── Notification log ──────────────────────────────────────────────────────────
 
-export type NotificationType = "new_order" | "stale_order" | "out_for_delivery_followup";
+export type NotificationType = "new_order" | "stale_order" | "out_for_delivery_followup" | "stuck_reward";
 
 export interface NotificationLogEntry {
   id: string;
@@ -239,6 +239,27 @@ export interface FinanceStats {
   monthly: FinanceMonthly[];
   // Payment details
   wallet_address: string | null;
+}
+
+// ── Payout invoices ───────────────────────────────────────────────────────────
+
+export type PayoutInvoiceStatus = "draft" | "submitted" | "paid" | "rejected";
+
+export interface PayoutInvoice {
+  id: string;
+  partner_id: string;
+  period_month: string;      // "YYYY-MM"
+  order_count: number;
+  gross_cusd: number;
+  notes: string | null;
+  status: PayoutInvoiceStatus;
+  created_by: string;
+  submitted_by: string | null;
+  submitted_at: string | null;
+  akiba_notes: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // ── Session ───────────────────────────────────────────────────────────────────
