@@ -10,6 +10,7 @@
 import { NextResponse } from "next/server";
 import { requireMerchantSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { sendInvoiceSubmittedEmail } from "@/lib/notify";
 import type { PayoutInvoice } from "@/types";
 
 // ── GET ───────────────────────────────────────────────────────────────────────
@@ -139,6 +140,17 @@ export async function POST(req: Request) {
       console.error("[payout-invoices] submit error:", updateErr);
       return NextResponse.json({ error: "Failed to submit invoice" }, { status: 500 });
     }
+
+    // Fire-and-forget: notify AkibaMiles admin
+    sendInvoiceSubmittedEmail({
+      partnerName: session.partnerName,
+      partnerId: session.partnerId,
+      periodMonth: existing.period_month,
+      orderCount: existing.order_count,
+      grossCusd: existing.gross_cusd,
+      invoiceId: invoice_id,
+      submittedByEmail: session.email,
+    }).catch((e) => console.error("[payout-invoices] submission email failed:", e));
 
     return NextResponse.json({ invoice: updated as PayoutInvoice });
   }

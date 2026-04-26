@@ -135,6 +135,82 @@ export async function sendStuckRewardEmail(params: {
   return true;
 }
 
+export async function sendInvoiceSubmittedEmail(params: {
+  partnerName: string;
+  partnerId: string;
+  periodMonth: string;
+  orderCount: number;
+  grossCusd: number;
+  invoiceId: string;
+  submittedByEmail: string;
+}): Promise<boolean> {
+  const { partnerName, partnerId, periodMonth, orderCount, grossCusd, invoiceId, submittedByEmail } = params;
+
+  const adminEmail = process.env.AKIBA_ADMIN_EMAIL;
+  if (!adminEmail) return false;
+
+  const dashboardUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3001";
+  const subject = `Invoice submitted — ${partnerName} (${periodMonth})`;
+  const html = `
+    <h2>Merchant Payout Invoice Submitted</h2>
+    <p><strong>Merchant:</strong> ${partnerName}</p>
+    <p><strong>Period:</strong> ${periodMonth}</p>
+    <p><strong>Orders:</strong> ${orderCount}</p>
+    <p><strong>Gross cUSD:</strong> $${grossCusd.toFixed(2)}</p>
+    <p><strong>Submitted by:</strong> ${submittedByEmail}</p>
+    <p><a href="${dashboardUrl}/api/admin/invoices/${invoiceId}">View Invoice →</a></p>
+  `;
+
+  const sent = await sendEmail({ to: [adminEmail], subject, html });
+  if (!sent) return false;
+
+  await logNotification({
+    partnerId,
+    type: "invoice_submitted",
+    subject,
+    bodyPreview: `Invoice for ${periodMonth}: ${orderCount} orders, $${grossCusd.toFixed(2)} cUSD`,
+  });
+
+  return true;
+}
+
+export async function sendInvoiceResolvedEmail(params: {
+  partnerId: string;
+  periodMonth: string;
+  status: "paid" | "rejected";
+  akibaNotes: string | null;
+  grossCusd: number;
+}): Promise<boolean> {
+  const { partnerId, periodMonth, status, akibaNotes, grossCusd } = params;
+
+  const emails = await getActiveMerchantEmails(partnerId);
+  if (emails.length === 0) return false;
+
+  const isPaid = status === "paid";
+  const subject = isPaid
+    ? `✅ Invoice paid — ${periodMonth}`
+    : `❌ Invoice rejected — ${periodMonth}`;
+  const html = `
+    <h2>${isPaid ? "Invoice Approved & Paid" : "Invoice Rejected"}</h2>
+    <p><strong>Period:</strong> ${periodMonth}</p>
+    <p><strong>Amount:</strong> $${grossCusd.toFixed(2)} cUSD</p>
+    ${akibaNotes ? `<p><strong>AkibaMiles note:</strong> ${akibaNotes}</p>` : ""}
+    <p>${isPaid ? "Payment has been processed to your registered wallet." : "Please log in to your dashboard for details or contact support."}</p>
+  `;
+
+  const sent = await sendEmail({ to: emails, subject, html });
+  if (!sent) return false;
+
+  await logNotification({
+    partnerId,
+    type: "invoice_resolved",
+    subject,
+    bodyPreview: `Invoice ${periodMonth}: ${status}${akibaNotes ? ` — ${akibaNotes}` : ""}`,
+  });
+
+  return true;
+}
+
 export async function sendStaleOrderEmail(params: {
   partnerId: string;
   partnerName: string;

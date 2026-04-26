@@ -1,7 +1,7 @@
 'use client';
 
 import { FC, ReactNode, useEffect, useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Footer from './Footer';
 import Header from './Header';
 import { useWeb3 } from '@/contexts/useWeb3';
@@ -12,7 +12,9 @@ interface Props { children: ReactNode }
 const Layout: FC<Props> = ({ children }) => {
   const router   = useRouter();
   const pathname = usePathname() || '/';
+  const searchParams = useSearchParams();
   const { getUserAddress } = useWeb3();
+  const isPromoCapture = searchParams.get('akibaPromoCapture') === '1';
 
   /* MiniPay detection */
   const [isMiniPay, setIsMiniPay] = useState<boolean | null>(null);
@@ -46,7 +48,7 @@ const Layout: FC<Props> = ({ children }) => {
 
   /* redirect if new user – **ONLY inside MiniPay** */
   useEffect(() => {
-    if (isMiniPay !== true) {
+    if (isPromoCapture || isMiniPay !== true) {
       // On desktop / non-MiniPay we do NOT gate by membership.
       return;
     }
@@ -63,27 +65,28 @@ const Layout: FC<Props> = ({ children }) => {
       console.log('[Layout] redirecting non-member in MiniPay -> /onboarding');
       router.replace('/onboarding');
     }
-  }, [isMiniPay, isFetched, isMember, isOnboarding, isClaim, router]);
+  }, [isPromoCapture, isMiniPay, isFetched, isMember, isOnboarding, isClaim, router]);
 
   /* while still detecting MiniPay, avoid flicker */
-  if (isMiniPay === null) {
+  if (!isPromoCapture && isMiniPay === null) {
     console.log('[Layout] waiting for MiniPay detection…');
     return null;
   }
 
   /* Only block on membership loading if we are actually in MiniPay */
-  if (isMiniPay && !isFetched) {
+  if (!isPromoCapture && isMiniPay && !isFetched) {
     console.log('[Layout] MiniPay + membership not fetched yet → gating render');
     return null;
   }
 
-  console.log('[Layout] rendering app', { isMiniPay, isOnboarding, isClaim });
+  const renderAsMiniPay = isPromoCapture || isMiniPay;
+  console.log('[Layout] rendering app', { isMiniPay: renderAsMiniPay, isOnboarding, isClaim });
 
   return (
     <div className="bg-gypsum overflow-hidden flex flex-col min-h-screen">
       {/* On desktop: show header on all non-onboarding/non-claim routes.
           Inside MiniPay: header is hidden (MiniPay handles chrome). */}
-      {!isOnboarding && !isClaim && !isMiniPay && <Header />}
+      {!isOnboarding && !isClaim && !renderAsMiniPay && <Header />}
 
       <div className="flex-grow bg-app">
         {children}

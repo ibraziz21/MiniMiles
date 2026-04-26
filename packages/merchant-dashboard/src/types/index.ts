@@ -118,7 +118,7 @@ export interface MerchantUser {
 
 // ── Notification log ──────────────────────────────────────────────────────────
 
-export type NotificationType = "new_order" | "stale_order" | "out_for_delivery_followup" | "stuck_reward";
+export type NotificationType = "new_order" | "stale_order" | "out_for_delivery_followup" | "stuck_reward" | "invoice_submitted" | "invoice_resolved";
 
 export interface NotificationLogEntry {
   id: string;
