@@ -1,0 +1,18 @@
+<svg width="280" height="56" viewBox="0 0 280 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="280" height="56" rx="14" fill="#238D9D"/>
+  <!-- Shadow -->
+  <rect width="280" height="56" rx="14" fill="url(#btnShadow)" opacity="0.3"/>
+  <!-- Miles token -->
+  <circle cx="36" cy="28" r="13" fill="white" opacity="0.2"/>
+  <circle cx="36" cy="28" r="10" fill="white" opacity="0.2"/>
+  <!-- Button text -->
+  <text x="140" y="34" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="700" font-size="17" fill="white" letter-spacing="0.2">Play in AkibaMiles</text>
+  <!-- Arrow -->
+  <path d="M253 24L261 28L253 32" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <defs>
+    <linearGradient id="btnShadow" x1="0" y1="0" x2="0" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="white" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="black" stop-opacity="0.1"/>
+    </linearGradient>
+  </defs>
+</svg>

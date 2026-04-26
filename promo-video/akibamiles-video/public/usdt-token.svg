@@ -1,0 +1,10 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="16" cy="16" r="16" fill="#26A17B"/>
+  <circle cx="16" cy="16" r="12" fill="#1E8A67"/>
+  <!-- T-bar -->
+  <rect x="8" y="9" width="16" height="3" rx="1.5" fill="white"/>
+  <!-- Stem -->
+  <rect x="14.5" y="12" width="3" height="5" fill="white"/>
+  <!-- Bottom circle -->
+  <ellipse cx="16" cy="20" rx="5" ry="2" stroke="white" stroke-width="2" fill="none"/>
+</svg>

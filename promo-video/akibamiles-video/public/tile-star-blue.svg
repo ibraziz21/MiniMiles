@@ -1,0 +1,6 @@
+<svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="56" height="56" rx="12" fill="#DDF8FF"/>
+  <rect width="56" height="56" rx="12" stroke="#238D9D" stroke-width="1.5" stroke-opacity="0.3"/>
+  <!-- Star -->
+  <path d="M28 12L31.5 22H42L33.5 28L37 38L28 32L19 38L22.5 28L14 22H24.5L28 12Z" fill="#238D9D" opacity="0.85"/>
+</svg>

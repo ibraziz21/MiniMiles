@@ -1,0 +1,68 @@
+AKIBAMILES SKILL GAMES — VOICEOVER SCRIPT
+Final Draft · 28 seconds · 9:16 Vertical
+=========================================
+
+DELIVERY NOTES
+--------------
+Tone:     Confident, energetic, clear. Not rushed. Slightly upbeat.
+Voice:    Male or female, 25–35 age range, neutral accent.
+Pace:     Natural speech. Do not compress to fit — the script is timed to fit naturally.
+Emphasis: Words marked with CAPS or *asterisks* should receive slight emphasis.
+Silence:  Respect the pause markers — they align with scene transitions.
+
+---
+
+SCENE 1 — Brand Intro (0:00 – 0:04)
+--------------------------------------
+[0.0s – 0.2s]  [silence — logo reveal]
+[0.2s]  "New on *AkibaMiles*:"
+
+SCENE 2 — Hook Statement (0:04 – 0:08)
+-----------------------------------------
+[4.0s]  "skill games built for *quick wins.*"
+
+SCENE 3 — Rule Tap Showcase (0:08 – 0:14)
+-------------------------------------------
+[8.0s]  "Play *Rule Tap* —"
+[9.5s]  "where every tap follows the rule."
+
+SCENE 4 — Memory Flip Showcase (0:14 – 0:19)
+----------------------------------------------
+[14.0s]  "Flip cards in *Memory Flip*"
+[15.5s]  "and race the clock."
+
+SCENE 5 — Trust & Rewards (0:19 – 0:24)
+------------------------------------------
+[19.0s]  "Sessions are *verified.*"
+[20.5s]  "Your best score counts."
+[22.0s]  "And rewards settle *through AkibaMiles.*"
+
+SCENE 6 — CTA (0:24 – 0:28)
+------------------------------
+[24.0s]  "Open the app"
+[25.0s]  "and *play today.*"
+[26.0s – 0:28]  [silence — logo hold / end card]
+
+---
+
+FULL READ (unbroken, for HeyGen text-to-speech input)
+------------------------------------------------------
+New on AkibaMiles: skill games built for quick wins.
+Play Rule Tap, where every tap follows the rule.
+Flip cards in Memory Flip and race the clock.
+Sessions are verified, your best score counts,
+and rewards settle through AkibaMiles.
+Open the app and play today.
+
+---
+
+HeyGen TTS Settings (recommended)
+----------------------------------
+- Speed:    1.05×  (slightly faster than default for energy)
+- Pitch:    Default (0)
+- Emotion:  Enthusiastic / Friendly
+- Pause after "AkibaMiles:" (Scene 1 end): 0.4s
+- Pause after "quick wins." (Scene 2 end): 0.5s
+- Pause after "Rule Tap" (Scene 3): 0.3s natural breath
+- Pause after "Memory Flip" (Scene 4): 0.3s natural breath
+- Pause after "verified." (Scene 5): 0.4s emphasis beat

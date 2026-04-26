@@ -1,0 +1,1901 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>AkibaMiles Office Hours — Ep 01 Storyboard</title>
+<style>
+  @font-face {
+    font-family: "Sterling";
+    font-style: normal;
+    font-weight: 300;
+    font-display: swap;
+    src: url("assets/fonts/FTSterlingTrial-Regular.woff") format("woff");
+  }
+  @font-face {
+    font-family: "Sterling";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("assets/fonts/FTSterlingTrial-Medium.woff") format("woff");
+  }
+  @font-face {
+    font-family: "Sterling";
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url("assets/fonts/FTSterlingTrial-Semi-Bold.woff") format("woff");
+  }
+
+  :root {
+    --ak-primary: #238D9D;
+    --ak-primary-deep: #0D7A8A;
+    --ak-primary-soft: #238D9D1A;
+    --ak-primary-border: #238D9D4D;
+    --ak-bg: #F0FDFF;
+    --ak-cyan: #ADF4FF80;
+    --ak-mint: #DCFCE7;
+    --ak-green: #4EFFA0;
+    --ak-fg-1: #111827;
+    --ak-fg-2: #525252;
+    --ak-fg-3: #817E7E;
+    --ak-line: #E5E7EB;
+    --ak-font-body: "Sterling", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --ak-font-display: "Sterling", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --ak-font-poppins: "Sterling", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #e9ebee;
+    font-family: var(--ak-font-body);
+    color: var(--ak-fg-1);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ────────────────────────────────────────────────────────────
+     Storyboard shell — a column of 7 vertical 1080×1920 scenes.
+     Every scene is an independent, Remotion-ready frame.
+     ──────────────────────────────────────────────────────────── */
+  .board {
+    padding: 56px 0 96px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 56px;
+  }
+  .board h1.board-title {
+    font-family: var(--ak-font-display);
+    font-weight: 500;
+    font-size: 28px;
+    margin: 0 0 8px;
+    color: #111827;
+    letter-spacing: -0.01em;
+  }
+  .board .board-sub {
+    font-family: var(--ak-font-poppins);
+    font-size: 13px;
+    color: var(--ak-fg-2);
+    margin-bottom: 32px;
+    text-align: center;
+    max-width: 520px;
+  }
+  .scene-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+  .scene-meta {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    font-family: "DM Mono", ui-monospace, monospace;
+    font-size: 12px;
+    color: #6b7280;
+  }
+  .scene-meta b {
+    color: var(--ak-primary);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .scene-meta .dot { color: #d1d5db; }
+
+  .scene {
+    width: 1080px;
+    height: 1920px;
+    background: #F0FDFF;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 30px 80px -30px rgba(17,24,39,.35), 0 0 0 1px rgba(17,24,39,.04);
+    border-radius: 8px;
+    isolation: isolate;
+  }
+
+  /* ────────────────────────────────────────────────────────────
+     Shared scene chrome
+     ──────────────────────────────────────────────────────────── */
+
+  /* Header brand lockup used on hooks / CTA scenes */
+  .brand-lockup {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+  .brand-lockup .mark {
+    width: 72px;
+    height: 72px;
+    border-radius: 22px;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #238D9D22;
+    box-shadow: 0 12px 24px -12px rgba(35,141,157,.5);
+  }
+  .brand-lockup .mark img { width: 42px; height: 42px; }
+  .brand-lockup .wordmark {
+    font-family: var(--ak-font-display);
+    font-weight: 500;
+    font-size: 40px;
+    color: #111827;
+    letter-spacing: -0.01em;
+  }
+
+  /* Bottom caption bar — persistent across every scene */
+  .caption {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    padding: 56px 80px 80px;
+    background: linear-gradient(180deg, rgba(240,253,255,0), #F0FDFF 42%);
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 40px;
+    z-index: 4;
+  }
+  .caption .cap-text {
+    font-family: var(--ak-font-poppins);
+    font-size: 32px;
+    font-weight: 500;
+    line-height: 1.35;
+    color: #111827;
+    max-width: 760px;
+    text-wrap: balance;
+  }
+  .caption .cap-ep {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .caption .cap-ep .ep-kicker {
+    font-family: var(--ak-font-body);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ak-primary);
+  }
+  .caption .cap-ep .ep-num {
+    font-family: var(--ak-font-display);
+    font-size: 20px;
+    font-weight: 500;
+    color: #525252;
+  }
+
+  /* Episode chip floating top-right */
+  .ep-chip {
+    position: absolute;
+    top: 64px;
+    right: 64px;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 22px;
+    background: #fff;
+    border: 1px solid #238D9D33;
+    border-radius: 999px;
+    font-family: var(--ak-font-poppins);
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--ak-primary);
+    box-shadow: 0 8px 20px -12px rgba(35,141,157,.35);
+    z-index: 3;
+  }
+  .ep-chip .ep-num-lg {
+    font-family: var(--ak-font-display);
+    font-size: 22px;
+    font-weight: 600;
+    color: #111827;
+    letter-spacing: -0.01em;
+  }
+  .ep-chip .ep-dot {
+    width: 8px; height: 8px; border-radius: 999px;
+    background: #238D9D;
+  }
+
+  /* ────────────────────────────────────────────────────────────
+     Phone frame — all app-UI scenes render inside this
+     Target screen: 720 wide × 1480 tall (standard mobile ratio)
+     ──────────────────────────────────────────────────────────── */
+  .phone {
+    position: absolute;
+    width: 720px;
+    height: 1480px;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 260px;
+    background: #0f1115;
+    border-radius: 64px;
+    padding: 16px;
+    box-shadow:
+      0 60px 120px -40px rgba(17,24,39,.35),
+      0 0 0 2px rgba(17,24,39,.08);
+  }
+  .phone-screen {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #fff;
+    border-radius: 50px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .phone-notch {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 220px;
+    height: 34px;
+    background: #0f1115;
+    border-radius: 0 0 20px 20px;
+    z-index: 5;
+  }
+  .phone-statusbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 24px 48px 12px;
+    font-family: var(--ak-font-body);
+    font-size: 22px;
+    font-weight: 500;
+    color: #111827;
+  }
+  .phone-statusbar .right { display: flex; gap: 10px; align-items: center; opacity: .9; }
+
+  /* App dashboard header (inside phone) */
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 30px 24px;
+  }
+  .app-header .who {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+  .app-header .avatar {
+    width: 60px; height: 60px;
+    border-radius: 999px;
+    background: var(--ak-primary);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--ak-font-display);
+    font-weight: 600;
+    font-size: 22px;
+  }
+  .app-header .name {
+    font-family: var(--ak-font-poppins);
+    font-size: 18px;
+    font-weight: 400;
+    color: var(--ak-fg-3);
+    line-height: 1.2;
+  }
+  .app-header .welcome {
+    font-family: var(--ak-font-display);
+    font-size: 28px;
+    font-weight: 500;
+    color: #111827;
+    line-height: 1.15;
+  }
+  .app-header .actions {
+    display: flex; align-items: center; gap: 14px;
+    color: var(--ak-primary);
+  }
+  .app-header .icon-btn {
+    width: 48px; height: 48px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 999px;
+    background: #238D9D14;
+    position: relative;
+  }
+  .app-header .icon-btn .badge {
+    position: absolute; top: -4px; right: -2px;
+    background: #238D9D; color: #fff;
+    font-size: 13px; font-weight: 700;
+    border-radius: 999px;
+    padding: 1px 6px;
+    border: 2px solid #fff;
+  }
+
+  /* ─ Balance hero card ─ */
+  .balance-card {
+    margin: 0 30px;
+    background: var(--ak-primary);
+    background-image: url("assets/backgrounds/balance-card-bg.svg");
+    background-size: 140% auto;
+    background-repeat: no-repeat;
+    background-position: -10% -20%;
+    border-radius: 28px;
+    overflow: hidden;
+    color: #fff;
+    box-shadow: 0 24px 48px -24px rgba(35,141,157,.55);
+  }
+  .balance-card .bc-lbl {
+    padding: 28px 34px 4px;
+    font-family: var(--ak-font-poppins);
+    font-size: 20px;
+    font-weight: 400;
+    color: rgba(255,255,255,.82);
+  }
+  .balance-card .bc-amount {
+    display: flex; align-items: center; gap: 18px;
+    padding: 10px 34px 30px;
+  }
+  .balance-card .bc-amount img { width: 52px; height: 52px; }
+  .balance-card .bc-amount .n {
+    font-family: var(--ak-font-display);
+    font-size: 64px; font-weight: 500; line-height: 1;
+    letter-spacing: -0.01em;
+  }
+  .balance-card .bc-controls {
+    background: #fff;
+    border-radius: 24px 24px 0 0;
+    padding: 20px 20px 24px;
+    color: var(--ak-primary);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .balance-card .bc-row { display: flex; gap: 12px; }
+  .bc-ctrl {
+    flex: 1;
+    display: inline-flex; align-items: center; justify-content: center; gap: 12px;
+    padding: 20px 14px;
+    border-radius: 18px;
+    font-family: var(--ak-font-poppins);
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--ak-primary);
+  }
+  .bc-ctrl.outline { background: #238D9D1A; }
+  .bc-ctrl.solid {
+    background: var(--ak-primary);
+    color: #fff;
+  }
+  .bc-ctrl img { width: 26px; height: 26px; }
+  .bc-ctrl.solid img { filter: brightness(0) invert(1); }
+  .bc-ctrl.ghost {
+    justify-content: center;
+    padding: 14px;
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--ak-primary);
+  }
+  .bc-ctrl.ghost img { width: 20px; height: 20px; }
+
+  /* Section head used inside phone */
+  .sect-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 36px 30px 18px;
+  }
+  .sect-head h3 {
+    margin: 0;
+    font-family: var(--ak-font-display);
+    font-size: 28px;
+    font-weight: 500;
+    color: #111827;
+  }
+  .sect-head .more {
+    font-family: var(--ak-font-poppins);
+    font-size: 16px;
+    color: var(--ak-fg-2);
+  }
+
+  /* Bottom nav (inside phone) */
+  .bottom-nav {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: var(--ak-mint);
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 22px 60px 40px;
+  }
+  .nav-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    font-family: var(--ak-font-poppins);
+    font-size: 15px;
+    color: #6B7280;
+  }
+  .nav-btn img { width: 32px; height: 32px; opacity: .7; }
+  .nav-btn.active img { opacity: 1; }
+  .nav-btn.active { color: var(--ak-primary); font-weight: 500; }
+  .nav-btn.center {
+    transform: translateY(-10px);
+    color: #111827; font-weight: 500;
+  }
+  .nav-btn.center .ring {
+    background: #fff; border: 5px solid var(--ak-primary);
+    padding: 14px; border-radius: 999px; display: flex;
+    box-shadow: 0 4px 12px rgba(0,0,0,.08);
+  }
+  .nav-btn.center .ring img { opacity: 1; width: 30px; height: 30px; }
+
+  /* ────────────────────────────────────────────────────────────
+     SCENE 1 — Series hook
+     ──────────────────────────────────────────────────────────── */
+  .scene--hook {
+    background:
+      radial-gradient(ellipse at 30% 18%, #ADF4FF80 0%, transparent 55%),
+      radial-gradient(ellipse at 80% 85%, #ADF4FF80 0%, transparent 55%),
+      #F0FDFF;
+  }
+  .hook-inner {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 0 96px;
+    text-align: center;
+    gap: 48px;
+  }
+  .hook-series {
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 26px;
+    border-radius: 999px;
+    background: #fff;
+    border: 1px solid #238D9D33;
+    box-shadow: 0 12px 28px -16px rgba(35,141,157,.35);
+  }
+  .hook-series .on-air {
+    width: 12px; height: 12px; border-radius: 999px;
+    background: #238D9D;
+    box-shadow: 0 0 0 6px rgba(217,119,6,.18);
+  }
+  .hook-series .on-air-lbl {
+    font-family: var(--ak-font-poppins);
+    font-weight: 600;
+    font-size: 18px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #111827;
+  }
+  .hook-series .series-name {
+    font-family: var(--ak-font-display);
+    font-weight: 500;
+    font-size: 24px;
+    color: var(--ak-primary);
+  }
+
+  .hook-title {
+    font-family: var(--ak-font-display);
+    font-weight: 900;
+    font-size: 130px;
+    line-height: 1.02;
+    letter-spacing: -0.015em;
+    color: #111827;
+    max-width: 900px;
+    text-wrap: balance;
+  }
+  .hook-title em {
+    font-style: normal;
+    color: var(--ak-primary);
+  }
+
+  .hook-question {
+    position: relative;
+    margin-top: 8px;
+    padding: 38px 56px;
+    border-radius: 32px;
+    background: #fff;
+    border: 1px solid #238D9D33;
+    box-shadow: 0 24px 60px -24px rgba(35,141,157,.30);
+    display: flex;
+    align-items: center;
+    gap: 32px;
+  }
+  .hook-question .q-mark {
+    flex-shrink: 0;
+    width: 88px; height: 88px;
+    border-radius: 999px;
+    background: #ADF4FF80;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--ak-font-display);
+    font-size: 54px;
+    font-weight: 600;
+    color: var(--ak-primary);
+  }
+  .hook-question .q-text {
+    font-family: var(--ak-font-display);
+    font-weight: 500;
+    font-size: 44px;
+    line-height: 1.2;
+    color: #111827;
+    text-align: left;
+  }
+
+  .hook-episode-badge {
+    position: absolute;
+    top: 96px;
+    left: 96px;
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 22px;
+    border-radius: 20px;
+    background: #fff;
+    border: 1px solid #238D9D33;
+  }
+  .hook-episode-badge .mini-mark {
+    width: 40px; height: 40px;
+    border-radius: 12px;
+    background: #fff;
+    border: 1px solid #238D9D22;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .hook-episode-badge .mini-mark img { width: 22px; height: 22px; }
+  .hook-episode-badge .hep-label {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  }
+  .hook-episode-badge .hep-label small {
+    font-family: var(--ak-font-poppins);
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ak-fg-3);
+    font-weight: 600;
+  }
+  .hook-episode-badge .hep-label b {
+    font-family: var(--ak-font-display);
+    font-size: 18px;
+    font-weight: 500;
+    color: #111827;
+  }
+
+  /* ────────────────────────────────────────────────────────────
+     SCENE 2 — Short answer (balance card)
+     ──────────────────────────────────────────────────────────── */
+  .scene--balance .app-scroll {
+    padding-top: 8px;
+  }
+
+  .answer-pill {
+    position: absolute;
+    top: 96px;
+    left: 80px;
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 22px;
+    background: #fff;
+    border: 1px solid #238D9D33;
+    border-radius: 999px;
+    font-family: var(--ak-font-poppins);
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--ak-primary);
+    z-index: 3;
+  }
+  .answer-pill::before {
+    content: "";
+    width: 10px; height: 10px; border-radius: 999px;
+    background: var(--ak-primary);
+  }
+
+  /* ────────────────────────────────────────────────────────────
+     SCENE 3 — Earn
+     ──────────────────────────────────────────────────────────── */
+  .earn-title-row {
+    padding: 0 30px;
+  }
+  .earn-page-title {
+    font-family: var(--ak-font-display);
+    font-size: 40px;
+    font-weight: 500;
+    color: #111827;
+    margin: 0;
+    line-height: 1.05;
+  }
+  .earn-page-sub {
+    font-family: var(--ak-font-poppins);
+    font-size: 18px;
+    color: var(--ak-fg-2);
+    margin: 10px 0 0;
+  }
+  .earn-tabs {
+    margin: 28px 30px 0;
+    display: flex;
+    background: #EBEBEB;
+    border-radius: 999px;
+    padding: 6px;
+  }
+  .earn-tabs .tab {
+    flex: 1;
+    text-align: center;
+    padding: 16px;
+    border-radius: 999px;
+    font-family: var(--ak-font-poppins);
+    font-size: 18px;
+    font-weight: 500;
+    color: #8E8B8B;
+  }
+  .earn-tabs .tab.active {
+    background: #ADF4FF80;
+    color: #111827;
+  }
+
+  .quest-list {
+    padding: 24px 30px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .quest-card {
+    background: #fff;
+    border-radius: 20px;
+    padding: 22px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    box-shadow: 0 2px 6px rgba(17,24,39,.04);
+    border: 1px solid #238D9D33;
+  }
+  .quest-card .q-icon {
+    width: 68px; height: 68px;
+    border-radius: 18px;
+    background: #238D9D1A;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .quest-card .q-icon img { width: 36px; height: 36px; }
+  .quest-card .q-icon.amber { background: #ADF4FF80; }
+  .quest-card .q-icon.green { background: #DCFCE7; }
+  .quest-card .q-body { flex: 1; min-width: 0; }
+  .quest-card .q-title {
+    font-family: var(--ak-font-display);
+    font-size: 20px;
+    font-weight: 500;
+    color: #111827;
+    margin: 0 0 4px;
+  }
+  .quest-card .q-meta {
+    font-family: var(--ak-font-poppins);
+    font-size: 14px;
+    color: var(--ak-fg-3);
+  }
+  .quest-card .q-progress {
+    margin-top: 10px;
+    height: 8px;
+    background: #238D9D1A;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .quest-card .q-progress .fill {
+    height: 100%;
+    background: var(--ak-primary);
+    border-radius: 999px;
+  }
+  .quest-card .q-reward {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border-radius: 999px;
+    background: #238D9D1A;
+    color: var(--ak-primary);
+    font-family: var(--ak-font-display);
+    font-size: 18px;
+    font-weight: 500;
+  }
+  .quest-card .q-reward img { width: 20px; height: 20px; }
+  .quest-card.ready .q-reward {
+    background: var(--ak-primary);
+    color: #fff;
+  }
+  .quest-card.ready .q-reward img { filter: none; }
+
+  /* ────────────────────────────────────────────────────────────
+     SCENE 4 — Games
+     ──────────────────────────────────────────────────────────── */
+  .games-grid {
+    padding: 8px 30px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+  .game-card {
+    background: #fff;
+    border-radius: 26px;
+    padding: 22px;
+    border: 1px solid #238D9D33;
+    box-shadow: 0 4px 12px rgba(17,24,39,.04);
+  }
+  .game-card .gc-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 18px;
+  }
+  .game-card .gc-title {
+    font-family: var(--ak-font-display);
+    font-size: 26px;
+    font-weight: 500;
+    color: #111827;
+    margin: 0;
+  }
+  .game-card .gc-sub {
+    font-family: var(--ak-font-poppins);
+    font-size: 15px;
+    color: var(--ak-fg-2);
+    margin: 2px 0 0;
+  }
+  .game-card .gc-cost {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: #238D9D1A;
+    color: var(--ak-primary);
+    border-radius: 999px;
+    font-family: var(--ak-font-display);
+    font-size: 16px;
+    font-weight: 500;
+  }
+  .game-card .gc-cost img { width: 18px; height: 18px; }
+
+  /* Rule Tap preview */
+  .rule-banner {
+    background: #238D9D;
+    color: #fff;
+    border-radius: 16px;
+    padding: 14px 18px;
+    font-family: var(--ak-font-display);
+    font-size: 20px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .rule-banner .star {
+    display: inline-block;
+    width: 28px; height: 28px;
+    background: #FBBF24;
+    clip-path: polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
+  }
+  .score-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .score-chip {
+    flex: 1;
+    background: #F0FDFF;
+    border: 1px solid #238D9D33;
+    border-radius: 14px;
+    padding: 10px 14px;
+    text-align: center;
+  }
+  .score-chip small {
+    display: block;
+    font-family: var(--ak-font-poppins);
+    font-size: 12px;
+    color: var(--ak-fg-3);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .score-chip b {
+    font-family: var(--ak-font-display);
+    font-size: 24px;
+    font-weight: 500;
+    color: #111827;
+  }
+  .rt-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .rt-cell {
+    aspect-ratio: 1/1;
+    background: #F0FDFF;
+    border: 1px solid #238D9D33;
+    border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--ak-font-display);
+    font-size: 42px;
+    color: #525252;
+  }
+  .rt-cell.star {
+    background: #238D9D1A;
+    border-color: #238D9D4D;
+  }
+  .rt-cell.star::before {
+    content: "";
+    width: 52px; height: 52px;
+    background: #FBBF24;
+    clip-path: polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
+  }
+  .rt-cell.circle::before {
+    content: "";
+    width: 42px; height: 42px;
+    border-radius: 999px;
+    background: #ADF4FF;
+  }
+  .rt-cell.tri::before {
+    content: "";
+    width: 0; height: 0;
+    border-left: 24px solid transparent;
+    border-right: 24px solid transparent;
+    border-bottom: 42px solid #76E0F0;
+  }
+  .rt-cell.tapped {
+    background: var(--ak-primary);
+    border-color: var(--ak-primary);
+  }
+  .rt-cell.tapped::after {
+    content: "✓";
+    position: absolute;
+    color: #fff;
+    font-family: var(--ak-font-display);
+    font-size: 28px;
+    font-weight: 600;
+    margin-left: 34px;
+    margin-top: -34px;
+  }
+  .rt-cell { position: relative; }
+
+  /* Memory Flip preview */
+  .mf-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .mf-cell {
+    aspect-ratio: 3/4;
+    background: var(--ak-primary);
+    background-image: url("assets/backgrounds/balance-card-bg.svg");
+    background-size: 180% auto;
+    background-position: center;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,.85);
+    font-family: var(--ak-font-display);
+    font-size: 28px;
+    font-weight: 600;
+  }
+  .mf-cell.flip {
+    background: #F0FDFF;
+    border: 1px solid #238D9D33;
+    color: var(--ak-primary);
+    font-size: 36px;
+  }
+  .mf-cell.matched {
+    background: #DCFCE7;
+    border: 1px solid #86EFAC;
+    color: #166534;
+  }
+
+  /* ────────────────────────────────────────────────────────────
+     SCENE 5 — Raffles & rewards
+     ──────────────────────────────────────────────────────────── */
+  .spend-hero {
+    margin: 0 30px 0;
+    padding: 22px;
+    border-radius: 22px;
+    background: linear-gradient(135deg, #F0FDFF, #ADF4FF80);
+    border: 1px solid #238D9D33;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  .spend-hero .sh-lbl {
+    font-family: var(--ak-font-poppins);
+    font-size: 16px;
+    color: var(--ak-fg-2);
+    margin-bottom: 6px;
+  }
+  .spend-hero .sh-amount {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--ak-font-display);
+    font-size: 36px;
+    font-weight: 500;
+    color: #111827;
+  }
+  .spend-hero .sh-amount img { width: 36px; height: 36px; }
+  .spend-hero .sh-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: #fff;
+    border: 1px solid #238D9D33;
+    color: var(--ak-primary);
+    padding: 14px 20px;
+    border-radius: 999px;
+    font-family: var(--ak-font-poppins);
+    font-size: 16px;
+    font-weight: 500;
+  }
+  .raffle-grid {
+    padding: 20px 30px 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .raffle-card {
+    background: #fff;
+    border-radius: 22px;
+    overflow: hidden;
+    border: 1px solid #238D9D33;
+    box-shadow: 0 4px 10px rgba(17,24,39,.05);
+    display: flex;
+    flex-direction: column;
+  }
+  .raffle-card .prize {
+    aspect-ratio: 1/1;
+    background: linear-gradient(180deg, #F0FDFF 0%, #ADF4FF80 100%);
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .raffle-card .prize img {
+    width: 86%; height: 86%;
+    object-fit: contain;
+  }
+  .raffle-card .prize .winners {
+    position: absolute;
+    top: 12px; right: 12px;
+    background: #fff;
+    border: 1px solid #238D9D33;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-family: var(--ak-font-poppins);
+    font-size: 13px;
+    font-weight: 500;
+    color: #111827;
+  }
+  .raffle-card .info {
+    padding: 16px 18px 18px;
+  }
+  .raffle-card .info .title {
+    font-family: var(--ak-font-display);
+    font-size: 22px;
+    font-weight: 500;
+    color: #111827;
+    margin: 0 0 4px;
+    line-height: 1.2;
+  }
+  .raffle-card .info .ends {
+    font-family: var(--ak-font-poppins);
+    font-size: 13px;
+    color: var(--ak-fg-3);
+    margin-bottom: 12px;
+  }
+  .raffle-card .info .cost {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: #238D9D1A;
+    color: var(--ak-primary);
+    font-family: var(--ak-font-display);
+    font-size: 16px;
+    font-weight: 500;
+  }
+  .raffle-card .info .cost img { width: 18px; height: 18px; }
+
+  /* ────────────────────────────────────────────────────────────
+     SCENE 6 — Product loop (Earn. Use. Track.)
+     ──────────────────────────────────────────────────────────── */
+  .loop-scene {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 200px 80px 260px;
+    gap: 80px;
+  }
+  .loop-headline {
+    font-family: var(--ak-font-display);
+    font-weight: 600;
+    font-size: 140px;
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    color: #111827;
+    text-align: center;
+  }
+  .loop-headline .w1 { color: var(--ak-primary); }
+  .loop-headline .w2 { color: #111827; }
+  .loop-headline .w3 { color: #525252; }
+  .loop-headline .dot { color: var(--ak-primary); }
+  .loop-sub {
+    font-family: var(--ak-font-poppins);
+    font-size: 30px;
+    color: var(--ak-fg-2);
+    text-align: center;
+    max-width: 760px;
+    margin: -40px auto 0;
+    text-wrap: balance;
+  }
+
+  .loop-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  .loop-card {
+    background: #fff;
+    border-radius: 32px;
+    padding: 40px 32px 36px;
+    border: 1px solid #238D9D33;
+    box-shadow: 0 20px 40px -20px rgba(17,24,39,.12);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .loop-card .lc-icon {
+    width: 100px; height: 100px;
+    border-radius: 28px;
+    background: #238D9D1A;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .loop-card .lc-icon img { width: 52px; height: 52px; }
+  .loop-card .lc-icon.solid {
+    background: var(--ak-primary);
+  }
+  .loop-card .lc-icon.solid img { filter: brightness(0) invert(1); }
+  .loop-card .lc-step {
+    font-family: var(--ak-font-poppins);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ak-primary);
+  }
+  .loop-card .lc-title {
+    font-family: var(--ak-font-display);
+    font-size: 40px;
+    font-weight: 500;
+    color: #111827;
+    margin: 0;
+    line-height: 1.05;
+  }
+  .loop-card .lc-body {
+    font-family: var(--ak-font-poppins);
+    font-size: 20px;
+    color: var(--ak-fg-2);
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  /* Arrows between loop cards */
+  .loop-cards {
+    position: relative;
+  }
+  .loop-cards::before,
+  .loop-cards::after {
+    content: "→";
+    position: absolute;
+    top: 80px;
+    font-family: var(--ak-font-display);
+    font-size: 48px;
+    color: var(--ak-primary);
+    z-index: 2;
+  }
+  .loop-cards::before { left: calc(33.333% - 14px); }
+  .loop-cards::after  { left: calc(66.666% - 14px); }
+
+  /* ────────────────────────────────────────────────────────────
+     SCENE 7 — CTA
+     ──────────────────────────────────────────────────────────── */
+  .cta-scene {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 160px 80px;
+    text-align: center;
+    gap: 56px;
+    background:
+      radial-gradient(ellipse at 50% 30%, #ADF4FF80 0%, transparent 55%),
+      #F0FDFF;
+  }
+  .cta-mark {
+    width: 150px;
+    height: 150px;
+    border-radius: 40px;
+    background: #fff;
+    border: 1px solid #238D9D22;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 30px 60px -24px rgba(35,141,157,.5);
+  }
+  .cta-mark img { width: 84px; height: 84px; }
+
+  .cta-wordmark {
+    font-family: var(--ak-font-display);
+    font-weight: 500;
+    font-size: 54px;
+    color: #111827;
+    letter-spacing: -0.01em;
+    margin-top: -24px;
+  }
+  .cta-headline {
+    font-family: var(--ak-font-display);
+    font-weight: 600;
+    font-size: 96px;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    color: #111827;
+    max-width: 860px;
+    text-wrap: balance;
+    margin: 0;
+  }
+  .cta-headline em {
+    font-style: normal;
+    color: var(--ak-primary);
+  }
+  .cta-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 18px;
+    padding: 30px 60px;
+    background: var(--ak-primary);
+    color: #fff;
+    border-radius: 999px;
+    font-family: var(--ak-font-display);
+    font-size: 38px;
+    font-weight: 500;
+    box-shadow: 0 24px 48px -20px rgba(35,141,157,.6);
+  }
+  .cta-button .arrow {
+    width: 42px; height: 42px;
+    background: rgba(255,255,255,.2);
+    border-radius: 999px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .cta-footer {
+    margin-top: 30px;
+    padding: 24px 36px;
+    background: #fff;
+    border: 1px solid #238D9D33;
+    border-radius: 22px;
+    display: inline-flex;
+    align-items: center;
+    gap: 18px;
+  }
+  .cta-footer .ep-next-lbl {
+    font-family: var(--ak-font-poppins);
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ak-primary);
+  }
+  .cta-footer .ep-next-q {
+    font-family: var(--ak-font-display);
+    font-size: 24px;
+    font-weight: 500;
+    color: #111827;
+  }
+  .cta-footer .divider {
+    width: 1px; height: 28px; background: #238D9D33;
+  }
+
+  /* ────────────────────────────────────────────────────────────
+     Underlays: phone-free ambient backdrops
+     ──────────────────────────────────────────────────────────── */
+  .scene-bg-blob {
+    position: absolute;
+    border-radius: 999px;
+    background: #ADF4FF80;
+    filter: blur(60px);
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* Ensure phone sits above ambient */
+  .scene > .phone { z-index: 2; }
+
+  /* Sparkle accents on final CTA */
+  .cta-sparkle {
+    position: absolute;
+    width: 16px; height: 16px;
+    background: var(--ak-primary);
+    border-radius: 999px;
+    opacity: .4;
+  }
+
+  body[data-render-scene] {
+    width: 1080px;
+    height: 1920px;
+    overflow: hidden;
+    background: #F0FDFF;
+  }
+  body[data-render-scene] .board {
+    width: 1080px;
+    height: 1920px;
+    padding: 0;
+    gap: 0;
+  }
+  body[data-render-scene] .board-title,
+  body[data-render-scene] .board-sub,
+  body[data-render-scene] .scene-meta {
+    display: none;
+  }
+  body[data-render-scene] .scene-wrap {
+    display: none;
+    width: 1080px;
+    height: 1920px;
+  }
+  body[data-render-scene] .scene {
+    border-radius: 0;
+    box-shadow: none;
+  }
+  body[data-render-scene="1"] .scene-wrap:nth-of-type(1),
+  body[data-render-scene="2"] .scene-wrap:nth-of-type(2),
+  body[data-render-scene="3"] .scene-wrap:nth-of-type(3),
+  body[data-render-scene="4"] .scene-wrap:nth-of-type(4),
+  body[data-render-scene="5"] .scene-wrap:nth-of-type(5),
+  body[data-render-scene="6"] .scene-wrap:nth-of-type(6),
+  body[data-render-scene="7"] .scene-wrap:nth-of-type(7) {
+    display: flex;
+  }
+</style>
+</head>
+<body class="ak-body-font">
+
+<div class="board">
+
+  <h1 class="board-title">AkibaMiles Office Hours — Episode 01</h1>
+  <p class="board-sub">Vertical 1080×1920 storyboard. Seven scenes, sequenced top-to-bottom, each a self-contained frame for Remotion.</p>
+
+  <!-- ============================================================
+       SCENE 1 — SERIES HOOK
+       ============================================================ -->
+  <div class="scene-wrap">
+    <div class="scene-meta"><b>Scene 01</b><span class="dot">·</span><span>Series hook</span><span class="dot">·</span><span>00:00 – 00:03</span></div>
+    <div class="scene scene--hook" data-screen-label="01 Hook">
+
+      <div class="hook-episode-badge">
+        <div class="mini-mark"><img src="assets/logos/minimiles-symbol.svg" alt=""></div>
+        <div class="hep-label">
+          <small>AkibaMiles</small>
+          <b>Office Hours</b>
+        </div>
+      </div>
+
+      <div class="ep-chip">
+        <span class="ep-dot"></span>
+        <span>Episode</span>
+        <span class="ep-num-lg">01</span>
+      </div>
+
+      <div class="hook-inner">
+        <div class="hook-series">
+          <span class="on-air"></span>
+          <span class="on-air-lbl">On air</span>
+          <span class="series-name">· AkibaMiles Office Hours</span>
+        </div>
+
+        <h2 class="hook-title">What are <em>AkibaMiles?</em></h2>
+
+        <div class="hook-question">
+          <div class="q-mark">?</div>
+          <div class="q-text">The 60-second explainer for the reward points inside AkibaMiles.</div>
+        </div>
+      </div>
+
+      <div class="caption">
+        <div class="cap-text">Office Hours: what are AkibaMiles?</div>
+        <div class="cap-ep">
+          <span class="ep-kicker">Episode</span>
+          <span class="ep-num">01 / 06</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCENE 2 — SHORT ANSWER (BALANCE CARD)
+       ============================================================ -->
+  <div class="scene-wrap">
+    <div class="scene-meta"><b>Scene 02</b><span class="dot">·</span><span>Short answer</span><span class="dot">·</span><span>00:03 – 00:10</span></div>
+    <div class="scene scene--balance" data-screen-label="02 Balance">
+
+      <div class="scene-bg-blob" style="width: 560px; height: 560px; top: -180px; left: -120px;"></div>
+      <div class="scene-bg-blob" style="width: 460px; height: 460px; bottom: 260px; right: -140px; opacity: .6;"></div>
+
+      <div class="answer-pill">Short answer</div>
+      <div class="ep-chip">
+        <span class="ep-dot"></span>
+        <span>Episode</span>
+        <span class="ep-num-lg">01</span>
+      </div>
+
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="phone-notch"></div>
+
+          <div class="phone-statusbar">
+            <span>9:41</span>
+            <div class="right">
+              <svg width="26" height="14" viewBox="0 0 16 10"><path d="M1 6l2 2 4-4 4 4 4-4" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <svg width="22" height="14" viewBox="0 0 14 10"><path d="M7 2c2 0 3.7.8 5 2l1-1c-1.6-1.6-3.7-2.5-6-2.5S2.6 1.4 1 3l1 1c1.3-1.2 3-2 5-2z" fill="currentColor"/><circle cx="7" cy="8" r="1.3" fill="currentColor"/></svg>
+              <svg width="32" height="14" viewBox="0 0 22 10"><rect x=".5" y=".5" width="19" height="9" rx="2.5" stroke="currentColor" fill="none"/><rect x="2" y="2" width="13" height="6" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="1.5" height="3" rx=".5" fill="currentColor"/></svg>
+            </div>
+          </div>
+
+          <div class="app-header">
+            <div class="who">
+              <div class="avatar">W</div>
+              <div>
+                <div class="name">Welcome,</div>
+                <div class="welcome">Wanjiru</div>
+              </div>
+            </div>
+            <div class="actions">
+              <div class="icon-btn">
+                <svg width="24" height="24" viewBox="0 0 256 256" fill="#238D9D"><path d="M224,56v48a72,72,0,0,1-144,0V56Z" opacity=".2"/><path d="M232,48H208V40a8,8,0,0,0-8-8H56a8,8,0,0,0-8,8v8H24a8,8,0,0,0-8,8V72a40,40,0,0,0,40,40h3.65A80.13,80.13,0,0,0,120,171.33V192H96a8,8,0,0,0,0,16h64a8,8,0,0,0,0-16H136V171.33A80.13,80.13,0,0,0,196.35,112H200a40,40,0,0,0,40-40V56A8,8,0,0,0,232,48Z"/></svg>
+                <span class="badge">3</span>
+              </div>
+              <div class="icon-btn"><img src="assets/icons/gear.svg" width="24" alt=""></div>
+            </div>
+          </div>
+
+          <div class="balance-card">
+            <div class="bc-lbl">Total AkibaMiles</div>
+            <div class="bc-amount">
+              <img src="assets/logos/minimiles-symbol-alt.svg" alt="">
+              <span class="n">12,340</span>
+            </div>
+            <div class="bc-controls">
+              <div class="bc-row">
+                <div class="bc-ctrl outline"><img src="assets/icons/earn.svg" alt="">Earn</div>
+                <div class="bc-ctrl solid"><img src="assets/icons/ticket-alt.svg" alt="">Spend</div>
+              </div>
+              <div class="bc-ctrl ghost"><img src="assets/icons/transcript.svg" alt="">View history</div>
+            </div>
+          </div>
+
+          <div class="sect-head">
+            <h3>Daily challenges</h3>
+            <span class="more">See all ›</span>
+          </div>
+
+          <div style="padding: 0 30px; display: flex; gap: 12px; overflow: hidden;">
+            <div style="flex: 1; background: #DCFCE7; border-radius: 18px; padding: 20px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <img src="assets/icons/streak.svg" width="28" alt="">
+                <span style="display:inline-flex;align-items:center;gap:4px;font-family:var(--ak-font-display);font-size:16px;color:var(--ak-primary);font-weight:500;">
+                  <img src="assets/logos/minimiles-symbol.svg" width="16" alt="">+50
+                </span>
+              </div>
+              <div style="font-family:var(--ak-font-display);font-size:19px;font-weight:500;margin-bottom:4px;color:#111827;">Hold 5 cKES</div>
+              <div style="font-family:var(--ak-font-poppins);font-size:13px;color:#4B5563;">Daily · Mento</div>
+            </div>
+            <div style="flex: 1; background: #DCFCE7; border-radius: 18px; padding: 20px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <img src="assets/icons/check-icon.svg" width="28" alt="">
+                <span style="display:inline-flex;align-items:center;gap:4px;font-family:var(--ak-font-display);font-size:16px;color:var(--ak-primary);font-weight:500;">
+                  <img src="assets/logos/minimiles-symbol.svg" width="16" alt="">+20
+                </span>
+              </div>
+              <div style="font-family:var(--ak-font-display);font-size:19px;font-weight:500;margin-bottom:4px;color:#111827;">Send 5 transactions</div>
+              <div style="font-family:var(--ak-font-poppins);font-size:13px;color:#4B5563;">Today · MiniPay</div>
+            </div>
+          </div>
+
+          <div class="bottom-nav">
+            <div class="nav-btn"><img src="assets/icons/earn.svg" alt=""><span>Earn</span></div>
+            <div class="nav-btn center"><div class="ring"><img src="assets/icons/home.svg" alt=""></div><span>Home</span></div>
+            <div class="nav-btn"><img src="assets/icons/ticket-alt.svg" alt=""><span>Spend</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="caption">
+        <div class="cap-text">AkibaMiles are reward points inside the AkibaMiles app.</div>
+        <div class="cap-ep">
+          <span class="ep-kicker">Episode</span>
+          <span class="ep-num">01 / 06</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCENE 3 — EARN
+       ============================================================ -->
+  <div class="scene-wrap">
+    <div class="scene-meta"><b>Scene 03</b><span class="dot">·</span><span>Earn Miles</span><span class="dot">·</span><span>00:10 – 00:18</span></div>
+    <div class="scene scene--earn" data-screen-label="03 Earn">
+
+      <div class="scene-bg-blob" style="width: 520px; height: 520px; top: 120px; right: -160px;"></div>
+
+      <div class="answer-pill">Earn</div>
+      <div class="ep-chip">
+        <span class="ep-dot"></span>
+        <span>Episode</span>
+        <span class="ep-num-lg">01</span>
+      </div>
+
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="phone-notch"></div>
+
+          <div class="phone-statusbar">
+            <span>9:41</span>
+            <div class="right">
+              <svg width="26" height="14" viewBox="0 0 16 10"><path d="M1 6l2 2 4-4 4 4 4-4" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <svg width="22" height="14" viewBox="0 0 14 10"><path d="M7 2c2 0 3.7.8 5 2l1-1c-1.6-1.6-3.7-2.5-6-2.5S2.6 1.4 1 3l1 1c1.3-1.2 3-2 5-2z" fill="currentColor"/><circle cx="7" cy="8" r="1.3" fill="currentColor"/></svg>
+              <svg width="32" height="14" viewBox="0 0 22 10"><rect x=".5" y=".5" width="19" height="9" rx="2.5" stroke="currentColor" fill="none"/><rect x="2" y="2" width="13" height="6" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="1.5" height="3" rx=".5" fill="currentColor"/></svg>
+            </div>
+          </div>
+
+          <div style="padding: 20px 30px 0; display:flex; align-items:center; gap: 14px;">
+            <div style="width:48px;height:48px;border-radius:999px;background:#238D9D1A;display:flex;align-items:center;justify-content:center;">
+              <img src="assets/icons/earn.svg" width="24" alt="">
+            </div>
+            <div>
+              <h2 class="earn-page-title">Earn</h2>
+            </div>
+          </div>
+          <p class="earn-page-sub" style="padding: 0 30px;">Complete challenges to earn AkibaMiles.</p>
+
+          <div class="earn-tabs">
+            <div class="tab active">Active</div>
+            <div class="tab">Completed</div>
+          </div>
+
+          <div class="quest-list">
+            <div class="quest-card ready">
+              <div class="q-icon amber"><img src="assets/icons/streak.svg" alt=""></div>
+              <div class="q-body">
+                <p class="q-title">Daily streak · Day 4</p>
+                <div class="q-meta">Check in today to keep it alive</div>
+                <div class="q-progress"><div class="fill" style="width: 85%;"></div></div>
+              </div>
+              <div class="q-reward"><img src="assets/logos/minimiles-symbol-alt.svg" alt="">+50</div>
+            </div>
+
+            <div class="quest-card">
+              <div class="q-icon green"><img src="assets/icons/check-icon.svg" alt=""></div>
+              <div class="q-body">
+                <p class="q-title">Send 5 transactions</p>
+                <div class="q-meta">Today · MiniPay · 3 of 5 done</div>
+                <div class="q-progress"><div class="fill" style="width: 60%;"></div></div>
+              </div>
+              <div class="q-reward"><img src="assets/logos/minimiles-symbol.svg" alt="">+20</div>
+            </div>
+
+            <div class="quest-card">
+              <div class="q-icon">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#238D9D" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>
+              </div>
+              <div class="q-body">
+                <p class="q-title">Hold 5 cKES in your wallet</p>
+                <div class="q-meta">Daily · Mento</div>
+                <div class="q-progress"><div class="fill" style="width: 100%;"></div></div>
+              </div>
+              <div class="q-reward"><img src="assets/logos/minimiles-symbol.svg" alt="">+50</div>
+            </div>
+
+            <div class="quest-card">
+              <div class="q-icon">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#238D9D" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 3v6h6"/></svg>
+              </div>
+              <div class="q-body">
+                <p class="q-title">Deposit USDT into Akiba Vault</p>
+                <div class="q-meta">Earn 1 mile daily per USDT held</div>
+              </div>
+              <div class="q-reward"><img src="assets/logos/minimiles-symbol.svg" alt="">+100</div>
+            </div>
+
+            <div class="quest-card">
+              <div class="q-icon">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#238D9D" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              </div>
+              <div class="q-body">
+                <p class="q-title">Invite a friend</p>
+                <div class="q-meta">Partner quest · One-time</div>
+              </div>
+              <div class="q-reward"><img src="assets/logos/minimiles-symbol.svg" alt="">+200</div>
+            </div>
+          </div>
+
+          <div class="bottom-nav">
+            <div class="nav-btn active"><img src="assets/icons/earn.svg" alt=""><span>Earn</span></div>
+            <div class="nav-btn center"><div class="ring"><img src="assets/icons/home.svg" alt=""></div><span>Home</span></div>
+            <div class="nav-btn"><img src="assets/icons/ticket-alt.svg" alt=""><span>Spend</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="caption">
+        <div class="cap-text">You earn them by completing challenges, playing skill games, and joining app activities.</div>
+        <div class="cap-ep">
+          <span class="ep-kicker">Episode</span>
+          <span class="ep-num">01 / 06</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCENE 4 — SKILL GAMES
+       ============================================================ -->
+  <div class="scene-wrap">
+    <div class="scene-meta"><b>Scene 04</b><span class="dot">·</span><span>Skill games</span><span class="dot">·</span><span>00:18 – 00:28</span></div>
+    <div class="scene scene--games" data-screen-label="04 Games">
+
+      <div class="scene-bg-blob" style="width: 520px; height: 520px; top: 300px; left: -180px;"></div>
+
+      <div class="answer-pill">Skill games</div>
+      <div class="ep-chip">
+        <span class="ep-dot"></span>
+        <span>Episode</span>
+        <span class="ep-num-lg">01</span>
+      </div>
+
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="phone-notch"></div>
+
+          <div class="phone-statusbar">
+            <span>9:41</span>
+            <div class="right">
+              <svg width="26" height="14" viewBox="0 0 16 10"><path d="M1 6l2 2 4-4 4 4 4-4" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <svg width="22" height="14" viewBox="0 0 14 10"><path d="M7 2c2 0 3.7.8 5 2l1-1c-1.6-1.6-3.7-2.5-6-2.5S2.6 1.4 1 3l1 1c1.3-1.2 3-2 5-2z" fill="currentColor"/><circle cx="7" cy="8" r="1.3" fill="currentColor"/></svg>
+              <svg width="32" height="14" viewBox="0 0 22 10"><rect x=".5" y=".5" width="19" height="9" rx="2.5" stroke="currentColor" fill="none"/><rect x="2" y="2" width="13" height="6" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="1.5" height="3" rx=".5" fill="currentColor"/></svg>
+            </div>
+          </div>
+
+          <div style="padding: 20px 30px 0;">
+            <h2 class="earn-page-title">Games</h2>
+            <p class="earn-page-sub">Play to earn more Miles.</p>
+          </div>
+
+          <div class="games-grid">
+
+            <div class="game-card">
+              <div class="gc-head">
+                <div>
+                  <h3 class="gc-title">Rule Tap</h3>
+                  <p class="gc-sub">Tap only what the rule asks for.</p>
+                </div>
+                <span class="gc-cost"><img src="assets/logos/minimiles-symbol.svg" alt="">10 / play</span>
+              </div>
+
+              <div class="rule-banner">
+                <span>Tap only <b style="font-weight:600;">stars</b></span>
+                <span class="star"></span>
+              </div>
+
+              <div class="score-row">
+                <div class="score-chip"><small>Score</small><b>7</b></div>
+                <div class="score-chip"><small>Round</small><b>3 / 5</b></div>
+                <div class="score-chip"><small>Time</small><b>0:08</b></div>
+              </div>
+
+              <div class="rt-grid">
+                <div class="rt-cell star"></div>
+                <div class="rt-cell circle"></div>
+                <div class="rt-cell tri"></div>
+                <div class="rt-cell circle"></div>
+                <div class="rt-cell star tapped"></div>
+                <div class="rt-cell star"></div>
+                <div class="rt-cell tri"></div>
+                <div class="rt-cell star"></div>
+                <div class="rt-cell circle"></div>
+              </div>
+            </div>
+
+            <div class="game-card">
+              <div class="gc-head">
+                <div>
+                  <h3 class="gc-title">Memory Flip</h3>
+                  <p class="gc-sub">Match pairs to clear the board.</p>
+                </div>
+                <span class="gc-cost"><img src="assets/logos/minimiles-symbol.svg" alt="">15 / play</span>
+              </div>
+
+              <div class="score-row">
+                <div class="score-chip"><small>Matches</small><b>2 / 8</b></div>
+                <div class="score-chip"><small>Moves</small><b>11</b></div>
+                <div class="score-chip"><small>Reward</small><b>+40</b></div>
+              </div>
+
+              <div class="mf-grid">
+                <div class="mf-cell matched">♦</div>
+                <div class="mf-cell flip">★</div>
+                <div class="mf-cell"></div>
+                <div class="mf-cell matched">♦</div>
+
+                <div class="mf-cell"></div>
+                <div class="mf-cell"></div>
+                <div class="mf-cell flip">★</div>
+                <div class="mf-cell"></div>
+
+                <div class="mf-cell matched">●</div>
+                <div class="mf-cell"></div>
+                <div class="mf-cell"></div>
+                <div class="mf-cell"></div>
+
+                <div class="mf-cell"></div>
+                <div class="mf-cell"></div>
+                <div class="mf-cell matched">●</div>
+                <div class="mf-cell"></div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="bottom-nav">
+            <div class="nav-btn"><img src="assets/icons/earn.svg" alt=""><span>Earn</span></div>
+            <div class="nav-btn center"><div class="ring"><img src="assets/icons/home.svg" alt=""></div><span>Home</span></div>
+            <div class="nav-btn"><img src="assets/icons/ticket-alt.svg" alt=""><span>Spend</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="caption">
+        <div class="cap-text">You earn them by completing challenges, playing skill games, and joining app activities.</div>
+        <div class="cap-ep">
+          <span class="ep-kicker">Episode</span>
+          <span class="ep-num">01 / 06</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCENE 5 — RAFFLES & REWARDS
+       ============================================================ -->
+  <div class="scene-wrap">
+    <div class="scene-meta"><b>Scene 05</b><span class="dot">·</span><span>Raffles &amp; rewards</span><span class="dot">·</span><span>00:28 – 00:38</span></div>
+    <div class="scene scene--spend" data-screen-label="05 Spend">
+
+      <div class="scene-bg-blob" style="width: 500px; height: 500px; top: 200px; right: -160px;"></div>
+
+      <div class="answer-pill">Spend</div>
+      <div class="ep-chip">
+        <span class="ep-dot"></span>
+        <span>Episode</span>
+        <span class="ep-num-lg">01</span>
+      </div>
+
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="phone-notch"></div>
+
+          <div class="phone-statusbar">
+            <span>9:41</span>
+            <div class="right">
+              <svg width="26" height="14" viewBox="0 0 16 10"><path d="M1 6l2 2 4-4 4 4 4-4" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <svg width="22" height="14" viewBox="0 0 14 10"><path d="M7 2c2 0 3.7.8 5 2l1-1c-1.6-1.6-3.7-2.5-6-2.5S2.6 1.4 1 3l1 1c1.3-1.2 3-2 5-2z" fill="currentColor"/><circle cx="7" cy="8" r="1.3" fill="currentColor"/></svg>
+              <svg width="32" height="14" viewBox="0 0 22 10"><rect x=".5" y=".5" width="19" height="9" rx="2.5" stroke="currentColor" fill="none"/><rect x="2" y="2" width="13" height="6" rx="1" fill="currentColor"/><rect x="20" y="3.5" width="1.5" height="3" rx=".5" fill="currentColor"/></svg>
+            </div>
+          </div>
+
+          <div style="padding: 20px 30px 0;">
+            <h2 class="earn-page-title">Spend</h2>
+            <p class="earn-page-sub">Use your Miles on rewards and raffles.</p>
+          </div>
+
+          <div class="spend-hero" style="margin-top:18px;">
+            <div>
+              <div class="sh-lbl">Your balance</div>
+              <div class="sh-amount"><img src="assets/logos/minimiles-symbol-alt.svg" alt=""> 12,340</div>
+            </div>
+            <div class="sh-btn">View history ›</div>
+          </div>
+
+          <div class="sect-head">
+            <h3>Live rewards</h3>
+            <span class="more">All rewards ›</span>
+          </div>
+
+          <div class="raffle-grid">
+            <div class="raffle-card">
+              <div class="prize">
+                <span class="winners">5 winners</span>
+                <img src="assets/illustrations/cusd-cash-raffle.svg" alt="">
+              </div>
+              <div class="info">
+                <p class="title">500 cUSD prize pool</p>
+                <div class="ends">Ends in 2d 4h</div>
+                <div class="cost"><img src="assets/logos/minimiles-symbol.svg" alt="">10 / ticket</div>
+              </div>
+            </div>
+
+            <div class="raffle-card">
+              <div class="prize">
+                <span class="winners">3 winners</span>
+                <img src="assets/illustrations/ckes-cash-raffle.svg" alt="">
+              </div>
+              <div class="info">
+                <p class="title">25,000 cKES draw</p>
+                <div class="ends">Ends in 6h 15m</div>
+                <div class="cost"><img src="assets/logos/minimiles-symbol.svg" alt="">15 / ticket</div>
+              </div>
+            </div>
+
+            <div class="raffle-card">
+              <div class="prize">
+                <span class="winners">1 winner</span>
+                <img src="assets/illustrations/miles-cash-raffle.svg" alt="">
+              </div>
+              <div class="info">
+                <p class="title">10,000 Miles bonus</p>
+                <div class="ends">Ends in 1d 8h</div>
+                <div class="cost"><img src="assets/logos/minimiles-symbol.svg" alt="">5 / ticket</div>
+              </div>
+            </div>
+
+            <div class="raffle-card">
+              <div class="prize">
+                <span class="winners">2 winners</span>
+                <img src="assets/illustrations/celo-cash-raffle.svg" alt="">
+              </div>
+              <div class="info">
+                <p class="title">100 CELO reward</p>
+                <div class="ends">Ends in 3d</div>
+                <div class="cost"><img src="assets/logos/minimiles-symbol.svg" alt="">20 / ticket</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bottom-nav">
+            <div class="nav-btn"><img src="assets/icons/earn.svg" alt=""><span>Earn</span></div>
+            <div class="nav-btn center"><div class="ring"><img src="assets/icons/home.svg" alt=""></div><span>Home</span></div>
+            <div class="nav-btn active"><img src="assets/icons/ticket-alt.svg" alt=""><span>Spend</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="caption">
+        <div class="cap-text">Then you can use Miles for games, raffles, and reward opportunities inside the app.</div>
+        <div class="cap-ep">
+          <span class="ep-kicker">Episode</span>
+          <span class="ep-num">01 / 06</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCENE 6 — PRODUCT LOOP
+       ============================================================ -->
+  <div class="scene-wrap">
+    <div class="scene-meta"><b>Scene 06</b><span class="dot">·</span><span>Product loop</span><span class="dot">·</span><span>00:38 – 00:46</span></div>
+    <div class="scene scene--loop loop-scene" data-screen-label="06 Loop">
+
+      <div class="scene-bg-blob" style="width: 640px; height: 640px; top: -200px; right: -200px;"></div>
+      <div class="scene-bg-blob" style="width: 520px; height: 520px; bottom: -100px; left: -180px; opacity: .7;"></div>
+
+      <div class="ep-chip">
+        <span class="ep-dot"></span>
+        <span>Episode</span>
+        <span class="ep-num-lg">01</span>
+      </div>
+
+      <div>
+        <div class="loop-headline">
+          <span class="w1">Earn.</span> <span class="w2">Use.</span> <span class="w3">Track.</span>
+        </div>
+        <p class="loop-sub">The simple loop that powers AkibaMiles.</p>
+      </div>
+
+      <div class="loop-cards">
+        <div class="loop-card">
+          <div class="lc-icon solid"><img src="assets/icons/earn.svg" alt=""></div>
+          <span class="lc-step">Step 01</span>
+          <h3 class="lc-title">Earn</h3>
+          <p class="lc-body">Complete daily challenges, play skill games, and join partner activities.</p>
+        </div>
+        <div class="loop-card">
+          <div class="lc-icon solid"><img src="assets/icons/ticket-alt.svg" alt=""></div>
+          <span class="lc-step">Step 02</span>
+          <h3 class="lc-title">Use</h3>
+          <p class="lc-body">Spend Miles on games, raffles, and reward opportunities in the app.</p>
+        </div>
+        <div class="loop-card">
+          <div class="lc-icon solid"><img src="assets/icons/transcript.svg" alt=""></div>
+          <span class="lc-step">Step 03</span>
+          <h3 class="lc-title">Track</h3>
+          <p class="lc-body">Watch your balance, streaks, and history grow over time.</p>
+        </div>
+      </div>
+
+      <div class="caption">
+        <div class="cap-text">The simple loop is: earn Miles, use Miles, and track your progress.</div>
+        <div class="cap-ep">
+          <span class="ep-kicker">Episode</span>
+          <span class="ep-num">01 / 06</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCENE 7 — CTA
+       ============================================================ -->
+  <div class="scene-wrap">
+    <div class="scene-meta"><b>Scene 07</b><span class="dot">·</span><span>Call to action</span><span class="dot">·</span><span>00:46 – 00:60</span></div>
+    <div class="scene scene--cta cta-scene" data-screen-label="07 CTA">
+
+      <span class="cta-sparkle" style="top: 18%; left: 12%; width: 22px; height: 22px;"></span>
+      <span class="cta-sparkle" style="top: 24%; right: 16%; width: 14px; height: 14px; opacity: .3;"></span>
+      <span class="cta-sparkle" style="bottom: 30%; left: 18%; width: 10px; height: 10px; opacity: .25;"></span>
+      <span class="cta-sparkle" style="bottom: 22%; right: 14%; width: 18px; height: 18px; opacity: .4;"></span>
+
+      <div class="ep-chip">
+        <span class="ep-dot"></span>
+        <span>Episode</span>
+        <span class="ep-num-lg">01</span>
+      </div>
+
+      <div class="cta-mark">
+        <img src="assets/logos/minimiles-symbol.svg" alt="AkibaMiles">
+      </div>
+      <div class="cta-wordmark">AkibaMiles</div>
+
+      <h2 class="cta-headline">Open AkibaMiles.<br><em>Check your balance.</em></h2>
+
+      <div class="cta-button">
+        Open AkibaMiles
+        <span class="arrow">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </span>
+      </div>
+
+      <div class="cta-footer">
+        <span class="ep-next-lbl">Next episode</span>
+        <span class="divider"></span>
+        <span class="ep-next-q">How do you earn Miles?</span>
+      </div>
+
+      <div class="caption">
+        <div class="cap-text">Open AkibaMiles, check your balance, and drop your next question in the comments.</div>
+        <div class="cap-ep">
+          <span class="ep-kicker">Episode</span>
+          <span class="ep-num">01 / 06</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const scene = new URLSearchParams(window.location.search).get("scene");
+  if (scene) {
+    document.body.dataset.renderScene = scene;
+  }
+</script>
+</body>
+</html>

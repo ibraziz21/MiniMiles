@@ -1,0 +1,14 @@
+<svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="56" height="56" rx="12" fill="#FFF8E1"/>
+  <rect width="56" height="56" rx="12" stroke="#B7791F33" stroke-width="1.5"/>
+  <!-- 4-point sparkle -->
+  <path d="M28 12L30 24L28 28L26 24L28 12Z" fill="#B7791F" opacity="0.85"/>
+  <path d="M28 28L26 32L28 44L30 32L28 28Z" fill="#B7791F" opacity="0.85"/>
+  <path d="M12 28L24 26L28 28L24 30L12 28Z" fill="#B7791F" opacity="0.85"/>
+  <path d="M28 28L32 26L44 28L32 30L28 28Z" fill="#B7791F" opacity="0.85"/>
+  <!-- Small dots -->
+  <circle cx="21" cy="21" r="2" fill="#B7791F" opacity="0.5"/>
+  <circle cx="35" cy="21" r="2" fill="#B7791F" opacity="0.5"/>
+  <circle cx="35" cy="35" r="2" fill="#B7791F" opacity="0.5"/>
+  <circle cx="21" cy="35" r="2" fill="#B7791F" opacity="0.5"/>
+</svg>

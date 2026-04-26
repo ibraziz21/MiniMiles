@@ -1,0 +1,6 @@
+<svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="56" height="56" rx="12" fill="#FFF6D8"/>
+  <rect width="56" height="56" rx="12" stroke="#B7791F" stroke-width="1.5" stroke-opacity="0.3"/>
+  <!-- Diamond -->
+  <path d="M28 13L43 28L28 43L13 28L28 13Z" fill="#B7791F" opacity="0.85"/>
+</svg>
