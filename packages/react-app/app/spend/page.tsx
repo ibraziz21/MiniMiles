@@ -2,7 +2,6 @@
 import dynamic from 'next/dynamic';
 import DailyChallenges from '@/components/daily-challenge';
 import EnterRaffleSheet from '@/components/enter-raffle-sheet';
-import { GameCard } from '@/components/game-card';
 import { Hero } from '@/components/Hero';
 import MiniPointsCard from '@/components/mini-points-card';
 import { RaffleCard } from '@/components/raffle-card';
@@ -15,12 +14,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
 import type { Address } from 'viem'
 import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
-import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5, pods, phone, jbl,bag, sambuds, tv, soundbar, ps5, ebike, usdt, docking,camera,washmachine,chair} from '@/lib/img';
-import { Coin, akibaMilesSymbol } from '@/lib/svg';
+import { RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5, pods, phone, jbl,bag, sambuds, tv, soundbar, ps5, ebike, usdt, docking,camera,washmachine,chair} from '@/lib/img';
+import { akibaMilesSymbol } from '@/lib/svg';
 import { Question } from '@phosphor-icons/react';
 import { StaticImageData } from 'next/image';
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
+import { MilesAmount } from '@/components/games/miles-amount';
 const PhysicalRaffleSheet = dynamic(() => import('@/components/physical-raffle-sheet'), { ssr: false });
 
 export type TokenRaffle = {
@@ -153,11 +153,6 @@ const physicalGoodsRaffles = [
 const nftRaffles = [
   { image: nft1, title: "BoredApe #567", endsIn: 7, ticketCost: "10 AkibaMiles for 1 ticket" },
   { image: nft2, title: "CryptoPunk #789", endsIn: 3, ticketCost: "12 AkibaMiles" },
-];
-
-const upcomingGames = [
-  { name: "Dice", date: "xx/xx/xx", image: Dice },
-  { name: "Coin flip", date: "xx/xx/xx", image: Coin },
 ];
 
 const Page = () => {
@@ -322,43 +317,66 @@ const Page = () => {
         </div>
       </div>
 
-      <div>
-        <SectionHeading title="Games" />
-        <div className="flex space-x-3 overflow-x-auto px-4">
-  {upcomingGames.map((game, idx) => {
-    const locked = game.name !== 'Dice'; // Dice is live, others locked
+      {/* GAMES */}
+      <div className="mt-6 px-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-extrabold">Games</h3>
+          <Link href="/games" className="text-xs font-semibold text-[#238D9D]">See all →</Link>
+        </div>
 
-    const card = (
-      <GameCard
-        name={game.name}
-        date={game.date}
-        image={game.image}
-        locked={locked}
-      />
-    );
+        {/* Dice — chance game */}
+        <div className="mb-3">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-[#817E7E] mb-2">Chance</p>
+          <Link href="/dice" className="flex items-center gap-3 rounded-2xl bg-gradient-to-r from-[#1A3A2A] to-[#204D38] p-4 shadow-sm">
+            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-white/10 text-2xl">
+              🎲
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-white">Dice</p>
+              <p className="text-xs text-white/70 font-poppins">Pick a number · Win the pot</p>
+            </div>
+            <span className="flex items-center gap-1 rounded-full bg-[#4EFFA0]/20 px-2.5 py-1 text-xs font-semibold text-[#4EFFA0]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#4EFFA0] animate-pulse" />
+              Live
+            </span>
+          </Link>
+        </div>
 
-    if (!locked && game.name === 'Dice') {
-      // Dice is live → clickable
-      return (
-        <Link
-          key={idx}
-          href="/dice"
-          className="shrink-0"
-        >
-          {card}
-        </Link>
-      );
-    }
-
-    // Locked previews (non-clickable)
-    return (
-      <div key={idx} className="shrink-0">
-        {card}
+        {/* Skill games */}
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-[#817E7E] mb-2">Skill</p>
+        <div className="flex gap-3 overflow-x-auto pb-1">
+          <Link
+            href="/games/rule-tap"
+            className="shrink-0 w-44 rounded-2xl bg-gradient-to-br from-[#0D7A8A] to-[#238D9D] p-4 shadow-sm"
+          >
+            <span className="text-2xl">⚡</span>
+            <p className="mt-2 font-bold text-white text-sm">Rule Tap</p>
+            <p className="text-[11px] text-white/70 font-poppins flex items-center gap-0.5">20s · up to <MilesAmount value={35} size={11} variant="alt" /></p>
+            <span className="mt-2 inline-flex items-center gap-0.5 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold text-white">
+              <MilesAmount value={5} size={10} variant="alt" /> entry
+            </span>
+          </Link>
+          <Link
+            href="/games/memory-flip"
+            className="shrink-0 w-44 rounded-2xl bg-gradient-to-br from-[#3B1F6E] to-[#7B4CC0] p-4 shadow-sm"
+          >
+            <span className="text-2xl">🧠</span>
+            <p className="mt-2 font-bold text-white text-sm">Memory Flip</p>
+            <p className="text-[11px] text-white/70 font-poppins flex items-center gap-0.5">60s · up to <MilesAmount value={20} size={11} variant="alt" /></p>
+            <span className="mt-2 inline-flex items-center gap-0.5 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold text-white">
+              <MilesAmount value={5} size={10} variant="alt" /> entry
+            </span>
+          </Link>
+          <div className="shrink-0 w-44 rounded-2xl bg-[#F0F0F0] p-4 flex flex-col justify-between opacity-60">
+            <span className="text-2xl">🪙</span>
+            <p className="mt-2 font-bold text-[#525252] text-sm">Coin Flip</p>
+            <p className="text-[11px] text-[#817E7E] font-poppins">Coming soon</p>
+            <span className="mt-2 inline-block rounded-full bg-[#D0D0D0] px-2 py-0.5 text-[10px] font-semibold text-[#817E7E]">
+              Locked
+            </span>
+          </div>
+        </div>
       </div>
-    );
-  })}
-</div>
-</div>
 
 <PhysicalRaffleSheet
   open={activeSheet === "physical"}

@@ -14,7 +14,7 @@ const nextConfig = {
     domains: ['cdn-production-opera-website.operacdn.com'],
   },
   devIndicators: false,
-  allowedDevOrigins: ['192.168.100.6'],
+  allowedDevOrigins: ['192.168.100.6', '172.20.10.3'],
 };
 
 module.exports = nextConfig;
