@@ -5,7 +5,7 @@ import Link from "next/link";
 import { TopBar } from "@/components/layout/TopBar";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatNumber } from "@/lib/utils";
-import type { Poll, PollStatus } from "@/types";
+import type { PollStatus } from "@/types";
 
 const STATUS_VARIANT: Record<PollStatus, "default" | "secondary" | "success" | "warning" | "outline"> = {
   draft: "secondary",
@@ -14,22 +14,35 @@ const STATUS_VARIANT: Record<PollStatus, "default" | "secondary" | "success" | "
   verified: "default",
 };
 
-async function getPolls(): Promise<Poll[]> {
-  const [pollsRes, totalRes, completeRes] = await Promise.all([
+type PollListItem = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: PollStatus;
+  starts_at: string | null;
+  ends_at: string | null;
+  created_at: string;
+  response_count: number;
+  reward_queued_count: number;
+};
+
+async function getPolls(): Promise<PollListItem[]> {
+  const [pollsRes, responsesRes] = await Promise.all([
     supabase.from("polls").select("id, title, description, status, starts_at, ends_at, created_at").order("created_at", { ascending: false }),
-    supabase.from("poll_responses").select("poll_id"),
-    supabase.from("poll_responses").select("poll_id").eq("is_complete", true),
+    supabase.from("poll_responses").select("poll_id, reward_queued"),
   ]);
 
   const totalMap: Record<string, number> = {};
-  const completeMap: Record<string, number> = {};
-  for (const r of totalRes.data ?? []) totalMap[r.poll_id] = (totalMap[r.poll_id] ?? 0) + 1;
-  for (const r of completeRes.data ?? []) completeMap[r.poll_id] = (completeMap[r.poll_id] ?? 0) + 1;
+  const rewardMap: Record<string, number> = {};
+  for (const r of responsesRes.data ?? []) {
+    totalMap[r.poll_id] = (totalMap[r.poll_id] ?? 0) + 1;
+    if (r.reward_queued) rewardMap[r.poll_id] = (rewardMap[r.poll_id] ?? 0) + 1;
+  }
 
   return (pollsRes.data ?? []).map((p) => ({
     ...p,
     response_count: totalMap[p.id] ?? 0,
-    complete_count: completeMap[p.id] ?? 0,
+    reward_queued_count: rewardMap[p.id] ?? 0,
   }));
 }
 
@@ -51,7 +64,7 @@ export default async function PollsPage() {
                   <th className="px-4 py-3 text-left">Poll</th>
                   <th className="px-4 py-3 text-left">Status</th>
                   <th className="px-4 py-3 text-right">Responses</th>
-                  <th className="px-4 py-3 text-right">Completion %</th>
+                  <th className="px-4 py-3 text-right">Rewards Queued</th>
                   <th className="px-4 py-3 text-left">Created</th>
                 </tr>
               </thead>
@@ -62,9 +75,6 @@ export default async function PollsPage() {
                   </tr>
                 )}
                 {polls.map((poll) => {
-                  const rate = poll.response_count! > 0
-                    ? Math.round((poll.complete_count! / poll.response_count!) * 100)
-                    : 0;
                   return (
                     <tr key={poll.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3">
@@ -80,9 +90,7 @@ export default async function PollsPage() {
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-slate-700">{formatNumber(poll.response_count!)}</td>
                       <td className="px-4 py-3 text-right">
-                        <span className={rate >= 70 ? "text-emerald-600 font-medium" : rate >= 40 ? "text-amber-600 font-medium" : "text-slate-500"}>
-                          {rate}%
-                        </span>
+                        <span className="font-mono text-slate-700">{formatNumber(poll.reward_queued_count)}</span>
                       </td>
                       <td className="px-4 py-3 text-slate-500">{formatDate(poll.created_at)}</td>
                     </tr>

@@ -31,6 +31,7 @@ export interface AdminSessionData {
   name: string | null;
   role: AdminRole;
   issuedAt: number;
+  openAccess?: boolean;
 }
 
 // ── Admin user ────────────────────────────────────────────────────────────────

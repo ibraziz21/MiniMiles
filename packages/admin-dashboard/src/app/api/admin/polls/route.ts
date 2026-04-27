@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/auth";
+import { adminIdForWrite, requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { writeAdminAuditLog } from "@/lib/audit";
 
@@ -51,6 +51,7 @@ export async function POST(req: Request) {
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
   if (!body.title) return NextResponse.json({ error: "title is required" }, { status: 400 });
+  const adminUserId = adminIdForWrite(session);
 
   const { data, error } = await supabase
     .from("polls")
@@ -60,7 +61,7 @@ export async function POST(req: Request) {
       target_segment: body.target_segment ?? null,
       starts_at: body.starts_at ?? null,
       ends_at: body.ends_at ?? null,
-      created_by: session.adminUserId,
+      created_by: adminUserId,
       status: "draft",
     })
     .select("id, title, status")
@@ -68,7 +69,7 @@ export async function POST(req: Request) {
 
   if (error) return NextResponse.json({ error: "Failed to create poll" }, { status: 500 });
 
-  void writeAdminAuditLog({ adminUserId: session.adminUserId, action: "poll.created", targetType: "poll", targetId: data.id, metadata: { title: data.title } });
+  void writeAdminAuditLog({ adminUserId, action: "poll.created", targetType: "poll", targetId: data.id, metadata: { title: data.title } });
 
   return NextResponse.json({ poll: data }, { status: 201 });
 }

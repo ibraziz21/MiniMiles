@@ -11,10 +11,20 @@ const PUBLIC_PATHS = [
   "/api/auth/bootstrap",
 ];
 
+function isOpenAccessMode(): boolean {
+  if (process.env.ADMIN_OPEN_ACCESS === "true") return true;
+  if (process.env.ADMIN_OPEN_ACCESS === "false") return false;
+  return process.env.NODE_ENV !== "production";
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+    return NextResponse.next();
+  }
+
+  if (isOpenAccessMode()) {
     return NextResponse.next();
   }
 

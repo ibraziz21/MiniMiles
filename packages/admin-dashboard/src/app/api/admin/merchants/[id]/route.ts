@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/auth";
+import { adminIdForWrite, requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { writeAdminAuditLog } from "@/lib/audit";
 
@@ -45,6 +45,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
   const actions: string[] = [];
+  const adminUserId = adminIdForWrite(session);
 
   // store_active toggle
   if ("store_active" in body && typeof body.store_active === "boolean") {
@@ -67,7 +68,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 
   for (const action of actions) {
-    void writeAdminAuditLog({ adminUserId: session.adminUserId, action, targetType: "merchant", targetId: params.id, metadata: body });
+    void writeAdminAuditLog({ adminUserId, action, targetType: "merchant", targetId: params.id, metadata: body });
   }
 
   return NextResponse.json({ ok: true });

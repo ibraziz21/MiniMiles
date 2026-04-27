@@ -2,8 +2,6 @@
 
 Internal admin UI for AkibaMiles staff. Not merchant-facing.
 
-Runs on port **3002** (merchant dashboard is 3001, react-app is 3000).
-
 ## Setup
 
 ```bash
@@ -13,6 +11,12 @@ cp .env.template .env.local
 pnpm install
 pnpm dev
 ```
+
+Next.js will use its default port, or the port you pass when running the command.
+
+For local testing, admin auth is open by default. Set
+`ADMIN_OPEN_ACCESS="false"` in `.env.local` when you want to test the login
+flow locally. Never enable open access in production.
 
 ## SQL migrations
 

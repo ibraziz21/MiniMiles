@@ -5,6 +5,27 @@ import { supabase } from "./supabase";
 import type { AdminSessionData, AdminRole } from "@/types";
 import { hasPermission } from "@/types";
 
+export function isOpenAccessMode(): boolean {
+  if (process.env.ADMIN_OPEN_ACCESS === "true") return true;
+  if (process.env.ADMIN_OPEN_ACCESS === "false") return false;
+  return process.env.NODE_ENV !== "production";
+}
+
+export function getOpenAccessSession(): AdminSessionData {
+  return {
+    adminUserId: "00000000-0000-0000-0000-000000000000",
+    email: "open-access@akibamiles.local",
+    name: "Open Access",
+    role: "super_admin",
+    issuedAt: Date.now(),
+    openAccess: true,
+  };
+}
+
+export function adminIdForWrite(session: AdminSessionData): string | null {
+  return session.openAccess ? null : session.adminUserId;
+}
+
 // ── Session helpers ───────────────────────────────────────────────────────────
 
 export async function getSession() {
@@ -15,6 +36,10 @@ export async function getSession() {
 export async function requireAdminSession(
   requiredPermission?: string,
 ): Promise<AdminSessionData | null> {
+  if (isOpenAccessMode()) {
+    return getOpenAccessSession();
+  }
+
   const session = await getSession();
   if (!session.adminUserId) return null;
 

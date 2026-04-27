@@ -3,8 +3,18 @@ import type { AdminSessionData } from "@/types";
 
 export type { AdminSessionData };
 
+const DEV_SESSION_SECRET =
+  "akibamiles-admin-local-dev-session-secret-change-before-production";
+
+function getSessionPassword() {
+  const secret = process.env.SESSION_SECRET;
+  if (secret) return secret;
+
+  return DEV_SESSION_SECRET;
+}
+
 export const sessionOptions: SessionOptions = {
-  password: process.env.SESSION_SECRET!,
+  password: getSessionPassword(),
   cookieName: "admin_auth",
   cookieOptions: {
     secure: process.env.NODE_ENV === "production",

@@ -1,7 +1,7 @@
 import { supabase } from "./supabase";
 
 export interface AdminAuditParams {
-  adminUserId: string;
+  adminUserId: string | null;
   action: string;
   targetType?: string;
   targetId?: string;

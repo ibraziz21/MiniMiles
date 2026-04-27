@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/auth";
+import { adminIdForWrite, requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { writeAdminAuditLog } from "@/lib/audit";
 
@@ -12,16 +12,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
   if (!body.note?.trim()) return NextResponse.json({ error: "note is required" }, { status: 400 });
+  const adminUserId = adminIdForWrite(session);
 
   const { data, error } = await supabase
     .from("merchant_admin_notes")
-    .insert({ partner_id: params.id, admin_user_id: session.adminUserId, note: body.note.trim() })
+    .insert({ partner_id: params.id, admin_user_id: adminUserId, note: body.note.trim() })
     .select("id, note, created_at")
     .single();
 
   if (error) return NextResponse.json({ error: "Failed to add note" }, { status: 500 });
 
-  void writeAdminAuditLog({ adminUserId: session.adminUserId, action: "merchant.note_added", targetType: "merchant", targetId: params.id });
+  void writeAdminAuditLog({ adminUserId, action: "merchant.note_added", targetType: "merchant", targetId: params.id });
 
   return NextResponse.json({ note: data }, { status: 201 });
 }

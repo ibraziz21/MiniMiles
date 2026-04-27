@@ -181,7 +181,7 @@ export default async function MerchantDetailPage({ params }: { params: { id: str
           <CardHeader><CardTitle>Internal Notes</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {notes.length === 0 && <p className="text-sm text-slate-400">No notes yet.</p>}
-            {(notes as Array<{ id: string; note: string; created_at: string; admin_users?: { name: string | null; email: string } | null }>).map((note) => (
+            {(notes as unknown as Array<{ id: string; note: string; created_at: string; admin_users?: { name: string | null; email: string } | null }>).map((note) => (
               <div key={note.id} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5">
                 <p className="text-sm text-slate-700">{note.note}</p>
                 <p className="mt-1 text-xs text-slate-400">{note.admin_users?.name ?? note.admin_users?.email ?? "Unknown"} · {formatDate(note.created_at)}</p>

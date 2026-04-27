@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/auth";
+import { adminIdForWrite, requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { writeAdminAuditLog } from "@/lib/audit";
 import type { PollStatus } from "@/types";
@@ -31,13 +31,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 
   const update: Record<string, unknown> = { status: newStatus };
-  if (newStatus === "closed") { update.closed_by = session.adminUserId; update.closed_at = new Date().toISOString(); }
+  const adminUserId = adminIdForWrite(session);
+  if (newStatus === "closed") { update.closed_by = adminUserId; update.closed_at = new Date().toISOString(); }
 
   const { error } = await supabase.from("polls").update(update).eq("id", params.id);
   if (error) return NextResponse.json({ error: "Failed to update poll status" }, { status: 500 });
 
   void writeAdminAuditLog({
-    adminUserId: session.adminUserId,
+    adminUserId,
     action: `poll.status.${newStatus}`,
     targetType: "poll",
     targetId: params.id,

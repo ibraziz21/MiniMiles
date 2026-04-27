@@ -12,10 +12,26 @@
   }
 
   * {
-    @apply border-border;
+    box-sizing: border-box;
   }
 
   body {
-    @apply bg-slate-50 text-slate-900 font-sans antialiased;
+    @apply bg-[#F6F8FA] text-slate-900 font-sans antialiased;
+  }
+
+  ::selection {
+    background: rgba(35, 141, 157, 0.18);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
   }
 }

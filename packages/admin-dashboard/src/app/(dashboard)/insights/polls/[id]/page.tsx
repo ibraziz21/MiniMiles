@@ -5,55 +5,371 @@ import Link from "next/link";
 import { TopBar } from "@/components/layout/TopBar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatDate, formatDateTime, formatNumber } from "@/lib/utils";
-import { PollStatusActions } from "@/components/polls/PollStatusActions";
-import { AddReviewNote } from "@/components/polls/AddReviewNote";
-import { VerifiedInsightForm } from "@/components/polls/VerifiedInsightForm";
+import { formatDate, formatNumber } from "@/lib/utils";
+import { KeywordDrilldown } from "@/components/polls/KeywordDrilldown";
 import type { PollStatus } from "@/types";
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft, Download, ShieldCheck } from "lucide-react";
 
-const STATUS_VARIANT: Record<PollStatus, "default" | "secondary" | "success" | "warning" | "outline"> = {
-  draft: "secondary", live: "success", closed: "warning", verified: "default",
+type PollRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: PollStatus;
+  created_at: string;
 };
 
+type QuestionKind = "single_choice" | "multi_select" | "short_text";
+
+type QuestionRow = {
+  id: string;
+  poll_id: string;
+  position: number;
+  question: string;
+  kind: QuestionKind;
+  required: boolean;
+  max_choices: number | null;
+};
+
+type OptionRow = {
+  id: string;
+  question_id: string;
+  position: number;
+  label: string;
+};
+
+type ResponseRow = {
+  id: string;
+  poll_id: string;
+  wallet_address: string;
+  reward_queued: boolean | null;
+  reward_points_awarded: number | null;
+  verification_source: string | null;
+  trait_verification_status: string | null;
+  submitted_at: string;
+  accepted_terms: boolean | null;
+  terms_version: string | null;
+  accepted_terms_at: string | null;
+};
+
+type AnswerRow = {
+  id: string;
+  response_id: string;
+  question_id: string;
+  selected_option_id: string | null;
+  text_answer: string | null;
+  created_at: string;
+  option_label: string | null;
+};
+
+type RawAnswerRow = Omit<AnswerRow, "option_label">;
+
+type QuestionAnalysis = QuestionRow & {
+  options: OptionRow[];
+  answers: AnswerRow[];
+};
+
+const STATUS_VARIANT: Record<PollStatus, "default" | "secondary" | "success" | "warning" | "outline"> = {
+  draft: "secondary",
+  live: "success",
+  closed: "warning",
+  verified: "default",
+};
+
+function countBy<T>(items: T[], getKey: (item: T) => string | null | undefined) {
+  const counts: Record<string, number> = {};
+  for (const item of items) {
+    const key = getKey(item) || "Unknown";
+    counts[key] = (counts[key] ?? 0) + 1;
+  }
+  return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+}
+
+function textKeywords(questions: QuestionAnalysis[]) {
+  const stop = new Set([
+    "the", "and", "for", "that", "this", "with", "from", "you", "are", "not",
+    "but", "have", "they", "was", "were", "will", "would", "can", "could",
+    "too", "very", "just", "more", "less", "when", "what", "why", "how",
+  ]);
+  const hits: Record<string, { count: number; answers: Set<string> }> = {};
+  for (const q of questions) {
+    if (q.kind !== "short_text") continue;
+    for (const answer of q.answers) {
+      const text = answer.text_answer?.trim();
+      if (!text) continue;
+      for (const word of text.toLowerCase().match(/[a-z0-9']{3,}/g) ?? []) {
+        if (stop.has(word)) continue;
+        hits[word] ??= { count: 0, answers: new Set<string>() };
+        hits[word].count += 1;
+        hits[word].answers.add(text);
+      }
+    }
+  }
+  return Object.entries(hits)
+    .map(([word, hit]) => ({ word, count: hit.count, answers: Array.from(hit.answers).slice(0, 50) }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 12);
+}
+
+const FREE_TEXT_THEMES: Array<{ label: string; pattern: RegExp }> = [
+  { label: "Trust / reliability", pattern: /\b(trust|trusted|reliable|reliability|legit|scam|safe|safety|secure|security|proof|verify|verified)\b/i },
+  { label: "Voucher value", pattern: /\b(discount|voucher|offer|offers|free|cheap|price|prices|cost|value|worth|affordable|expensive)\b/i },
+  { label: "Merchant choice", pattern: /\b(merchant|shop|store|partner|partners|restaurant|food|supermarket|electronics|category|categories)\b/i },
+  { label: "Delivery / logistics", pattern: /\b(delivery|deliver|pickup|location|near|distance|fee|shipping|rider|transport)\b/i },
+  { label: "Rewards / Miles", pattern: /\b(reward|rewards|miles|points|earn|earning|claim|bonus|cashback)\b/i },
+  { label: "Games", pattern: /\b(game|games|dice|claw|play|playing|win|winner|prize|prediction)\b/i },
+  { label: "App / UX", pattern: /\b(app|ui|ux|interface|easy|simple|smooth|fast|slow|bug|bugs|loading|confusing)\b/i },
+  { label: "Payments / cash", pattern: /\b(pay|payment|cash|mpesa|m-pesa|mobile money|celo|cusd|usdt|wallet|withdraw)\b/i },
+  { label: "Referrals / growth", pattern: /\b(invite|friend|friends|referral|refer|share|social|community)\b/i },
+];
+
+function normalizeFreeText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function sentenceCase(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
+function analyzeFreeText(question: QuestionAnalysis) {
+  const answers = question.answers
+    .map((answer) => answer.text_answer?.trim() ?? "")
+    .filter(Boolean);
+
+  const phraseCounts: Record<string, { display: string; count: number }> = {};
+  const themeCounts: Record<string, number> = {};
+  let totalWords = 0;
+
+  for (const answer of answers) {
+    const normalized = normalizeFreeText(answer);
+    if (normalized) {
+      const current = phraseCounts[normalized];
+      phraseCounts[normalized] = {
+        display: current?.display ?? sentenceCase(answer),
+        count: (current?.count ?? 0) + 1,
+      };
+    }
+
+    totalWords += answer.split(/\s+/).filter(Boolean).length;
+
+    for (const theme of FREE_TEXT_THEMES) {
+      if (theme.pattern.test(answer)) {
+        themeCounts[theme.label] = (themeCounts[theme.label] ?? 0) + 1;
+      }
+    }
+  }
+
+  const repeatedPhrases = Object.values(phraseCounts)
+    .filter((entry) => entry.count > 1)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+
+  const themes = Object.entries(themeCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8);
+
+  const representative = [...answers]
+    .sort((a, b) => b.length - a.length)
+    .slice(0, 8);
+
+  return {
+    answers,
+    uniqueCount: Object.keys(phraseCounts).length,
+    averageWords: answers.length > 0 ? Math.round(totalWords / answers.length) : 0,
+    repeatedPhrases,
+    themes,
+    representative,
+  };
+}
+
+function choiceValueByQuestion(questions: QuestionAnalysis[], match: RegExp) {
+  const question = questions.find((q) => match.test(q.question));
+  if (!question) return [];
+  return countBy(question.answers, (answer) => answer.option_label ?? answer.text_answer).slice(0, 8);
+}
+
 async function getPollDetail(id: string) {
-  const [pollRes, questionsRes, responsesRes, insightRes, notesRes] = await Promise.all([
-    supabase.from("polls").select("*").eq("id", id).single(),
-    supabase.from("poll_questions").select("*").eq("poll_id", id).order("sort_order"),
-    supabase.from("poll_responses").select("id, user_address, wallet_age_days, city, is_complete, quality_flag, started_at, completed_at").eq("poll_id", id).order("started_at", { ascending: false }),
+  const [pollRes, questionsRes, responsesRes, insightRes] = await Promise.all([
+    supabase.from("polls").select("id, title, description, status, created_at").eq("id", id).single(),
+    supabase.from("poll_questions").select("id, poll_id, position, question, kind, required, max_choices").eq("poll_id", id).order("position"),
+    supabase
+      .from("poll_responses")
+      .select("id, poll_id, wallet_address, reward_queued, reward_points_awarded, verification_source, trait_verification_status, submitted_at, accepted_terms, terms_version, accepted_terms_at")
+      .eq("poll_id", id)
+      .order("submitted_at", { ascending: false }),
     supabase.from("verified_insights").select("*").eq("poll_id", id).maybeSingle(),
-    supabase.from("insight_review_notes").select("id, note, created_at, admin_users(name, email)").eq("poll_id", id).order("created_at", { ascending: false }),
   ]);
 
   if (!pollRes.data) return null;
 
-  const responses = responsesRes.data ?? [];
-  const total = responses.length;
-  const complete = responses.filter((r) => r.is_complete).length;
-  const questions = questionsRes.data ?? [];
-  const qIds = questions.map((q) => q.id);
+  const poll = pollRes.data as PollRow;
+  const questions = (questionsRes.data ?? []) as QuestionRow[];
+  const responses = (responsesRes.data ?? []) as ResponseRow[];
+  const questionIds = questions.map((q) => q.id);
 
-  const answersRes = await supabase
-    .from("poll_response_answers")
-    .select("question_id, selected_options, rating_value, free_text")
-    .in("question_id", qIds);
+  const [optionsRes, rawAnswers] = await Promise.all([
+    questionIds.length
+      ? supabase.from("poll_options").select("id, question_id, position, label").in("question_id", questionIds).order("position")
+      : Promise.resolve({ data: [] as OptionRow[] }),
+    questionIds.length ? fetchAllAnswersByQuestionIds(questionIds) : Promise.resolve([]),
+  ]);
 
-  const answersByQ: Record<string, (typeof answersRes.data)[number][]> = {};
-  for (const a of answersRes.data ?? []) {
-    if (!answersByQ[a.question_id]) answersByQ[a.question_id] = [];
-    answersByQ[a.question_id].push(a);
+  const options = (optionsRes.data ?? []) as OptionRow[];
+  const optionMap = new Map(options.map((option) => [option.id, option]));
+  const enrichedAnswers = rawAnswers.map((answer) => ({
+    ...answer,
+    option_label: answer.selected_option_id ? optionMap.get(answer.selected_option_id)?.label ?? null : null,
+  }));
+
+  const optionsByQuestion: Record<string, OptionRow[]> = {};
+  for (const option of options) {
+    optionsByQuestion[option.question_id] = [...(optionsByQuestion[option.question_id] ?? []), option];
+  }
+
+  const answersByQuestion: Record<string, AnswerRow[]> = {};
+  for (const answer of enrichedAnswers) {
+    answersByQuestion[answer.question_id] = [...(answersByQuestion[answer.question_id] ?? []), answer];
   }
 
   return {
-    poll: pollRes.data,
-    questions: questions.map((q) => ({ ...q, answers: answersByQ[q.id] ?? [] })),
+    poll,
+    questions: questions.map((question) => ({
+      ...question,
+      options: optionsByQuestion[question.id] ?? [],
+      answers: answersByQuestion[question.id] ?? [],
+    })),
     responses,
-    total,
-    complete,
-    completion_rate: total > 0 ? Math.round((complete / total) * 100) : 0,
     verified_insight: insightRes.data ?? null,
-    review_notes: notesRes.data ?? [],
   };
+}
+
+async function fetchAllAnswersByQuestionIds(questionIds: string[]): Promise<RawAnswerRow[]> {
+  const pageSize = 1000;
+  const rows: RawAnswerRow[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("poll_response_answers")
+      .select("id, response_id, question_id, selected_option_id, text_answer, created_at")
+      .in("question_id", questionIds)
+      .order("created_at", { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) throw error;
+    const page = (data ?? []) as RawAnswerRow[];
+    rows.push(...page);
+    if (page.length < pageSize) break;
+  }
+
+  return rows;
+}
+
+function OptionBreakdown({ question, totalResponses }: { question: QuestionAnalysis; totalResponses: number }) {
+  const denominator = Math.max(totalResponses, 1);
+  const rows = question.options.map((option) => {
+    const count = question.answers.filter((answer) => answer.selected_option_id === option.id).length;
+    return { label: option.label, count, pct: Math.round((count / denominator) * 100) };
+  }).sort((a, b) => b.count - a.count);
+
+  return (
+    <div className="space-y-2">
+      {rows.map((row) => (
+        <div key={row.label} className="grid grid-cols-[1fr_72px] items-center gap-3">
+          <div>
+            <div className="mb-1 flex items-center justify-between gap-3">
+              <span className="text-sm font-medium text-slate-700">{row.label}</span>
+              <span className="text-xs text-slate-400">{row.count} selections</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full rounded-full bg-[#238D9D]" style={{ width: `${row.pct}%` }} />
+            </div>
+          </div>
+          <span className="text-right text-sm font-semibold text-slate-900">{row.pct}%</span>
+        </div>
+      ))}
+      {rows.length === 0 && <p className="text-sm text-slate-400">No options configured for this question.</p>}
+    </div>
+  );
+}
+
+function TextAnswers({ question }: { question: QuestionAnalysis }) {
+  const analysis = analyzeFreeText(question);
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-lg bg-slate-50 px-3 py-2">
+          <p className="text-lg font-semibold text-slate-950">{formatNumber(analysis.answers.length)}</p>
+          <p className="text-xs text-slate-500">Text answers</p>
+        </div>
+        <div className="rounded-lg bg-slate-50 px-3 py-2">
+          <p className="text-lg font-semibold text-slate-950">{formatNumber(analysis.uniqueCount)}</p>
+          <p className="text-xs text-slate-500">Unique normalized answers</p>
+        </div>
+        <div className="rounded-lg bg-slate-50 px-3 py-2">
+          <p className="text-lg font-semibold text-slate-950">{analysis.averageWords}</p>
+          <p className="text-xs text-slate-500">Avg. words</p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Detected Themes</p>
+          <div className="space-y-2">
+            {analysis.themes.map(([theme, count]) => {
+              const pct = analysis.answers.length > 0 ? Math.round((count / analysis.answers.length) * 100) : 0;
+              return (
+                <div key={theme} className="grid grid-cols-[1fr_56px] items-center gap-3">
+                  <div>
+                    <div className="mb-1 flex items-center justify-between gap-3">
+                      <span className="text-sm font-medium text-slate-700">{theme}</span>
+                      <span className="text-xs text-slate-400">{count}</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                      <div className="h-full rounded-full bg-[#238D9D]" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                  <span className="text-right text-sm font-semibold text-slate-900">{pct}%</span>
+                </div>
+              );
+            })}
+            {analysis.themes.length === 0 && <p className="text-sm text-slate-400">No strong themes detected.</p>}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Repeated Phrases</p>
+          <div className="space-y-2">
+            {analysis.repeatedPhrases.map((phrase) => (
+              <div key={phrase.display} className="flex items-start justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
+                <span className="text-sm text-slate-700">{phrase.display}</span>
+                <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-xs font-medium text-slate-600 ring-1 ring-slate-200">
+                  {phrase.count}
+                </span>
+              </div>
+            ))}
+            {analysis.repeatedPhrases.length === 0 && <p className="text-sm text-slate-400">No repeated phrases yet.</p>}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Representative Longer Answers</p>
+        <div className="max-h-72 overflow-y-auto space-y-2">
+          {analysis.representative.map((answer) => (
+            <p key={answer} className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              {answer}
+            </p>
+          ))}
+          {analysis.representative.length === 0 && <p className="text-sm text-slate-400">No text responses.</p>}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default async function PollDetailPage({ params }: { params: { id: string } }) {
@@ -63,13 +379,22 @@ export default async function PollDetailPage({ params }: { params: { id: string 
   const detail = await getPollDetail(params.id);
   if (!detail) notFound();
 
-  const { poll, questions, responses, total, complete, completion_rate, verified_insight, review_notes } = detail;
+  const { poll, questions, responses, verified_insight } = detail;
+  const total = responses.length;
+  const acceptedTerms = responses.filter((r) => r.accepted_terms).length;
+  const rewardQueued = responses.filter((r) => r.reward_queued).length;
+  const totalRewardPoints = responses.reduce((sum, r) => sum + (r.reward_points_awarded ?? 0), 0);
+  const verifiedTraits = responses.filter((r) => r.trait_verification_status === "verified").length;
+  const ageBreakdown = choiceValueByQuestion(questions, /age group/i);
+  const countryBreakdown = choiceValueByQuestion(questions, /country/i);
+  const qualityBreakdown = countBy(responses, (r) => r.trait_verification_status ?? "unverified").slice(0, 8);
+  const keywords = textKeywords(questions);
 
   return (
     <div>
       <TopBar
         title={poll.title}
-        subtitle={`Poll · ${poll.status}`}
+        subtitle={`Poll analysis · ${poll.status}`}
         actions={
           <a
             href={`/api/admin/polls/${params.id}/export`}
@@ -87,107 +412,140 @@ export default async function PollDetailPage({ params }: { params: { id: string 
           Back to polls
         </Link>
 
-        <div className="grid gap-4 sm:grid-cols-4">
-          <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Status</CardTitle></CardHeader><CardContent><Badge variant={STATUS_VARIANT[poll.status as PollStatus]}>{poll.status}</Badge></CardContent></Card>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Status</CardTitle></CardHeader><CardContent><Badge variant={STATUS_VARIANT[poll.status]}>{poll.status}</Badge></CardContent></Card>
           <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Responses</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{formatNumber(total)}</p></CardContent></Card>
-          <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Completion Rate</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{completion_rate}%</p></CardContent></Card>
-          <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Completed</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{formatNumber(complete)}</p></CardContent></Card>
+          <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Terms Accepted</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{formatNumber(acceptedTerms)}</p></CardContent></Card>
+          <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Rewards Queued</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{formatNumber(rewardQueued)}</p></CardContent></Card>
+          <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Miles Awarded</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{formatNumber(totalRewardPoints)}</p></CardContent></Card>
         </div>
 
-        <Card>
-          <CardHeader><CardTitle>Status Controls</CardTitle></CardHeader>
-          <CardContent>
-            <PollStatusActions pollId={params.id} currentStatus={poll.status as PollStatus} canWrite={true} />
-          </CardContent>
-        </Card>
+        {verified_insight && (
+          <Card className="border-[#238D9D]/20 bg-[#238D9D]/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm text-slate-900">
+                <ShieldCheck className="h-4 w-4 text-[#238D9D]" />
+                Saved Verified Summary
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-sm text-slate-700">{verified_insight.summary}</p>
+              {Array.isArray(verified_insight.key_findings) && verified_insight.key_findings.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {verified_insight.key_findings.map((finding: string) => (
+                    <span key={finding} className="rounded-full bg-white px-3 py-1 text-xs text-slate-700 ring-1 ring-[#238D9D]/10">{finding}</span>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Card>
+            <CardHeader><CardTitle>Country</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              {countryBreakdown.map(([label, count]) => (
+                <div key={label} className="flex items-center justify-between text-sm">
+                  <span className="text-slate-600">{label}</span>
+                  <span className="font-medium text-slate-900">{count}</span>
+                </div>
+              ))}
+              {countryBreakdown.length === 0 && <p className="text-sm text-slate-400">No country question found.</p>}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle>Age Group</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              {ageBreakdown.map(([label, count]) => (
+                <div key={label} className="flex items-center justify-between text-sm">
+                  <span className="text-slate-600">{label}</span>
+                  <span className="font-medium text-slate-900">{count}</span>
+                </div>
+              ))}
+              {ageBreakdown.length === 0 && <p className="text-sm text-slate-400">No age question found.</p>}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle>Verification</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-600">verified traits</span>
+                <span className="font-medium text-slate-900">{verifiedTraits}</span>
+              </div>
+              {qualityBreakdown.map(([label, count]) => (
+                <div key={label} className="flex items-center justify-between text-sm">
+                  <span className="text-slate-600">{label}</span>
+                  <span className="font-medium text-slate-900">{count}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
 
         <div className="space-y-4">
-          <h2 className="text-sm font-semibold text-slate-900">Questions & Responses</h2>
-          {questions.map((q, i) => (
-            <Card key={q.id}>
+          <h2 className="text-sm font-semibold text-slate-900">Question Analysis</h2>
+          {questions.map((question) => (
+            <Card key={question.id}>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">
-                  Q{i + 1}: {q.question_text}
-                  <span className="ml-2 text-xs font-normal text-slate-400">{q.question_type}</span>
-                </CardTitle>
+                <div className="flex items-start justify-between gap-4">
+                  <CardTitle className="text-sm">
+                    Q{question.position}: {question.question}
+                    <span className="ml-2 text-xs font-normal text-slate-400">{question.kind}</span>
+                  </CardTitle>
+                  <span className="shrink-0 text-xs text-slate-400">{formatNumber(question.answers.length)} answers</span>
+                </div>
               </CardHeader>
               <CardContent>
-                {q.question_type === "free_text" ? (
-                  <div className="max-h-48 overflow-y-auto space-y-1">
-                    {q.answers.filter((a: { free_text: string | null }) => a.free_text).map((a: { free_text: string | null }, j: number) => (
-                      <p key={j} className="rounded-lg bg-slate-50 px-3 py-1.5 text-sm text-slate-700">{a.free_text}</p>
-                    ))}
-                    {q.answers.filter((a: { free_text: string | null }) => a.free_text).length === 0 && <p className="text-sm text-slate-400">No text responses.</p>}
-                  </div>
-                ) : q.question_type === "rating" ? (
-                  <div className="flex gap-4">
-                    {[1, 2, 3, 4, 5].map((v) => {
-                      const count = q.answers.filter((a: { rating_value: number | null }) => a.rating_value === v).length;
-                      return (
-                        <div key={v} className="text-center">
-                          <p className="text-lg font-bold text-slate-900">{count}</p>
-                          <p className="text-xs text-slate-400">{v} ★</p>
-                        </div>
-                      );
-                    })}
-                  </div>
+                {question.kind === "short_text" ? (
+                  <TextAnswers question={question} />
                 ) : (
-                  <div className="space-y-1.5">
-                    {(q.options ?? []).map((opt: string) => {
-                      const count = q.answers.filter((a: { selected_options: string[] | null }) => (a.selected_options ?? []).includes(opt)).length;
-                      const pct = q.answers.length > 0 ? Math.round((count / q.answers.length) * 100) : 0;
-                      return (
-                        <div key={opt} className="flex items-center gap-3">
-                          <div className="flex-1 overflow-hidden rounded-full bg-slate-100 h-2">
-                            <div className="h-2 rounded-full bg-[#238D9D]" style={{ width: `${pct}%` }} />
-                          </div>
-                          <span className="text-xs text-slate-500 w-8 text-right">{pct}%</span>
-                          <span className="text-sm text-slate-700">{opt}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <OptionBreakdown question={question} totalResponses={total} />
                 )}
               </CardContent>
             </Card>
           ))}
         </div>
 
-        {responses.length > 0 && (
+        {keywords.length > 0 && (
           <Card>
-            <CardHeader><CardTitle>Top Cities</CardTitle></CardHeader>
+            <CardHeader><CardTitle>Free-text Keywords</CardTitle></CardHeader>
             <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(responses.reduce<Record<string, number>>((acc, r) => { const c = r.city ?? "Unknown"; acc[c] = (acc[c] ?? 0) + 1; return acc; }, {}))
-                  .sort((a, b) => b[1] - a[1]).slice(0, 10)
-                  .map(([city, count]) => (
-                    <span key={city} className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700">{city} <span className="text-slate-400">({count})</span></span>
-                  ))}
-              </div>
+              <KeywordDrilldown keywords={keywords} />
             </CardContent>
           </Card>
         )}
 
         <Card>
-          <CardHeader><CardTitle>Verified Insight</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Raw Response Index</CardTitle></CardHeader>
           <CardContent>
-            <VerifiedInsightForm pollId={params.id} existing={verified_insight} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle>Review Notes</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            {review_notes.length === 0 && <p className="text-sm text-slate-400">No notes yet.</p>}
-            {(review_notes as Array<{ id: string; note: string; created_at: string; admin_users?: { name: string | null; email: string } | null }>).map((note) => (
-              <div key={note.id} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5">
-                <p className="text-sm text-slate-700">{note.note}</p>
-                <p className="mt-1 text-xs text-slate-400">
-                  {note.admin_users?.name ?? note.admin_users?.email ?? "Unknown"} · {formatDateTime(note.created_at)}
-                </p>
-              </div>
-            ))}
-            <AddReviewNote pollId={params.id} />
+            <div className="max-h-96 overflow-auto rounded-lg border border-slate-100">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-slate-50 text-xs uppercase tracking-wider text-slate-400">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Wallet</th>
+                    <th className="px-3 py-2 text-left">Reward</th>
+                    <th className="px-3 py-2 text-left">Verification</th>
+                    <th className="px-3 py-2 text-left">Terms</th>
+                    <th className="px-3 py-2 text-left">Submitted</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {responses.map((response) => (
+                    <tr key={response.id}>
+                      <td className="px-3 py-2 font-mono text-xs text-slate-600">{response.wallet_address}</td>
+                      <td className="px-3 py-2 text-slate-600">{response.reward_queued ? "queued" : "not queued"} · {response.reward_points_awarded ?? 0} Miles</td>
+                      <td className="px-3 py-2 text-slate-600">{response.trait_verification_status ?? "—"}</td>
+                      <td className="px-3 py-2">{response.accepted_terms ? <Badge variant="success">accepted</Badge> : <Badge variant="warning">missing</Badge>}</td>
+                      <td className="px-3 py-2 text-slate-500">{formatDate(response.submitted_at)}</td>
+                    </tr>
+                  ))}
+                  {responses.length === 0 && (
+                    <tr><td colSpan={5} className="px-3 py-8 text-center text-slate-400">No responses yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </CardContent>
         </Card>
       </div>
