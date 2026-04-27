@@ -37,6 +37,7 @@ const ACTIVE_TIERS: number[] = process.env.DICE_TIERS
   ? process.env.DICE_TIERS.split(",").map((t) => Number(t.trim()))
   : DEFAULT_TIERS;
 
+const MIN_ROUND_ID = BigInt(process.env.DICE_MIN_ROUND_ID ?? "23750");
 const FEE_BUFFER_BPS = Number(process.env.DICE_FEE_BUFFER_BPS ?? "0"); // no buffer — Witnet rejects excess
 const UNRESOLVED_RETRY_INTERVAL_SECONDS = Number(
   process.env.DICE_UNRESOLVED_RETRY_INTERVAL_SECONDS ?? "300"
@@ -74,6 +75,10 @@ function stateName(s: number): string {
   return (
     Object.entries(RoundState).find(([, v]) => v === s)?.[0] ?? `Unknown(${s})`
   );
+}
+
+function isRoundInScope(roundId: bigint | string): boolean {
+  return BigInt(roundId) >= MIN_ROUND_ID;
 }
 
 // ── Persisted unresolved-round registry ───────────────────────────────────────
@@ -221,7 +226,9 @@ async function loadActiveUnresolvedRounds(): Promise<UnresolvedRoundEntry[]> {
     return [];
   }
 
-  return ((data ?? []) as UnresolvedRoundRow[]).map(rowToEntry);
+  return ((data ?? []) as UnresolvedRoundRow[])
+    .map(rowToEntry)
+    .filter((entry) => isRoundInScope(entry.roundId));
 }
 
 async function incrementRetry(
@@ -288,6 +295,7 @@ type SweepAction =
   | "skip-no-players"
   | "skip-already-resolved"
   | "skip-randomness-pending"
+  | "skip-before-min-round"
   | "requested-randomness"
   | "drew"
   | "error";
@@ -418,7 +426,22 @@ async function processTier(
   const activeRoundIdStr = activeRoundId.toString();
   const previousActiveRoundId = tierWatchState[String(tier)];
 
-  if (previousActiveRoundId && previousActiveRoundId !== activeRoundIdStr) {
+  if (!isRoundInScope(activeRoundId)) {
+    return {
+      roundId: activeRoundIdStr,
+      tier,
+      filledSlots: 0,
+      randomBlock: "0",
+      state: `BeforeMinRound(${MIN_ROUND_ID.toString()})`,
+      action: "skip-before-min-round",
+    };
+  }
+
+  if (
+    previousActiveRoundId &&
+    previousActiveRoundId !== activeRoundIdStr &&
+    isRoundInScope(previousActiveRoundId)
+  ) {
     try {
       const [, prevFilledSlots, prevWinnerSelected, , prevRandomBlock] =
         (await dice.getRoundInfo(BigInt(previousActiveRoundId))) as [
@@ -479,6 +502,14 @@ async function processRound(
     randomBlock: "0",
     state: "Unknown",
   };
+
+  if (!isRoundInScope(roundId)) {
+    return {
+      ...base,
+      state: `BeforeMinRound(${MIN_ROUND_ID.toString()})`,
+      action: "skip-before-min-round",
+    };
+  }
 
   try {
     const [, filledSlots, winnerSelected, , randomBlock] =
@@ -669,7 +700,8 @@ export function startDiceSweeper(): void {
 
   console.log(
     `[diceSweeper] Starting — tiers=[${ACTIVE_TIERS.join(",")}] ` +
-      `interval=${SWEEP_INTERVAL_SECONDS}s address=${DICE_ADDRESS} unresolvedTable=${UNRESOLVED_TABLE}`
+      `interval=${SWEEP_INTERVAL_SECONDS}s address=${DICE_ADDRESS} ` +
+      `minRoundId=${MIN_ROUND_ID.toString()} unresolvedTable=${UNRESOLVED_TABLE}`
   );
 
   runDiceSweep().catch((err) =>
