@@ -2,6 +2,8 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 
 describe("AkibaDiceGame", () => {
+  const points = (amount: string | number) => ethers.parseEther(String(amount));
+
   async function deployFixture() {
     const [owner, alice, bob, carol] = await ethers.getSigners();
 
@@ -37,7 +39,7 @@ describe("AkibaDiceGame", () => {
     const { dice, alice, mini } = await deployFixture();
 
     // Give Alice some points so burn won't fail first
-    await mini.mint(alice.address, 100);
+    await mini.mint(alice.address, points(100));
 
     await expect(
       dice.connect(alice).joinTier(40, 3) // 40 not allowed by default
@@ -50,7 +52,7 @@ describe("AkibaDiceGame", () => {
     const tier = 10;
     const chosenNumber = 3;
 
-    await mini.mint(alice.address, tier);
+    await mini.mint(alice.address, points(tier));
 
     const beforeBal = await mini.balanceOf(alice.address);
 
@@ -61,7 +63,7 @@ describe("AkibaDiceGame", () => {
     const afterBal = await mini.balanceOf(alice.address);
 
     // burned exactly `tier`
-    expect(beforeBal - afterBal).to.equal(BigInt(tier));
+    expect(beforeBal - afterBal).to.equal(points(tier));
 
     // There should now be an active round for this tier
     const roundId = await dice.getActiveRoundId(tier);
@@ -86,7 +88,7 @@ describe("AkibaDiceGame", () => {
 
     const tier = 10;
 
-    await mini.mint(alice.address, 100);
+    await mini.mint(alice.address, points(100));
 
     await dice.connect(alice).joinTier(tier, 2);
 
@@ -101,8 +103,8 @@ describe("AkibaDiceGame", () => {
     const tier = 10;
     const num = 4;
 
-    await mini.mint(alice.address, 100);
-    await mini.mint(bob.address, 100);
+    await mini.mint(alice.address, points(100));
+    await mini.mint(bob.address, points(100));
 
     // Alice takes number 4
     await dice.connect(alice).joinTier(tier, num);
@@ -121,7 +123,7 @@ describe("AkibaDiceGame", () => {
     const sixPlayers = signers.slice(1, 7); // use 6 accounts
 
     for (let i = 0; i < 6; i++) {
-      await mini.mint(sixPlayers[i].address, 100);
+      await mini.mint(sixPlayers[i].address, points(100));
     }
 
     // All six join the same tier, different numbers
@@ -137,7 +139,7 @@ describe("AkibaDiceGame", () => {
     // Next join on the same tier should spin up a new round
     const signersAll = await ethers.getSigners();
     const extraPlayer = signersAll[7];
-    await mini.mint(extraPlayer.address, 100);
+    await mini.mint(extraPlayer.address, points(100));
     await dice.connect(extraPlayer).joinTier(tier, 3);
 
     const secondRoundId = await dice.getActiveRoundId(tier);
@@ -152,7 +154,7 @@ describe("AkibaDiceGame", () => {
     const { dice, mini, alice } = await deployFixture();
 
     const tier = 10;
-    await mini.mint(alice.address, 100);
+    await mini.mint(alice.address, points(100));
     await dice.connect(alice).joinTier(tier, 1);
 
     const roundId = await dice.getActiveRoundId(tier);
@@ -167,8 +169,8 @@ describe("AkibaDiceGame", () => {
 
     const tier = 10;
 
-    await mini.mint(alice.address, 100);
-    await mini.mint(bob.address, 100);
+    await mini.mint(alice.address, points(100));
+    await mini.mint(bob.address, points(100));
 
     // both join same round
     await dice.connect(alice).joinTier(tier, 1);
@@ -189,8 +191,8 @@ describe("AkibaDiceGame", () => {
     const balBobAfter = await mini.balanceOf(bob.address);
 
     // each should have been refunded `tier`
-    expect(balAliceAfter - balAliceBefore).to.equal(BigInt(tier));
-    expect(balBobAfter - balBobBefore).to.equal(BigInt(tier));
+    expect(balAliceAfter - balAliceBefore).to.equal(points(tier));
+    expect(balBobAfter - balBobBefore).to.equal(points(tier));
 
     // hasJoinedRound should be cleared
     expect(await dice.hasJoinedRound(roundId, alice.address)).to.equal(false);
@@ -205,7 +207,7 @@ describe("AkibaDiceGame", () => {
     const sixPlayers = signers.slice(1, 7);
 
     for (let i = 0; i < 6; i++) {
-      await mini.mint(sixPlayers[i].address, 100);
+      await mini.mint(sixPlayers[i].address, points(100));
       await dice.connect(sixPlayers[i]).joinTier(tier, i + 1);
     }
 
@@ -224,7 +226,7 @@ describe("AkibaDiceGame", () => {
     const { dice, mini, alice } = await deployFixture();
 
     const tier = 10;
-    await mini.mint(alice.address, 100);
+    await mini.mint(alice.address, points(100));
 
     await expect(
       dice.connect(alice).joinTier(tier, 0)
@@ -241,7 +243,7 @@ describe("AkibaDiceGame", () => {
     const tier = 10;
 
     // Give less than tier
-    await mini.mint(alice.address, 5);
+    await mini.mint(alice.address, points(5));
 
     await expect(
       dice.connect(alice).joinTier(tier, 3)
@@ -260,7 +262,7 @@ describe("AkibaDiceGame", () => {
     await dice.connect(owner).setAllowedTier(50, true);
     expect(await dice.allowedTier(50)).to.equal(true);
 
-    await mini.mint(alice.address, 100);
+    await mini.mint(alice.address, points(100));
 
     // Can now join tier 50
     await dice.connect(alice).joinTier(50, 2);
@@ -282,7 +284,7 @@ describe("AkibaDiceGame", () => {
 
     const tier = 10;
 
-    await mini.mint(alice.address, 100);
+    await mini.mint(alice.address, points(100));
 
     // Alice joins, round has 1/6 filled
     await dice.connect(alice).joinTier(tier, 1);
@@ -292,7 +294,7 @@ describe("AkibaDiceGame", () => {
     await dice.connect(owner).cancelRound(firstRoundId);
 
     // Next join on that tier should open a new round
-    await mini.mint(alice.address, 100); // top her up again
+    await mini.mint(alice.address, points(100)); // top her up again
     await dice.connect(alice).joinTier(tier, 2);
 
     const secondRoundId = await dice.getActiveRoundId(tier);
@@ -308,7 +310,7 @@ describe("AkibaDiceGame", () => {
 
     const tier = 10;
 
-    await mini.mint(alice.address, 100);
+    await mini.mint(alice.address, points(100));
     await dice.connect(alice).joinTier(tier, 1);
 
     const roundId = await dice.getActiveRoundId(tier);

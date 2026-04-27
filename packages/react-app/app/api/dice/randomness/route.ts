@@ -5,11 +5,33 @@ import { privateKeyToAccount } from "viem/accounts";
 import diceAbi from "@/contexts/akibadice.json";
 
 const DICE_ADDRESS = "0xf77e7395Aa5c89BcC8d6e23F67a9c7914AB9702a" as const;
+const WITNET_LEGACY_RNG_ADDRESS = "0xC0FFEE98AD1434aCbDB894BbB752e138c1006fAB" as const;
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 
 const RELAYER_PK = process.env.CELO_RELAYER_PK;
 const CELO_RPC_URL =
   process.env.CELO_RPC_URL || "https://forno.celo.org";
 const WITNET_FEE_WEI = BigInt(process.env.WITNET_FEE_WEI || parseUnits("0.01", 18));
+
+const diceRngAbi = [
+  {
+    type: "function",
+    name: "rngClone",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }],
+  },
+] as const;
+
+const witnetAbi = [
+  {
+    type: "function",
+    name: "estimateRandomizeFee",
+    stateMutability: "view",
+    inputs: [{ type: "uint256", name: "evmGasPrice" }],
+    outputs: [{ type: "uint256" }],
+  },
+] as const;
 
 if (!RELAYER_PK) {
   console.warn(
@@ -34,6 +56,32 @@ function getPublicClient() {
     chain: celo,
     transport: http(CELO_RPC_URL),
   });
+}
+
+async function estimateWitnetFee(publicClient: ReturnType<typeof getPublicClient>) {
+  try {
+    const clone = await publicClient.readContract({
+      abi: diceRngAbi,
+      address: DICE_ADDRESS,
+      functionName: "rngClone",
+    });
+    const rngAddress =
+      clone && clone !== ZERO_ADDRESS ? clone : WITNET_LEGACY_RNG_ADDRESS;
+    const gasPrice = await publicClient.getGasPrice();
+
+    return await publicClient.readContract({
+      abi: witnetAbi,
+      address: rngAddress,
+      functionName: "estimateRandomizeFee",
+      args: [gasPrice],
+    });
+  } catch (err: any) {
+    console.warn(
+      "[dice/request-randomness] estimateRandomizeFee failed, using WITNET_FEE_WEI fallback:",
+      err?.shortMessage || err?.message || err
+    );
+    return WITNET_FEE_WEI;
+  }
 }
 
 export async function POST(req: Request) {
@@ -84,13 +132,14 @@ export async function POST(req: Request) {
     }
 
     const walletClient = getWalletClient();
+    const witnetFee = await estimateWitnetFee(publicClient);
 
     const hash = await walletClient.writeContract({
       abi: diceAbi.abi,
       address: DICE_ADDRESS,
       functionName: "requestRoundRandomness",
       args: [BigInt(roundId)],
-      value: WITNET_FEE_WEI, // adjust in env for Witnet fee
+      value: witnetFee,
     });
 
     return NextResponse.json({ hash }, { status: 200 });

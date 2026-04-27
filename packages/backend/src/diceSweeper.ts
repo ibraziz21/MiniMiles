@@ -22,6 +22,7 @@ const DICE_ADDRESS =
   process.env.DICE_ADDRESS ?? "0xf77e7395Aa5c89BcC8d6e23F67a9c7914AB9702a";
 
 const WITNET_RNG_ADDRESS = "0xC0FFEE98AD1434aCbDB894BbB752e138c1006fAB";
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 const CELO_RPC_URL = process.env.CELO_RPC_URL ?? "https://forno.celo.org";
 
@@ -49,6 +50,7 @@ const DICE_ABI = [
   "function getActiveRoundId(uint256 tier) external view returns (uint256)",
   "function getRoundInfo(uint256 roundId) external view returns (uint256 tier, uint8 filledSlots, bool winnerSelected, uint8 winningNumber, uint256 randomBlock, address winner)",
   "function getRoundState(uint256 roundId) external view returns (uint8)",
+  "function rngClone() external view returns (address)",
   "function requestRoundRandomness(uint256 roundId) external payable",
   "function drawRound(uint256 roundId) external",
 ];
@@ -312,8 +314,20 @@ export async function runDiceSweep(): Promise<RoundResult[]> {
   const provider = new ethers.JsonRpcProvider(CELO_RPC_URL);
   const wallet = new ethers.Wallet(RELAYER_PK, provider);
   const dice = new ethers.Contract(DICE_ADDRESS, DICE_ABI, wallet);
-  const rng = new ethers.Contract(WITNET_RNG_ADDRESS, WITNET_ABI, provider);
+  const rng = await getWitnetFeeOracle(dice, provider);
   const tierWatchState = await loadTierWatchState();
+
+  // Log oracle mode so it's visible in every sweep
+  try {
+    const clone = String(await dice.rngClone());
+    if (clone && clone !== ZERO_ADDRESS) {
+      console.log(`[diceSweeper] Oracle mode: Witnet V3 passive (rngClone=${clone})`);
+    } else {
+      console.log(`[diceSweeper] Oracle mode: legacy V2 (rngClone not set)`);
+    }
+  } catch {
+    console.log(`[diceSweeper] Oracle mode: legacy V2 (rngClone() unavailable)`);
+  }
 
   const witnetFee = await estimateFee(provider, rng);
   const results: RoundResult[] = [];
@@ -346,7 +360,9 @@ async function estimateFee(
     const feeData = await provider.getFeeData();
     const gasPrice = feeData.gasPrice ?? ethers.parseUnits("5", "gwei");
     const raw: bigint = await rng.estimateRandomizeFee(gasPrice);
-    return (raw * BigInt(10_000 + FEE_BUFFER_BPS)) / 10_000n;
+    const fee = (raw * BigInt(10_000 + FEE_BUFFER_BPS)) / 10_000n;
+    console.log(`[diceSweeper] Witnet fee estimated: ${ethers.formatEther(fee)} CELO (gasPrice=${ethers.formatUnits(gasPrice, "gwei")} gwei)`);
+    return fee;
   } catch (err: any) {
     const fallback = process.env.WITNET_FEE_WEI
       ? BigInt(process.env.WITNET_FEE_WEI)
@@ -357,6 +373,26 @@ async function estimateFee(
     );
     return fallback;
   }
+}
+
+async function getWitnetFeeOracle(
+  dice: ethers.Contract,
+  provider: ethers.JsonRpcProvider
+): Promise<ethers.Contract> {
+  try {
+    const clone = String(await dice.rngClone());
+    if (clone && clone !== ZERO_ADDRESS) {
+      console.log(`[diceSweeper] Estimating Witnet fee from rngClone=${clone}`);
+      return new ethers.Contract(clone, WITNET_ABI, provider);
+    }
+  } catch (err: any) {
+    console.warn(
+      `[diceSweeper] rngClone() unavailable (${err?.shortMessage ?? err?.message ?? err}); using legacy RNG fee estimate`
+    );
+  }
+
+  console.log(`[diceSweeper] Estimating Witnet fee from legacy RNG=${WITNET_RNG_ADDRESS}`);
+  return new ethers.Contract(WITNET_RNG_ADDRESS, WITNET_ABI, provider);
 }
 
 // ── Tier + unresolved processing ──────────────────────────────────────────────
@@ -475,10 +511,17 @@ async function processRound(
 
     if (randomBlock === 0n && stateNum !== RoundState.Resolved) {
       try {
+        console.log(
+          `[diceSweeper] Requesting randomness — round=${roundId} tier=${tier} ` +
+          `slots=${base.filledSlots} fee=${ethers.formatEther(witnetFee)} CELO oracle=clone`
+        );
         const tx = await dice.requestRoundRandomness(roundId, {
           value: witnetFee,
         });
         const receipt = await tx.wait();
+        console.log(
+          `[diceSweeper] Randomness requested — round=${roundId} randomBlock will be set tx=${receipt?.hash ?? tx.hash}`
+        );
         return {
           ...base,
           action: "requested-randomness",
@@ -488,8 +531,10 @@ async function processRound(
         const msg: string = err?.message ?? "";
         if (
           msg.includes("already requested") ||
-          msg.includes("randomness requested")
+          msg.includes("randomness requested") ||
+          msg.includes("randomize block busy")
         ) {
+          console.log(`[diceSweeper] Randomness already requested for round=${roundId}, skipping`);
           return { ...base, action: "skip-randomness-pending" };
         }
         throw err;
@@ -497,9 +542,16 @@ async function processRound(
     }
 
     if (stateNum === RoundState.Ready) {
+      // Round is Ready but not yet resolved — Witnet push may have failed or
+      // this is a legacy round. Call drawRound manually as fallback.
+      console.log(
+        `[diceSweeper] Drawing round — round=${roundId} tier=${tier} ` +
+        `randomBlock=${base.randomBlock} (manual fallback — push may have resolved already)`
+      );
       try {
         const tx = await dice.drawRound(roundId);
         const receipt = await tx.wait();
+        console.log(`[diceSweeper] Round drawn — round=${roundId} tx=${receipt?.hash ?? tx.hash}`);
         return {
           ...base,
           action: "drew",
@@ -511,6 +563,7 @@ async function processRound(
           msg.includes("already resolved") ||
           msg.includes("randomness pending")
         ) {
+          console.log(`[diceSweeper] round=${roundId} already resolved (push callback beat us)`);
           return { ...base, action: "skip-already-resolved" };
         }
         throw err;
@@ -541,7 +594,7 @@ export async function retryTrackedUnresolvedRounds(): Promise<UnresolvedRoundEnt
   const provider = new ethers.JsonRpcProvider(CELO_RPC_URL);
   const wallet = new ethers.Wallet(RELAYER_PK, provider);
   const dice = new ethers.Contract(DICE_ADDRESS, DICE_ABI, wallet);
-  const rng = new ethers.Contract(WITNET_RNG_ADDRESS, WITNET_ABI, provider);
+  const rng = await getWitnetFeeOracle(dice, provider);
   const witnetFee = await estimateFee(provider, rng);
 
   for (const entry of unresolvedRounds) {

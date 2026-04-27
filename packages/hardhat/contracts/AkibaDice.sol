@@ -2,7 +2,9 @@
 pragma solidity ^0.8.20;
 
 import "./MiniPoints.sol"; // IMiniPoints
-import "witnet-solidity-bridge/contracts/interfaces/IWitRandomness.sol";
+import "@witnet/solidity/contracts/interfaces/IWitRandomness.sol";
+import "@witnet/solidity/contracts/interfaces/IWitRandomnessConsumer.sol";
+import {Witnet} from "@witnet/solidity/contracts/libs/Witnet.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -12,7 +14,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 /// @notice 6-player pots. Each player picks a unique number 1-6 for a given tier.
 ///         When the pot fills, randomness is requested and one number wins the full pot.
 ///         V2: adds USDT-denominated USD tiers and optional USDT bonus on the 30-Miles tier.
-contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
+contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable, IWitRandomnessConsumer {
     using SafeERC20 for IERC20;
 
     /* ────────────────────────────────────────────────────────────── */
@@ -83,7 +85,9 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
     address public owner;
     IMiniPoints public miniPoints;
 
-    IWitRandomness public constant RNG =
+    /// @dev The legacy WitRandomnessV2 address — used only to resolve old rounds
+    ///      that stored a randomBlock against the old oracle.
+    IWitRandomness public constant RNG_LEGACY =
         IWitRandomness(0xC0FFEE98AD1434aCbDB894BbB752e138c1006fAB);
 
     uint256 public nextRoundId;
@@ -129,6 +133,25 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
     ///         Tracked separately so USD-round collateral cannot subsidise bonuses.
     uint256 public bonusPool;
 
+    /* ── V3 storage (appended after all V2 slots) ────────────────── */
+
+    /// @dev The canonical WitRandomnessV3 base — address confirmed with Witnet team
+    ///      before calling setupClone(). Stored as a variable (not a constant) so it
+    ///      can be set at upgrade time without redeploying.
+    IWitRandomness public rngBase;
+
+    /// @dev Our private clone of rngBase, settled with this contract as consumer.
+    ///      Zero until setupClone() is called; legacy-only mode until then.
+    IWitRandomness public rngClone;
+
+    /// @dev Maps randomize block number → roundId for clone-oracle rounds.
+    ///      Lets reportRandomness() identify which round to finalize on callback.
+    mapping(uint256 => uint256) public roundByRandomBlock;
+
+    /// @dev True for rounds whose randomness was requested via the new clone oracle.
+    ///      Default false keeps every pre-existing round on the legacy oracle path.
+    mapping(uint256 => bool) public roundUsesCloneRng;
+
     /* ────────────────────────────────────────────────────────────── */
     /* Events                                                        */
     /* ────────────────────────────────────────────────────────────── */
@@ -148,6 +171,8 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
     event TreasurySet(address indexed treasury);
     event BonusPoolDeposited(address indexed from, uint256 amount);
     event BonusPoolWithdrawn(address indexed to, uint256 amount);
+    event CloneSetup(address indexed clone);
+    event RandomnessDelivered(uint256 indexed roundId, uint256 indexed randomizeBlock, bytes32 randomness);
 
     /* ────────────────────────────────────────────────────────────── */
     /* Modifiers                                                     */
@@ -301,8 +326,17 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
         require(!round.winnerSelected, "Dice: already resolved");
         require(round.randomBlock == 0, "Dice: randomness requested");
 
-        uint256 usedFee = RNG.randomize{value: msg.value}();
+        bool useClone = address(rngClone) != address(0);
+        IWitRandomness oracle = useClone ? rngClone : RNG_LEGACY;
+
+        uint256 usedFee = oracle.randomize{value: msg.value}();
         round.randomBlock = block.number;
+
+        if (useClone) {
+            require(roundByRandomBlock[block.number] == 0, "Dice: randomize block busy");
+            roundUsesCloneRng[roundId] = true;
+            roundByRandomBlock[block.number] = roundId;
+        }
 
         if (usedFee < msg.value) {
             payable(msg.sender).transfer(msg.value - usedFee);
@@ -316,7 +350,7 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
         require(round.filledSlots == 6, "Dice: pot not full");
         require(!round.winnerSelected, "Dice: already resolved");
         require(round.randomBlock != 0, "Dice: randomness not requested");
-        require(RNG.isRandomized(round.randomBlock), "Dice: randomness pending");
+        require(_oracleFor(roundId).isRandomized(round.randomBlock), "Dice: randomness pending");
         _finalizeRound(roundId);
     }
 
@@ -325,8 +359,64 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
         if (round.filledSlots != 6) return;
         if (round.winnerSelected) return;
         if (round.randomBlock == 0) return;
-        if (!RNG.isRandomized(round.randomBlock)) return;
+        if (!_oracleFor(roundId).isRandomized(round.randomBlock)) return;
         _finalizeRound(roundId);
+    }
+
+    /// @dev Returns the correct oracle for a round: clone for new rounds, legacy for old ones.
+    ///      roundUsesCloneRng defaults to false, so every pre-existing round stays on RNG_LEGACY.
+    function _oracleFor(uint256 roundId) private view returns (IWitRandomness) {
+        return roundUsesCloneRng[roundId] ? rngClone : RNG_LEGACY;
+    }
+
+    // ── IWitRandomnessConsumer implementation ────────────────────────
+
+    /// @notice Called by our rngClone when Witnet delivers randomness.
+    ///         Looks up the round registered for this block and finalizes it.
+    ///         Reverts if called by any address other than rngClone.
+    function reportRandomness(
+        bytes32 randomness,
+        uint256 evmRandomizeBlock,
+        uint256 /* evmFinalityBlock */,
+        Witnet.Timestamp /* witnetTimestamp */,
+        Witnet.TransactionHash /* witnetDrTxHash */
+    ) external override nonReentrant {
+        require(msg.sender == address(rngClone), "Dice: invalid randomizer");
+
+        uint256 roundId = roundByRandomBlock[evmRandomizeBlock];
+        if (roundId == 0) return;
+
+        DiceRound storage round = _rounds[roundId];
+        if (round.winnerSelected || round.filledSlots != 6) return;
+
+        require(roundUsesCloneRng[roundId], "Dice: round not clone-oracle");
+        require(round.randomBlock == evmRandomizeBlock, "Dice: block mismatch");
+
+        // Derive entropy directly from callback args — avoids calling fetchRandomnessAfter()
+        // while the result may not yet be past evmFinalityBlock.
+        bytes32 entropy = keccak256(abi.encode(evmRandomizeBlock, bytes8(randomness)));
+
+        emit RandomnessDelivered(roundId, evmRandomizeBlock, randomness);
+        _finalizeRoundWithEntropy(roundId, entropy);
+    }
+
+    /// @notice Required by IWitRandomnessConsumer — returns the clone oracle address.
+    function witRandomness() external view override returns (IWitRandomness) {
+        return rngClone;
+    }
+
+    // ── Clone setup (one-time owner operation) ───────────────────────
+
+    /// @notice Point to the V3 base, create the private clone, register this contract as consumer.
+    ///         Confirm `_rngBase` address with Witnet team before calling on mainnet.
+    ///         `callbackGasLimit` should be ≥ 350_000 to cover _finalizeRound gas.
+    function setupClone(address _rngBase, uint24 callbackGasLimit) external onlyOwner {
+        require(address(rngClone) == address(0), "Dice: clone already set");
+        require(_rngBase != address(0), "Dice: zero rngBase");
+        rngBase = IWitRandomness(_rngBase);
+        rngClone = rngBase.clone(address(this));
+        rngClone.settleConsumer(address(this), callbackGasLimit);
+        emit CloneSetup(address(rngClone));
     }
 
     // ── Snapshot fallbacks for rounds created before V2 ──────────────
@@ -345,11 +435,18 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
         return round.payoutAmountSnap != 0 ? round.payoutAmountSnap : round.tier * 6 * 10 ** 18;
     }
 
-    /// @dev All payouts use the round's snapshotted config, never the current globals.
+    /// @dev Pulls entropy from the oracle and finalizes. Used by drawRound and _tryAutoDraw.
     function _finalizeRound(uint256 roundId) internal {
         DiceRound storage round = _rounds[roundId];
+        bytes32 entropy = _oracleFor(roundId).fetchRandomnessAfter(round.randomBlock);
+        _finalizeRoundWithEntropy(roundId, entropy);
+    }
 
-        bytes32 entropy = RNG.fetchRandomnessAfter(round.randomBlock);
+    /// @dev Core payout logic. Accepts precomputed entropy so the push callback
+    ///      can finalize without calling fetchRandomnessAfter() mid-delivery.
+    function _finalizeRoundWithEntropy(uint256 roundId, bytes32 entropy) internal {
+        DiceRound storage round = _rounds[roundId];
+
         // Use roundId as salt so concurrent rounds sharing the same Witnet block
         // produce distinct winning numbers.
         uint256 pick = uint256(keccak256(abi.encode(entropy, roundId))) % 6;
@@ -516,7 +613,7 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
         DiceRound storage r = _rounds[roundId];
         if (r.winnerSelected) return RoundState.Resolved;
         if (r.filledSlots < 6) return RoundState.Open;
-        if (r.randomBlock == 0 || !RNG.isRandomized(r.randomBlock)) return RoundState.FullWaiting;
+        if (r.randomBlock == 0 || !_oracleFor(roundId).isRandomized(r.randomBlock)) return RoundState.FullWaiting;
         return RoundState.Ready;
     }
 
