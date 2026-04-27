@@ -19,6 +19,8 @@ export function GameIntroSheet({
   rules,
   onPlay,
   loading,
+  disabled,
+  disabledReason,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -26,6 +28,8 @@ export function GameIntroSheet({
   rules: string[];
   onPlay: () => void;
   loading?: boolean;
+  disabled?: boolean;
+  disabledReason?: string;
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -89,13 +93,19 @@ export function GameIntroSheet({
         </div>
 
         <div className="mx-5 mt-5">
-          <Button
-            title={loading ? "Starting..." : "Play now  →"}
-            loading={loading}
-            widthFull
-            className="rounded-xl bg-[#238D9D] py-5 text-base font-bold text-white hover:bg-[#1a7a8a]"
-            onClick={onPlay}
-          />
+          {disabled ? (
+            <div className="w-full rounded-xl bg-[#F0F0F0] py-4 text-sm font-semibold text-[#888] text-center">
+              {disabledReason ?? "Unavailable"}
+            </div>
+          ) : (
+            <Button
+              title={loading ? "Starting..." : "Play now  →"}
+              loading={loading}
+              widthFull
+              className="rounded-xl bg-[#238D9D] py-5 text-base font-bold text-white hover:bg-[#1a7a8a]"
+              onClick={onPlay}
+            />
+          )}
         </div>
       </SheetContent>
     </Sheet>

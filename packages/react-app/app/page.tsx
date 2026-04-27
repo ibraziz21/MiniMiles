@@ -64,18 +64,20 @@ const SUPABASE_ANON_KEY =
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const BadgeClaimSuccessSheet = dynamic(
   () =>
     import("@/components/BadgeClaimSuccessSheet").then(
-      (m) => m.BadgeClaimSuccessSheet
+      (m) => ({ default: m.BadgeClaimSuccessSheet as React.ComponentType<any> })
     ),
   { ssr: false }
 );
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const BadgeClaimLoadingSheet = dynamic(
   () =>
     import("@/components/BadgeClaimSuccessSheet").then(
-      (m) => m.BadgeClaimLoadingSheet
+      (m) => ({ default: m.BadgeClaimLoadingSheet as React.ComponentType<any> })
     ),
   { ssr: false }
 );

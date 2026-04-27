@@ -13,18 +13,32 @@ import { useSettlement } from "@/hooks/games/useSettlement";
 import { Brain, ArrowCounterClockwise, Trophy } from "@phosphor-icons/react";
 import { MilesAmount } from "@/components/games/miles-amount";
 import { SubmittingOverlay } from "@/components/games/submitting-overlay";
+import { mockVerifier } from "@/lib/games/mock-verifier";
 
 export default function MemoryFlipPage() {
   const [introOpen, setIntroOpen] = useState(true);
   const [resultOpen, setResultOpen] = useState(false);
+  const [dailyPlayed, setDailyPlayed] = useState(0);
+  const [dailyCap, setDailyCap] = useState(20);
   const sessionFlow = useGameSession("memory_flip");
   const settlement = useSettlement("memory_flip");
   const game = useMemoryFlipGame(sessionFlow.session?.seed, sessionFlow.session?.sessionId);
+
+  useEffect(() => {
+    const { played, cap } = mockVerifier.fetchDailyPlays("memory_flip", sessionFlow.address);
+    setDailyPlayed(played);
+    setDailyCap(cap);
+  }, [sessionFlow.address]);
+
+  const isDailyCapped = dailyPlayed >= dailyCap;
 
   async function startRound() {
     // Reset settlement state so the effect guard works cleanly for the new round
     settlement.reset();
     const session = await sessionFlow.startSession();
+    const { played, cap } = mockVerifier.fetchDailyPlays("memory_flip", sessionFlow.address);
+    setDailyPlayed(played);
+    setDailyCap(cap);
     setIntroOpen(false);
     setResultOpen(false);
     game.reset();
@@ -85,15 +99,21 @@ export default function MemoryFlipPage() {
               <Trophy size={16} weight="fill" className="text-amber-500" />
               View result
             </button>
-            <button
-              type="button"
-              onClick={startRound}
-              disabled={sessionFlow.isStarting}
-              className="w-full rounded-2xl bg-[#5B35A0] px-5 py-3.5 text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-60"
-            >
-              <ArrowCounterClockwise size={16} weight="bold" />
-              {sessionFlow.isStarting ? "Starting…" : "Play again"}
-            </button>
+            {isDailyCapped ? (
+              <div className="w-full rounded-2xl bg-[#F0F0F0] px-5 py-3.5 text-sm font-semibold text-[#888] text-center">
+                Daily limit reached ({dailyCap}/{dailyCap}) · Come back tomorrow
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={startRound}
+                disabled={sessionFlow.isStarting}
+                className="w-full rounded-2xl bg-[#5B35A0] px-5 py-3.5 text-sm font-bold text-white flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                <ArrowCounterClockwise size={16} weight="bold" />
+                {sessionFlow.isStarting ? "Starting…" : `Play again · ${dailyPlayed}/${dailyCap} today`}
+              </button>
+            )}
           </div>
         )}
 
@@ -109,13 +129,22 @@ export default function MemoryFlipPage() {
                 <p className="text-white/70 text-sm font-poppins mt-0.5 flex items-center gap-1 justify-center">
                   <MilesAmount value={5} size={13} variant="alt" /> entry · Up to <MilesAmount value={20} size={13} variant="alt" /> reward
                 </p>
-                <button
-                  type="button"
-                  onClick={() => setIntroOpen(true)}
-                  className="mt-4 w-full rounded-xl bg-white py-3 text-sm font-bold text-[#5B35A0]"
-                >
-                  View Rules & Play
-                </button>
+                <p className="text-white/50 text-xs font-poppins mt-1">
+                  {dailyPlayed}/{dailyCap} plays used today
+                </p>
+                {isDailyCapped ? (
+                  <div className="mt-4 w-full rounded-xl bg-white/20 py-3 text-sm font-bold text-white/60">
+                    Daily limit reached · Come back tomorrow
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIntroOpen(true)}
+                    className="mt-4 w-full rounded-xl bg-white py-3 text-sm font-bold text-[#5B35A0]"
+                  >
+                    View Rules & Play
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -133,6 +162,8 @@ export default function MemoryFlipPage() {
         config={sessionFlow.config}
         loading={sessionFlow.isStarting}
         onPlay={startRound}
+        disabled={isDailyCapped}
+        disabledReason={isDailyCapped ? `Daily limit reached (${dailyCap}/${dailyCap}) · Come back tomorrow` : undefined}
         rules={[
           "Flip two cards at a time and match all 8 pairs.",
           "Inputs lock while a pair is being evaluated to keep replay validation deterministic.",

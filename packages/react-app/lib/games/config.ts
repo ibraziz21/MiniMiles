@@ -35,7 +35,7 @@ export const GAME_CONFIGS: Record<string, GameConfig> = {
     maxRewardMiles: 20,
     maxRewardStable: 0,
     durationSeconds: 60,
-    dailyPlayCap: 15,
+    dailyPlayCap: 20,
     cooldownSeconds: 20,
     leaderboardSort: "score_desc",
     // Weekly prize pool — set to 0 to disable; update each week to activate

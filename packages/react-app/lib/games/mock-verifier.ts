@@ -24,6 +24,8 @@ type Store = {
   leaderboard: Record<string, LeaderboardEntry[]>;
   weeklyLeaderboard: Record<string, WeeklyLeaderboardEntry[]>;
   walletStarts: Record<string, number[]>;
+  /** Key: `gameType:wallet:YYYY-MM-DD` → count of sessions started that day */
+  dailyPlays: Record<string, number>;
 };
 
 const storageKey = "akiba_skill_games_v1";
@@ -46,20 +48,26 @@ function weekKey(gameType: GameType) {
   return `weekly:${gameType}:${isoWeek()}`;
 }
 
+function emptyStore(): Store {
+  return { sessions: {}, results: {}, leaderboard: {}, weeklyLeaderboard: {}, walletStarts: {}, dailyPlays: {} };
+}
+
 function loadStore(): Store {
-  if (typeof window === "undefined") {
-    return { sessions: {}, results: {}, leaderboard: {}, weeklyLeaderboard: {}, walletStarts: {} };
-  }
+  if (typeof window === "undefined") return emptyStore();
   const raw = window.localStorage.getItem(storageKey);
-  if (!raw) return { sessions: {}, results: {}, leaderboard: {}, weeklyLeaderboard: {}, walletStarts: {} };
+  if (!raw) return emptyStore();
   try {
     const parsed = JSON.parse(raw) as Store;
-    // Back-compat: older stores may not have weeklyLeaderboard
     if (!parsed.weeklyLeaderboard) parsed.weeklyLeaderboard = {};
+    if (!parsed.dailyPlays) parsed.dailyPlays = {};
     return parsed;
   } catch {
-    return { sessions: {}, results: {}, leaderboard: {}, weeklyLeaderboard: {}, walletStarts: {} };
+    return emptyStore();
   }
+}
+
+function dailyPlaysKey(gameType: GameType, walletAddress: string) {
+  return `${gameType}:${walletAddress.toLowerCase()}:${new Date().toISOString().slice(0, 10)}`;
 }
 
 function saveStore(store: Store) {
@@ -165,10 +173,18 @@ export const mockVerifier = {
   async createGameSession(gameType: GameType, walletAddress = MOCK_WALLET): Promise<GameSession> {
     const store = loadStore();
     const now = Date.now();
+    const config = GAME_CONFIGS[gameType];
+
+    // Enforce daily play cap
+    const dpKey = dailyPlaysKey(gameType, walletAddress);
+    const playsToday = store.dailyPlays[dpKey] ?? 0;
+    if (playsToday >= config.dailyPlayCap) {
+      throw new Error(`daily_cap_reached:${config.dailyPlayCap}`);
+    }
+
     const recentStarts = (store.walletStarts[walletAddress] ?? []).filter((ts) => now - ts < 60_000);
     const id = sessionId(gameType, walletAddress);
     const seed = seedFor(id, walletAddress);
-    const config = GAME_CONFIGS[gameType];
     const session: GameSession = {
       sessionId: id,
       gameType,
@@ -181,6 +197,7 @@ export const mockVerifier = {
     };
     store.sessions[id] = session;
     store.walletStarts[walletAddress] = [...recentStarts, now];
+    store.dailyPlays[dpKey] = playsToday + 1;
     saveStore(store);
     return session;
   },
@@ -202,11 +219,9 @@ export const mockVerifier = {
         ? validateRuleTapReplay(replayPayload as RuleTapReplay)
         : validateMemoryFlipReplay(replayPayload as MemoryFlipReplay);
 
-    const recentStarts = (store.walletStarts[session.walletAddress] ?? []).filter(
-      (ts) => Date.now() - ts < 10 * 60_000
-    );
     const antiAbuseFlags = [...validation.flags];
-    if (recentStarts.length > GAME_CONFIGS[gameType].dailyPlayCap) {
+    const dpKey = dailyPlaysKey(gameType, session.walletAddress);
+    if ((store.dailyPlays[dpKey] ?? 0) > GAME_CONFIGS[gameType].dailyPlayCap) {
       antiAbuseFlags.push("session_velocity_cap_exceeded");
     }
     const accepted = !antiAbuseFlags.some((flag) =>
@@ -271,5 +286,14 @@ export const mockVerifier = {
   async fetchMyWeeklyBestScore(gameType: GameType, walletAddress = MOCK_WALLET) {
     const entries = await this.fetchWeeklyLeaderboard(gameType);
     return entries.find((e) => e.walletAddress.toLowerCase() === walletAddress.toLowerCase()) ?? null;
+  },
+
+  fetchDailyPlays(gameType: GameType, walletAddress = MOCK_WALLET): { played: number; cap: number } {
+    const store = loadStore();
+    const dpKey = dailyPlaysKey(gameType, walletAddress);
+    return {
+      played: store.dailyPlays[dpKey] ?? 0,
+      cap: GAME_CONFIGS[gameType].dailyPlayCap,
+    };
   },
 };
