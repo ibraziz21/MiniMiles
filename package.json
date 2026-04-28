@@ -9,7 +9,10 @@
     "react-app:dev": "yarn workspace @celo-composer-minipay-template/react-app dev",
     "react-app:build": "yarn workspace @celo-composer-minipay-template/react-app build",
     "react-app:start": "yarn workspace @celo-composer-minipay-template/react-app start",
-    "react-app:lint": "yarn workspace @celo-composer-minipay-template/react-app lint"
+    "react-app:lint": "yarn workspace @celo-composer-minipay-template/react-app lint",
+    "cto-dashboard:dev": "pnpm --filter @akiba/cto-dashboard dev",
+    "cto-dashboard:build": "pnpm --filter @akiba/cto-dashboard build",
+    "cto-dashboard:start": "pnpm --filter @akiba/cto-dashboard start"
   },
   "repository": {
     "type": "git",
