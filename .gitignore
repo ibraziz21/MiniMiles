@@ -1,6 +1,21 @@
 node_modules
 .env
 packages/*/.env
+.env.*
+!.env.example
+!.env.template
+packages/*/.env.*
+!packages/*/.env.example
+!packages/*/.env.template
+
+# package-local dependencies and build output
+packages/*/node_modules
+packages/*/.next
+packages/*/out
+packages/*/build
+packages/*/.vercel
+packages/*/*.tsbuildinfo
+packages/*/next-env.d.ts
 
 # IntelliJ project files
 *.iml
