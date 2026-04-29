@@ -59,6 +59,8 @@ export function useSettlement(gameType: GameType) {
               const walletClient = createWalletClient({ chain: celo, transport: custom(window.ethereum) });
               const publicClient = createPublicClient({ chain: celo, transport: http() });
 
+              // s.rewardMiles is display units (e.g. 6); contract expects 1e18 scaled.
+              // s.rewardStable is display USD; contract expects USDT 6-decimal.
               const hash = await walletClient.writeContract({
                 chain: celo,
                 account: address as `0x${string}`,

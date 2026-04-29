@@ -22,12 +22,14 @@ const EMPTY: CreditStatus = {
   nonce: 0, isDailyCapped: false, hasCredits: false, contractAvailable: false,
 };
 
-export const CREDIT_BUNDLES = [
-  { count: 1,  label: "1 play",   discount: "" },
-  { count: 5,  label: "5 plays",  discount: "save 0%" },
-  { count: 10, label: "10 plays", discount: "most popular" },
-  { count: 20, label: "20 plays", discount: "best value" },
+export const PLAY_BUNDLES = [
+  { count: 5,  label: "5 plays",  badge: "" },
+  { count: 10, label: "10 plays", badge: "most popular" },
+  { count: 20, label: "20 plays", badge: "best value" },
 ] as const;
+
+/** @deprecated use PLAY_BUNDLES */
+export const CREDIT_BUNDLES = PLAY_BUNDLES;
 
 export function useCredits(gameType: GameType, walletAddress: string | null | undefined) {
   const [status, setStatus] = useState<CreditStatus>(EMPTY);

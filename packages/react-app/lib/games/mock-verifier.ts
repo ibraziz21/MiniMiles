@@ -144,29 +144,8 @@ function rankAndUpsert(gameType: GameType, walletAddress: string, response: Veri
     .map((e, i) => ({ ...e, rank: i + 1 }));
 }
 
-function seededLeaderboard(gameType: GameType): LeaderboardEntry[] {
-  const base =
-    gameType === "rule_tap"
-      ? [
-          ["0x91a2...8c01", 19, 1, 20_000],
-          ["0x31c9...77fd", 16, 2, 20_000],
-          ["0x8a10...de42", 14, 1, 20_000],
-        ]
-      : [
-          ["0x91a2...8c01", 820, 2, 34_900],
-          ["0x31c9...77fd", 760, 3, 38_500],
-          ["0x8a10...de42", 690, 4, 44_100],
-        ];
-  return base.map(([walletAddress, score, mistakes, elapsedMs], index) => ({
-    rank: index + 1,
-    walletAddress: String(walletAddress),
-    score: Number(score),
-    mistakes: Number(mistakes),
-    elapsedMs: Number(elapsedMs),
-    rewardMiles: index === 0 ? GAME_CONFIGS[gameType].maxRewardMiles : 12,
-    rewardStable: index === 0 ? GAME_CONFIGS[gameType].maxRewardStable : 0,
-    playedAt: new Date().toISOString(),
-  }));
+function seededLeaderboard(_gameType: GameType): LeaderboardEntry[] {
+  return [];
 }
 
 export const mockVerifier = {
@@ -268,21 +247,25 @@ export const mockVerifier = {
     return loadStore().results[sessionId]?.settlement ?? null;
   },
 
+  /** @deprecated — leaderboard now served from /api/games/leaderboard */
   async fetchLeaderboard(gameType: GameType) {
     const store = loadStore();
     return store.leaderboard[todayKey(gameType)] ?? seededLeaderboard(gameType);
   },
 
+  /** @deprecated */
   async fetchMyBestScore(gameType: GameType, walletAddress = MOCK_WALLET) {
     const entries = await this.fetchLeaderboard(gameType);
     return entries.find((entry) => entry.walletAddress.toLowerCase() === walletAddress.toLowerCase()) ?? null;
   },
 
+  /** @deprecated */
   async fetchWeeklyLeaderboard(gameType: GameType): Promise<WeeklyLeaderboardEntry[]> {
     const store = loadStore();
     return store.weeklyLeaderboard[weekKey(gameType)] ?? [];
   },
 
+  /** @deprecated */
   async fetchMyWeeklyBestScore(gameType: GameType, walletAddress = MOCK_WALLET) {
     const entries = await this.fetchWeeklyLeaderboard(gameType);
     return entries.find((e) => e.walletAddress.toLowerCase() === walletAddress.toLowerCase()) ?? null;

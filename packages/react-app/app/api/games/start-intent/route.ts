@@ -107,6 +107,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "session-id-not-found-in-receipt" }, { status: 500 });
     }
 
+    // Persist session so /api/games/verify can check seed integrity
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
+    await supabase.from("skill_game_sessions").upsert({
+      session_id:      sessionId,
+      wallet_address:  walletAddress.toLowerCase(),
+      game_type:       gameType,
+      seed_commitment: seedCommitment,
+      status:          "started",
+      created_at:      new Date().toISOString(),
+    });
+
     return NextResponse.json({ sessionId, txHash: hash });
   } catch (err: any) {
     console.error("[games/start-intent]", err);

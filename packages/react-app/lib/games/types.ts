@@ -134,6 +134,7 @@ export type VerifierResponse = {
 export type LeaderboardEntry = {
   rank: number;
   walletAddress: string;
+  username?: string | null;
   score: number;
   mistakes?: number;
   moves?: number;

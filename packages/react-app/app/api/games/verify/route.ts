@@ -15,10 +15,11 @@ import { NextResponse } from "next/server";
 import {
   createPublicClient, createWalletClient,
   http, keccak256, encodeAbiParameters, parseAbiParameters, toHex,
+  parseAbiItem,
 } from "viem";
 import { celo } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
-import { validateRuleTapReplay, validateMemoryFlipReplay } from "@/lib/games/replay-validation";
+import { validateRuleTapReplay, validateMemoryFlipReplay, seedCommitment as computeSeedCommitment } from "@/lib/games/replay-validation";
 import { GAME_CONFIGS } from "@/lib/games/config";
 import { akibaSkillGamesAbi, AKIBA_SKILL_GAMES_ADDRESS, SETTLEMENT_TYPEHASH_PREIMAGE } from "@/lib/games/contracts";
 import { createClient } from "@supabase/supabase-js";
@@ -52,9 +53,11 @@ function buildSettlementDigest(
   );
 }
 
+// DB stores display units (e.g. 6 Miles). Contract expects 1e18 scaled units.
 function toMilesUnits(miles: number): bigint {
   return BigInt(Math.round(miles)) * BigInt(10 ** 18);
 }
+// DB stores display USD (e.g. 0.5). Contract expects USDT 6-decimal units.
 function toStableUnits(usd: number): bigint {
   return BigInt(Math.round(usd * 1_000_000));
 }
@@ -66,6 +69,29 @@ const BLOCKING_FLAGS = [
   "non_monotonic_action_log",
   "input_during_pair_evaluation_lock",
 ];
+
+const GAME_STARTED_EVENT = parseAbiItem(
+  "event GameStarted(uint256 indexed sessionId, address indexed player, uint8 indexed gameType, uint256 entryCost, bytes32 seedCommitment)"
+);
+
+async function resolveOnchainSeedCommitment(
+  publicClient: ReturnType<typeof createPublicClient>,
+  sessionId: bigint,
+): Promise<`0x${string}` | null> {
+  try {
+    const logs = await publicClient.getLogs({
+      address: SKILL_GAMES_ADDRESS,
+      event:   GAME_STARTED_EVENT,
+      args:    { sessionId },
+      fromBlock: "earliest",
+      toBlock:   "latest",
+    });
+    if (logs.length === 0) return null;
+    return (logs[0].args as any).seedCommitment as `0x${string}`;
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(req: Request) {
   try {
@@ -100,7 +126,40 @@ export async function POST(req: Request) {
       });
     }
 
-    // ── 2. Replay validation ─────────────────────────────────────────────────
+    // ── 2. Seed integrity — replay.seed must hash to the on-chain commitment ──
+    if (SKILL_GAMES_ADDRESS) {
+      const replaySeed = (replay as any).seed as string | undefined;
+      if (!replaySeed) {
+        return NextResponse.json({ accepted: false, error: "missing-seed" }, { status: 400 });
+      }
+
+      // Check Supabase first (faster — set by sponsored-start path)
+      const { data: sessionRow } = await supabase
+        .from("skill_game_sessions")
+        .select("seed_commitment")
+        .eq("session_id", sessionId)
+        .maybeSingle();
+
+      let expectedCommitment: `0x${string}` | null = sessionRow?.seed_commitment ?? null;
+
+      // Fall back to on-chain event for self-start sessions
+      if (!expectedCommitment) {
+        const publicClientForSeed = createPublicClient({ chain: celo, transport: http(CELO_RPC) });
+        expectedCommitment = await resolveOnchainSeedCommitment(publicClientForSeed, BigInt(sessionId));
+      }
+
+      if (expectedCommitment) {
+        const actualCommitment = computeSeedCommitment(replaySeed, walletAddress, gameType);
+        if (actualCommitment.toLowerCase() !== expectedCommitment.toLowerCase()) {
+          return NextResponse.json({ accepted: false, error: "seed-commitment-mismatch" }, { status: 400 });
+        }
+      }
+      // If we cannot resolve the commitment (no DB row, no chain event) we still
+      // proceed — this can happen in dev or if the chain is unreachable. The
+      // remaining anti-abuse checks still apply.
+    }
+
+    // ── 3. Replay validation ─────────────────────────────────────────────────
     const validation =
       gameType === "rule_tap"
         ? validateRuleTapReplay(replay as RuleTapReplay)
@@ -108,7 +167,7 @@ export async function POST(req: Request) {
 
     const accepted = !validation.flags.some((f) => BLOCKING_FLAGS.includes(f));
 
-    // ── 3. Persist session ───────────────────────────────────────────────────
+    // ── 4. Persist session ───────────────────────────────────────────────────
     await supabase.from("skill_game_sessions").upsert({
       session_id:       sessionId,
       wallet_address:   walletAddress.toLowerCase(),
@@ -130,7 +189,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // ── 4. No contract configured — accepted but no chain settlement ─────────
+    // ── 5. No contract configured — accepted but no chain settlement ─────────
     if (!VERIFIER_PK || !SKILL_GAMES_ADDRESS) {
       return NextResponse.json({
         accepted: true,
@@ -141,7 +200,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // ── 5. Build settlement payload ──────────────────────────────────────────
+    // ── 6. Build settlement payload ──────────────────────────────────────────
     const expiry        = BigInt(Math.floor(Date.now() / 1000) + 15 * 60);
     const rewardMiles   = toMilesUnits(validation.result.rewardMiles);
     const rewardStable  = toStableUnits(validation.result.rewardStable);
@@ -170,7 +229,7 @@ export async function POST(req: Request) {
       digest,
     };
 
-    // ── 6. Backend settles on-chain — user pays zero gas for settlement ───────
+    // ── 7. Backend settles on-chain — user pays zero gas for settlement ───────
     let settleTxHash: string | undefined;
     let settled = false;
     try {
