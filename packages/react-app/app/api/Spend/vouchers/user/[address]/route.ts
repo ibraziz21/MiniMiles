@@ -28,7 +28,7 @@ export async function GET(
   // Step 1: fetch vouchers (no join — avoids FK auto-detection issues)
   const { data: vouchers, error: vErr } = await supabase
     .from("issued_vouchers")
-    .select("id, code, qr_payload, status, created_at, voucher_template_id, merchant_id")
+    .select("id, code, qr_payload, status, created_at, voucher_template_id, merchant_id, linked_product_id, product_name, product_image_url")
     .eq("user_address", address)
     .neq("status", "void")
     .order("created_at", { ascending: false });
@@ -50,7 +50,7 @@ export async function GET(
   const { data: templates, error: tErr } = await supabase
     .from("spend_voucher_templates")
     .select(
-      "id, title, voucher_type, discount_percent, discount_cusd, applicable_category, merchant_id",
+      "id, title, voucher_type, discount_percent, discount_cusd, applicable_category, linked_product_id, retail_value_cusd, merchant_id",
     )
     .in("id", templateIds);
 
@@ -89,10 +89,12 @@ export async function GET(
       // Synthesize structured rules_snapshot from template so the UI can display discount info
       rules_snapshot: tpl
         ? {
-            voucher_type: tpl.voucher_type,
-            discount_percent: tpl.discount_percent ?? null,
-            discount_cusd: tpl.discount_cusd ?? null,
+            voucher_type:        tpl.voucher_type,
+            discount_percent:    tpl.discount_percent    ?? null,
+            discount_cusd:       tpl.discount_cusd       ?? null,
             applicable_category: tpl.applicable_category ?? null,
+            linked_product_id:   tpl.linked_product_id   ?? null,
+            retail_value_cusd:   tpl.retail_value_cusd   ?? null,
           }
         : null,
       spend_voucher_templates: tpl ?? null,

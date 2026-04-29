@@ -87,13 +87,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const allowed = [
     "title", "voucher_type", "miles_cost", "discount_percent", "discount_cusd",
-    "applicable_category", "cooldown_seconds", "global_cap", "active", "expires_at",
+    "applicable_category", "linked_product_id", "retail_value_cusd",
+    "cooldown_seconds", "global_cap", "active", "expires_at",
   ];
   const updates: Record<string, unknown> = {};
   for (const key of allowed) {
     if (key in body) updates[key] = body[key];
   }
 
+  // Validate + normalize applicable_category
   if ("applicable_category" in updates) {
     if (updates.applicable_category == null || updates.applicable_category === "") {
       updates.applicable_category = null;
@@ -109,6 +111,36 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
   }
 
+  // Validate product ownership when linking/changing product
+  if ("linked_product_id" in updates) {
+    const newProductId = updates.linked_product_id;
+    if (newProductId == null || newProductId === "") {
+      updates.linked_product_id = null;
+    } else {
+      const { data: product } = await supabase
+        .from("merchant_products")
+        .select("id")
+        .eq("id", newProductId as string)
+        .eq("merchant_id", session.partnerId)
+        .maybeSingle();
+
+      if (!product) {
+        return NextResponse.json(
+          { error: "Product not found or does not belong to your store" },
+          { status: 404 },
+        );
+      }
+      // Product-linked vouchers must not have a category
+      updates.applicable_category = null;
+    }
+  }
+
+  // If setting a category, clear the product link
+  if ("applicable_category" in updates && updates.applicable_category != null) {
+    updates.linked_product_id = null;
+    updates.retail_value_cusd = null;
+  }
+
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
   }
@@ -118,7 +150,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     .update(updates)
     .eq("id", id)
     .eq("partner_id", session.partnerId)
-    .select("id,title,voucher_type,miles_cost,active")
+    .select("id,title,voucher_type,miles_cost,active,linked_product_id,retail_value_cusd,applicable_category")
     .single();
 
   if (error) return NextResponse.json({ error: "Failed to update template" }, { status: 500 });

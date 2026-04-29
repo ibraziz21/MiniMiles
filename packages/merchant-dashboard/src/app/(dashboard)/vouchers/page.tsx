@@ -20,11 +20,23 @@ export default async function VouchersPage() {
   const session = await requireMerchantSession();
   if (!session) redirect("/login");
 
-  const { data: templates } = await supabase
+  const { data: rawTemplates } = await supabase
     .from("spend_voucher_templates")
-    .select("id,title,voucher_type,miles_cost,discount_percent,discount_cusd,applicable_category,active,expires_at,global_cap")
+    .select("id,title,voucher_type,miles_cost,discount_percent,discount_cusd,applicable_category,linked_product_id,retail_value_cusd,active,expires_at,global_cap")
     .eq("partner_id", session.partnerId)
     .order("created_at", { ascending: false });
+
+  // Enrich with product names
+  const productIds = [...new Set((rawTemplates ?? []).map((t) => t.linked_product_id).filter(Boolean))] as string[];
+  let productNames: Record<string, string> = {};
+  if (productIds.length > 0) {
+    const { data: prods } = await supabase.from("merchant_products").select("id,name").in("id", productIds);
+    for (const p of prods ?? []) productNames[p.id] = p.name;
+  }
+  const templates = (rawTemplates ?? []).map((t) => ({
+    ...t,
+    linked_product_name: t.linked_product_id ? (productNames[t.linked_product_id] ?? null) : null,
+  }));
 
   const canEdit = ["owner", "manager"].includes(session.role);
 
@@ -60,19 +72,26 @@ export default async function VouchersPage() {
                       <th className="px-5 py-3">Type</th>
                       <th className="px-5 py-3">Cost</th>
                       <th className="px-5 py-3">Discount</th>
-                      <th className="px-5 py-3">Category</th>
+                      <th className="px-5 py-3">Scope</th>
                       <th className="px-5 py-3">Status</th>
                       {canEdit && <th className="px-5 py-3">Actions</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {(templates as VoucherTemplate[]).map((t) => (
+                    {(templates as unknown as VoucherTemplate[]).map((t) => (
                       <tr key={t.id} className="hover:bg-gray-50">
                         <td className="px-5 py-3 font-medium text-gray-900">{t.title}</td>
                         <td className="px-5 py-3 text-gray-500 capitalize">{t.voucher_type.replace("_", " ")}</td>
                         <td className="px-5 py-3 text-gray-700">{t.miles_cost} miles</td>
                         <td className="px-5 py-3 text-gray-700">{discountLabel(t)}</td>
-                        <td className="px-5 py-3 text-gray-500">{t.applicable_category ?? "All"}</td>
+                        <td className="px-5 py-3 text-gray-500">
+                          {(t as any).linked_product_name
+                            ? <span className="inline-flex items-center gap-1 text-[#238D9D] font-medium text-xs rounded-full bg-[#238D9D11] px-2 py-0.5">📦 {(t as any).linked_product_name}</span>
+                            : t.applicable_category
+                            ? <span className="text-xs">{t.applicable_category}</span>
+                            : <span className="text-xs text-gray-400">All products</span>
+                          }
+                        </td>
                         <td className="px-5 py-3">
                           <Badge className={t.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-700"}>
                             {t.active ? "Active" : "Inactive"}

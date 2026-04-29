@@ -25,6 +25,9 @@ export type VoucherTemplate = {
   cooldown_seconds?: number | null;
   global_cap?: number | null;
   expires_at?: string | null;
+  linked_product_id?: string | null;
+  retail_value_cusd?: number | null;
+  wholesale_price_cusd?: number | null;
 };
 
 export type MerchantForVoucher = {
@@ -45,13 +48,18 @@ type Props = {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function discountLabel(t: VoucherTemplate): string {
-  if (t.voucher_type === "free") return "FREE product (up to $15)";
+  if (t.voucher_type === "free") {
+    if (t.linked_product_id) return "FREE — product included";
+    const cap = t.retail_value_cusd ?? 15;
+    return `FREE product (up to $${Number(cap).toFixed(0)})`;
+  }
   if (t.voucher_type === "percent_off") return `${t.discount_percent ?? 0}% off`;
   if (t.voucher_type === "fixed_off") return `$${t.discount_cusd ?? 0} off`;
   return "";
 }
 
-function categoryLabel(t: VoucherTemplate): string {
+function scopeLabel(t: VoucherTemplate): string {
+  if (t.linked_product_id) return "";
   if (!t.applicable_category) return "All products";
   return t.applicable_category.charAt(0).toUpperCase() + t.applicable_category.slice(1);
 }
@@ -255,9 +263,15 @@ export default function MerchantVoucherSheet({
                               {discountLabel(t)}
                             </p>
                             <div className="flex flex-wrap gap-1.5 text-xs text-gray-500">
-                              <span className="bg-gray-100 rounded-full px-2 py-0.5">
-                                {categoryLabel(t)}
-                              </span>
+                              {t.linked_product_id ? (
+                                <span className="bg-[#238D9D11] text-[#238D9D] rounded-full px-2 py-0.5 font-medium">
+                                  📦 Specific product
+                                </span>
+                              ) : (
+                                <span className="bg-gray-100 rounded-full px-2 py-0.5">
+                                  {scopeLabel(t)}
+                                </span>
+                              )}
                               {t.cooldown_seconds ? (
                                 <span className="bg-gray-100 rounded-full px-2 py-0.5">
                                   {cooldownLabel(t.cooldown_seconds)}
@@ -302,7 +316,12 @@ export default function MerchantVoucherSheet({
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Applies to</span>
-                  <span className="font-medium">{categoryLabel(selected)}</span>
+                  <span className="font-medium">
+                    {selected.linked_product_id
+                      ? <span className="text-[#238D9D]">📦 Specific product</span>
+                      : scopeLabel(selected)
+                    }
+                  </span>
                 </div>
                 {selected.cooldown_seconds ? (
                   <div className="flex justify-between text-sm">

@@ -79,6 +79,7 @@ export async function PATCH(
     status,
     akibaNotes: akiba_notes,
     grossCusd: existing.gross_cusd,
+    netCusd: existing.net_cusd ?? existing.gross_cusd,
   }).catch((e) => console.error("[admin/invoices] resolution email failed:", e));
 
   return NextResponse.json({ invoice: updated as PayoutInvoice });

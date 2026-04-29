@@ -267,17 +267,35 @@ export async function POST(req: Request) {
       if (claimed.voucher_template_id) {
         const { data: tpl } = await supabase
           .from("spend_voucher_templates")
-          .select("title, voucher_type, discount_percent, discount_cusd, applicable_category")
+          .select("title, voucher_type, discount_percent, discount_cusd, applicable_category, linked_product_id, retail_value_cusd")
           .eq("id", claimed.voucher_template_id)
           .single();
 
         if (tpl) {
+          // ── Product-scope enforcement ──────────────────────────────────────
+          // If this voucher is locked to a specific product, the order's product
+          // must match exactly. Reject before any pricing logic runs.
+          if (tpl.linked_product_id && tpl.linked_product_id !== String(product_id)) {
+            // Release the voucher claim so the user can retry
+            await supabase
+              .from("issued_vouchers")
+              .update({ status: "issued" })
+              .eq("id", claimed.id)
+              .eq("status", "claiming");
+            return NextResponse.json(
+              { error: "This voucher is only valid for a specific product and cannot be used here" },
+              { status: 409 },
+            );
+          }
+
           voucherRules = {
-            title: tpl.title ?? null,
-            voucher_type: tpl.voucher_type,
-            discount_percent: tpl.discount_percent ?? null,
-            discount_cusd: tpl.discount_cusd != null ? Number(tpl.discount_cusd) : null,
+            title:               tpl.title ?? null,
+            voucher_type:        tpl.voucher_type,
+            discount_percent:    tpl.discount_percent ?? null,
+            discount_cusd:       tpl.discount_cusd != null ? Number(tpl.discount_cusd) : null,
             applicable_category: tpl.applicable_category ?? null,
+            linked_product_id:   tpl.linked_product_id ?? null,
+            retail_value_cusd:   tpl.retail_value_cusd != null ? Number(tpl.retail_value_cusd) : null,
           };
           merchantVoucherValue = toVoucherEnumValue(tpl);
         }
@@ -287,7 +305,8 @@ export async function POST(req: Request) {
     // ── Calculate expected total ──────────────────────────────────────────────
     const pricing = calculateOrderTotal({
       product_price_cusd: Number(product.price_cusd),
-      product_category: product.category,
+      product_category:   product.category,
+      product_id:         String(product_id),
       city,
       voucher: voucherRules,
     });

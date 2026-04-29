@@ -94,7 +94,12 @@ export type IssuedVoucher = {
     discount_percent?: number | null;
     discount_cusd?: number | null;
     applicable_category?: string | null;
+    linked_product_id?: string | null;
+    retail_value_cusd?: number | null;
   };
+  linked_product_id?: string | null;
+  product_name?: string | null;
+  product_image_url?: string | null;
   spend_voucher_templates?: {
     title?: string;
     spend_merchants?: { name?: string };
@@ -143,7 +148,11 @@ type UserDeliveryProfile = {
 
 function discountSummary(v: IssuedVoucher): string {
   const r = v.rules_snapshot;
-  if (r.voucher_type === "free") return "FREE product (≤$15)";
+  if (r.voucher_type === "free") {
+    if (r.linked_product_id) return "FREE — product included";
+    const cap = r.retail_value_cusd ?? 15;
+    return `FREE product (≤$${Number(cap).toFixed(0)})`;
+  }
   if (r.voucher_type === "percent_off") return `${r.discount_percent ?? 0}% off`;
   if (r.voucher_type === "fixed_off") return `$${r.discount_cusd ?? 0} off`;
   return "";
@@ -541,7 +550,9 @@ export default function VoucherOrderSheet({
                             </p>
                             <p className="text-xs text-gray-500 mt-0.5">
                               {v.spend_voucher_templates?.title ?? "Voucher"} ·{" "}
-                              {v.rules_snapshot.applicable_category
+                              {v.rules_snapshot.linked_product_id
+                                ? (v.product_name ?? "specific product")
+                                : v.rules_snapshot.applicable_category
                                 ? v.rules_snapshot.applicable_category
                                 : "all products"}
                             </p>

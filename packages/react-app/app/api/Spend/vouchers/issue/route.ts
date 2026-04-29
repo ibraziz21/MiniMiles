@@ -116,13 +116,40 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Nonce already used" }, { status: 400 });
     }
 
+    // ── Fetch template for product-linking metadata ───────────────────────────
+    const { data: templateMeta } = await supabase
+      .from("spend_voucher_templates")
+      .select("linked_product_id, retail_value_cusd")
+      .eq("id", template_id)
+      .eq("merchant_id", merchant_id)
+      .maybeSingle();
+
+    // Fetch product name/image for wallet display denorm
+    let productName: string | null = null;
+    let productImageUrl: string | null = null;
+    if (templateMeta?.linked_product_id) {
+      const { data: prod } = await supabase
+        .from("merchant_products")
+        .select("name, image_url")
+        .eq("id", templateMeta.linked_product_id)
+        .maybeSingle();
+      productName     = prod?.name     ?? null;
+      productImageUrl = prod?.image_url ?? null;
+    }
+
     // ── Atomically reserve pending voucher (cap + cooldown + insert) ──────────
     // reserve_voucher_atomic() acquires pg_advisory_xact_lock(template_id) so
     // all concurrent requests for this template queue here. Cap and cooldown are
     // checked and the pending row is inserted in a single serialized transaction.
     // Any violation raises a structured exception with a typed prefix.
     const code = generateVoucherCode();
-    const qr_payload = JSON.stringify({ code, merchant_id, voucher_template_id: template_id, user: addr });
+    const qr_payload = JSON.stringify({
+      code,
+      merchant_id,
+      voucher_template_id: template_id,
+      user: addr,
+      linked_product_id: templateMeta?.linked_product_id ?? null,
+    });
 
     const { data: reserved, error: rpcErr } = await supabase.rpc("reserve_voucher_atomic", {
       p_template_id:     template_id,
@@ -174,7 +201,13 @@ export async function POST(req: Request) {
     // ── Promote voucher to issued ─────────────────────────────────────────────
     const { data: voucher, error: promoteErr } = await supabase
       .from("issued_vouchers")
-      .update({ status: "issued", burn_tx_hash: burnTxHash })
+      .update({
+        status:             "issued",
+        burn_tx_hash:       burnTxHash,
+        linked_product_id:  templateMeta?.linked_product_id  ?? null,
+        product_name:       productName,
+        product_image_url:  productImageUrl,
+      })
       .eq("id", pendingVoucher.voucher_id)
       .select("id, code, qr_payload, status")
       .single();

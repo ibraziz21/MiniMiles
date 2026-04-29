@@ -76,6 +76,8 @@ export interface VoucherTemplate {
   discount_percent: number | null;
   discount_cusd: number | null;
   applicable_category: string | null;
+  linked_product_id: string | null;
+  retail_value_cusd: number | null;
   cooldown_seconds: number;
   global_cap: number | null;
   active: boolean;
@@ -98,6 +100,8 @@ export interface PartnerSettings {
   notify_stale_order: boolean;
   stale_threshold_hours: number;
   wallet_address: string | null;
+  payout_wallet: string | null;
+  kes_exchange_rate: number | null;
   updated_at: string;
 }
 
@@ -251,9 +255,12 @@ export interface PayoutInvoice {
   period_month: string;      // "YYYY-MM"
   order_count: number;
   gross_cusd: number;
+  subscription_fee_cusd: number;
+  service_fee_cusd: number;
+  net_cusd: number;
   notes: string | null;
   status: PayoutInvoiceStatus;
-  created_by: string;
+  created_by: string | null;
   submitted_by: string | null;
   submitted_at: string | null;
   akiba_notes: string | null;

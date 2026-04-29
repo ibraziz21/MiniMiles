@@ -17,7 +17,7 @@ const navItems = [
   { href: "/products", label: "Products", icon: Package },
   { href: "/vouchers", label: "Vouchers", icon: Tag },
   { href: "/finance", label: "Finance", icon: Landmark },
-  { href: "/invoices", label: "Invoices", icon: FileText },
+  { href: "/billing", label: "Billing", icon: FileText },
   { href: "/analytics", label: "Analytics", icon: BarChart2 },
   { href: "/team", label: "Team", icon: Users },
   { href: "/settings", label: "Settings", icon: Settings },

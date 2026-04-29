@@ -62,7 +62,7 @@ export async function PATCH(req: Request) {
   const allowed = [
     "store_active", "logo_url", "support_email", "support_phone",
     "delivery_cities", "notify_new_order", "notify_stale_order", "stale_threshold_hours",
-    "wallet_address",
+    "wallet_address", "payout_wallet", "kes_exchange_rate",
   ];
   const updates: Record<string, unknown> = {};
   for (const key of allowed) {
@@ -84,14 +84,23 @@ export async function PATCH(req: Request) {
     }
   }
 
-  if ("wallet_address" in updates) {
-    if (updates.wallet_address !== null && typeof updates.wallet_address !== "string") {
-      return NextResponse.json({ error: "wallet_address must be a string or null" }, { status: 400 });
+  for (const addrKey of ["wallet_address", "payout_wallet"] as const) {
+    if (addrKey in updates) {
+      if (updates[addrKey] !== null && typeof updates[addrKey] !== "string") {
+        return NextResponse.json({ error: `${addrKey} must be a string or null` }, { status: 400 });
+      }
+      if (updates[addrKey] && !/^0x[0-9a-fA-F]{40}$/.test(updates[addrKey] as string)) {
+        return NextResponse.json({ error: `${addrKey} must be a valid EVM address (0x...)` }, { status: 400 });
+      }
     }
-    // Basic EVM address format check
-    if (updates.wallet_address && !/^0x[0-9a-fA-F]{40}$/.test(updates.wallet_address as string)) {
-      return NextResponse.json({ error: "wallet_address must be a valid EVM address (0x...)" }, { status: 400 });
+  }
+
+  if ("kes_exchange_rate" in updates) {
+    const rate = Number(updates.kes_exchange_rate);
+    if (updates.kes_exchange_rate !== null && (isNaN(rate) || rate <= 0 || rate > 10000)) {
+      return NextResponse.json({ error: "kes_exchange_rate must be a positive number" }, { status: 400 });
     }
+    updates.kes_exchange_rate = updates.kes_exchange_rate === null ? null : rate;
   }
 
   if ("stale_threshold_hours" in updates) {

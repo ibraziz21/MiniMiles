@@ -64,6 +64,8 @@ export default function SettingsPage() {
           notify_new_order: settings.notify_new_order,
           notify_stale_order: settings.notify_stale_order,
           stale_threshold_hours: settings.stale_threshold_hours,
+          payout_wallet: settings.payout_wallet || null,
+          kes_exchange_rate: settings.kes_exchange_rate ?? null,
         }),
       });
       const data = await res.json();
@@ -203,6 +205,40 @@ export default function SettingsPage() {
                   />
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Payout details */}
+          <Card>
+            <CardHeader><CardTitle>Payout Details</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">Payout Wallet Address</label>
+                <Input
+                  value={settings?.payout_wallet ?? ""}
+                  onChange={(e) => update("payout_wallet", e.target.value || null)}
+                  placeholder="0x..."
+                  disabled={!isOwner}
+                />
+                <p className="text-xs text-gray-400">EVM address on Celo that receives monthly payouts from AkibaMiles.</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">KES Exchange Rate</label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min="1"
+                    max="10000"
+                    step="0.01"
+                    value={String(settings?.kes_exchange_rate ?? 130)}
+                    onChange={(e) => update("kes_exchange_rate", e.target.value ? parseFloat(e.target.value) : null)}
+                    disabled={!isOwner}
+                    className="max-w-[140px]"
+                  />
+                  <span className="text-sm text-gray-500">KES per 1 USD</span>
+                </div>
+                <p className="text-xs text-gray-400">Used to display KES amounts on your billing page. Defaults to 130.</p>
+              </div>
             </CardContent>
           </Card>
 

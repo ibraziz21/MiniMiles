@@ -23,7 +23,8 @@ export async function GET(
     .from("spend_voucher_templates")
     .select(
       `id, title, miles_cost, voucher_type, discount_percent, discount_cusd,
-       applicable_category, cooldown_seconds, global_cap, expires_at`,
+       applicable_category, cooldown_seconds, global_cap, expires_at,
+       linked_product_id, retail_value_cusd`,
     )
     .eq("merchant_id", merchant.id)
     .eq("active", true)

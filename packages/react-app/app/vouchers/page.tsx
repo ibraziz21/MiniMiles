@@ -44,7 +44,11 @@ const STATUS_LABEL: Record<string, string> = {
 
 function discountLabel(rules: IssuedVoucher["rules_snapshot"] | null | undefined): string {
   if (!rules) return "Voucher";
-  if (rules.voucher_type === "free") return "FREE product (≤$15)";
+  if (rules.voucher_type === "free") {
+    if (rules.linked_product_id) return "FREE — product included";
+    const cap = rules.retail_value_cusd ?? 15;
+    return `FREE product (≤$${Number(cap).toFixed(0)})`;
+  }
   if (rules.voucher_type === "percent_off") return `${rules.discount_percent ?? 0}% off`;
   if (rules.voucher_type === "fixed_off") return `$${rules.discount_cusd ?? 0} off`;
   return "Voucher";
@@ -108,7 +112,20 @@ function VoucherCard({
 
       {/* Discount highlight */}
       <p className="text-[#238D9D] font-bold text-base mb-1">{discountLabel(voucher.rules_snapshot)}</p>
-      {voucher.rules_snapshot?.applicable_category && (
+
+      {/* Scope: product chip, category, or all */}
+      {voucher.linked_product_id ? (
+        <div className="flex items-center gap-2 mb-3">
+          {voucher.product_image_url && (
+            <div className="relative w-7 h-7 rounded-lg overflow-hidden shrink-0">
+              <Image src={voucher.product_image_url} alt="" fill className="object-cover" />
+            </div>
+          )}
+          <p className="text-xs font-medium text-[#238D9D]">
+            📦 {voucher.product_name ?? "Specific product"}
+          </p>
+        </div>
+      ) : voucher.rules_snapshot?.applicable_category ? (
         <p className="text-xs text-gray-400 mb-3">
           Applies to{" "}
           <span className="font-medium text-gray-600">
@@ -116,7 +133,7 @@ function VoucherCard({
           </span>{" "}
           products only
         </p>
-      )}
+      ) : null}
 
       {/* Code */}
       <div className="bg-gray-50 rounded-xl px-3 py-2 mb-3 flex items-center justify-between">
@@ -138,7 +155,7 @@ function VoucherCard({
           className="w-full bg-[#238D9D] text-white rounded-xl h-10 text-sm font-medium flex items-center justify-center gap-1.5"
         >
           <ShoppingBag size={15} />
-          Order goods
+          {voucher.linked_product_id ? "Use voucher" : "Order goods"}
         </button>
       )}
     </div>

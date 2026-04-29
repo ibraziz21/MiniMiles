@@ -180,20 +180,22 @@ export async function sendInvoiceResolvedEmail(params: {
   status: "paid" | "rejected";
   akibaNotes: string | null;
   grossCusd: number;
+  netCusd: number;
 }): Promise<boolean> {
-  const { partnerId, periodMonth, status, akibaNotes, grossCusd } = params;
+  const { partnerId, periodMonth, status, akibaNotes, grossCusd, netCusd } = params;
 
   const emails = await getActiveMerchantEmails(partnerId);
   if (emails.length === 0) return false;
 
   const isPaid = status === "paid";
   const subject = isPaid
-    ? `✅ Invoice paid — ${periodMonth}`
-    : `❌ Invoice rejected — ${periodMonth}`;
+    ? `Bill paid — ${periodMonth}`
+    : `Bill rejected — ${periodMonth}`;
   const html = `
-    <h2>${isPaid ? "Invoice Approved & Paid" : "Invoice Rejected"}</h2>
+    <h2>${isPaid ? "Monthly Bill Paid" : "Monthly Bill Rejected"}</h2>
     <p><strong>Period:</strong> ${periodMonth}</p>
-    <p><strong>Amount:</strong> $${grossCusd.toFixed(2)} cUSD</p>
+    <p><strong>Gross revenue:</strong> $${grossCusd.toFixed(2)} cUSD</p>
+    ${isPaid ? `<p><strong>Net payout:</strong> $${netCusd.toFixed(2)} cUSD</p>` : ""}
     ${akibaNotes ? `<p><strong>AkibaMiles note:</strong> ${akibaNotes}</p>` : ""}
     <p>${isPaid ? "Payment has been processed to your registered wallet." : "Please log in to your dashboard for details or contact support."}</p>
   `;
