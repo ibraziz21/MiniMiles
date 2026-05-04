@@ -36,6 +36,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
+  if (!adminUser.password_hash) {
+    await recordLoginFailure(email);
+    return NextResponse.json({ error: "Password setup is required" }, { status: 403 });
+  }
+
   const valid = await verifyPassword(password, adminUser.password_hash);
   if (!valid) {
     await recordLoginFailure(email);

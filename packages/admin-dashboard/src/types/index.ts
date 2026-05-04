@@ -43,6 +43,8 @@ export interface AdminUser {
   role: AdminRole;
   is_active: boolean;
   created_by: string | null;
+  password_setup_expires_at: string | null;
+  password_set_at: string | null;
   last_login_at: string | null;
   created_at: string;
   updated_at: string;
