@@ -15,7 +15,10 @@
     "merchant:start": "pnpm --filter @minimiles/merchant-dashboard start",
     "admin:dev": "pnpm --filter @minimiles/admin-dashboard dev",
     "admin:build": "pnpm --filter @minimiles/admin-dashboard build",
-    "admin:start": "pnpm --filter @minimiles/admin-dashboard start"
+    "admin:start": "pnpm --filter @minimiles/admin-dashboard start",
+    "cto-dashboard:dev": "pnpm --filter @akiba/cto-dashboard dev",
+    "cto-dashboard:build": "pnpm --filter @akiba/cto-dashboard build",
+    "cto-dashboard:start": "pnpm --filter @akiba/cto-dashboard start"
   },
   "repository": {
     "type": "git",

@@ -2,16 +2,18 @@
 
 import Link from "next/link";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { Trophy, ArrowCounterClockwise, Star, XCircle, CheckCircle, CircleNotch } from "@phosphor-icons/react";
+import { Trophy, ArrowCounterClockwise, Star, XCircle, CheckCircle, CircleNotch, Medal } from "@phosphor-icons/react";
 import type { GameResult } from "@/lib/games/types";
 import { MilesAmount } from "./miles-amount";
+
+const PRIZE_BY_RANK: Record<number, string> = { 1: "$5", 2: "$3", 3: "$2" };
 
 function SettlementBadge({ status }: { status: "idle" | "submitting" | "settled" | "rejected" | "error" }) {
   if (status === "submitting") {
     return (
       <div className="flex items-center gap-2 rounded-full bg-[#FFF8E1] border border-[#F59E0B33] px-3 py-1.5 text-xs font-semibold text-[#B45309]">
         <CircleNotch size={13} className="animate-spin" />
-        Verifying replay…
+        Verifying result
       </div>
     );
   }
@@ -19,7 +21,7 @@ function SettlementBadge({ status }: { status: "idle" | "submitting" | "settled"
     return (
       <div className="flex items-center gap-2 rounded-full bg-[#F0FFF6] border border-[#138A4533] px-3 py-1.5 text-xs font-semibold text-[#138A45]">
         <CheckCircle size={13} weight="fill" />
-        Verified · reward ready
+        Reward sent
       </div>
     );
   }
@@ -27,15 +29,15 @@ function SettlementBadge({ status }: { status: "idle" | "submitting" | "settled"
     return (
       <div className="flex items-center gap-2 rounded-full bg-[#FFECEC] border border-[#C43D3D33] px-3 py-1.5 text-xs font-semibold text-[#C43D3D]">
         <XCircle size={13} weight="fill" />
-        Replay rejected
+        Result rejected
       </div>
     );
   }
   if (status === "error") {
     return (
-      <div className="flex items-center gap-2 rounded-full bg-[#FFECEC] border border-[#C43D3D33] px-3 py-1.5 text-xs font-semibold text-[#C43D3D]">
-        <XCircle size={13} weight="fill" />
-        Settlement error
+      <div className="flex items-center gap-2 rounded-full bg-[#FFF8E1] border border-[#F59E0B33] px-3 py-1.5 text-xs font-semibold text-[#B45309]">
+        <CircleNotch size={13} />
+        Reward pending
       </div>
     );
   }
@@ -47,21 +49,24 @@ export function GameResultSheet({
   onOpenChange,
   result,
   settlementStatus,
+  weeklyRank,
   onPlayAgain,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  result: GameResult | null;
+  open:             boolean;
+  onOpenChange:     (open: boolean) => void;
+  result:           GameResult | null;
   settlementStatus: "idle" | "submitting" | "settled" | "rejected" | "error";
-  onPlayAgain: () => void;
+  weeklyRank?:      number | null;
+  onPlayAgain:      () => void;
 }) {
-  const hasReward = result && (result.rewardMiles || result.rewardStable);
+  const hasReward    = result && (result.rewardMiles || result.rewardStable);
+  const isTopThree   = weeklyRank != null && weeklyRank >= 1 && weeklyRank <= 3;
+  const estimatedPrize = isTopThree ? PRIZE_BY_RANK[weeklyRank!] : null;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="rounded-t-2xl bg-white px-0 pb-8" aria-describedby={undefined}>
         <SheetTitle className="sr-only">Round result</SheetTitle>
-        {/* Top pull handle visual (cosmetic) */}
         <div className="flex justify-center pt-3 pb-1">
           <div className="h-1 w-10 rounded-full bg-[#E0E0E0]" />
         </div>
@@ -74,10 +79,10 @@ export function GameResultSheet({
               <div className="absolute -left-4 -bottom-4 h-16 w-16 rounded-full bg-white/10" />
               <div className="relative z-10">
                 <Trophy size={28} weight="fill" className="mx-auto mb-1 text-yellow-300" />
-                <p className="text-xs font-semibold uppercase tracking-widest text-white/70">Your Score</p>
+                <p className="text-xs font-semibold uppercase tracking-widest text-white/70">Score</p>
                 <p className="text-6xl font-bold text-white mt-1">{result.score}</p>
                 <p className="mt-1 text-xs text-white/70 font-poppins">
-                  {result.completed ? "Round completed" : "Round submitted"} in {(result.elapsedMs / 1000).toFixed(1)}s
+                  {result.completed ? "Round completed" : "Round submitted"} · {(result.elapsedMs / 1000).toFixed(1)}s
                 </p>
               </div>
             </div>
@@ -90,15 +95,12 @@ export function GameResultSheet({
             {/* Reward row */}
             <div className="mx-5 mt-4 rounded-xl border border-[#F0F0F0] bg-[#FAFAFA] px-4 py-3 flex items-center justify-between">
               <div>
-                <p className="text-xs text-[#817E7E] font-poppins">Reward earned</p>
+                <p className="text-xs text-[#817E7E] font-poppins">Reward</p>
                 <div className="text-base font-bold text-[#1A1A1A] mt-0.5 flex items-center gap-1 flex-wrap">
                   {hasReward ? (
-                    <>
-                      <MilesAmount value={result.rewardMiles ?? 0} size={16} />
-                      {result.rewardStable ? <span>+ ${result.rewardStable.toFixed(2)}</span> : null}
-                    </>
+                    <MilesAmount value={result.rewardMiles ?? 0} size={16} />
                   ) : (
-                    <span>No reward this round</span>
+                    <span className="text-sm font-medium text-[#817E7E]">No reward this round</span>
                   )}
                 </div>
               </div>
@@ -108,8 +110,34 @@ export function GameResultSheet({
                 </div>
               )}
             </div>
+
+            {/* Weekly rank */}
+            {weeklyRank != null && (
+              <div className={`mx-5 mt-2 rounded-xl border px-4 py-3 flex items-center justify-between ${
+                isTopThree
+                  ? "bg-[#FFF6D8] border-[#B7791F22]"
+                  : "bg-[#FAFAFA] border-[#F0F0F0]"
+              }`}>
+                <div>
+                  <p className="text-xs text-[#817E7E] font-poppins">
+                    {isTopThree ? "Current weekly rank" : "Weekly rank"}
+                  </p>
+                  <p className="text-base font-bold text-[#1A1A1A] mt-0.5">#{weeklyRank}</p>
+                </div>
+                {isTopThree && estimatedPrize && (
+                  <div className="text-right">
+                    <p className="text-xs text-[#B7791F] font-poppins">Estimated prize</p>
+                    <div className="flex items-center gap-1 justify-end mt-0.5">
+                      <Medal size={14} weight="fill" className="text-amber-500" />
+                      <p className="text-base font-bold text-[#B7791F]">{estimatedPrize}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <p className="mx-5 mt-1.5 text-xs text-[#817E7E] font-poppins">
-              Only your best verified daily score counts on the leaderboard.
+              Only your best verified score counts on the leaderboard.
             </p>
           </>
         )}

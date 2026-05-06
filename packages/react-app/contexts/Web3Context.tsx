@@ -11,6 +11,8 @@ import {
   http,
   parseEther,
   formatUnits,
+  parseUnits,
+  erc20Abi,
 } from "viem";
 import { celo } from "viem/chains";
 import StableTokenABI from "@/contexts/cusd-abi.json";
@@ -18,18 +20,35 @@ import MiniMilesAbi from "@/contexts/minimiles.json";
 import raffleAbi from "@/contexts/miniraffle.json";
 import diceAbi from "@/contexts/akibadice.json";
 import clawAbi from "@/contexts/akibaClawGame.json";
+import vaultAbi from "@/contexts/vault.json";
 import posthog from "posthog-js";
+import { USD_TIERS } from "@/lib/diceTypes";
+import type { DiceTier, DiceSlot, DiceRoundStateName, DiceRoundView } from "@/lib/diceTypes";
+import { isMiniPayProvider } from "@/lib/minipay";
 
 const DICE_ADDRESS = "0xf77e7395Aa5c89BcC8d6e23F67a9c7914AB9702a" as const;
+/** USDT on Celo mainnet */
+const USDT_ADDRESS = (
+  process.env.NEXT_PUBLIC_USDT_ADDRESS ??
+  "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e"
+) as `0x${string}`;
+const VAULT_SHARE_TOKEN_ADDRESS = (
+  process.env.NEXT_PUBLIC_VAULT_SHARE_TOKEN_ADDRESS ??
+  "0x9eF834341C0aaE253206e838c37518d1E1927716"
+) as `0x${string}`;
+const VAULT_ADDRESS = (
+  process.env.NEXT_PUBLIC_VAULT_ADDRESS ??
+  "0xe44326FA2ea736A4c973Fa98892d0487246e8D2D"
+) as `0x${string}`;
 const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
 const CLAW_GAME_ADDRESS = (
   process.env.NEXT_PUBLIC_CLAW_GAME_ADDRESS ??
   "0x32cd4449A49786f8e9C68A5466d46E4dbC5197B3"
-) as const;
+) as `0x${string}`;
 const CLAW_USDT_ADDRESS = (
   process.env.NEXT_PUBLIC_CLAW_USDT_ADDRESS ??
   "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e"
-) as const;
+) as `0x${string}`;
 
 const USDT_ABI = [
   {
@@ -40,33 +59,6 @@ const USDT_ABI = [
     type: "function",
   },
 ] as const;
-
-type DiceTier = 10 | 20 | 30;
-
-export type DiceSlot = {
-  number: number;
-  player: `0x${string}` | null;
-};
-
-export type DiceRoundStateName =
-  | "none"
-  | "open"
-  | "fullWaiting"
-  | "ready"
-  | "resolved";
-
-export type DiceRoundView = {
-  tier: number;
-  roundId: bigint;
-  filledSlots: number;
-  winnerSelected: boolean;
-  winningNumber: number | null;
-  randomBlock: bigint;
-  winner: `0x${string}` | null;
-  slots: DiceSlot[];
-  myNumber: number | null;
-  state: DiceRoundStateName;
-};
 
 type Web3ContextValue = ReturnType<typeof useWeb3Logic>;
 
@@ -282,12 +274,14 @@ function useWeb3Logic() {
       const dice = getDiceReadContract();
       const roundId: bigint = (await dice.read.getActiveRoundId([BigInt(tier)])) as bigint;
 
+      const usdTier = (USD_TIERS as readonly number[]).includes(Number(tier));
+
       if (roundId === 0n) {
         return {
           tier, roundId, filledSlots: 0, winnerSelected: false,
           winningNumber: null, randomBlock: 0n, winner: null,
           slots: Array.from({ length: 6 }, (_, i) => ({ number: i + 1, player: null })),
-          myNumber: null, state: "none",
+          myNumber: null, state: "none", isUsdTier: usdTier,
         };
       }
 
@@ -328,7 +322,7 @@ function useWeb3Logic() {
         randomBlock,
         winner: winner && winner.toLowerCase() !== "0x0000000000000000000000000000000000000000"
           ? (winner as `0x${string}`) : null,
-        slots, myNumber, state,
+        slots, myNumber, state, isUsdTier: usdTier,
       };
     },
     [address, publicClient]
@@ -361,9 +355,177 @@ function useWeb3Logic() {
     [publicClient, address]
   );
 
+  const getStablecoinBalance = useCallback(async () => {
+    if (!address) return "0";
+    const bal = await publicClient.readContract({
+      address: USDT_ADDRESS,
+      abi: [{ name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ type: "uint256" }] }],
+      functionName: "balanceOf",
+      args: [address as `0x${string}`],
+    }) as bigint;
+    return formatUnits(bal, 6);
+  }, [address, publicClient]);
+
+  const getUSDTBalance = useCallback(async () => {
+    if (!address) throw new Error("Wallet not connected");
+    const usdt = getContract({
+      abi: erc20Abi,
+      address: USDT_ADDRESS,
+      client: publicClient,
+    });
+    const raw = (await usdt.read.balanceOf([address as `0x${string}`])) as bigint;
+    return Number(formatUnits(raw, 6)).toFixed(2);
+  }, [address, publicClient]);
+
+  const getUserVaultBalance = useCallback(async () => {
+    if (!address) throw new Error("Wallet not connected");
+    const vaultToken = getContract({
+      abi: erc20Abi,
+      address: VAULT_SHARE_TOKEN_ADDRESS,
+      client: publicClient,
+    });
+    const raw = (await vaultToken.read.balanceOf([address as `0x${string}`])) as bigint;
+    return Number(formatUnits(raw, 6)).toFixed(2);
+  }, [address, publicClient]);
+
+  const getVaultDeposit = useCallback(async () => {
+    const balance = await getUserVaultBalance();
+    return Number(balance).toFixed(2);
+  }, [getUserVaultBalance]);
+
+  const approveVault = useCallback(async (amount: string) => {
+    if (isMiniPayProvider()) throw new Error("Akiba Vault is not available in MiniPay.");
+    if (!walletClient || !address) throw new Error("Wallet not connected");
+
+    const hash = await walletClient.writeContract({
+      chain: walletClient.chain,
+      address: USDT_ADDRESS,
+      abi: erc20Abi,
+      functionName: "approve",
+      account: address as `0x${string}`,
+      args: [VAULT_ADDRESS, parseUnits(amount, 6)],
+    });
+
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash,
+      confirmations: 1,
+      timeout: 120_000,
+    });
+
+    return { hash, receipt };
+  }, [walletClient, address, publicClient]);
+
+  const deposit = useCallback(async (amount: string) => {
+    if (isMiniPayProvider()) throw new Error("Akiba Vault is not available in MiniPay.");
+    if (!walletClient || !address) throw new Error("Wallet not connected");
+    const parsedAmount = parseUnits(amount, 6);
+
+    await publicClient.simulateContract({
+      address: VAULT_ADDRESS,
+      abi: vaultAbi,
+      functionName: "deposit",
+      account: address as `0x${string}`,
+      args: [parsedAmount],
+    });
+
+    const hash = await walletClient.writeContract({
+      chain: walletClient.chain,
+      address: VAULT_ADDRESS,
+      abi: vaultAbi,
+      functionName: "deposit",
+      account: address as `0x${string}`,
+      args: [parsedAmount],
+    });
+
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash,
+      confirmations: 1,
+      timeout: 120_000,
+    });
+
+    return { hash, receipt };
+  }, [walletClient, address, publicClient]);
+
+  const withdraw = useCallback(async (amount: string) => {
+    if (isMiniPayProvider()) throw new Error("Akiba Vault is not available in MiniPay.");
+    if (!walletClient || !address) throw new Error("Wallet not connected");
+    const parsedAmount = parseUnits(amount, 6);
+
+    await publicClient.simulateContract({
+      address: VAULT_ADDRESS,
+      abi: vaultAbi,
+      functionName: "withdraw",
+      account: address as `0x${string}`,
+      args: [parsedAmount],
+    });
+
+    const hash = await walletClient.writeContract({
+      chain: walletClient.chain,
+      address: VAULT_ADDRESS,
+      abi: vaultAbi,
+      functionName: "withdraw",
+      account: address as `0x${string}`,
+      args: [parsedAmount],
+    });
+
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash,
+      confirmations: 1,
+      timeout: 120_000,
+    });
+
+    return { hash, receipt };
+  }, [walletClient, address, publicClient]);
+
+  const hasAllowance = useCallback(async (amount: string) => {
+    if (!address) return false;
+    const usdt = getContract({
+      abi: erc20Abi,
+      address: USDT_ADDRESS,
+      client: publicClient,
+    });
+    const raw = (await usdt.read.allowance([
+      address as `0x${string}`,
+      VAULT_ADDRESS,
+    ])) as bigint;
+    return raw >= parseUnits(amount || "0", 6);
+  }, [address, publicClient]);
+
+  /** Approve USDT spending for the Dice contract. Call before joinDice on USD tiers. */
+  const approveUsdtForDice = useCallback(async (amount: bigint) => {
+    if (isMiniPayProvider()) throw new Error("USDT Dice is not available in MiniPay.");
+    if (!walletClient || !address) throw new Error("Wallet not connected");
+    const chainId = await walletClient.getChainId();
+    if (chainId !== celo.id) throw new Error("Wrong network");
+
+    const hash = await walletClient.writeContract({
+      chain: walletClient.chain,
+      address: USDT_ADDRESS,
+      abi: [{ name: "approve", type: "function", stateMutability: "nonpayable", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }] }],
+      functionName: "approve",
+      account: address as `0x${string}`,
+      args: [DICE_ADDRESS, amount],
+    });
+
+    try {
+      await publicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 120_000 });
+    } catch (err: any) {
+      const m = String(err?.message || "");
+      if (/(block.*out of range|header not found|query timeout)/i.test(m)) {
+        console.warn("Ignoring provider range error while waiting for approve receipt:", err);
+      } else {
+        throw err;
+      }
+    }
+    return hash;
+  }, [walletClient, address, publicClient]);
+
   const joinDice = useCallback(
     async (tier: DiceTier, chosenNumber: number) => {
       if (!walletClient || !address) throw new Error("Wallet not connected");
+      if (isMiniPayProvider() && (USD_TIERS as readonly number[]).includes(Number(tier))) {
+        throw new Error("USDT Dice is not available in MiniPay.");
+      }
       const chainId = await walletClient.getChainId();
       if (chainId !== celo.id) throw new Error("Wrong network");
 
@@ -435,6 +597,11 @@ function useWeb3Logic() {
     return hash;
   }, [walletClient, address, writePublicClient]);
 
+  const getDiceBonusPool = useCallback(async (): Promise<bigint> => {
+    const dice = getDiceReadContract();
+    return (await dice.read.bonusPool([])) as bigint;
+  }, [publicClient]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const getLastResolvedRoundForPlayer = useCallback(
     async (tier: DiceTier, player?: `0x${string}`) => {
       const p = (player as `0x${string}`) || (address as `0x${string}`) || null;
@@ -470,6 +637,7 @@ function useWeb3Logic() {
           winnerSelected, winningNumber: Number(winningNumber), randomBlock,
           winner: winner && winner.toLowerCase() !== ZERO_ADDR ? (winner as `0x${string}`) : null,
           slots, myNumber: joined ? Number(myNum) : null, state: "resolved" as DiceRoundStateName,
+          isUsdTier: (USD_TIERS as readonly number[]).includes(Number(tierOnChain)),
         };
       }
       return null;
@@ -511,8 +679,18 @@ function useWeb3Logic() {
     approveClawUsdt,
     startClawGame,
     burnClawVoucherReward,
+    approveUsdtForDice,
+    getStablecoinBalance,
+    getUSDTBalance,
+    getUserVaultBalance,
+    getVaultDeposit,
+    approveVault,
+    deposit,
+    withdraw,
+    hasAllowance,
     getDiceTierStats,
     getDicePlayerStats,
+    getDiceBonusPool,
     getLastResolvedRoundForPlayer,
   };
 }

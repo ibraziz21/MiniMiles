@@ -37,6 +37,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <meta
+          name="talentapp:project_verification"
+          content="e094ae0b48ee58b3234c34523a790c3717783115f8a5b7a6c816274bbe26ddfb4d5436e4e660643d522670fd6599f93cae09ef1d56594862ddec76ec888d919b"
+        />
+      </head>
       <body className={`${sterling.variable}`}>
         <AppProvider>{children}</AppProvider>
       </body>

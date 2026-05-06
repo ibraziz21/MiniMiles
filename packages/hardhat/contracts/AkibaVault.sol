@@ -40,6 +40,11 @@ contract AkibaMilesVaultUUPS is
 {
   using SafeERC20 for IERC20;
 
+  /// @custom:oz-upgrades-unsafe-allow constructor
+  constructor() {
+    _disableInitializers();
+  }
+
   // --- Config (upgradeable storage, no immutables) ---
   IERC20      public asset;        // USDT (underlying)
   IERC20      public aToken;       // aUSDT (interest-bearing)
@@ -62,6 +67,7 @@ contract AkibaMilesVaultUUPS is
 
   // -------- Initializer (replaces constructor) --------
   function initialize(
+    address _initialOwner,
     address _asset,
     address _aToken,
     address _aavePool,
@@ -69,16 +75,22 @@ contract AkibaMilesVaultUUPS is
     address _safe,
     uint16  _referralCode
   ) external initializer {
-    if (_asset == address(0) || _aToken == address(0) || _aavePool == address(0) || _safe == address(0) || _vaultToken == address(0)) {
+    if (
+      _initialOwner == address(0) ||
+      _asset == address(0) ||
+      _aToken == address(0) ||
+      _aavePool == address(0) ||
+      _safe == address(0) ||
+      _vaultToken == address(0)
+    ) {
       revert("zero addr");
     }
-    //Reject Initialize Hijack
-    if(msg.sender != 0xF20a5e1a4ca28D64f2C4A90998A41E8045288F48) revert("Not Allowed");
-    
+
     __Ownable_init();
     __UUPSUpgradeable_init();
     __Pausable_init();
     __ReentrancyGuard_init();
+    _transferOwnership(_initialOwner);
 
     asset        = IERC20(_asset);
     aToken       = IERC20(_aToken);

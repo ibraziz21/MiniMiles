@@ -24,7 +24,7 @@ export async function POST(_req: Request) {
     if (!result.ok && result.code === "already") return NextResponse.json({ success: false, code: "already" });
     if (!result.ok) return NextResponse.json({ success: false, message: "queue-error" }, { status: 500 });
 
-    return NextResponse.json({ success: true, txHash: result.txHash, queued: result.queued });
+    return NextResponse.json({ success: true, txHash: result.txHash, queued: result.queued, points: result.points, vaultBoost: result.vaultBoost });
   } catch (err) {
     console.error("[daily_transfer]", err);
     return NextResponse.json({ success: false, message: "server-error" });

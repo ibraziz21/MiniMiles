@@ -24,6 +24,8 @@ type Store = {
   leaderboard: Record<string, LeaderboardEntry[]>;
   weeklyLeaderboard: Record<string, WeeklyLeaderboardEntry[]>;
   walletStarts: Record<string, number[]>;
+  /** Key: `gameType:wallet:YYYY-MM-DD` → count of sessions started that day */
+  dailyPlays: Record<string, number>;
 };
 
 const storageKey = "akiba_skill_games_v1";
@@ -46,20 +48,26 @@ function weekKey(gameType: GameType) {
   return `weekly:${gameType}:${isoWeek()}`;
 }
 
+function emptyStore(): Store {
+  return { sessions: {}, results: {}, leaderboard: {}, weeklyLeaderboard: {}, walletStarts: {}, dailyPlays: {} };
+}
+
 function loadStore(): Store {
-  if (typeof window === "undefined") {
-    return { sessions: {}, results: {}, leaderboard: {}, weeklyLeaderboard: {}, walletStarts: {} };
-  }
+  if (typeof window === "undefined") return emptyStore();
   const raw = window.localStorage.getItem(storageKey);
-  if (!raw) return { sessions: {}, results: {}, leaderboard: {}, weeklyLeaderboard: {}, walletStarts: {} };
+  if (!raw) return emptyStore();
   try {
     const parsed = JSON.parse(raw) as Store;
-    // Back-compat: older stores may not have weeklyLeaderboard
     if (!parsed.weeklyLeaderboard) parsed.weeklyLeaderboard = {};
+    if (!parsed.dailyPlays) parsed.dailyPlays = {};
     return parsed;
   } catch {
-    return { sessions: {}, results: {}, leaderboard: {}, weeklyLeaderboard: {}, walletStarts: {} };
+    return emptyStore();
   }
+}
+
+function dailyPlaysKey(gameType: GameType, walletAddress: string) {
+  return `${gameType}:${walletAddress.toLowerCase()}:${new Date().toISOString().slice(0, 10)}`;
 }
 
 function saveStore(store: Store) {
@@ -136,39 +144,26 @@ function rankAndUpsert(gameType: GameType, walletAddress: string, response: Veri
     .map((e, i) => ({ ...e, rank: i + 1 }));
 }
 
-function seededLeaderboard(gameType: GameType): LeaderboardEntry[] {
-  const base =
-    gameType === "rule_tap"
-      ? [
-          ["0x91a2...8c01", 19, 1, 20_000],
-          ["0x31c9...77fd", 16, 2, 20_000],
-          ["0x8a10...de42", 14, 1, 20_000],
-        ]
-      : [
-          ["0x91a2...8c01", 820, 2, 34_900],
-          ["0x31c9...77fd", 760, 3, 38_500],
-          ["0x8a10...de42", 690, 4, 44_100],
-        ];
-  return base.map(([walletAddress, score, mistakes, elapsedMs], index) => ({
-    rank: index + 1,
-    walletAddress: String(walletAddress),
-    score: Number(score),
-    mistakes: Number(mistakes),
-    elapsedMs: Number(elapsedMs),
-    rewardMiles: index === 0 ? GAME_CONFIGS[gameType].maxRewardMiles : 12,
-    rewardStable: index === 0 ? GAME_CONFIGS[gameType].maxRewardStable : 0,
-    playedAt: new Date().toISOString(),
-  }));
+function seededLeaderboard(_gameType: GameType): LeaderboardEntry[] {
+  return [];
 }
 
 export const mockVerifier = {
   async createGameSession(gameType: GameType, walletAddress = MOCK_WALLET): Promise<GameSession> {
     const store = loadStore();
     const now = Date.now();
+    const config = GAME_CONFIGS[gameType];
+
+    // Enforce daily play cap
+    const dpKey = dailyPlaysKey(gameType, walletAddress);
+    const playsToday = store.dailyPlays[dpKey] ?? 0;
+    if (playsToday >= config.dailyPlayCap) {
+      throw new Error(`daily_cap_reached:${config.dailyPlayCap}`);
+    }
+
     const recentStarts = (store.walletStarts[walletAddress] ?? []).filter((ts) => now - ts < 60_000);
     const id = sessionId(gameType, walletAddress);
     const seed = seedFor(id, walletAddress);
-    const config = GAME_CONFIGS[gameType];
     const session: GameSession = {
       sessionId: id,
       gameType,
@@ -181,6 +176,7 @@ export const mockVerifier = {
     };
     store.sessions[id] = session;
     store.walletStarts[walletAddress] = [...recentStarts, now];
+    store.dailyPlays[dpKey] = playsToday + 1;
     saveStore(store);
     return session;
   },
@@ -202,11 +198,9 @@ export const mockVerifier = {
         ? validateRuleTapReplay(replayPayload as RuleTapReplay)
         : validateMemoryFlipReplay(replayPayload as MemoryFlipReplay);
 
-    const recentStarts = (store.walletStarts[session.walletAddress] ?? []).filter(
-      (ts) => Date.now() - ts < 10 * 60_000
-    );
     const antiAbuseFlags = [...validation.flags];
-    if (recentStarts.length > GAME_CONFIGS[gameType].dailyPlayCap) {
+    const dpKey = dailyPlaysKey(gameType, session.walletAddress);
+    if ((store.dailyPlays[dpKey] ?? 0) > GAME_CONFIGS[gameType].dailyPlayCap) {
       antiAbuseFlags.push("session_velocity_cap_exceeded");
     }
     const accepted = !antiAbuseFlags.some((flag) =>
@@ -253,23 +247,36 @@ export const mockVerifier = {
     return loadStore().results[sessionId]?.settlement ?? null;
   },
 
+  /** @deprecated — leaderboard now served from /api/games/leaderboard */
   async fetchLeaderboard(gameType: GameType) {
     const store = loadStore();
     return store.leaderboard[todayKey(gameType)] ?? seededLeaderboard(gameType);
   },
 
+  /** @deprecated */
   async fetchMyBestScore(gameType: GameType, walletAddress = MOCK_WALLET) {
     const entries = await this.fetchLeaderboard(gameType);
     return entries.find((entry) => entry.walletAddress.toLowerCase() === walletAddress.toLowerCase()) ?? null;
   },
 
+  /** @deprecated */
   async fetchWeeklyLeaderboard(gameType: GameType): Promise<WeeklyLeaderboardEntry[]> {
     const store = loadStore();
     return store.weeklyLeaderboard[weekKey(gameType)] ?? [];
   },
 
+  /** @deprecated */
   async fetchMyWeeklyBestScore(gameType: GameType, walletAddress = MOCK_WALLET) {
     const entries = await this.fetchWeeklyLeaderboard(gameType);
     return entries.find((e) => e.walletAddress.toLowerCase() === walletAddress.toLowerCase()) ?? null;
+  },
+
+  fetchDailyPlays(gameType: GameType, walletAddress = MOCK_WALLET): { played: number; cap: number } {
+    const store = loadStore();
+    const dpKey = dailyPlaysKey(gameType, walletAddress);
+    return {
+      played: store.dailyPlays[dpKey] ?? 0,
+      cap: GAME_CONFIGS[gameType].dailyPlayCap,
+    };
   },
 };

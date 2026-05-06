@@ -18,7 +18,7 @@ import { useMembership } from "@/helpers/useMembership";
 
 export default function Onboarding() {
   const router = useRouter();
-  const { address, getUserAddress } = useWeb3();
+  const { address, getUserAddress, waitForAuth } = useWeb3();
   const { data: isMember, isFetched } = useMembership();
   const queryClient = useQueryClient();
 
@@ -67,6 +67,9 @@ export default function Onboarding() {
     setRedeemError(null);
 
     try {
+      // 0) Ensure the session cookie is established before hitting any auth-gated API
+      await waitForAuth();
+
       // 1) Try redeem if code present
       if (refCode.trim()) {
         const res = await fetch("/api/referral/redeem", {
@@ -83,11 +86,17 @@ export default function Onboarding() {
       }
 
       // 2) Mint + mark member
-      await fetch("/api/users", {
+      const regRes = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userAddress: address }),
       });
+
+      if (!regRes.ok) {
+        const j = await regRes.json().catch(() => ({}));
+        setRedeemError(j.error || "Registration failed. Please try again.");
+        return;
+      }
 
       await queryClient.invalidateQueries({ queryKey: ["isMember"] });
       router.push("/");

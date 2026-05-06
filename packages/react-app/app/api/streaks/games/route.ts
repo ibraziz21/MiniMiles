@@ -65,6 +65,7 @@ export async function POST(req: Request) {
       success: true,
       txHash: result.txHash,
       queued: result.queued,
+      points: result.points,
       claimedAt: result.scopeKey, // YYYY-MM-DD
       currentStreak: result.currentStreak,
       longestStreak: result.longestStreak,

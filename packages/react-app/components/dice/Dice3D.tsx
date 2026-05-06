@@ -16,6 +16,8 @@ import * as THREE from "three";
 export type Dice3DProps = {
   value: number | null; // 1–6 when result known
   rolling: boolean;
+  /** "normal" (default) = full-size display; "mini" = compact grid tile */
+  size?: "normal" | "mini";
 };
 
 /* ────────────────────────────────────────────────────────── */
@@ -149,34 +151,34 @@ function DiceMesh({
 /* Public Dice3D component                                    */
 /* ────────────────────────────────────────────────────────── */
 
-export function Dice3D({ value, rolling }: Dice3DProps) {
+export function Dice3D({ value, rolling, size = "normal" }: Dice3DProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   if (!mounted) return null;
 
+  const isMini = size === "mini";
+
   return (
-    <div className="w-full max-w-xs h-56 mx-auto rounded-2xl bg-white border border-slate-200 shadow-sm">
+    <div
+      className={
+        isMini
+          ? "w-full h-full rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden"
+          : "w-full max-w-xs h-56 mx-auto rounded-2xl bg-white border border-slate-200 shadow-sm"
+      }
+    >
       <Canvas
-        camera={{ position: [2.4, 2.4, 2.4], fov: 45 }}
+        camera={{ position: [2.4, 2.4, 2.4], fov: isMini ? 55 : 45 }}
         shadows
       >
         <ambientLight intensity={0.9} />
-        <directionalLight
-          position={[4, 6, 3]}
-          intensity={1.1}
-          castShadow
-        />
-        <directionalLight
-          position={[-4, -3, -5]}
-          intensity={0.4}
-        />
+        <directionalLight position={[4, 6, 3]} intensity={1.1} castShadow />
+        <directionalLight position={[-4, -3, -5]} intensity={0.4} />
         <Suspense fallback={null}>
           <DiceMesh targetValue={value} rolling={rolling} />
         </Suspense>
-        <OrbitControls
-          enablePan={false}
-          enableZoom={false}
-        />
+        {!isMini && (
+          <OrbitControls enablePan={false} enableZoom={false} />
+        )}
       </Canvas>
     </div>
   );

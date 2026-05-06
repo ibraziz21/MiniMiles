@@ -19,6 +19,8 @@ export function GameIntroSheet({
   rules,
   onPlay,
   loading,
+  disabled,
+  disabledReason,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -26,6 +28,8 @@ export function GameIntroSheet({
   rules: string[];
   onPlay: () => void;
   loading?: boolean;
+  disabled?: boolean;
+  disabledReason?: string;
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -38,11 +42,10 @@ export function GameIntroSheet({
 
         {/* Entry cost banner */}
         <div className="mx-5 mt-4 rounded-xl bg-[#F0FDFF] border border-[#238D9D22] px-4 py-3">
-          <p className="text-sm font-semibold text-[#238D9D] flex items-center gap-1">
-            <MilesAmount value={config.entryCostMiles} size={15} />
-            <span>per round</span>
+          <p className="text-sm font-semibold text-[#238D9D]">1 ticket entry</p>
+          <p className="text-xs text-[#525252] font-poppins mt-0.5 flex items-center gap-1 flex-wrap">
+            Win up to <MilesAmount value={config.maxRewardMiles} size={12} /> · daily limit {config.dailyPlayCap} rounds
           </p>
-          <p className="text-xs text-[#525252] font-poppins mt-0.5">Session anchored onchain — replay verified before rewards settle</p>
         </div>
 
         {/* Rules */}
@@ -89,13 +92,19 @@ export function GameIntroSheet({
         </div>
 
         <div className="mx-5 mt-5">
-          <Button
-            title={loading ? "Starting..." : "Play now  →"}
-            loading={loading}
-            widthFull
-            className="rounded-xl bg-[#238D9D] py-5 text-base font-bold text-white hover:bg-[#1a7a8a]"
-            onClick={onPlay}
-          />
+          {disabled ? (
+            <div className="w-full rounded-xl bg-[#F0F0F0] py-4 text-sm font-semibold text-[#888] text-center">
+              {disabledReason ?? "Unavailable"}
+            </div>
+          ) : (
+            <Button
+              title={loading ? "Starting round…" : "Play now →"}
+              loading={loading}
+              widthFull
+              className="rounded-xl bg-[#238D9D] py-5 text-base font-bold text-white hover:bg-[#1a7a8a]"
+              onClick={onPlay}
+            />
+          )}
         </div>
       </SheetContent>
     </Sheet>

@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { getAddress } from "viem";
 import { claimQueuedPartnerReward } from "@/lib/minipointQueue";
 import { requireSession } from "@/lib/auth";
+import { checkStableHoldRequirement } from "@/lib/stableHoldGate";
 
 /* ─── env / clients ─────────────────────────────────────── */
 
@@ -25,6 +26,15 @@ export async function POST(request: Request) {
     const session = await requireSession();
     if (!session) {
       return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
+
+    try {
+      const stableCheck = await checkStableHoldRequirement(session.walletAddress);
+      if (!stableCheck.ok) {
+        return NextResponse.json({ error: stableCheck.message }, { status: stableCheck.status });
+      }
+    } catch {
+      return NextResponse.json({ error: "Could not verify stablecoin hold history. Please try again." }, { status: 503 });
     }
 
     const { username } = (await request.json()) as { username?: string };

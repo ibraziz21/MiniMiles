@@ -28,7 +28,7 @@ import {
   bag,
   docking, camera, washmachine, chair
 } from "@/lib/img";
-import { akibaMilesSymbol, RefreshSvg } from "@/lib/svg";
+import { akibaMilesSymbol, akibaMilesSymbolAlt, RefreshSvg, usdtSymbol } from "@/lib/svg";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -44,6 +44,7 @@ import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";import { ProsperityPassCard } from "@/components/prosperity-claim";
 import { BadgesSection } from "@/components/BadgesSection";
+import { ActiveStreaksSheet } from "@/components/active-streaks-sheet";
 
 // Passport helper
 import { fetchSuperAccountForOwner } from "@/lib/prosperity-pass";
@@ -63,18 +64,20 @@ const SUPABASE_ANON_KEY =
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const BadgeClaimSuccessSheet = dynamic(
   () =>
     import("@/components/BadgeClaimSuccessSheet").then(
-      (m) => m.BadgeClaimSuccessSheet
+      (m) => ({ default: m.BadgeClaimSuccessSheet as React.ComponentType<any> })
     ),
   { ssr: false }
 );
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const BadgeClaimLoadingSheet = dynamic(
   () =>
     import("@/components/BadgeClaimSuccessSheet").then(
-      (m) => m.BadgeClaimLoadingSheet
+      (m) => ({ default: m.BadgeClaimLoadingSheet as React.ComponentType<any> })
     ),
   { ssr: false }
 );
@@ -88,6 +91,9 @@ const SpendPartnerQuestSheet = dynamic(
   { ssr: false }
 );
 const OrderTrackingSheet = dynamic(() => import("@/components/order-tracking-sheet"), {
+  ssr: false,
+});
+const WinningModal = dynamic(() => import("@/components/winning-modal"), {
   ssr: false,
 });
 
@@ -278,10 +284,15 @@ function writeBadgeCache(
 
 export default function Home() {
   const router = useRouter();
-  const { address, getUserAddress, getakibaMilesBalance } = useWeb3();
+  const web3 = useWeb3() as any;
+  const { address, getUserAddress, getakibaMilesBalance, getDiceBonusPool } = web3;
 
   const [akibaMilesBalance, setakibaMilesBalance] = useState("0");
   const [orderTrackingOpen, setOrderTrackingOpen] = useState(false);
+  const [diceBonusPool, setDiceBonusPool] = useState<bigint | null>(null);
+  const [winnerOpen, setWinnerOpen] = useState(false);
+  const [streakSheetOpen, setStreakSheetOpen] = useState(false);
+  const [streakSummary, setStreakSummary] = useState({ activeCount: 0, claimableCount: 0, urgentCount: 0 });
 
   const [tokenRaffles, setTokenRaffles] = useState<TokenRaffleWithWinners[]>(
     []
@@ -348,6 +359,10 @@ const refreshMilesBalanceSoon = useCallback(() => {
   useEffect(() => {
     void refreshMilesBalance();
   }, [refreshMilesBalance]);
+
+  useEffect(() => {
+    getDiceBonusPool?.().then(setDiceBonusPool).catch(() => setDiceBonusPool(0n));
+  }, [getDiceBonusPool]);
 
   useEffect(() => {
     const handler = () => refreshMilesBalanceSoon();
@@ -666,13 +681,89 @@ const badgeButtonLabel =
       {orderTrackingOpen && (
         <OrderTrackingSheet open={orderTrackingOpen} onOpenChange={setOrderTrackingOpen} />
       )}
+      {winnerOpen && (
+        <WinningModal open={winnerOpen} onOpenChange={setWinnerOpen} />
+      )}
+
+      <ActiveStreaksSheet
+        open={streakSheetOpen}
+        onOpenChange={setStreakSheetOpen}
+        onSummaryChange={setStreakSummary}
+        userAddress={address ?? undefined}
+      />
 
       <DashboardHeader
         name={headerName}
         onOpenOrders={() => setOrderTrackingOpen(true)}
+        onOpenWinners={() => setWinnerOpen(true)}
+        onOpenStreaks={() => setStreakSheetOpen(true)}
+        streakCount={streakSummary.activeCount}
+        claimableStreakCount={streakSummary.claimableCount}
+        urgentStreakCount={streakSummary.urgentCount}
       />
 
       <PointsCard points={Number(akibaMilesBalance)} />
+
+      {/* Dice promo — 30 Miles tier bonus */}
+      <div className="mx-4 mt-4">
+        <Link href="/dice" className="block">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#238D9D] via-[#1d7a89] to-[#155f6a] px-4 py-3.5 shadow-lg shadow-[#238D9D]/30 active:scale-[0.99] transition-transform">
+            {/* decorative circles */}
+            <div className="pointer-events-none absolute -top-6 -right-6 h-24 w-24 rounded-full bg-white/10" />
+            <div className="pointer-events-none absolute -bottom-4 -left-4 h-16 w-16 rounded-full bg-white/10" />
+
+            <div className="relative flex items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-lg leading-none">🎲</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-white/70 flex items-center gap-1">
+                    Akiba Dice ·
+                    <Image src={akibaMilesSymbolAlt} alt="" width={11} height={11} className="inline" />
+                    30 Round
+                  </span>
+                </div>
+
+                {diceBonusPool != null && diceBonusPool > 0n ? (
+                  <>
+                    {/* Bonus pool active — lead with USDT */}
+                    <p className="text-[19px] font-extrabold text-white leading-tight flex items-center gap-1.5">
+                      <Image src={usdtSymbol} alt="USDT" width={18} height={18} className="inline" />
+                      USDT Bonus Pool
+                      <span className="ml-1 animate-pulse rounded-full bg-amber-400 px-1.5 py-0.5 text-[9px] font-bold text-black tracking-wide">LIVE</span>
+                    </p>
+                    <p className="text-[11px] text-white/70 mt-0.5 flex items-center gap-1">
+                      Win
+                      <Image src={akibaMilesSymbolAlt} alt="" width={10} height={10} className="inline" />
+                      180 Miles + USDT · 1 winner takes all
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[17px] font-extrabold text-white leading-tight flex items-center gap-1.5">
+                      Win
+                      <Image src={akibaMilesSymbolAlt} alt="" width={16} height={16} className="inline" />
+                      180
+                    </p>
+                    <p className="text-[11px] text-white/60 mt-1">
+                      6 players · 1 winner takes all
+                    </p>
+                  </>
+                )}
+              </div>
+
+              <div className="flex-shrink-0 flex flex-col items-center gap-1">
+                <div className="rounded-full bg-white/20 border border-white/30 px-3 py-1.5">
+                  <span className="text-[12px] font-bold text-white">Play →</span>
+                </div>
+                <span className="text-[9px] text-white/60 flex items-center gap-0.5">
+                  <Image src={akibaMilesSymbolAlt} alt="" width={10} height={10} className="inline" />
+                  30 entry
+                </span>
+              </div>
+            </div>
+          </div>
+        </Link>
+      </div>
 
       {address && (
         <MigrateV2Banner

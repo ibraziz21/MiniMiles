@@ -45,7 +45,15 @@ const config: HardhatUserConfig = {
   sourcify: {
     enabled: false,
   },
-  solidity: '0.8.24',
+  solidity: {
+    version: '0.8.24',
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 200,
+      },
+    },
+  },
 };
 
 export default config;

@@ -2,7 +2,6 @@
 import dynamic from 'next/dynamic';
 import DailyChallenges from '@/components/daily-challenge';
 import EnterRaffleSheet from '@/components/enter-raffle-sheet';
-import { GameCard } from '@/components/game-card';
 import { Hero } from '@/components/Hero';
 import MiniPointsCard from '@/components/mini-points-card';
 import { RaffleCard } from '@/components/raffle-card';
@@ -15,14 +14,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
 import type { Address } from 'viem'
 import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
-import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5, pods, phone, jbl,bag, sambuds, tv, soundbar, ps5, ebike, usdt, docking,camera,washmachine,chair, claw } from '@/lib/img';
-import { Coin, akibaMilesSymbol } from '@/lib/svg';
-import { Question, ShoppingBag, Spinner } from '@phosphor-icons/react';
+import { RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5, pods, phone, jbl,bag, sambuds, tv, soundbar, ps5, ebike, usdt, docking,camera,washmachine,chair} from '@/lib/img';
+import { akibaMilesSymbol } from '@/lib/svg';
+import { Question, ShoppingBag, Spinner, Lightning, Brain, Ticket, Trophy, ArrowRight } from '@phosphor-icons/react';
 import { StaticImageData } from 'next/image';
 import Image from 'next/image';
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 import type { SpendMerchant } from '@/components/voucher-order-sheet';
+import { MilesAmount } from '@/components/games/miles-amount';
 
 const VoucherOrderSheet = dynamic(() => import('@/components/voucher-order-sheet'), { ssr: false });
 const MerchantVoucherSheet = dynamic(() => import('@/components/merchant-voucher-sheet'), { ssr: false });
@@ -212,12 +212,6 @@ const physicalGoodsRaffles = [
 const nftRaffles = [
   { image: nft1, title: "BoredApe #567", endsIn: 7, ticketCost: "10 AkibaMiles for 1 ticket" },
   { image: nft2, title: "CryptoPunk #789", endsIn: 3, ticketCost: "12 AkibaMiles" },
-];
-
-const upcomingGames = [
-  { name: "Dice", date: "live", image: Dice, href: "/dice", locked: false },
-  { name: "Akiba Claw", date: "live", image: claw, href: "/claw", locked: false },
-  { name: "Coin flip", date: "xx/xx/xx", image: Coin, href: "", locked: true },
 ];
 
 const Page = () => {
@@ -437,40 +431,99 @@ const Page = () => {
         </div>
       </div>
 
-      <div>
-        <SectionHeading title="Games" />
-        <div className="flex space-x-3 overflow-x-auto px-4">
-  {upcomingGames.map((game, idx) => {
-    const card = (
-      <GameCard
-        name={game.name}
-        date={game.date}
-        image={game.image}
-        locked={game.locked}
-      />
-    );
+      {/* ── GAMES ──────────────────────────────────────────── */}
+      <div className="mt-6 px-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-extrabold">Games</h3>
+          <Link href="/games" className="text-xs font-semibold text-[#238D9D]">See all →</Link>
+        </div>
 
-    if (!game.locked && game.href) {
-      return (
+        {/* Dice */}
+        <div className="mb-3">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-[#817E7E] mb-2">Chance</p>
+          <Link href="/dice" className="flex items-center gap-3 rounded-2xl bg-gradient-to-r from-[#1A3A2A] to-[#204D38] p-4 shadow-sm">
+            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-white/10 text-2xl">🎲</div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-white">Dice</p>
+              <p className="text-xs text-white/70 font-poppins">Pick a number · Win the pot</p>
+            </div>
+            <span className="flex items-center gap-1 rounded-full bg-[#4EFFA0]/20 px-2.5 py-1 text-xs font-semibold text-[#4EFFA0]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#4EFFA0] animate-pulse" />
+              Live
+            </span>
+          </Link>
+          <Link href="/claw" className="mt-3 flex items-center gap-3 rounded-2xl bg-gradient-to-r from-[#3A2C1A] to-[#5A3D1F] p-4 shadow-sm">
+            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-white/10 text-2xl">🕹</div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-white">Akiba Claw</p>
+              <p className="text-xs text-white/70 font-poppins">Grab rewards with a live play</p>
+            </div>
+            <span className="flex items-center gap-1 rounded-full bg-[#4EFFA0]/20 px-2.5 py-1 text-xs font-semibold text-[#4EFFA0]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#4EFFA0] animate-pulse" />
+              Live
+            </span>
+          </Link>
+        </div>
+
+        {/* Skill games — entry card */}
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-[#817E7E] mb-2">Skill</p>
         <Link
-          key={idx}
-          href={game.href}
-          className="shrink-0"
+          href="/games"
+          className="block rounded-2xl overflow-hidden shadow-md bg-gradient-to-br from-[#0A6B7A] via-[#0D7A8A] to-[#1A9AAD] relative"
         >
-          {card}
-        </Link>
-      );
-    }
+          {/* Decorative blobs */}
+          <div className="pointer-events-none absolute -right-6 -top-6 h-28 w-28 rounded-full bg-white/10" />
+          <div className="pointer-events-none absolute left-0 bottom-0 h-16 w-16 rounded-full bg-white/10" />
 
-    // Locked previews (non-clickable)
-    return (
-      <div key={idx} className="shrink-0">
-        {card}
+          <div className="relative z-10 px-4 pt-4 pb-3">
+            {/* Header */}
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-2.5 py-1 text-[10px] font-semibold text-white/90 mb-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#4EFFA0] animate-pulse" />
+                  Skill Games · Live
+                </div>
+                <h3 className="text-lg font-bold text-white">Play & Earn</h3>
+                <p className="text-xs text-white/70 font-poppins flex items-center gap-1">Short skill rounds. Win <MilesAmount value="AkibaMiles" size={12} variant="alt" />.</p>
+              </div>
+              <div className="flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1.5 text-xs font-semibold text-white">
+                See all <ArrowRight size={12} />
+              </div>
+            </div>
+
+            {/* Info pills */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              <div className="flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[11px] text-white/80">
+                <Ticket size={11} weight="fill" /> 1 ticket entry
+              </div>
+              <div className="flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[11px] text-white/80">
+                <Trophy size={11} weight="fill" className="text-yellow-300" /> Up to <MilesAmount value={12} size={11} variant="alt" />
+              </div>
+              <div className="flex items-center gap-1 rounded-full bg-yellow-400/20 px-2.5 py-1 text-[11px] text-yellow-200">
+                🏆 $10 weekly prize pool
+              </div>
+            </div>
+
+            {/* Game mini-tiles */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-xl bg-white/15 p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <Lightning size={14} weight="fill" className="text-yellow-300" />
+                  <p className="text-sm font-bold text-white">Rule Tap</p>
+                </div>
+                <p className="text-[11px] text-white/60 font-poppins">20s · tap matching tiles</p>
+              </div>
+              <div className="rounded-xl bg-white/15 p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <Brain size={14} weight="fill" className="text-purple-200" />
+                  <p className="text-sm font-bold text-white">Memory Flip</p>
+                </div>
+                <p className="text-[11px] text-white/60 font-poppins">60s · match 8 pairs</p>
+              </div>
+            </div>
+          </div>
+        </Link>
       </div>
-    );
-  })}
-</div>
-</div>
 
 <PhysicalRaffleSheet
   open={activeSheet === "physical"}

@@ -3,138 +3,158 @@
 
 import Image from "next/image";
 import { BarChart3 } from "lucide-react";
-import type { DiceTier, TierStats, PlayerStats } from "@/lib/diceTypes";
-import { akibaMilesSymbol } from "@/lib/svg";
+import type { DiceTier, MilesTier, UsdTier, TierStats, PlayerStats, DiceMode } from "@/lib/diceTypes";
+import { MILES_TIERS, USD_TIERS, USD_TIER_META, MILES_TIER_BONUS_USD, formatBonusUsd } from "@/lib/diceTypes";
+import { akibaMilesSymbol, usdtSymbol } from "@/lib/svg";
 
 type DiceHeaderProps = {
   onBack: () => void;
+  mode: DiceMode;
+  onModeChange: (mode: DiceMode) => void;
   selectedTier: DiceTier;
   onTierChange: (tier: DiceTier) => void;
   tierStats: TierStats;
   playerStats: PlayerStats;
   onOpenStats: () => void;
-};
-
-const TIERS: DiceTier[] = [10, 20, 30];
-
-const TIER_META: Record<DiceTier, { label: string }> = {
-  10: { label: "Smaller pot" },
-  20: { label: "Medium pot" },
-  30: { label: "Bigger pot" },
+  stablecoinBalance: string | null;
+  allowUsdMode?: boolean;
 };
 
 export function DiceHeader({
   onBack,
+  mode,
+  onModeChange,
   selectedTier,
   onTierChange,
   tierStats,
   playerStats,
   onOpenStats,
+  stablecoinBalance,
+  allowUsdMode = true,
 }: DiceHeaderProps) {
   const hasStats = !!tierStats || !!playerStats;
 
   return (
-    <header className="space-y-3 relative z-10">
-      {/* Top row: back + stats */}
+    <header className="space-y-2 relative z-10">
+      {/* Row 1: Back | Title | Stats */}
       <div className="flex items-center justify-between">
         <button
           onClick={onBack}
-          className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600 shadow-sm hover:border-emerald-300 hover:text-emerald-700 active:scale-[0.97] transition"
+          className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600 shadow-sm hover:border-[#238D9D]/40 hover:text-[#238D9D] active:scale-[0.97] transition"
         >
-          <span className="text-xs">←</span>
+          <span>←</span>
           <span className="font-medium">Back</span>
         </button>
 
-        {hasStats && (
+        <div className="flex items-center gap-1.5">
+          <span className="text-base">🎲</span>
+          <span className="text-[13px] font-semibold text-slate-900">Akiba Dice</span>
+          <span className="rounded-full bg-[#238D9D]/10 border border-[#238D9D]/20 px-1.5 py-0.5 text-[9px] font-medium text-[#238D9D]">
+            Beta
+          </span>
+        </div>
+
+        {hasStats ? (
           <button
             onClick={onOpenStats}
-            className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-700 shadow-sm hover:border-emerald-300 hover:text-emerald-800 active:scale-[0.97] transition"
+            className="relative inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 shadow-sm hover:border-[#238D9D]/40 active:scale-[0.97] transition"
           >
-            <BarChart3 className="h-3.5 w-3.5" />
+            <BarChart3 className="h-3 w-3" />
             <span>Stats</span>
+            {(playerStats?.roundsWon ?? 0) >= 2 && (
+              <span className="absolute -top-2 -right-2 text-[13px] leading-none" title="On a roll!">🔥</span>
+            )}
           </button>
+        ) : (
+          <div className="w-14" />
         )}
       </div>
 
-      {/* Compact game header card */}
-      <div className="rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 px-3 py-3 flex items-center gap-3">
-        {/* Dice chip */}
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white shadow-sm border border-emerald-100 text-lg">
-          🎲
-        </div>
+      {/* Row 2: Mode toggle + USDT balance (if USD mode) */}
+      <div className="flex items-center gap-2">
+        <div className={`flex-1 grid ${allowUsdMode ? "grid-cols-2" : "grid-cols-1"} gap-1 rounded-xl border border-slate-200 bg-slate-50 p-0.5`}>
+          <button
+            onClick={() => onModeChange("akiba")}
+            className={`flex items-center justify-center gap-1 rounded-lg py-1.5 text-[11px] font-semibold transition-all ${
+              mode === "akiba"
+                ? "bg-white shadow-sm text-[#238D9D] border border-[#238D9D]/20"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <Image src={akibaMilesSymbol} alt="Miles" width={12} height={12} className="h-3 w-3" />
+            Akiba
+          </button>
 
-        {/* Title + short explainer */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
-              Akiba Dice
-            </p>
-            <span className="rounded-full bg-white/80 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 border border-emerald-100">
-              Beta
-            </span>
-          </div>
-          <h1 className="text-[17px] font-semibold leading-snug text-slate-900">
-            Six-Sided Pot
-          </h1>
-          <p className="text-[11px] text-slate-600">
-            Pick a free number, join with Miles, and let the dice decide the winner.
-          </p>
+          {allowUsdMode && (
+            <button
+              onClick={() => onModeChange("usd")}
+              className={`flex items-center justify-center gap-1 rounded-lg py-1.5 text-[11px] font-semibold transition-all ${
+                mode === "usd"
+                  ? "bg-white shadow-sm text-blue-600 border border-blue-200"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <Image src={usdtSymbol} alt="USDT" width={12} height={12} />
+              USDT
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Tier selector – simple chips */}
-      <section className="space-y-1.5">
-        <div className="flex items-center justify-between text-[10px] text-slate-500">
-          <span className="font-medium uppercase tracking-wide">
-            Entry size
-          </span>
-          <span className="inline-flex items-center gap-1 text-slate-600">
-            <span className="font-semibold text-[11px]">
-              {selectedTier.toLocaleString()}
-            </span>
-            <Image
-              src={akibaMilesSymbol}
-              alt="Miles"
-              className="h-3 w-3"
-            />
-          </span>
-        </div>
-
+      {/* Row 3: Tier chips */}
+      {mode === "akiba" ? (
         <div className="grid grid-cols-3 gap-1.5">
-          {TIERS.map((tier) => {
-            const meta = TIER_META[tier];
+          {MILES_TIERS.map((tier) => {
             const isActive = tier === selectedTier;
-
+            const bonus = MILES_TIER_BONUS_USD[tier as MilesTier];
             return (
               <button
                 key={tier}
                 onClick={() => onTierChange(tier)}
-                className={`flex flex-col items-start justify-center rounded-2xl border px-2.5 py-1.5 text-left transition-all ${
+                className={`relative flex flex-col items-center justify-center rounded-xl border py-1.5 text-center transition-all ${
                   isActive
-                    ? "border-emerald-500 bg-white text-emerald-700 shadow-sm shadow-emerald-100 scale-[1.01]"
-                    : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300"
+                    ? "border-[#238D9D] bg-white shadow-sm shadow-[#238D9D]/20 scale-[1.01]"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-[#238D9D]/40"
                 }`}
               >
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold">
-                  {tier.toLocaleString()}
-                  <Image
-                    src={akibaMilesSymbol}
-                    alt="Miles"
-                    className="h-3 w-3"
-                  />
+                {bonus && (
+                  <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full bg-amber-400 px-1.5 py-0.5 text-[7px] font-bold text-white leading-none shadow-sm whitespace-nowrap">
+                    +${formatBonusUsd(bonus)}
+                  </span>
+                )}
+                <span className={`inline-flex items-center gap-0.5 text-[12px] font-bold ${isActive ? "text-[#238D9D]" : "text-slate-800"}`}>
+                  {tier}
+                  <Image src={akibaMilesSymbol} alt="M" className="h-2.5 w-2.5" />
                 </span>
-                <span className="text-[9px] text-slate-500">
-                  {meta.label}
-                </span>
+                <span className="text-[8px] text-slate-400">entry</span>
               </button>
             );
           })}
         </div>
-
-        <p className="text-[10px] text-slate-500">
-          Same 1-in-6 odds on every tier — higher entries just mean a bigger pot.
-        </p>
-      </section>
+      ) : allowUsdMode ? (
+        <div className="grid grid-cols-3 gap-1.5">
+          {USD_TIERS.map((tier) => {
+            const meta = USD_TIER_META[tier];
+            const isActive = tier === selectedTier;
+            return (
+              <button
+                key={tier}
+                onClick={() => onTierChange(tier)}
+                className={`flex flex-col items-center justify-center rounded-xl border py-1.5 text-center transition-all ${
+                  isActive
+                    ? "border-blue-500 bg-white shadow-sm shadow-blue-100 scale-[1.01]"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-blue-300"
+                }`}
+              >
+                <span className={`text-[12px] font-bold ${isActive ? "text-blue-700" : "text-slate-800"}`}>
+                  ${meta.entry.toFixed(2)}
+                </span>
+                <span className="text-[8px] text-[#238D9D] font-medium">→ ${meta.payout.toFixed(2)}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
     </header>
   );
 }

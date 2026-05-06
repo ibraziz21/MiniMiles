@@ -1,20 +1,16 @@
 // app/api/profile/claim-milestone/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { ethers } from "ethers";
 import { claimQueuedProfileMilestone } from "@/lib/minipointQueue";
 import { supabase as sharedSupabase } from "@/lib/supabaseClient";
 import { computeCompletion } from "@/lib/profileCompletion";
 import { requireSession, logSessionAge } from "@/lib/auth";
-import { hasAnyBalance } from "@/lib/celoBalanceGate";
+import { checkStableHoldRequirement } from "@/lib/stableHoldGate";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_KEY!
 );
-
-const CELO_RPC = "https://forno.celo.org";
-const MIN_TX_COUNT = Number(process.env.MIN_CELO_TX_COUNT ?? "3");
 
 // ── Cloudflare Turnstile verification ─────────────────────────────────────────
 async function verifyTurnstile(token: string, ip: string): Promise<boolean> {
@@ -39,12 +35,6 @@ async function verifyTurnstile(token: string, ip: string): Promise<boolean> {
   }
 }
 
-// ── On-chain activity check ────────────────────────────────────────────────────
-async function getCeloTxCount(address: string): Promise<number> {
-  const provider = new ethers.JsonRpcProvider(CELO_RPC);
-  return provider.getTransactionCount(address);
-}
-
 export async function POST(req: NextRequest) {
   try {
     const session = await requireSession();
@@ -65,12 +55,6 @@ export async function POST(req: NextRequest) {
     const address = session.walletAddress;
     logSessionAge("profile/claim-milestone", address, session.issuedAt);
 
-    if (!(await hasAnyBalance(address))) {
-      return NextResponse.json(
-        { error: "Your wallet has no balance. Top up with any amount of CELO, cUSD, USDT, or USDC to claim your profile reward." },
-        { status: 403 }
-      );
-    }
     const ms = Number(milestone) as 50 | 100;
 
     // ── 1. Turnstile verification ──────────────────────────────────────────────
@@ -84,12 +68,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Human verification failed. Please try again." }, { status: 403 });
     }
 
-    // ── 2. On-chain activity gate ──────────────────────────────────────────────
-    const txCount = await getCeloTxCount(address);
-    if (txCount < MIN_TX_COUNT) {
+    // ── 2. Stable hold gate ────────────────────────────────────────────────────
+    try {
+      const stableCheck = await checkStableHoldRequirement(address);
+      if (!stableCheck.ok) {
+        return NextResponse.json({ error: stableCheck.message }, { status: stableCheck.status });
+      }
+    } catch {
       return NextResponse.json(
-        { error: `Wallet must have at least ${MIN_TX_COUNT} transactions on Celo to claim this reward.` },
-        { status: 403 }
+        { error: "Could not verify stablecoin hold history. Please try again." },
+        { status: 503 }
       );
     }
 
