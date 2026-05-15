@@ -18,6 +18,8 @@ import { Ticket, akibaMilesSymbol, Successsvg } from "@/lib/svg";
 import { useWeb3 } from "@/contexts/useWeb3";
 import { UserRejectedRequestError } from "viem";
 import FeedbackDialog from "./FeedbackDialog";
+import { RaffleRequirementsStatus } from "./raffle-requirements-status";
+import type { RaffleRequirementsResult } from "@/types/raffleRequirements";
 
 export type PhysicalSpendRaffle = {
   id: number;
@@ -28,6 +30,8 @@ export type PhysicalSpendRaffle = {
   balance: number;
   totalTickets: number;
   maxTickets: number;
+  winners?: number;
+  requirements?: RaffleRequirementsResult | null;
 };
 
 type Props = {
@@ -86,7 +90,7 @@ export default function PhysicalRaffleSheet({
   onOpenChange,
   raffle,
 }: Props) {
-  const { address, getUserAddress, joinRaffle } = useWeb3();
+  const { address, getUserAddress, joinRaffle, isAuthenticated } = useWeb3();
 
   const [count, setCount] = useState(1);
   const [processing, setProcessing] = useState(false);
@@ -96,6 +100,9 @@ export default function PhysicalRaffleSheet({
     title: string;
     desc?: string;
   } | null>(null);
+  const [requirements, setRequirements] = useState<RaffleRequirementsResult | null>(null);
+  const [requirementsLoading, setRequirementsLoading] = useState(false);
+  const lastCheckedRoundRef = useRef<number | null>(null);
 
   // profile + verify
   const [twitter, setTwitter] = useState<string>("");
@@ -115,6 +122,69 @@ export default function PhysicalRaffleSheet({
   useEffect(() => {
     getUserAddress();
   }, [getUserAddress]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      lastCheckedRoundRef.current = null;
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRequirements() {
+      if (!open || !raffle?.id) {
+        setRequirements(null);
+        setRequirementsLoading(false);
+        lastCheckedRoundRef.current = null;
+        return;
+      }
+
+      if (!raffle.requirements?.gated) {
+        setRequirements(null);
+        setRequirementsLoading(false);
+        return;
+      }
+
+      if (lastCheckedRoundRef.current === raffle.id) return;
+
+      setRequirementsLoading(true);
+      try {
+        const res = await fetch(`/api/Spend/raffle_requirements?roundId=${raffle.id}`, {
+          cache: "no-store",
+        });
+        const json = await res.json();
+        if (!cancelled) {
+          if (res.ok || json?.gated) {
+            setRequirements(json as RaffleRequirementsResult);
+            if ((json as RaffleRequirementsResult).eligible !== null) {
+              lastCheckedRoundRef.current = raffle.id;
+            }
+          } else {
+            setRequirements(null);
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setRequirements({
+            roundId: raffle.id,
+            gated: true,
+            eligible: false,
+            mode: raffle.requirements?.mode ?? "all",
+            gates: [],
+            message: "Could not check raffle requirements. Please try again.",
+          });
+        }
+      } finally {
+        if (!cancelled) setRequirementsLoading(false);
+      }
+    }
+
+    loadRequirements();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, raffle?.id, raffle?.requirements?.gated, raffle?.requirements?.mode, address, isAuthenticated]);
 
   // Prefill user profile when modal opens + address available
   useEffect(() => {
@@ -201,6 +271,10 @@ export default function PhysicalRaffleSheet({
   const soldOut = raffle ? raffle.totalTickets >= raffle.maxTickets : false;
   const maxTickets = affordable;
   const totalCost = count * ticketCostNum;
+  const gatedWithoutResult =
+    !!raffle?.requirements?.gated && (requirements === null || requirements.eligible === null);
+  const requirementsBlocked =
+    gatedWithoutResult || (!!requirements?.gated && requirements.eligible === false);
 
   // Reset when raffle changes / sheet reopens
   useEffect(() => {
@@ -210,6 +284,9 @@ export default function PhysicalRaffleSheet({
     setTxHash(null);
     setVerified(false);
     setVerifying(false);
+    setRequirements(null);
+    setRequirementsLoading(false);
+    lastCheckedRoundRef.current = null;
     autoVerifyTried.current = false;
 
     if (!open) {
@@ -343,6 +420,13 @@ export default function PhysicalRaffleSheet({
       setErrorModal({
         title: "Connect wallet",
         desc: "Please connect your wallet first.",
+      });
+      return;
+    }
+    if (requirementsLoading || requirementsBlocked) {
+      setErrorModal({
+        title: "Requirements not met",
+        desc: requirements?.message ?? "You do not meet this raffle's requirements yet.",
       });
       return;
     }
@@ -499,6 +583,11 @@ export default function PhysicalRaffleSheet({
                   </span>
                 </div>
               </div>
+
+              <RaffleRequirementsStatus
+                loading={requirementsLoading}
+                requirements={requirements}
+              />
 
               {/* Twitter + Email + REQUIRED phone */}
               <div className="mb-4 space-y-3">
@@ -677,7 +766,14 @@ export default function PhysicalRaffleSheet({
               <SheetFooter className="flex flex-col w-full space-y-2">
                 <Button
                   onClick={handleBuy}
-                  disabled={soldOut || notEnough || count === 0 || !verified}
+                  disabled={
+                    soldOut ||
+                    notEnough ||
+                    count === 0 ||
+                    !verified ||
+                    requirementsLoading ||
+                    requirementsBlocked
+                  }
                   className="w-full bg-[#238D9D] text-white rounded-xl h-[56px] font-medium"
                   title="Buy Ticket"
                 >
@@ -690,6 +786,14 @@ export default function PhysicalRaffleSheet({
                 ) : notEnough ? (
                   <p className="text-center text-sm text-red-600">
                     You don’t have enough AkibaMiles to buy a ticket.
+                  </p>
+                ) : requirementsLoading || gatedWithoutResult ? (
+                  <p className="text-center text-sm text-gray-500">
+                    Checking raffle requirements…
+                  </p>
+                ) : requirementsBlocked ? (
+                  <p className="text-center text-sm text-red-600">
+                    {requirements?.message ?? "You do not meet this raffle's requirements yet."}
                   </p>
                 ) : !verified ? (
                   <p className="text-center text-sm text-gray-600">

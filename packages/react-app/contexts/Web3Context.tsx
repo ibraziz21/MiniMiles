@@ -202,6 +202,24 @@ function useWeb3Logic() {
     const chainId = await walletClient.getChainId();
     if (publicClient?.chain?.id !== chainId) throw new Error('Wrong network');
 
+    if (!isAuthenticated) {
+      await Promise.race([
+        _authPromise,
+        new Promise<void>((resolve) => setTimeout(resolve, 8000)),
+      ]);
+    }
+
+    const reqRes = await fetch(`/api/Spend/raffle_requirements?roundId=${roundId}`, {
+      cache: "no-store",
+    });
+    const reqJson = await reqRes.json().catch(() => null);
+    if (!reqRes.ok) {
+      throw new Error(reqJson?.message ?? reqJson?.error ?? "Could not verify raffle requirements.");
+    }
+    if (reqJson?.gated && reqJson?.eligible !== true) {
+      throw new Error(reqJson?.message ?? "You do not meet this raffle's requirements yet.");
+    }
+
     const referralTag = getReferralTag({
       user: address as `0x${string}`,
       consumer: '0x03909bb1E9799336d4a8c49B74343C2a85fDad9d',
@@ -235,7 +253,7 @@ function useWeb3Logic() {
     }
 
     return hash;
-  }, [walletClient, publicClient, address]);
+  }, [walletClient, publicClient, address, isAuthenticated]);
 
   function getDiceReadContract() {
     return getContract({ abi: diceAbi.abi, address: DICE_ADDRESS, client: publicClient });
