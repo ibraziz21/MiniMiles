@@ -2,23 +2,98 @@
 import { NextResponse } from 'next/server'
 import { createPublicClient, formatUnits, http, type Abi, type Address } from 'viem'
 import { celo } from 'viem/chains'
+import { createClient } from '@supabase/supabase-js'
 import raffleAbi from '@/contexts/miniraffle.json'
 import erc20Abi from '@/contexts/cusd-abi.json' // must include symbol(), decimals()
 
 const RAFFLE: Address = '0xd75dfa972c6136f1c594fec1945302f885e1ab29'
 const ZERO_ADDR = '0x0000000000000000000000000000000000000000'
-const PRIORITY_TOKEN = '0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e'.toLowerCase() // USDT on Alfajores
-
-// Optional: per-round winners override (token raffles)
-// Add more if you need: { [roundId]: winnersCount }
-const WINNERS_BY_ROUND: Record<number, number> = {
-  73: 5,
-}
+const PRIORITY_TOKEN = '0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e'.toLowerCase() // USDT on Celo
 
 const publicClient = createPublicClient({
   chain: celo,
   transport: http(),
 })
+
+// Server-side Supabase client — service key never leaves the server
+function getSupabase() {
+  const url = process.env.SUPABASE_URL ?? ''
+  const key = process.env.SUPABASE_SERVICE_KEY ?? ''
+  return createClient(url, key)
+}
+
+// ── Supabase fetchers ────────────────────────────────────────────────────────
+
+type RaffleMeta = {
+  round_id: number
+  kind: string | null
+  card_title: string | null
+  prize_title: string | null
+  description: string | null
+  card_image_url: string | null
+  winners: number
+}
+
+type RaffleRequirementRow = {
+  round_id: number
+  mode: 'all' | 'any'
+  gates: Array<{ type: string; minUsd?: number }>
+  enabled: boolean
+}
+
+async function fetchMetaForRounds(roundIds: number[]): Promise<Map<number, RaffleMeta>> {
+  const map = new Map<number, RaffleMeta>()
+  if (roundIds.length === 0) return map
+  try {
+    const supabase = getSupabase()
+    const { data } = await supabase
+      .from('raffle_meta')
+      .select('round_id, kind, card_title, prize_title, description, card_image_url, winners')
+      .in('round_id', roundIds)
+    for (const row of data ?? []) map.set(row.round_id, row as RaffleMeta)
+  } catch (err) {
+    console.warn('[raffle_display] raffle_meta fetch failed', err)
+  }
+  return map
+}
+
+async function fetchRequirementsForRounds(roundIds: number[]): Promise<Map<number, RaffleRequirementRow>> {
+  const map = new Map<number, RaffleRequirementRow>()
+  if (roundIds.length === 0) return map
+  try {
+    const supabase = getSupabase()
+    const { data } = await supabase
+      .from('raffle_requirements')
+      .select('round_id, mode, gates, enabled')
+      .in('round_id', roundIds)
+      .eq('enabled', true)
+    for (const row of data ?? []) map.set(row.round_id, row as RaffleRequirementRow)
+  } catch (err) {
+    console.warn('[raffle_display] raffle_requirements fetch failed', err)
+  }
+  return map
+}
+
+// ── Requirement shape for the API response ───────────────────────────────────
+
+function gateLabel(gate: { type: string; minUsd?: number }): string {
+  if (gate.type === 'min_usdt_balance') return `Hold at least ${gate.minUsd ?? 10} USDT`
+  if (gate.type === 'prosperity_pass_holder') return 'Hold a Prosperity Pass'
+  return "Complete today's 5-transfer quest"
+}
+
+function buildRequirementsShape(row: RaffleRequirementRow | undefined, roundId: number) {
+  if (!row || !Array.isArray(row.gates) || row.gates.length === 0) return null
+  return {
+    roundId,
+    gated: true,
+    eligible: null as null, // unknown until user is identified in the sheet
+    mode: row.mode,
+    gates: row.gates.map((gate) => ({ type: gate.type, label: gateLabel(gate) })),
+  }
+}
+
+// ── Main handler ──────────────────────────────────────────────────────────────
 
 export async function GET() {
   try {
@@ -64,7 +139,7 @@ export async function GET() {
           Address,  // rewardToken (ZERO_ADDR for physical)
           bigint,   // rewardPool (raw)
           bigint,   // ticketCostPoints (raw, 18d)
-          boolean   // winnersSelected
+          boolean,  // winnersSelected
         ]
 
         if (!r || r[2] <= now) return null
@@ -83,11 +158,19 @@ export async function GET() {
       })
       .filter((x): x is NonNullable<typeof x> => x !== null)
 
-    // 4) Split into physical vs token raffles
+    const activeRoundIds = base.map((rf) => rf.id)
+
+    // 4) Fetch Supabase metadata in parallel
+    const [metaMap, reqMap] = await Promise.all([
+      fetchMetaForRounds(activeRoundIds),
+      fetchRequirementsForRounds(activeRoundIds),
+    ])
+
+    // 5) Split into physical vs token raffles
     const physicalBase = base.filter(rf => rf.rewardToken.toLowerCase() === ZERO_ADDR)
     const tokenBase    = base.filter(rf => rf.rewardToken.toLowerCase() !== ZERO_ADDR)
 
-    // (Optional) read prizeNFT address for physicals (ignore if not present in ABI)
+    // (Optional) read prizeNFT address for physicals
     let prizeNFT: Address | undefined
     try {
       prizeNFT = await publicClient.readContract({
@@ -97,10 +180,9 @@ export async function GET() {
       }) as Address
     } catch { /* no-op if not exposed */ }
 
-    // 5) Enrich token raffles with symbol/decimals and format values
+    // 6) Enrich token raffles with symbol/decimals and Supabase meta
     const tokenRaffles = await Promise.all(
       tokenBase.map(async (rf) => {
-        // read decimals with fallback to 18
         let decimals = 18
         try {
           decimals = Number(
@@ -112,7 +194,6 @@ export async function GET() {
           )
         } catch { /* fallback stays 18 */ }
 
-        // read symbol with fallback to 'TOKEN'
         let symbol = 'TOKEN'
         try {
           symbol = await publicClient.readContract({
@@ -122,8 +203,8 @@ export async function GET() {
           }) as string
         } catch { /* keep fallback */ }
 
-        // winners override (only for token raffles)
-        const winnersOverride = WINNERS_BY_ROUND[rf.id]
+        const meta = metaMap.get(rf.id)
+        const req  = reqMap.get(rf.id)
 
         return {
           id: rf.id,
@@ -132,20 +213,22 @@ export async function GET() {
           maxTickets: rf.maxTickets,
           totalTickets: rf.totalTickets,
           winnersSelected: rf.winnersSelected,
-          token: {
-            address: rf.rewardToken,
-            symbol,
-            decimals,
-          },
+          token: { address: rf.rewardToken, symbol, decimals },
           rewardPool: formatUnits(rf.rewardPoolRaw, decimals),
-          ticketCost: formatUnits(rf.ticketCostRaw, 18), // MiniPoints assumed 18d
+          ticketCost: formatUnits(rf.ticketCostRaw, 18),
           raffleType: 'token',
-          ...(typeof winnersOverride === 'number' ? { winners: winnersOverride } : {}),
+          // Supabase meta — fallback to 1 winner if no row
+          winners:      meta?.winners ?? 1,
+          cardTitle:    meta?.card_title ?? null,
+          prizeTitle:   meta?.prize_title ?? null,
+          description:  meta?.description ?? null,
+          cardImageUrl: meta?.card_image_url ?? null,
+          requirements: buildRequirementsShape(req, rf.id),
         }
       })
     )
 
-    // sort token raffles by PRIORITY_TOKEN first
+    // Sort: PRIORITY_TOKEN first
     tokenRaffles.sort((a, b) => {
       const aP = a.token.address.toLowerCase() === PRIORITY_TOKEN
       const bP = b.token.address.toLowerCase() === PRIORITY_TOKEN
@@ -154,18 +237,28 @@ export async function GET() {
       return 0
     })
 
-    // 6) Shape physical raffles
-    const physicalRaffles = physicalBase.map((rf) => ({
-      id: rf.id,
-      starts: rf.starts,
-      ends: rf.ends,
-      maxTickets: rf.maxTickets,
-      totalTickets: rf.totalTickets,
-      winnersSelected: rf.winnersSelected,
-      prizeNFT: prizeNFT,                 // may be undefined if getter not available
-      ticketCost: formatUnits(rf.ticketCostRaw, 18),
-      raffleType: 'physical',
-    }))
+    // 7) Shape physical raffles
+    const physicalRaffles = physicalBase.map((rf) => {
+      const meta = metaMap.get(rf.id)
+      const req  = reqMap.get(rf.id)
+      return {
+        id: rf.id,
+        starts: rf.starts,
+        ends: rf.ends,
+        maxTickets: rf.maxTickets,
+        totalTickets: rf.totalTickets,
+        winnersSelected: rf.winnersSelected,
+        prizeNFT,
+        ticketCost: formatUnits(rf.ticketCostRaw, 18),
+        raffleType: 'physical',
+        winners:      meta?.winners ?? 1,
+        cardTitle:    meta?.card_title ?? null,
+        prizeTitle:   meta?.prize_title ?? null,
+        description:  meta?.description ?? null,
+        cardImageUrl: meta?.card_image_url ?? null,
+        requirements: buildRequirementsShape(req, rf.id),
+      }
+    })
 
     return NextResponse.json({ tokenRaffles, physicalRaffles })
   } catch (err) {

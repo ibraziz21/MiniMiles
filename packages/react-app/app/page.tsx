@@ -35,6 +35,7 @@ import {
   fetchActiveRaffles,
   PhysicalRaffle,
   type TokenRaffle,
+  type RaffleRequirementsResult,
 } from "@/helpers/raffledisplay";
 import Link from "next/link";
 import type { StaticImageData } from "next/image";
@@ -161,7 +162,7 @@ const physicalTitle = (raffle: PhysicalRaffle) =>
   PHYSICAL_TITLES[raffle.id] ?? "Physical prize";
 
 /** ─────────────── Extend TokenRaffle with winners ────────── */
-export type TokenRaffleWithWinners = TokenRaffle & { winners: number };
+export type TokenRaffleWithWinners = TokenRaffle & { winners: number; requirements?: TokenRaffle['requirements'] };
 
 /** ───────────────── Spend sheet payload ──────────────────── */
 export type SpendRaffle = {
@@ -177,6 +178,7 @@ export type SpendRaffle = {
   totalTickets: number;
   maxTickets: number;
   winners?: number;
+  requirements?: RaffleRequirementsResult | null;
 };
 
 type PassportState =
@@ -615,9 +617,8 @@ const refreshMilesBalanceSoon = useCallback(() => {
       .then(({ tokenRaffles, physicalRaffles }) => {
         const withWinners: TokenRaffleWithWinners[] = tokenRaffles.map((r) => ({
           ...r,
-          winners: r.id === 112 ? 5 : 1,
+          winners: r.winners ?? 1,
         }));
-
         setTokenRaffles(withWinners);
         setPhysicalRaffles(physicalRaffles);
       })
@@ -994,7 +995,7 @@ const badgeButtonLabel =
                 onClick={() => {
                   setSpendRaffle({
                     id: r.id,
-                    title: r.description ?? `${r.rewardPool} ${r.token.symbol}`,
+                    title: r.cardTitle ?? r.prizeTitle ?? `${r.rewardPool} ${r.token.symbol}`,
                     reward: `${r.rewardPool} ${r.token.symbol}`,
                     prize: `${r.rewardPool} ${r.token.symbol}`,
                     endDate: formatEndsIn(r.ends),
@@ -1005,6 +1006,7 @@ const badgeButtonLabel =
                     maxTickets: r.maxTickets,
                     totalTickets: r.totalTickets,
                     winners: r.winners,
+                    requirements: r.requirements as RaffleRequirementsResult | null ?? null,
                   });
                   setActiveSheet("token");
                 }}

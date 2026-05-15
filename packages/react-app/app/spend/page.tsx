@@ -12,7 +12,7 @@ import SuccessModal from '@/components/success-modal';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
-import type { Address } from 'viem'
+import type { RaffleRequirementsResult } from "@/types/raffleRequirements"
 import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
 import { RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5, pods, phone, jbl,bag, sambuds, tv, soundbar, ps5, ebike, usdt, docking,camera,washmachine,chair} from '@/lib/img';
 import { akibaMilesSymbol } from '@/lib/svg';
@@ -82,38 +82,11 @@ function MerchantCard({
 }
 const PhysicalRaffleSheet = dynamic(() => import('@/components/physical-raffle-sheet'), { ssr: false });
 
-export type TokenRaffle = {
-  id: number
-  starts: number
-  ends: number
-  maxTickets: number
-  totalTickets: number
-  token: { address: Address; symbol: string; decimals: number }
-  rewardPool: string        // formatted
-  ticketCost: string        // formatted (18d)
-  image?: string            // optional if you attach one later
-  description?: string
-}
-
-export type PhysicalRaffle = {
-  id: number
-  starts: number
-  ends: number
-  maxTickets: number
-  totalTickets: number
-  prizeNFT?: Address
-  ticketCost: string        // formatted (18d)
-  rewardURI?: string        // if you later expose it
-}
-
-async function fetchActiveRaffles(): Promise<{
-  tokenRaffles: TokenRaffle[]
-  physicalRaffles: PhysicalRaffle[]
-}> {
-  const res = await fetch('/api/Spend/raffle_display', { cache: 'no-store' })
-  if (!res.ok) throw new Error('Failed to fetch raffles')
-  return res.json()
-}
+import {
+  fetchActiveRaffles,
+  type TokenRaffle,
+  type PhysicalRaffle,
+} from "@/helpers/raffledisplay"
 
 
 
@@ -194,6 +167,8 @@ type SpendRaffle = {
   symbol: string;
   totalTickets: number;
   maxTickets: number;
+  winners?: number;
+  requirements?: RaffleRequirementsResult | null;
 };
 
 
@@ -364,11 +339,12 @@ const Page = () => {
       ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
       locked={false}
       icon={akibaMilesSymbol}
+      winners={r.winners}
       onClick={() => {
         setPhysicalRaffle(null);
         setSpendRaffle({
           id: r.id,
-          title: r.description ?? `${r.rewardPool} ${r.token.symbol}`,
+          title: r.cardTitle ?? r.prizeTitle ?? `${r.rewardPool} ${r.token.symbol}`,
           reward: `${r.rewardPool} ${r.token.symbol}`,
           prize: `${r.rewardPool} ${r.token.symbol}`,
           endDate: formatEndsIn(r.ends),
@@ -378,8 +354,10 @@ const Page = () => {
           symbol: r.token.symbol,
           maxTickets: r.maxTickets,
           totalTickets: r.totalTickets,
+          winners: r.winners,
+          requirements: r.requirements as RaffleRequirementsResult | null ?? null,
         });
-        setActiveSheet("token");     // <-- only this one opens
+        setActiveSheet("token");
       }}
     />
   )

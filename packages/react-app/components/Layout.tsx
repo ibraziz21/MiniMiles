@@ -1,6 +1,6 @@
 'use client';
 
-import { FC, ReactNode, useEffect, useState } from 'react';
+import { FC, ReactNode, Suspense, useEffect, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Footer from './Footer';
 import Header from './Header';
@@ -9,7 +9,7 @@ import { useMembership } from '@/helpers/useMembership';
 
 interface Props { children: ReactNode }
 
-const Layout: FC<Props> = ({ children }) => {
+const LayoutContent: FC<Props> = ({ children }) => {
   const router   = useRouter();
   const pathname = usePathname() || '/';
   const searchParams = useSearchParams();
@@ -97,5 +97,11 @@ const Layout: FC<Props> = ({ children }) => {
     </div>
   );
 };
+
+const Layout: FC<Props> = ({ children }) => (
+  <Suspense fallback={null}>
+    <LayoutContent>{children}</LayoutContent>
+  </Suspense>
+);
 
 export default Layout;

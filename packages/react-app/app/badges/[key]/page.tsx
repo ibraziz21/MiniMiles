@@ -1,7 +1,7 @@
 // src/app/badges/[key]/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Image from "next/image";
 
@@ -26,7 +26,7 @@ function parseNonNegativeNumber(raw: string | null | undefined): number {
   return n;
 }
 
-export default function BadgeDetailPage() {
+function BadgeDetailContent() {
   const router = useRouter();
   const params = useParams<{ key: BadgeKey }>();
   const searchParams = useSearchParams();
@@ -233,5 +233,13 @@ export default function BadgeDetailPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function BadgeDetailPage() {
+  return (
+    <Suspense fallback={null}>
+      <BadgeDetailContent />
+    </Suspense>
   );
 }
