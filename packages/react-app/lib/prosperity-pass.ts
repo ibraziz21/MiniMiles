@@ -28,12 +28,16 @@ export type SuperAccountCheckResult = {
 /* ───────────────── Config ───────────────── */
 
 const SUPERCHAIN_RPC_URL =
-  process.env.NEXT_PUBLIC_SUPERCHAIN_RPC_URL || "https://forno.celo.org";
+  process.env.SUPERCHAIN_RPC_URL ||
+  process.env.NEXT_PUBLIC_SUPERCHAIN_RPC_URL ||
+  process.env.CELO_RPC_URL ||
+  "https://forno.celo.org";
 
 // Default to the Prosperity Pass SuperChainModule address from the docs,
 // but allow overriding via env if needed.
 const SUPERCHAIN_MODULE_ADDRESS =
-  (process.env.NEXT_PUBLIC_SUPERCHAIN_MODULE_ADDRESS as `0x${string}`) ??
+  (process.env.SUPERCHAIN_MODULE_ADDRESS as `0x${string}` | undefined) ||
+  (process.env.NEXT_PUBLIC_SUPERCHAIN_MODULE_ADDRESS as `0x${string}` | undefined) ||
   ("0x58f5805b5072C3Dd157805132714E1dF40E79c66" as const);
 
 const SUPERCHAIN_MODULE_ABI = [

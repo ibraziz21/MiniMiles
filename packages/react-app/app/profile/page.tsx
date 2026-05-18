@@ -9,6 +9,7 @@ import truncateEthAddress from 'truncate-eth-address';
 import Image from 'next/image';
 import { akibaMilesSymbol } from '@/lib/svg';
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
+import ProsperityLinkedWalletCard from '@/components/prosperity-linked-wallet-card';
 
 /* ─── types ──────────────────────────────────────────────────── */
 interface ProfileData {
@@ -524,6 +525,8 @@ export default function ProfilePage() {
             <CountryRow value={profile?.country ?? ''} onSave={v => patchField('country', v)} />
             <BioRow value={profile?.bio ?? ''} onSave={v => patchField('bio', v)} />
           </div>
+
+          <ProsperityLinkedWalletCard primaryAddress={address} />
 
           {/* Interests */}
           <div className="mx-4 mt-4 bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
