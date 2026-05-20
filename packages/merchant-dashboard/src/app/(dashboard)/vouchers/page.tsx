@@ -8,6 +8,7 @@ import Link from "next/link";
 import { Plus, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { VoucherTemplate } from "@/types";
+import { ClawVoucherRedeemer } from "@/components/vouchers/ClawVoucherRedeemer";
 
 function discountLabel(t: VoucherTemplate): string {
   if (t.voucher_type === "free") return "Free item";
@@ -56,6 +57,7 @@ export default async function VouchersPage() {
         }
       />
       <div className="flex-1 overflow-y-auto p-6">
+        <ClawVoucherRedeemer />
         <Card>
           <CardContent className="p-0">
             {(templates ?? []).length === 0 ? (

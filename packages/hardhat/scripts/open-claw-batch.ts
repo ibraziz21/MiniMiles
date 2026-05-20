@@ -17,6 +17,9 @@
  *   CLAW_BATCH_ID                 Optional; defaults to UTC timestamp YYYYMMDDHHMMSS
  *   CLAW_BATCH_LOSES / CLAW_BATCH_COMMONS / CLAW_BATCH_RARES / CLAW_BATCH_EPICS / CLAW_BATCH_LEGENDARYS
  *   CLAW_BATCH_SHUFFLE_SEED       Optional deterministic shuffle seed for reproducible test batches
+ *   CLAW_BATCH_VOUCHER_TEST=1     Build an alternating Rare/Legendary voucher-only batch
+ *   CLAW_BATCH_PATTERN            Explicit comma-separated classes, e.g. rare,legendary,rare
+ *   CLAW_BATCH_REPEAT             Repeat CLAW_BATCH_PATTERN N times; defaults to 1, or 5 for voucher-test
  *   CLAW_BATCH_OPEN=1             Actually submit openBatch; otherwise dry-run only
  *   CLAW_BATCH_SKIP_SUPABASE=1    Local-only escape hatch; do not use for production opens
  */
@@ -40,6 +43,34 @@ const REWARD_CLASS: Record<RewardName, number> = {
   rares: 3,
   epics: 4,
   legendarys: 5,
+};
+
+const REWARD_NAME_BY_CLASS: Record<number, RewardName> = {
+  1: "loses",
+  2: "commons",
+  3: "rares",
+  4: "epics",
+  5: "legendarys",
+};
+
+const REWARD_CLASS_BY_TOKEN: Record<string, number> = {
+  lose: 1,
+  loses: 1,
+  loss: 1,
+  common: 2,
+  commons: 2,
+  rare: 3,
+  rares: 3,
+  epic: 4,
+  epics: 4,
+  legendary: 5,
+  legendarys: 5,
+  legendaries: 5,
+  "1": 1,
+  "2": 2,
+  "3": 3,
+  "4": 4,
+  "5": 5,
 };
 
 type ManifestPlay = {
@@ -84,6 +115,50 @@ function getIntArg(name: RewardName, fallback: number): number {
     throw new Error(`--${name} must be a non-negative integer`);
   }
   return value;
+}
+
+function getPositiveIntArg(name: string, fallback: number): number {
+  const raw = getArg(name) ?? process.env[`CLAW_BATCH_${name.toUpperCase().replace(/-/g, "_")}`];
+  if (raw == null || raw === "") return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`--${name} must be a positive integer`);
+  }
+  return value;
+}
+
+function parseRewardPattern(raw: string): number[] {
+  const classes = raw
+    .split(",")
+    .map((part) => part.trim().toLowerCase())
+    .filter(Boolean)
+    .map((token) => REWARD_CLASS_BY_TOKEN[token]);
+
+  if (classes.length === 0 || classes.some((value) => value == null)) {
+    throw new Error(
+      `Invalid CLAW_BATCH_PATTERN "${raw}". Use names like rare,legendary or classes 1-5.`
+    );
+  }
+
+  return classes;
+}
+
+function countRewardClasses(rewardClasses: number[]): Record<RewardName, number> {
+  const counts: Record<RewardName, number> = {
+    loses: 0,
+    commons: 0,
+    rares: 0,
+    epics: 0,
+    legendarys: 0,
+  };
+
+  for (const rewardClass of rewardClasses) {
+    const name = REWARD_NAME_BY_CLASS[rewardClass];
+    if (!name) throw new Error(`Invalid reward class ${rewardClass}`);
+    counts[name] += 1;
+  }
+
+  return counts;
 }
 
 function normalizeHex32(value: string): string {
@@ -201,20 +276,36 @@ async function main() {
   const batchIdRaw = getArg("batch-id") ?? process.env.CLAW_BATCH_ID ?? defaultBatchId();
   const batchId = BigInt(batchIdRaw);
 
-  const counts: Record<RewardName, number> = {
-    loses: getIntArg("loses", 80),
-    commons: getIntArg("commons", 15),
-    rares: getIntArg("rares", 4),
-    epics: getIntArg("epics", 1),
-    legendarys: getIntArg("legendarys", 0),
-  };
+  const voucherTest = hasArg("voucher-test") || process.env.CLAW_BATCH_VOUCHER_TEST === "1";
+  const rawPattern = getArg("pattern") ?? process.env.CLAW_BATCH_PATTERN;
 
-  const rewardClasses = seededShuffle(
-    (Object.keys(counts) as RewardName[]).flatMap((name) =>
-      Array.from({ length: counts[name] }, () => REWARD_CLASS[name])
-    ),
-    getArg("shuffle-seed") ?? process.env.CLAW_BATCH_SHUFFLE_SEED
-  );
+  let rewardClasses: number[];
+  let counts: Record<RewardName, number>;
+  let mode: string;
+
+  if (rawPattern || voucherTest) {
+    const pattern = rawPattern ? parseRewardPattern(rawPattern) : [REWARD_CLASS.rares, REWARD_CLASS.legendarys];
+    const repeat = getPositiveIntArg("repeat", voucherTest && !rawPattern ? 5 : 1);
+    rewardClasses = Array.from({ length: repeat }).flatMap(() => pattern);
+    counts = countRewardClasses(rewardClasses);
+    mode = rawPattern ? `explicit pattern (${rawPattern}) x ${repeat}` : `voucher test (rare,legendary) x ${repeat}`;
+  } else {
+    counts = {
+      loses: getIntArg("loses", 80),
+      commons: getIntArg("commons", 15),
+      rares: getIntArg("rares", 4),
+      epics: getIntArg("epics", 1),
+      legendarys: getIntArg("legendarys", 0),
+    };
+
+    rewardClasses = seededShuffle(
+      (Object.keys(counts) as RewardName[]).flatMap((name) =>
+        Array.from({ length: counts[name] }, () => REWARD_CLASS[name])
+      ),
+      getArg("shuffle-seed") ?? process.env.CLAW_BATCH_SHUFFLE_SEED
+    );
+    mode = "weighted inventory";
+  }
 
   if (rewardClasses.length === 0) {
     throw new Error("At least one reward outcome is required");
@@ -251,6 +342,7 @@ async function main() {
   console.log("Signer:", signer.address);
   console.log("MerkleBatchRng:", batchRng);
   console.log("Batch ID:", batchId.toString());
+  console.log("Mode:", mode);
   console.log("Total plays:", plays.length);
   console.log("Counts:", counts);
   console.log("Merkle root:", merkleRoot);

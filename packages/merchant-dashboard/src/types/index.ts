@@ -100,7 +100,15 @@ export interface PartnerSettings {
   notify_stale_order: boolean;
   stale_threshold_hours: number;
   wallet_address: string | null;
+  payout_destination_type: "wallet" | "bank" | "mpesa";
   payout_wallet: string | null;
+  payout_bank_name: string | null;
+  payout_bank_branch: string | null;
+  payout_bank_account_name: string | null;
+  payout_bank_account_number: string | null;
+  payout_mpesa_name: string | null;
+  payout_mpesa_phone: string | null;
+  payout_notes: string | null;
   kes_exchange_rate: number | null;
   updated_at: string;
 }
@@ -265,6 +273,13 @@ export interface PayoutInvoice {
   submitted_at: string | null;
   akiba_notes: string | null;
   resolved_at: string | null;
+  payment_method: string | null;
+  payment_destination_snapshot: Record<string, unknown> | null;
+  payment_tx_hash: string | null;
+  payment_reference: string | null;
+  receipt_number: string | null;
+  paid_by_admin_user_id: string | null;
+  paid_at: string | null;
   created_at: string;
   updated_at: string;
 }

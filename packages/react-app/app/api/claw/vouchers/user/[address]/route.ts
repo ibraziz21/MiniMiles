@@ -54,7 +54,7 @@ export async function GET(
   try {
     // Scan VoucherIssued events for this player
     const currentBlock = await pub.getBlockNumber();
-    const fromBlock    = currentBlock > 50000n ? currentBlock - 50000n : DEPLOY_BLOCK;
+    const fromBlock    = DEPLOY_BLOCK;
 
     let logs: any[] = [];
     try {

@@ -5,11 +5,12 @@ import Link from "next/link";
 
 type Props = {
   urgentCount: number;
+  hasActiveSession?: boolean;
   onSessionsOpen: () => void;
   onInfoOpen: () => void;
 };
 
-export function ClawHero({ urgentCount, onSessionsOpen, onInfoOpen }: Props) {
+export function ClawHero({ urgentCount, hasActiveSession, onSessionsOpen, onInfoOpen }: Props) {
   return (
     <div className="flex items-center justify-between px-4 pt-4 pb-2">
       {/* Back */}
@@ -43,10 +44,12 @@ export function ClawHero({ urgentCount, onSessionsOpen, onInfoOpen }: Props) {
           aria-label="Sessions"
         >
           <span className="text-gray-600"><ClockCounterClockwise size={17} weight="bold" /></span>
-          {urgentCount > 0 && (
+          {urgentCount > 0 ? (
             <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
               {urgentCount > 9 ? "9+" : urgentCount}
             </span>
+          ) : hasActiveSession && (
+            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-cyan-400 rounded-full border-2 border-white" />
           )}
         </button>
 

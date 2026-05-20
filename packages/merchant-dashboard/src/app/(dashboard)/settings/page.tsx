@@ -8,6 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { PartnerSettings } from "@/types";
 
 const COMMON_CITIES = ["Nairobi", "Mombasa", "Kisumu", "Nakuru", "Eldoret", "Thika", "Nyeri", "Meru", "Kericho", "Garissa"];
+const PAYOUT_DESTINATIONS: Array<{ value: PartnerSettings["payout_destination_type"]; label: string; description: string }> = [
+  { value: "wallet", label: "Wallet", description: "Celo wallet payout" },
+  { value: "bank", label: "Bank", description: "Bank transfer" },
+  { value: "mpesa", label: "M-Pesa", description: "Mobile money" },
+];
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<PartnerSettings | null>(null);
@@ -64,7 +69,15 @@ export default function SettingsPage() {
           notify_new_order: settings.notify_new_order,
           notify_stale_order: settings.notify_stale_order,
           stale_threshold_hours: settings.stale_threshold_hours,
+          payout_destination_type: settings.payout_destination_type ?? "wallet",
           payout_wallet: settings.payout_wallet || null,
+          payout_bank_name: settings.payout_bank_name || null,
+          payout_bank_branch: settings.payout_bank_branch || null,
+          payout_bank_account_name: settings.payout_bank_account_name || null,
+          payout_bank_account_number: settings.payout_bank_account_number || null,
+          payout_mpesa_name: settings.payout_mpesa_name || null,
+          payout_mpesa_phone: settings.payout_mpesa_phone || null,
+          payout_notes: settings.payout_notes || null,
           kes_exchange_rate: settings.kes_exchange_rate ?? null,
         }),
       });
@@ -212,15 +225,88 @@ export default function SettingsPage() {
           <Card>
             <CardHeader><CardTitle>Payout Details</CardTitle></CardHeader>
             <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Payout Destination</label>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {PAYOUT_DESTINATIONS.map((item) => {
+                    const active = (settings?.payout_destination_type ?? "wallet") === item.value;
+                    return (
+                      <button
+                        key={item.value}
+                        type="button"
+                        disabled={!isOwner}
+                        onClick={() => update("payout_destination_type", item.value)}
+                        className={`rounded-lg border px-3 py-2 text-left transition-colors ${
+                          active
+                            ? "border-[#238D9D] bg-[#238D9D0D] text-[#238D9D]"
+                            : "border-gray-200 bg-white text-gray-600 hover:border-[#238D9D66]"
+                        } disabled:cursor-not-allowed disabled:opacity-50`}
+                      >
+                        <span className="block text-sm font-semibold">{item.label}</span>
+                        <span className="block text-xs opacity-75">{item.description}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {(settings?.payout_destination_type ?? "wallet") === "wallet" && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-700">Payout Wallet Address</label>
+                  <Input
+                    value={settings?.payout_wallet ?? ""}
+                    onChange={(e) => update("payout_wallet", e.target.value || null)}
+                    placeholder="0x..."
+                    disabled={!isOwner}
+                  />
+                  <p className="text-xs text-gray-400">EVM address on Celo that receives payouts from AkibaMiles.</p>
+                </div>
+              )}
+
+              {(settings?.payout_destination_type ?? "wallet") === "bank" && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-700">Bank Name</label>
+                    <Input value={settings?.payout_bank_name ?? ""} onChange={(e) => update("payout_bank_name", e.target.value || null)} placeholder="KCB, Equity, ABSA..." disabled={!isOwner} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-700">Branch</label>
+                    <Input value={settings?.payout_bank_branch ?? ""} onChange={(e) => update("payout_bank_branch", e.target.value || null)} placeholder="Branch or code" disabled={!isOwner} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-700">Account Name</label>
+                    <Input value={settings?.payout_bank_account_name ?? ""} onChange={(e) => update("payout_bank_account_name", e.target.value || null)} placeholder="Registered account name" disabled={!isOwner} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-700">Account Number</label>
+                    <Input value={settings?.payout_bank_account_number ?? ""} onChange={(e) => update("payout_bank_account_number", e.target.value || null)} placeholder="Account number" disabled={!isOwner} />
+                  </div>
+                </div>
+              )}
+
+              {(settings?.payout_destination_type ?? "wallet") === "mpesa" && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-700">Recipient Name</label>
+                    <Input value={settings?.payout_mpesa_name ?? ""} onChange={(e) => update("payout_mpesa_name", e.target.value || null)} placeholder="Registered M-Pesa name" disabled={!isOwner} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-gray-700">M-Pesa Phone</label>
+                    <Input value={settings?.payout_mpesa_phone ?? ""} onChange={(e) => update("payout_mpesa_phone", e.target.value || null)} placeholder="+2547..." disabled={!isOwner} />
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700">Payout Wallet Address</label>
-                <Input
-                  value={settings?.payout_wallet ?? ""}
-                  onChange={(e) => update("payout_wallet", e.target.value || null)}
-                  placeholder="0x..."
+                <label className="text-sm font-medium text-gray-700">Payout Notes</label>
+                <textarea
+                  value={settings?.payout_notes ?? ""}
+                  onChange={(e) => update("payout_notes", e.target.value || null)}
+                  placeholder="Any extra finance instructions"
                   disabled={!isOwner}
+                  rows={3}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#238D9D] disabled:cursor-not-allowed disabled:opacity-50"
                 />
-                <p className="text-xs text-gray-400">EVM address on Celo that receives monthly payouts from AkibaMiles.</p>
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-700">KES Exchange Rate</label>

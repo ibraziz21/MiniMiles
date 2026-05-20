@@ -10,11 +10,10 @@ type Props = {
 };
 
 const ODDS_TABLE = [
-  { label: "Miss",       emoji: "💨", basic: "60.0%", boosted: "58.0%", premium: "55.0%" },
-  { label: AKIBA_TOKEN_SYMBOL, emoji: "🪙", basic: "32.0%", boosted: "32.0%", premium: "32.0%" },
-  { label: "Voucher",    emoji: "🎟️", basic: "6.0%",  boosted: "7.0%",  premium: "9.0%"  },
-  { label: "USDT",       emoji: "💎", basic: "1.8%",  boosted: "2.6%",  premium: "3.6%"  },
-  { label: "Legendary",  emoji: "⭐", basic: "0.2%",  boosted: "0.4%",  premium: "0.4%"  },
+  { label: "Miss",       emoji: "💨", basic: "60.0%", boosted: "50.0%", premium: "45.0%" },
+  { label: AKIBA_TOKEN_SYMBOL, emoji: "🪙", basic: "32.0%", boosted: "35.0%", premium: "35.0%" },
+  { label: "Voucher",    emoji: "🎟️", basic: "6.0%",  boosted: "10.0%", premium: "12.0%" },
+  { label: "Legendary",  emoji: "⭐", basic: "0.2%",  boosted: "1.0%",  premium: "2.0%"  },
 ];
 
 const REWARD_LEGEND = [
@@ -23,12 +22,6 @@ const REWARD_LEGEND = [
     title: `Common — ${AKIBA_TOKEN_SYMBOL}`,
     desc: "AkibaMiles credited directly to your wallet balance.",
     color: "#22C55E",
-  },
-  {
-    emoji: "💎",
-    title: "Epic — USDT",
-    desc: "USDT paid directly to your wallet address.",
-    color: "#8B5CF6",
   },
   {
     emoji: "🎟️",

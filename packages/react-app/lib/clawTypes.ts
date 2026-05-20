@@ -133,6 +133,6 @@ export const REWARD_META: Record<
   [RewardClass.Lose]:      { label: "Miss",       color: "#9CA3AF", emoji: "💨", description: "Better luck next time!" },
   [RewardClass.Common]:    { label: AKIBA_TOKEN_SYMBOL, color: "#22C55E", emoji: "🪙", description: "AkibaMiles credited to your wallet." },
   [RewardClass.Rare]:      { label: "Voucher",    color: "#06B6D4", emoji: "🎟️", description: "20% merchant voucher. Burn for AkibaMiles fallback." },
-  [RewardClass.Epic]:      { label: "USDT",       color: "#8B5CF6", emoji: "💎", description: "USDT paid directly to your wallet." },
-  [RewardClass.Legendary]: { label: "Legendary",  color: "#F59E0B", emoji: "⭐", description: "Capped full-value voucher. Burn for USDT fallback." },
+  [RewardClass.Epic]:      { label: "Bonus",      color: "#8B5CF6", emoji: "💎", description: "Bonus reward credited to your account." },
+  [RewardClass.Legendary]: { label: "Legendary",  color: "#F59E0B", emoji: "⭐", description: "Capped full-value voucher. Burn for 50% USDT fallback." },
 };

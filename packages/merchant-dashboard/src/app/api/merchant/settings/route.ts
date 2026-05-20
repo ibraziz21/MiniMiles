@@ -15,7 +15,24 @@ const DEFAULT_SETTINGS = {
   notify_new_order: true,
   notify_stale_order: true,
   stale_threshold_hours: 2,
+  payout_destination_type: "wallet",
 };
+
+const PAYOUT_DESTINATION_TYPES = new Set(["wallet", "bank", "mpesa"]);
+const OPTIONAL_TEXT_FIELDS = [
+  "logo_url",
+  "support_email",
+  "support_phone",
+  "wallet_address",
+  "payout_wallet",
+  "payout_bank_name",
+  "payout_bank_branch",
+  "payout_bank_account_name",
+  "payout_bank_account_number",
+  "payout_mpesa_name",
+  "payout_mpesa_phone",
+  "payout_notes",
+] as const;
 
 async function getOrCreateSettings(partnerId: string) {
   const { data } = await supabase
@@ -62,7 +79,9 @@ export async function PATCH(req: Request) {
   const allowed = [
     "store_active", "logo_url", "support_email", "support_phone",
     "delivery_cities", "notify_new_order", "notify_stale_order", "stale_threshold_hours",
-    "wallet_address", "payout_wallet", "kes_exchange_rate",
+    "wallet_address", "payout_destination_type", "payout_wallet",
+    "payout_bank_name", "payout_bank_branch", "payout_bank_account_name", "payout_bank_account_number",
+    "payout_mpesa_name", "payout_mpesa_phone", "payout_notes", "kes_exchange_rate",
   ];
   const updates: Record<string, unknown> = {};
   for (const key of allowed) {
@@ -84,15 +103,41 @@ export async function PATCH(req: Request) {
     }
   }
 
+  for (const key of OPTIONAL_TEXT_FIELDS) {
+    if (key in updates) {
+      if (updates[key] !== null && typeof updates[key] !== "string") {
+        return NextResponse.json({ error: `${key} must be a string or null` }, { status: 400 });
+      }
+      const trimmed = typeof updates[key] === "string" ? updates[key].trim() : null;
+      updates[key] = trimmed || null;
+      if (typeof trimmed === "string" && trimmed.length > 500) {
+        return NextResponse.json({ error: `${key} is too long` }, { status: 400 });
+      }
+    }
+  }
+
   for (const addrKey of ["wallet_address", "payout_wallet"] as const) {
     if (addrKey in updates) {
-      if (updates[addrKey] !== null && typeof updates[addrKey] !== "string") {
-        return NextResponse.json({ error: `${addrKey} must be a string or null` }, { status: 400 });
-      }
       if (updates[addrKey] && !/^0x[0-9a-fA-F]{40}$/.test(updates[addrKey] as string)) {
         return NextResponse.json({ error: `${addrKey} must be a valid EVM address (0x...)` }, { status: 400 });
       }
     }
+  }
+
+  if ("payout_destination_type" in updates) {
+    if (
+      typeof updates.payout_destination_type !== "string" ||
+      !PAYOUT_DESTINATION_TYPES.has(updates.payout_destination_type)
+    ) {
+      return NextResponse.json(
+        { error: "payout_destination_type must be wallet, bank, or mpesa" },
+        { status: 400 },
+      );
+    }
+  }
+
+  if (updates.payout_mpesa_phone && !/^\+?[0-9][0-9\s-]{6,20}$/.test(updates.payout_mpesa_phone as string)) {
+    return NextResponse.json({ error: "payout_mpesa_phone must be a valid phone number" }, { status: 400 });
   }
 
   if ("kes_exchange_rate" in updates) {

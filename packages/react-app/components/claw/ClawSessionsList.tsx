@@ -48,7 +48,7 @@ function rewardLabel(session: GameSession): string {
   if (rc === RewardClass.Common)
     return `${parseFloat(formatUnits(session.rewardAmount, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 })} ${AKIBA_TOKEN_SYMBOL}`;
   if (rc === RewardClass.Epic)
-    return `$${parseFloat(formatUnits(session.rewardAmount, 6)).toFixed(2)} USDT`;
+    return "Bonus reward";
   if (rc === RewardClass.Rare)     return "20% Voucher";
   if (rc === RewardClass.Legendary) return "100% Voucher";
   return "—";
@@ -203,9 +203,7 @@ function SessionDetail({
           {session.rewardClass === RewardClass.Legendary && (
             <div className="flex justify-between text-sm">
               <span className="text-gray-400">Burn fallback</span>
-              <span className="font-semibold text-gray-700">
-                ${parseFloat(formatUnits(session.rewardAmount, 6)).toFixed(2)} USDT
-              </span>
+              <span className="font-semibold text-gray-700">USDT</span>
             </div>
           )}
         </div>

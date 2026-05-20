@@ -21,6 +21,25 @@ CLAW_BATCH_LEGENDARYS=0 \
 npm run claw:batch:dry
 ```
 
+Voucher-only QA batch with alternating Rare and Legendary outcomes:
+
+```bash
+CLAW_BATCH_VOUCHER_TEST=1 \
+CLAW_BATCH_REPEAT=10 \
+npm run claw:batch:dry
+```
+
+That produces 20 plays in exact order: Rare, Legendary, Rare, Legendary, etc.
+To open it on-chain, use the same env with `npm run claw:batch:open`.
+
+For a custom deterministic sequence:
+
+```bash
+CLAW_BATCH_PATTERN=rare,legendary,rare \
+CLAW_BATCH_REPEAT=3 \
+npm run claw:batch:dry
+```
+
 ## Open Live Batch
 
 Uploads the manifest to Supabase first, then calls `openBatch`, then updates
@@ -49,6 +68,9 @@ CLAW_BATCH_RARES=40
 CLAW_BATCH_EPICS=10
 CLAW_BATCH_LEGENDARYS=0
 CLAW_BATCH_SHUFFLE_SEED=manual-test-seed
+CLAW_BATCH_VOUCHER_TEST=1
+CLAW_BATCH_PATTERN=rare,legendary
+CLAW_BATCH_REPEAT=10
 ```
 
 If `CLAW_BATCH_ID` is omitted, the opener uses a UTC timestamp batch id in
@@ -56,6 +78,22 @@ If `CLAW_BATCH_ID` is omitted, the opener uses a UTC timestamp batch id in
 
 Do not use `CLAW_BATCH_SKIP_SUPABASE=1` for production. It opens a batch without
 the settlement manifest being available to the backend.
+
+## Legendary Burn Value
+
+Legendary vouchers are capped at the tier's `legendaryVoucherCap`. The burn
+fallback should be half of that cap. For an already deployed game, update the
+live tier configs before QA:
+
+```bash
+npm run claw:set-legendary-burns
+```
+
+Optional tier subset:
+
+```bash
+CLAW_TIERS=0,1,2 npm run claw:set-legendary-burns
+```
 
 ## Upload Existing Manifest
 

@@ -294,6 +294,40 @@ function BillModal({
             </div>
           )}
 
+          {invoice.status === "paid" && (
+            <div className="mb-6 rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-2">
+                Payout Receipt
+              </p>
+              <div className="grid gap-3 text-xs sm:grid-cols-2">
+                {invoice.receipt_number && (
+                  <div>
+                    <p className="text-gray-400">Receipt #</p>
+                    <p className="font-mono font-semibold text-gray-800">{invoice.receipt_number}</p>
+                  </div>
+                )}
+                {invoice.payment_method && (
+                  <div>
+                    <p className="text-gray-400">Method</p>
+                    <p className="font-semibold text-gray-800 capitalize">{invoice.payment_method}</p>
+                  </div>
+                )}
+                {invoice.payment_reference && (
+                  <div>
+                    <p className="text-gray-400">Reference</p>
+                    <p className="font-mono font-semibold text-gray-800">{invoice.payment_reference}</p>
+                  </div>
+                )}
+                {invoice.payment_tx_hash && (
+                  <div className="sm:col-span-2">
+                    <p className="text-gray-400">Transaction Hash</p>
+                    <p className="break-all font-mono font-semibold text-gray-800">{invoice.payment_tx_hash}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {invoice.status === "draft" && (
             <div className="rounded-lg bg-gray-50 border border-gray-100 px-4 py-3 text-xs text-gray-500">
               This bill covers the current month and will be finalised at month-end. AkibaMiles processes payouts automatically — no action needed from you.
@@ -483,7 +517,7 @@ export default function BillingPage() {
       const lastBucket = monthly.find((b) => b.month === lastMo);
 
       const paidInvs      = invList.filter((i) => i.status === "paid");
-      const submittedInvs = invList.filter((i) => i.status === "submitted");
+      const submittedInvs = invList.filter((i) => i.status === "draft" || i.status === "submitted");
 
       setStats({
         currentMonthRevenue: cmBucket?.revenue_cusd ?? 0,
@@ -646,6 +680,18 @@ export default function BillingPage() {
                                   AkibaMiles {inv.status === "paid" ? "Payment Ref" : "Note"}
                                 </p>
                                 <p className="text-gray-700 mt-0.5 text-xs whitespace-pre-wrap">{inv.akiba_notes}</p>
+                              </div>
+                            )}
+                            {inv.status === "paid" && (inv.receipt_number || inv.payment_tx_hash || inv.payment_reference) && (
+                              <div className="sm:col-span-4 rounded-lg border border-gray-100 bg-white px-3 py-2">
+                                <p className="text-xs text-gray-400">Receipt details</p>
+                                <p className="mt-0.5 text-xs text-gray-700">
+                                  {inv.receipt_number ? `Receipt ${inv.receipt_number}` : "Receipt generated"}
+                                  {inv.payment_reference ? ` · Ref ${inv.payment_reference}` : ""}
+                                </p>
+                                {inv.payment_tx_hash && (
+                                  <p className="mt-1 break-all font-mono text-[11px] text-gray-500">{inv.payment_tx_hash}</p>
+                                )}
                               </div>
                             )}
                           </div>

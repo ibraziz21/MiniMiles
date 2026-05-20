@@ -271,7 +271,7 @@ contract AkibaClawGame is
             commonMilesReward:   100e18,  // 2× play cost
             rareBurnMiles:       50e18,   // 1× play cost
             epicUsdtReward:       1e6,    // 1 USDT
-            legendaryBurnUsdt:    3e6,    // 3 USDT
+            legendaryBurnUsdt:  7_500_000, // 50% of the 15 USDT voucher cap
             rareVoucherBps:      2000,
             legendaryVoucherBps: 10000,
             legendaryVoucherCap: 15e6,    // up to 15 USDT
@@ -294,7 +294,7 @@ contract AkibaClawGame is
             commonMilesReward:   300e18,  // 2× play cost
             rareBurnMiles:       300e18,   // 2× play cost
             epicUsdtReward:        2e6,    // 2 USDT
-            legendaryBurnUsdt:     5e6,    // 5 USDT
+            legendaryBurnUsdt:  7_500_000, // 50% of the 15 USDT voucher cap
             rareVoucherBps:      2000,
             legendaryVoucherBps: 10000,
             legendaryVoucherCap: 15e6,
@@ -317,7 +317,7 @@ contract AkibaClawGame is
             commonMilesReward:   200e18,  // 200 Miles
             rareBurnMiles:       600e18,  // 3× Common reward
             epicUsdtReward:        2e6,   // 2 USDT (> 1 USDT entry)
-            legendaryBurnUsdt:     8e6,   // 8 USDT
+            legendaryBurnUsdt:  7_500_000, // 50% of the 15 USDT voucher cap
             rareVoucherBps:      2000,
             legendaryVoucherBps: 10000,
             legendaryVoucherCap: 15e6,

@@ -1,8 +1,8 @@
 "use client";
 
-import { X, Gift, CurrencyDollar, ShareNetwork } from "@phosphor-icons/react";
+import { X, Gift, CurrencyDollar, Confetti } from "@phosphor-icons/react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { AKIBA_TOKEN_SYMBOL, GameSession, RewardClass, SessionStatus, REWARD_META, TIER_META } from "@/lib/clawTypes";
+import { AKIBA_TOKEN_SYMBOL, GameSession, RewardClass, REWARD_META, TIER_META } from "@/lib/clawTypes";
 
 type Props = {
   open: boolean;
@@ -16,136 +16,142 @@ type Props = {
 export function VoucherWinSheet({ open, onOpenChange, session, onKeep, onBurn, burning }: Props) {
   if (!session) return null;
 
-  const rc       = session.rewardClass;
-  const reward   = REWARD_META[rc];
-  const tierMeta = TIER_META[session.tierId] ?? TIER_META[0];
+  const rc          = session.rewardClass;
+  const reward      = REWARD_META[rc];
+  const tierMeta    = TIER_META[session.tierId] ?? TIER_META[0];
   const isLegendary = rc === RewardClass.Legendary;
 
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: "I won at Akiba Claw!",
-        text: `I just won a ${reward.label} on Akiba Claw! 🎰`,
-      }).catch(() => {});
-    }
-  };
+  // Legendary = amber/gold palette, Rare = cyan palette
+  const accent   = isLegendary ? "#F59E0B" : "#06B6D4";
+  const accentBg = isLegendary ? "#FEF3C7" : "#ECFEFF";
+  const badgeBg  = isLegendary ? "#FFFBEB" : "#F0FDFF";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="rounded-t-3xl p-0 overflow-hidden bg-white"
-        style={{
-          background: `linear-gradient(160deg, ${reward.color}14 0%, #ffffff 50%)`,
-        }}
+        className="rounded-t-3xl p-0 overflow-hidden"
+        style={{ background: accentBg }}
       >
         {/* Close */}
         <button
           onClick={() => onOpenChange(false)}
-          className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center border border-gray-100"
+          className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-white/90 flex items-center justify-center border border-gray-100 shadow-sm"
         >
-          <span className="text-gray-500"><X size={14} weight="bold" /></span>
+          <X size={14} weight="bold" className="text-gray-500" />
         </button>
 
-        <div className="px-5 pt-8 pb-10 flex flex-col items-center text-center">
-          {/* Trophy animation */}
+        {/* Top glow strip */}
+        <div
+          className="absolute top-0 left-0 right-0 h-1 rounded-t-3xl"
+          style={{ background: `linear-gradient(90deg, transparent, ${accent}, transparent)` }}
+        />
+
+        <div className="px-5 pt-8 pb-10 flex flex-col items-center">
+
+          {/* Badge */}
           <div
-            className="w-24 h-24 rounded-full flex items-center justify-center mb-4 text-5xl animate-bounce"
-            style={{
-              background: `${reward.color}18`,
-              boxShadow: `0 0 40px ${reward.color}44`,
-            }}
+            className="px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-widest mb-5"
+            style={{ background: badgeBg, color: accent, border: `1px solid ${accent}33` }}
           >
-            {reward.emoji}
+            {isLegendary ? "⭐ Legendary Drop" : "🎟️ Rare Win"}
           </div>
 
-          {/* Win headline */}
+          {/* Voucher card */}
           <div
-            className="text-xs font-bold uppercase tracking-widest mb-1"
-            style={{ color: reward.color }}
-          >
-            {isLegendary ? "Legendary Drop!" : "Rare Win!"}
-          </div>
-          <h2 className="text-2xl font-black text-gray-900 mb-1">
-            {isLegendary ? "Full-Value Voucher" : "20% Voucher"}
-          </h2>
-          <p className="text-sm text-gray-500 mb-1">
-            {tierMeta.name} tier · Session #{session.sessionId.toString()}
-          </p>
-          <p className="text-sm text-gray-400 leading-relaxed mb-6 max-w-xs">
-            {isLegendary
-              ? "You've won a capped full-value merchant voucher. Keep it to use in a merchant store, or burn it for a USDT fallback."
-              : `You've won a 20% off merchant voucher. Keep it to use in a merchant store, or burn it for an ${AKIBA_TOKEN_SYMBOL} fallback.`}
-          </p>
-
-          {/* Voucher preview card */}
-          <div
-            className="w-full rounded-2xl p-4 border mb-6"
+            className="w-full rounded-3xl shadow-lg overflow-hidden mb-6"
             style={{
-              borderColor: `${reward.color}44`,
-              background: `${reward.color}0A`,
+              background: `linear-gradient(135deg, ${accent}22 0%, white 60%, ${accent}11 100%)`,
+              border: `1.5px solid ${accent}44`,
             }}
           >
-            <div className="flex items-center justify-between">
-              <div className="text-left">
-                <p className="text-xs text-gray-400">Discount</p>
-                <p className="text-xl font-black" style={{ color: reward.color }}>
+            {/* Card top strip */}
+            <div
+              className="px-5 py-4 flex items-center justify-between"
+              style={{ background: `${accent}18`, borderBottom: `1px dashed ${accent}33` }}
+            >
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: accent }}>
+                  {isLegendary ? "Full-Value Merchant Voucher" : "20% Merchant Voucher"}
+                </p>
+                <p className="text-3xl font-black mt-0.5" style={{ color: accent }}>
                   {isLegendary ? "100% off" : "20% off"}
                 </p>
                 {isLegendary && (
-                  <p className="text-xs text-gray-400">Up to capped value</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Up to capped value</p>
                 )}
               </div>
-              <div className="text-right">
-                <p className="text-xs text-gray-400">Valid for</p>
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl"
+                style={{ background: `${accent}18` }}
+              >
+                {reward.emoji}
+              </div>
+            </div>
+
+            {/* Card bottom meta */}
+            <div className="px-5 py-3 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] text-gray-400">Tier</p>
+                <p className="text-sm font-bold" style={{ color: tierMeta.accent }}>{tierMeta.name}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] text-gray-400">Valid for</p>
                 <p className="text-sm font-bold text-gray-700">14 days</p>
-                <p className="text-xs text-gray-400">Any merchant</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] text-gray-400">Use at</p>
+                <p className="text-sm font-bold text-gray-700">Any merchant</p>
               </div>
             </div>
           </div>
 
+          {/* Tagline */}
+          <p className="text-sm text-gray-500 text-center leading-relaxed mb-6 max-w-xs">
+            {isLegendary
+              ? "You've won a full-value voucher — use it at any partnered merchant, or burn it for a USDT fallback."
+              : `Use this 20% voucher at any merchant, or burn it now for an ${AKIBA_TOKEN_SYMBOL} fallback.`}
+          </p>
+
           {/* Actions */}
-          <div className="w-full space-y-2.5">
+          <div className="w-full space-y-3">
             {/* Keep */}
             <button
               onClick={onKeep}
-              className="w-full h-12 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2"
-              style={{ background: reward.color }}
+              className="w-full h-13 rounded-2xl text-sm font-bold text-white flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-transform"
+              style={{
+                background: `linear-gradient(135deg, ${accent}, ${isLegendary ? "#D97706" : "#0891B2"})`,
+                boxShadow: `0 4px 14px ${accent}55`,
+                height: 52,
+              }}
             >
-              Keep my voucher →
+              <Confetti size={18} weight="fill" />
+              Keep my voucher
             </button>
 
             {/* Burn fallback */}
             <button
               onClick={onBurn}
               disabled={burning}
-              className="w-full h-12 rounded-xl text-sm font-semibold border flex items-center justify-center gap-2 transition-opacity disabled:opacity-50"
+              className="w-full rounded-2xl text-sm font-semibold border flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] disabled:opacity-50 whitespace-nowrap"
               style={{
-                borderColor: `${reward.color}44`,
-                color: reward.color,
-                background: `${reward.color}08`,
+                height: 48,
+                borderColor: `${accent}44`,
+                color: accent,
+                background: "white",
               }}
             >
               {isLegendary ? (
                 <>
-                  <CurrencyDollar size={16} weight="bold" />
-                  Burn for USDT instead
+                  <CurrencyDollar size={15} weight="bold" className="shrink-0" />
+                  <span>Burn for USDT fallback</span>
                 </>
               ) : (
                 <>
-                  <Gift size={16} weight="bold" />
-                  Burn for {AKIBA_TOKEN_SYMBOL} instead
+                  <Gift size={15} weight="bold" className="shrink-0" />
+                  <span>Burn for {AKIBA_TOKEN_SYMBOL} fallback</span>
                 </>
               )}
-            </button>
-
-            {/* Share */}
-            <button
-              onClick={handleShare}
-              className="w-full h-10 rounded-xl text-xs font-medium text-gray-400 flex items-center justify-center gap-1.5"
-            >
-              <ShareNetwork size={14} />
-              Share your win
             </button>
           </div>
         </div>

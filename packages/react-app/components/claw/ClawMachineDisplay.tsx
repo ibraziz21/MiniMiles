@@ -1,7 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { MachineState, RewardClass, REWARD_META } from "@/lib/clawTypes";
+import akibaMilesSymbolAlt from "@/public/svg/minimiles-symbol-alt.svg";
 
 type Props = {
   machineState: MachineState;
@@ -66,9 +68,6 @@ function buildPrizePile(): PrizeItem[] {
     // ~6 % vouchers
     { emoji: "🎟️", rc: RewardClass.Rare   },
     { emoji: "🎟️", rc: RewardClass.Rare   },
-    // ~2 % epic USDT
-    { emoji: "💎", rc: RewardClass.Epic    },
-    { emoji: "💎", rc: RewardClass.Epic    },
     // ~0.2 % legendary — one visible as a tease
     { emoji: "⭐", rc: RewardClass.Legendary },
     // extra bulk to fill the pot
@@ -482,7 +481,11 @@ export function ClawMachineDisplay({ machineState, rewardClass, showConfetti }: 
                     animation: "held-sway 0.4s ease-in-out infinite alternate",
                   }}
                 >
-                  {heldPrize.emoji}
+                  {heldPrize.rc === RewardClass.Common ? (
+                    <Image src={akibaMilesSymbolAlt} alt="AkibaMiles" width={22} height={22} style={{ display: "inline-block" }} />
+                  ) : (
+                    heldPrize.emoji
+                  )}
                 </div>
               )}
             </div>
@@ -506,7 +509,6 @@ export function ClawMachineDisplay({ machineState, rewardClass, showConfetti }: 
                 top:       `${p.y}%`,
                 zIndex:    p.zIndex,
                 fontSize:  `${p.scale * 1.05}rem`,
-                // items deeper in the pile are slightly dimmer
                 opacity:   p.y < 78 ? 0.55 : p.y < 86 ? 0.80 : 1,
                 filter:    `drop-shadow(0 1px 3px rgba(0,0,0,0.55)) drop-shadow(0 0 3px ${RC_COLOR[p.rc]}66)`,
                 transform: `translate(-50%, -50%) rotate(${p.rotate}deg)`,
@@ -514,7 +516,17 @@ export function ClawMachineDisplay({ machineState, rewardClass, showConfetti }: 
                 animationDelay: `${(i * 0.17) % 1.2}s`,
               }}
             >
-              {p.emoji}
+              {p.rc === RewardClass.Common ? (
+                <Image
+                  src={akibaMilesSymbolAlt}
+                  alt="AkibaMiles"
+                  width={Math.round(p.scale * 18)}
+                  height={Math.round(p.scale * 18)}
+                  style={{ display: "inline-block" }}
+                />
+              ) : (
+                p.emoji
+              )}
             </div>
           ))}
 
@@ -563,7 +575,11 @@ export function ClawMachineDisplay({ machineState, rewardClass, showConfetti }: 
                 animation: "chute-drop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards",
               }}
             >
-              {chutePrize.emoji}
+              {chutePrize.rc === RewardClass.Common ? (
+                <Image src={akibaMilesSymbolAlt} alt="AkibaMiles" width={28} height={28} style={{ display: "inline-block" }} />
+              ) : (
+                chutePrize.emoji
+              )}
             </div>
           )}
         </div>

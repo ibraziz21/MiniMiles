@@ -104,8 +104,9 @@ export default function ClawPage() {
   const [showConfetti, setShowConfetti]   = useState(false);
 
   // Prevent double-settle
-  const settlingRef = useRef<Set<string>>(new Set());
-  const pollRef     = useRef<ReturnType<typeof setInterval> | null>(null);
+  const settlingRef    = useRef<Set<string>>(new Set());
+  const shownVoucherRef = useRef<Set<string>>(new Set());
+  const pollRef        = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadBatchStatus = useCallback(async () => {
     try {
@@ -280,9 +281,14 @@ export default function ClawPage() {
         setMachineState("settled");
       }
 
-      // Auto-settle pending sessions
+      // Auto-settle pending sessions and claim settled voucher sessions
       for (const s of loaded) {
-        if (s.status === SessionStatus.Pending) {
+        const needsSettle =
+          s.status === SessionStatus.Pending ||
+          (s.status === SessionStatus.Settled &&
+            (s.rewardClass === RewardClass.Rare || s.rewardClass === RewardClass.Legendary));
+
+        if (needsSettle) {
           const key = s.sessionId.toString();
           if (!settlingRef.current.has(key)) {
             settlingRef.current.add(key);
@@ -297,13 +303,17 @@ export default function ClawPage() {
         }
       }
 
-      // Voucher win sheet
+      // Voucher win sheet — show once per session
       if (active &&
         (active.status === SessionStatus.Settled || active.status === SessionStatus.Claimed) &&
         (active.rewardClass === RewardClass.Rare || active.rewardClass === RewardClass.Legendary)
       ) {
-        setVoucherWinOpen(true);
-        setShowConfetti(true);
+        const key = active.sessionId.toString();
+        if (!shownVoucherRef.current.has(key)) {
+          shownVoucherRef.current.add(key);
+          setVoucherWinOpen(true);
+          setShowConfetti(true);
+        }
       }
 
       // Confetti for non-voucher wins too
@@ -529,6 +539,7 @@ export default function ClawPage() {
         {/* Header */}
         <ClawHero
           urgentCount={urgentCount}
+          hasActiveSession={!!activeSession && activeSession.status !== SessionStatus.Refunded}
           onSessionsOpen={() => setSessionsOpen(true)}
           onInfoOpen={() => setInfoOpen(true)}
         />
@@ -573,15 +584,11 @@ export default function ClawPage() {
           )}
         </div>
 
-        {/* Active session banner */}
+        {/* Active session banner — in-progress states only */}
         {activeSession &&
           activeSession.status !== SessionStatus.Refunded && (
             <div className="mb-3">
-              <ClawActionBanner
-                session={activeSession}
-                onBurn={handleBurn}
-                burning={burning}
-              />
+              <ClawActionBanner session={activeSession} />
             </div>
           )}
 
@@ -645,7 +652,10 @@ export default function ClawPage() {
         open={voucherWinOpen}
         onOpenChange={setVoucherWinOpen}
         session={activeSession}
-        onKeep={() => setVoucherWinOpen(false)}
+        onKeep={() => {
+          if (activeSession) shownVoucherRef.current.add(activeSession.sessionId.toString());
+          setVoucherWinOpen(false);
+        }}
         onBurn={() => activeSession && handleBurn(activeSession.sessionId)}
         burning={burning}
       />

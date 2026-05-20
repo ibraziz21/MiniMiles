@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { TopBar } from "@/components/layout/TopBar";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
+import { CreateAdminUserForm } from "@/components/team/CreateAdminUserForm";
 
 async function getTeam() {
   const { data } = await supabase
@@ -23,6 +24,7 @@ export default async function AdminTeamPage() {
     <div>
       <TopBar title="Admin Team" subtitle="Internal AkibaMiles admin accounts" />
       <div className="p-6">
+        {session.role === "super_admin" && <CreateAdminUserForm />}
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           <table className="w-full text-sm">
             <thead>

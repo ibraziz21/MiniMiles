@@ -21,6 +21,10 @@ const BATCH_RETRY_ATTEMPTS = 3;
 const BATCH_RETRY_DELAY_MS = 5_000;
 const RECEIPT_POLL_MS = 5_000;
 const STALLED_JOB_AGE_MS = LOCK_LEASE_SECONDS * 1000 * 2;
+const SUPABASE_TIMEOUT_MS = Number(process.env.MINT_WORKER_SUPABASE_TIMEOUT_MS ?? "20000");
+const RUN_WATCHDOG_MS = Number(
+  process.env.MINT_WORKER_RUN_WATCHDOG_MS ?? String(LOCK_LEASE_SECONDS * 1000 * 2)
+);
 
 // Round-robin across these RPCs so wallets don't all hammer the same node.
 const RPC_URLS = [
@@ -126,6 +130,7 @@ function isTransientError(err: any): boolean {
     msg.includes("service unavailable") ||
     msg.includes("could not coalesce") ||
     msg.includes("timeout") ||
+    msg.includes("timed out") ||
     msg.includes("network error") ||
     msg.includes("econnreset") ||
     msg.includes("econnrefused") ||
@@ -138,6 +143,24 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function formatMs(ms: number) {
+  if (ms < 1000) return `${ms}ms`;
+  return `${Math.round(ms / 1000)}s`;
+}
+
+async function withTimeout<T>(operation: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+  });
+
+  try {
+    return await Promise.race([Promise.resolve(operation), timeoutPromise]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 async function waitForReceiptWithFallback(txHash: string, label: string) {
   const deadline = Date.now() + TX_TIMEOUT_MS;
   let lastErr: any = null;
@@ -146,7 +169,11 @@ async function waitForReceiptWithFallback(txHash: string, label: string) {
     for (const url of RPC_URLS) {
       try {
         const provider = new ethers.JsonRpcProvider(url);
-        const receipt = await provider.getTransactionReceipt(txHash);
+        const receipt = await withTimeout(
+          provider.getTransactionReceipt(txHash),
+          RECEIPT_POLL_MS,
+          `${label} receipt poll ${url}`
+        );
         if (receipt) return receipt;
       } catch (err: any) {
         lastErr = err;
@@ -164,45 +191,95 @@ async function waitForReceiptWithFallback(txHash: string, label: string) {
 }
 
 async function permanentlyFail(jobId: string, reason: string) {
-  await supabase.rpc("fail_minipoint_mint_job", { p_job_id: jobId, p_error: reason });
+  await withTimeout(
+    supabase.rpc("fail_minipoint_mint_job", { p_job_id: jobId, p_error: reason }),
+    SUPABASE_TIMEOUT_MS,
+    `fail job ${jobId}`
+  );
 }
 
 async function renewLock(owner: string) {
-  await supabase.rpc("acquire_minipoint_mint_queue_lock", {
-    p_lock_name: LOCK_NAME,
-    p_owner: owner,
-    p_lease_seconds: LOCK_LEASE_SECONDS,
-  });
+  const { data, error } = await withTimeout(
+    supabase.rpc("acquire_minipoint_mint_queue_lock", {
+      p_lock_name: LOCK_NAME,
+      p_owner: owner,
+      p_lease_seconds: LOCK_LEASE_SECONDS,
+    }),
+    SUPABASE_TIMEOUT_MS,
+    "renew mint queue lock"
+  );
+  if (error) throw error;
+  if (!data) throw new Error(`Lost mint queue lock for owner ${owner}`);
+}
+
+async function assertActiveLock(owner: string) {
+  const { data, error } = await withTimeout(
+    supabase
+      .from("minipoint_mint_queue_locks")
+      .select("owner, locked_until")
+      .eq("lock_name", LOCK_NAME)
+      .maybeSingle(),
+    SUPABASE_TIMEOUT_MS,
+    "check mint queue lock"
+  );
+  if (error) throw error;
+
+  const lockedUntil = data?.locked_until ? new Date(data.locked_until).getTime() : 0;
+  if (!data || data.owner !== owner || lockedUntil <= Date.now()) {
+    throw new Error(`Mint queue lock is no longer owned by ${owner}`);
+  }
 }
 
 async function resetStalledJobs() {
   const cutoff = new Date(Date.now() - STALLED_JOB_AGE_MS).toISOString();
-  const { data } = await supabase
-    .from("minipoint_mint_jobs")
-    .update({ status: "pending" })
-    .eq("status", "processing")
-    .lt("updated_at", cutoff)
-    .select("id");
+  const { data, error } = await withTimeout(
+    supabase
+      .from("minipoint_mint_jobs")
+      .update({ status: "pending", processing_by: null, processing_started_at: null })
+      .eq("status", "processing")
+      .lt("updated_at", cutoff)
+      .select("id"),
+    SUPABASE_TIMEOUT_MS,
+    "reset stalled mint jobs"
+  );
+  if (error) throw error;
   const count = data?.length ?? 0;
   if (count > 0) console.log(`[mintWorker] Unstuck ${count} stalled jobs`);
 }
 
 // Single bulk fetch + mark-processing instead of N sequential RPC calls.
-async function claimBatch(count: number): Promise<any[]> {
-  const { data: jobs, error } = await supabase
-    .from("minipoint_mint_jobs")
-    .select("*")
-    .eq("status", "pending")
-    .order("created_at", { ascending: true })
-    .limit(count);
+async function claimBatch(count: number, owner: string): Promise<any[]> {
+  const nowIso = new Date().toISOString();
+  const { data: jobs, error } = await withTimeout(
+    supabase
+      .from("minipoint_mint_jobs")
+      .select("*")
+      .eq("status", "pending")
+      .lte("available_at", nowIso)
+      .order("created_at", { ascending: true })
+      .limit(count),
+    SUPABASE_TIMEOUT_MS,
+    "claim mint jobs select"
+  );
 
   if (error) throw error;
   if (!jobs || jobs.length === 0) return [];
 
-  await supabase
-    .from("minipoint_mint_jobs")
-    .update({ status: "processing", updated_at: new Date().toISOString() })
-    .in("id", jobs.map((j) => j.id));
+  const { error: updateError } = await withTimeout(
+    supabase
+      .from("minipoint_mint_jobs")
+      .update({
+        status: "processing",
+        processing_by: owner,
+        processing_started_at: nowIso,
+        updated_at: nowIso,
+      })
+      .eq("status", "pending")
+      .in("id", jobs.map((j) => j.id)),
+    SUPABASE_TIMEOUT_MS,
+    "claim mint jobs mark-processing"
+  );
+  if (updateError) throw updateError;
 
   return jobs;
 }
@@ -235,28 +312,48 @@ async function applyBatchPayloads(jobs: any[], txHash: string) {
     .map((j) => j.payload.userAddress.toLowerCase());
 
   if (dailyRows.length > 0) {
-    const { error } = await supabase
-      .from("daily_engagements")
-      .upsert(dailyRows, { onConflict: "user_address,quest_id,claimed_at", ignoreDuplicates: true });
+    const { error } = await withTimeout(
+      supabase
+        .from("daily_engagements")
+        .upsert(dailyRows, { onConflict: "user_address,quest_id,claimed_at", ignoreDuplicates: true }),
+      SUPABASE_TIMEOUT_MS,
+      "bulk daily_engagements"
+    );
     if (error && error.code !== "23505") console.error("[mintWorker] bulk daily_engagements:", error.message);
   }
 
   if (partnerRows.length > 0) {
-    const { error } = await supabase
-      .from("partner_engagements")
-      .upsert(partnerRows, { onConflict: "user_address,partner_quest_id", ignoreDuplicates: true });
+    const { error } = await withTimeout(
+      supabase
+        .from("partner_engagements")
+        .upsert(partnerRows, { onConflict: "user_address,partner_quest_id", ignoreDuplicates: true }),
+      SUPABASE_TIMEOUT_MS,
+      "bulk partner_engagements"
+    );
     if (error && error.code !== "23505") console.error("[mintWorker] bulk partner_engagements:", error.message);
   }
 
   if (m50.length > 0) {
-    const { error } = await supabase
-      .from("users").update({ profile_milestone_50_claimed: true }).in("user_address", m50);
+    const { error } = await withTimeout(
+      supabase
+        .from("users")
+        .update({ profile_milestone_50_claimed: true })
+        .in("user_address", m50),
+      SUPABASE_TIMEOUT_MS,
+      "bulk milestone_50"
+    );
     if (error) console.error("[mintWorker] bulk milestone_50:", error.message);
   }
 
   if (m100.length > 0) {
-    const { error } = await supabase
-      .from("users").update({ profile_milestone_100_claimed: true }).in("user_address", m100);
+    const { error } = await withTimeout(
+      supabase
+        .from("users")
+        .update({ profile_milestone_100_claimed: true })
+        .in("user_address", m100),
+      SUPABASE_TIMEOUT_MS,
+      "bulk milestone_100"
+    );
     if (error) console.error("[mintWorker] bulk milestone_100:", error.message);
   }
 
@@ -267,11 +364,24 @@ async function applyBatchPayloads(jobs: any[], txHash: string) {
   // poll_completion — no extra side-effects: poll_responses.reward_queued is
   // set at submit time (or by the watcher on retry). Nothing to do here.
 
-  const { error: completeErr } = await supabase
-    .from("minipoint_mint_jobs")
-    .update({ status: "completed", tx_hash: txHash, updated_at: new Date().toISOString() })
-    .in("id", jobs.map((j) => j.id));
-  if (completeErr) console.error("[mintWorker] bulk complete:", completeErr.message);
+  const { error: completeErr } = await withTimeout(
+    supabase
+      .from("minipoint_mint_jobs")
+      .update({
+        status: "completed",
+        tx_hash: txHash,
+        processing_by: null,
+        processing_started_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .in("id", jobs.map((j) => j.id)),
+    SUPABASE_TIMEOUT_MS,
+    "bulk complete mint jobs"
+  );
+  if (completeErr) {
+    console.error("[mintWorker] bulk complete:", completeErr.message);
+    throw completeErr;
+  }
 }
 
 // ── Mint helpers ──────────────────────────────────────────────────────────────
@@ -352,9 +462,13 @@ async function handleFailedJobs(failed: { job: any; msg: string; err: any }[]) {
       await permanentlyFail(job.id, msg);
     } else {
       const delay = Math.min(30, 2 ** Math.max(1, job.attempts ?? 1));
-      await supabase.rpc("retry_minipoint_mint_job", {
-        p_job_id: job.id, p_error: msg, p_delay_seconds: delay,
-      });
+      await withTimeout(
+        supabase.rpc("retry_minipoint_mint_job", {
+          p_job_id: job.id, p_error: msg, p_delay_seconds: delay,
+        }),
+        SUPABASE_TIMEOUT_MS,
+        `retry job ${job.id}`
+      );
     }
   }
 
@@ -372,27 +486,57 @@ const WALLETS = makeWallets();
 // ── Lock state (exported for graceful shutdown) ───────────────────────────────
 let currentLockOwner: string | null = null;
 
+type DrainRunState = {
+  owner: string;
+  startedAt: number;
+  lastProgressAt: number;
+  phase: string;
+};
+
+let activeRun: DrainRunState | null = null;
+
+function setRunPhase(owner: string, phase: string) {
+  if (activeRun?.owner !== owner) return;
+  activeRun.phase = phase;
+  activeRun.lastProgressAt = Date.now();
+}
+
+function describeRun(run: DrainRunState) {
+  const now = Date.now();
+  return `owner=${run.owner} phase=${run.phase} age=${formatMs(now - run.startedAt)} idle=${formatMs(now - run.lastProgressAt)}`;
+}
+
 export async function releaseCurrentLock() {
   if (!currentLockOwner) return;
+  const owner = currentLockOwner;
   try {
-    await supabase.rpc("release_minipoint_mint_queue_lock", {
-      p_lock_name: LOCK_NAME,
-      p_owner: currentLockOwner,
-    });
+    await withTimeout(
+      supabase.rpc("release_minipoint_mint_queue_lock", {
+        p_lock_name: LOCK_NAME,
+        p_owner: owner,
+      }),
+      SUPABASE_TIMEOUT_MS,
+      "release mint queue lock on shutdown"
+    );
     console.log("[mintWorker] Lock released on shutdown");
   } catch (e) {
     // best-effort
   }
-  currentLockOwner = null;
+  if (currentLockOwner === owner) currentLockOwner = null;
+  if (activeRun?.owner === owner) activeRun = null;
 }
 
 // On startup, any held lock belongs to a dead process — clear it directly.
 async function clearStaleLockOnStartup() {
   try {
-    await supabase
-      .from("minipoint_mint_queue_locks")
-      .update({ locked_until: new Date().toISOString() })
-      .eq("lock_name", LOCK_NAME);
+    await withTimeout(
+      supabase
+        .from("minipoint_mint_queue_locks")
+        .update({ locked_until: new Date().toISOString() })
+        .eq("lock_name", LOCK_NAME),
+      SUPABASE_TIMEOUT_MS,
+      "clear stale mint queue lock on startup"
+    );
     console.log("[mintWorker] Cleared stale lock on startup");
   } catch {
     // Table name may differ — silently ignore, lock will expire on its own
@@ -400,24 +544,44 @@ async function clearStaleLockOnStartup() {
 }
 
 // ── Main drain run ────────────────────────────────────────────────────────────
-let isRunning = false;
-
 export async function runDrain() {
-  if (isRunning) {
-    console.log("[mintWorker] Already running, skipping");
-    return;
+  if (activeRun) {
+    const idleMs = Date.now() - activeRun.lastProgressAt;
+    if (idleMs <= RUN_WATCHDOG_MS) {
+      console.log(`[mintWorker] Already running, skipping (${describeRun(activeRun)})`);
+      return;
+    }
+
+    console.warn(
+      `[mintWorker] Watchdog clearing stale in-process run (${describeRun(activeRun)}, watchdog=${formatMs(RUN_WATCHDOG_MS)})`
+    );
+    if (currentLockOwner === activeRun.owner) currentLockOwner = null;
+    activeRun = null;
   }
-  isRunning = true;
+
+  const wallets = WALLETS;
+  const owner = randomUUID();
+  activeRun = {
+    owner,
+    startedAt: Date.now(),
+    lastProgressAt: Date.now(),
+    phase: "starting",
+  };
 
   try {
-    const wallets = WALLETS;
-    const owner = randomUUID();
+    console.log(`[mintWorker] Drain start owner=${owner}`);
 
-    const { data: acquired } = await supabase.rpc("acquire_minipoint_mint_queue_lock", {
-      p_lock_name: LOCK_NAME,
-      p_owner: owner,
-      p_lease_seconds: LOCK_LEASE_SECONDS,
-    });
+    setRunPhase(owner, "acquire-lock");
+    const { data: acquired, error: acquireError } = await withTimeout(
+      supabase.rpc("acquire_minipoint_mint_queue_lock", {
+        p_lock_name: LOCK_NAME,
+        p_owner: owner,
+        p_lease_seconds: LOCK_LEASE_SECONDS,
+      }),
+      SUPABASE_TIMEOUT_MS,
+      "acquire mint queue lock"
+    );
+    if (acquireError) throw acquireError;
 
     if (!acquired) {
       console.log("[mintWorker] Lock busy, skipping this run");
@@ -431,13 +595,16 @@ export async function runDrain() {
     let round = 0;
 
     try {
+      setRunPhase(owner, "reset-stalled");
       await resetStalledJobs();
 
       while (true) {
+        setRunPhase(owner, "renew-lock");
         await renewLock(owner);
 
         // Claim enough jobs for all wallets in one shot
-        const allJobs = await claimBatch(BATCH_SIZE * wallets.length);
+        setRunPhase(owner, "claim-batch");
+        const allJobs = await claimBatch(BATCH_SIZE * wallets.length, owner);
         if (allJobs.length === 0) {
           console.log("[mintWorker] Queue empty, done.");
           break;
@@ -451,6 +618,9 @@ export async function runDrain() {
 
         // ── Split mint jobs across wallets and fire in parallel ─────────────
         if (mintJobs.length > 0) {
+          setRunPhase(owner, `round-${round}-mint`);
+          await assertActiveLock(owner);
+
           const chunkSize = Math.ceil(mintJobs.length / wallets.length);
           const chunks = wallets
             .map((w, i) => ({
@@ -462,12 +632,12 @@ export async function runDrain() {
 
           const results = await Promise.allSettled(
             chunks.map(async ({ contract, jobs, label }) => {
+              let txHash: string | null = null;
               try {
-                const txHash = await processMintBatch(jobs, contract, label);
-                await applyBatchPayloads(jobs, txHash);
-                return { minted: jobs.length };
+                txHash = await processMintBatch(jobs, contract, label);
               } catch (batchErr: any) {
                 console.warn(`[mintWorker] ${label} batch failed, falling back: ${batchErr?.shortMessage ?? batchErr?.message}`);
+                setRunPhase(owner, `round-${round}-fallback-${label}`);
                 const { succeeded, failed } = await processMintJobsIndividually(jobs, contract, label);
 
                 const byHash = new Map<string, any[]>();
@@ -477,27 +647,39 @@ export async function runDrain() {
                   byHash.set(j.txHash, arr);
                 }
                 for (const [hash, group] of byHash) {
+                  setRunPhase(owner, `round-${round}-fallback-complete-${label}`);
                   await applyBatchPayloads(group, hash);
                 }
                 await handleFailedJobs(failed);
                 return { minted: succeeded.length };
               }
+
+              setRunPhase(owner, `round-${round}-complete-${label}`);
+              await applyBatchPayloads(jobs, txHash);
+              return { minted: jobs.length };
             })
           );
 
           for (const result of results) {
             if (result.status === "fulfilled") totalMinted += result.value.minted;
+            else throw result.reason;
           }
         }
 
         // ── Migration jobs — serial, each reads V1 balance on-chain ─────────
         for (const job of migrationJobs) {
           try {
+            setRunPhase(owner, `migration-${job.id}`);
+            await assertActiveLock(owner);
             const tx = await wallets[0].contract.claimV2TokensFor(job.user_address);
             const receipt = await waitForReceiptWithFallback(tx.hash, `migration ${job.id}`);
             const txHash: string = receipt.hash ?? tx.hash;
             console.log(`[mintWorker] ✓ Migrated ${job.user_address} tx: ${txHash}`);
-            await supabase.rpc("complete_minipoint_mint_job", { p_job_id: job.id, p_tx_hash: txHash });
+            await withTimeout(
+              supabase.rpc("complete_minipoint_mint_job", { p_job_id: job.id, p_tx_hash: txHash }),
+              SUPABASE_TIMEOUT_MS,
+              `complete migration job ${job.id}`
+            );
             totalMigrated++;
           } catch (err: any) {
             const msg = err?.shortMessage ?? err?.message ?? "error";
@@ -508,7 +690,11 @@ export async function runDrain() {
               await permanentlyFail(job.id, msg);
             } else {
               const delay = Math.min(30, 2 ** Math.max(1, job.attempts ?? 1));
-              await supabase.rpc("retry_minipoint_mint_job", { p_job_id: job.id, p_error: msg, p_delay_seconds: delay });
+              await withTimeout(
+                supabase.rpc("retry_minipoint_mint_job", { p_job_id: job.id, p_error: msg, p_delay_seconds: delay }),
+                SUPABASE_TIMEOUT_MS,
+                `retry migration job ${job.id}`
+              );
             }
           }
         }
@@ -516,15 +702,20 @@ export async function runDrain() {
         console.log(`[mintWorker] Round ${round} done — ${totalMinted} minted, ${totalMigrated} migrated so far`);
       }
     } finally {
-      await supabase.rpc("release_minipoint_mint_queue_lock", { p_lock_name: LOCK_NAME, p_owner: owner });
-      currentLockOwner = null;
+      setRunPhase(owner, "release-lock");
+      await withTimeout(
+        supabase.rpc("release_minipoint_mint_queue_lock", { p_lock_name: LOCK_NAME, p_owner: owner }),
+        SUPABASE_TIMEOUT_MS,
+        "release mint queue lock"
+      );
+      if (currentLockOwner === owner) currentLockOwner = null;
     }
 
     console.log(`[mintWorker] Complete — ${totalMinted} minted, ${totalMigrated} migrated`);
   } catch (err: any) {
     console.error("[mintWorker] Fatal error:", err?.message);
   } finally {
-    isRunning = false;
+    if (activeRun?.owner === owner) activeRun = null;
   }
 }
 

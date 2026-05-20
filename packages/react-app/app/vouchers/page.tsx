@@ -199,11 +199,23 @@ function clawDiscountLabel(v: ClawVoucherRaw): string {
   return `${(v.discountBps / 100).toFixed(0)}% off`;
 }
 
-function ClawVoucherCard({ voucher }: { voucher: ClawVoucherRaw }) {
+function ClawVoucherCard({
+  voucher,
+  onBurn,
+  burning,
+}: {
+  voucher: ClawVoucherRaw;
+  onBurn: (sessionId: string) => void;
+  burning: boolean;
+}) {
+  const [confirmBurn, setConfirmBurn] = useState(false);
   const isActive = voucher.voucherStatus === "active";
   const expiresDate = new Date(voucher.expiresAt * 1000).toLocaleDateString("en-KE", {
     day: "numeric", month: "short", year: "numeric",
   });
+  const burnLabel = voucher.rewardClass === RewardClass.Legendary
+    ? "Burn for USDT fallback"
+    : "Burn for AkibaMiles";
 
   return (
     <div
@@ -243,7 +255,7 @@ function ClawVoucherCard({ voucher }: { voucher: ClawVoucherRaw }) {
       <p className="text-[#0891B2] font-bold text-base mb-1">{clawDiscountLabel(voucher)}</p>
       <p className="text-xs text-gray-400 mb-3">Valid at any participating merchant</p>
 
-      <div className="bg-gray-50 rounded-xl px-3 py-2 flex items-center justify-between">
+      <div className="bg-gray-50 rounded-xl px-3 py-2 mb-3 flex items-center justify-between">
         <span className="font-mono text-xs tracking-widest text-gray-700 font-bold truncate">
           #{voucher.voucherId}
         </span>
@@ -256,13 +268,42 @@ function ClawVoucherCard({ voucher }: { voucher: ClawVoucherRaw }) {
       </div>
 
       {isActive && (
-        <Link
-          href="/claw"
-          className="mt-3 w-full bg-[#06B6D4] text-white rounded-xl h-10 text-sm font-medium flex items-center justify-center gap-1.5"
-        >
-          <span><Fire size={15} weight="bold" /></span>
-          Manage in Claw
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href="/spend"
+            className="flex-1 border border-[#06B6D4] text-[#0891B2] rounded-xl h-10 text-sm font-medium flex items-center justify-center gap-1.5"
+          >
+            <ShoppingBag size={15} weight="bold" />
+            Use at merchant
+          </Link>
+
+          {confirmBurn ? (
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => setConfirmBurn(false)}
+                className="h-10 px-3 rounded-xl border border-gray-200 text-xs text-gray-500 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { onBurn(voucher.sessionId); setConfirmBurn(false); }}
+                disabled={burning}
+                className="h-10 px-3 rounded-xl bg-red-500 text-white text-xs font-medium flex items-center gap-1 disabled:opacity-60"
+              >
+                {burning ? <span className="animate-spin inline-flex"><Spinner size={12} /></span> : <Fire size={13} weight="bold" />}
+                Confirm
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmBurn(true)}
+              className="h-10 px-3 rounded-xl border border-gray-200 text-gray-500 text-sm font-medium flex items-center gap-1.5"
+            >
+              <Fire size={15} weight="bold" />
+              {burnLabel}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -271,7 +312,7 @@ function ClawVoucherCard({ voucher }: { voucher: ClawVoucherRaw }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function VouchersPage() {
-  const { address, getUserAddress } = useWeb3();
+  const { address, getUserAddress, burnClawVoucherReward } = useWeb3();
 
   const [vouchers, setVouchers] = useState<VoucherWithMeta[]>([]);
   const [loading, setLoading] = useState(false);
@@ -279,6 +320,7 @@ export default function VouchersPage() {
 
   const [clawVouchers, setClawVouchers] = useState<ClawVoucherRaw[]>([]);
   const [clawLoading, setClawLoading] = useState(false);
+  const [burningId, setBurningId] = useState<string | null>(null);
 
   // Order sheet state
   const [orderOpen, setOrderOpen] = useState(false);
@@ -324,6 +366,24 @@ export default function VouchersPage() {
     setOrderVoucher(voucher);
     setOrderMerchant(merchant);
     setOrderOpen(true);
+  };
+
+  const handleClawBurn = async (sessionId: string) => {
+    if (!address) return;
+    setBurningId(sessionId);
+    try {
+      await burnClawVoucherReward(BigInt(sessionId));
+      // Refresh claw vouchers after burn
+      const r = await fetch(`/api/claw/vouchers/user/${address}`);
+      if (r.ok) {
+        const d = await r.json();
+        setClawVouchers(d.vouchers ?? []);
+      }
+    } catch (e) {
+      console.error("[VouchersPage] burn error", e);
+    } finally {
+      setBurningId(null);
+    }
   };
 
   // Split by status
@@ -472,7 +532,12 @@ export default function VouchersPage() {
                     {clawVouchers
                       .filter((v) => v.voucherStatus === "active")
                       .map((v) => (
-                        <ClawVoucherCard key={v.voucherId} voucher={v} />
+                        <ClawVoucherCard
+                          key={v.voucherId}
+                          voucher={v}
+                          onBurn={handleClawBurn}
+                          burning={burningId === v.sessionId}
+                        />
                       ))}
                   </div>
                 </section>
@@ -484,7 +549,12 @@ export default function VouchersPage() {
                     {clawVouchers
                       .filter((v) => v.voucherStatus !== "active")
                       .map((v) => (
-                        <ClawVoucherCard key={v.voucherId} voucher={v} />
+                        <ClawVoucherCard
+                          key={v.voucherId}
+                          voucher={v}
+                          onBurn={handleClawBurn}
+                          burning={burningId === v.sessionId}
+                        />
                       ))}
                   </div>
                 </section>
