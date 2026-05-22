@@ -9,9 +9,6 @@ import { formatDate, formatNumber } from "@/lib/utils";
 import { MerchantControls } from "@/components/merchants/MerchantControls";
 import { AddMerchantNote } from "@/components/merchants/AddMerchantNote";
 import { ArrowLeft } from "lucide-react";
-import type { ComponentType, SVGProps } from "react";
-
-const ArrowLeftIcon = ArrowLeft as unknown as ComponentType<SVGProps<SVGSVGElement>>;
 
 async function getMerchantDetail(id: string) {
   const [partnerRes, settingsRes, ordersRes, productsRes, vouchersRes, teamRes, notesRes] = await Promise.all([
@@ -66,7 +63,7 @@ export default async function MerchantDetailPage({ params }: { params: { id: str
       <TopBar title={partner.name} subtitle="Merchant detail" />
       <div className="p-6 space-y-6">
         <Link href="/merchants" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900">
-          <ArrowLeftIcon className="h-3.5 w-3.5" />
+          <ArrowLeft className="h-3.5 w-3.5" />
           Back to merchants
         </Link>
 

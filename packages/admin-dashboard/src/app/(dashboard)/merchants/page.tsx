@@ -6,11 +6,6 @@ import { TopBar } from "@/components/layout/TopBar";
 import { Badge } from "@/components/ui/badge";
 import { formatNumber } from "@/lib/utils";
 import { Store, CheckCircle, XCircle } from "lucide-react";
-import type { ComponentType, SVGProps } from "react";
-
-const StoreIcon = Store as unknown as ComponentType<SVGProps<SVGSVGElement>>;
-const CheckCircleIcon = CheckCircle as unknown as ComponentType<SVGProps<SVGSVGElement>>;
-const XCircleIcon = XCircle as unknown as ComponentType<SVGProps<SVGSVGElement>>;
 
 async function getMerchants() {
   const [partnersRes, settingsRes, orderCountRes, teamRes] = await Promise.all([
@@ -77,7 +72,7 @@ export default async function MerchantsPage() {
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={m.image_url} alt={m.name} className="h-7 w-7 rounded-lg object-cover" />
                           ) : (
-                            <StoreIcon className="h-3.5 w-3.5 text-slate-400" />
+                            <Store className="h-3.5 w-3.5 text-slate-400" />
                           )}
                         </div>
                         <span>{m.name}</span>
@@ -88,9 +83,9 @@ export default async function MerchantsPage() {
                       {m.store_active === null ? (
                         <Badge variant="secondary">No settings</Badge>
                       ) : m.store_active ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-emerald-600"><CheckCircleIcon className="h-3.5 w-3.5" /> Active</span>
+                        <span className="inline-flex items-center gap-1 text-xs text-emerald-600"><CheckCircle className="h-3.5 w-3.5" /> Active</span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-xs text-slate-400"><XCircleIcon className="h-3.5 w-3.5" /> Inactive</span>
+                        <span className="inline-flex items-center gap-1 text-xs text-slate-400"><XCircle className="h-3.5 w-3.5" /> Inactive</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-slate-700">{formatNumber(m.total_orders)}</td>

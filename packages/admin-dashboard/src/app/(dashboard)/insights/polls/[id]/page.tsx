@@ -9,11 +9,6 @@ import { formatDate, formatNumber } from "@/lib/utils";
 import { KeywordDrilldown } from "@/components/polls/KeywordDrilldown";
 import type { PollStatus } from "@/types";
 import { ArrowLeft, Download, ShieldCheck } from "lucide-react";
-import type { ComponentType, SVGProps } from "react";
-
-const ArrowLeftIcon = ArrowLeft as unknown as ComponentType<SVGProps<SVGSVGElement>>;
-const DownloadIcon = Download as unknown as ComponentType<SVGProps<SVGSVGElement>>;
-const ShieldCheckIcon = ShieldCheck as unknown as ComponentType<SVGProps<SVGSVGElement>>;
 
 type PollRow = {
   id: string;
@@ -405,7 +400,7 @@ export default async function PollDetailPage({ params }: { params: { id: string 
             href={`/api/admin/polls/${params.id}/export`}
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
           >
-            <DownloadIcon className="h-3.5 w-3.5" />
+            <Download className="h-3.5 w-3.5" />
             Export CSV
           </a>
         }
@@ -413,7 +408,7 @@ export default async function PollDetailPage({ params }: { params: { id: string 
 
       <div className="p-6 space-y-6">
         <Link href="/insights/polls" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900">
-          <ArrowLeftIcon className="h-3.5 w-3.5" />
+          <ArrowLeft className="h-3.5 w-3.5" />
           Back to polls
         </Link>
 
@@ -429,7 +424,7 @@ export default async function PollDetailPage({ params }: { params: { id: string 
           <Card className="border-[#238D9D]/20 bg-[#238D9D]/5">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm text-slate-900">
-                <ShieldCheckIcon className="h-4 w-4 text-[#238D9D]" />
+                <ShieldCheck className="h-4 w-4 text-[#238D9D]" />
                 Saved Verified Summary
               </CardTitle>
             </CardHeader>
