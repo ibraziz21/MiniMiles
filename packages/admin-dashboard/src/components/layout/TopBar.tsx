@@ -1,9 +1,6 @@
 "use client";
 
 import { Search } from "lucide-react";
-import type { ComponentType, SVGProps } from "react";
-
-const SearchIcon = Search as unknown as ComponentType<SVGProps<SVGSVGElement>>;
 
 interface TopBarProps {
   title: string;
@@ -20,7 +17,7 @@ export function TopBar({ title, subtitle, actions }: TopBarProps) {
       </div>
       <div className="flex items-center gap-3">
         <div className="hidden h-9 w-64 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-400 lg:flex">
-          <SearchIcon className="h-4 w-4" />
+          <Search className="h-4 w-4" />
           <span>Search admin data</span>
         </div>
         {actions}

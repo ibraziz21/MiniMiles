@@ -12,29 +12,17 @@ create type admin_role as enum (
 create table if not exists admin_users (
   id            uuid primary key default gen_random_uuid(),
   email         text not null unique,
-  password_hash text,
+  password_hash text not null,
   name          text,
   role          admin_role not null default 'readonly',
   is_active     boolean not null default true,
   created_by    uuid references admin_users(id) on delete set null,
-  password_setup_token_hash text,
-  password_setup_expires_at timestamptz,
-  password_set_at timestamptz,
   last_login_at timestamptz,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
 
 create index if not exists admin_users_email_idx on admin_users (email);
-
-alter table admin_users alter column password_hash drop not null;
-alter table admin_users add column if not exists password_setup_token_hash text;
-alter table admin_users add column if not exists password_setup_expires_at timestamptz;
-alter table admin_users add column if not exists password_set_at timestamptz;
-
-create index if not exists admin_users_password_setup_token_idx
-  on admin_users (password_setup_token_hash)
-  where password_setup_token_hash is not null;
 
 -- Keep updated_at current
 create or replace function set_updated_at()

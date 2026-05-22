@@ -25,13 +25,6 @@ import {
 } from "lucide-react";
 import { BrandMark } from "./BrandMark";
 import { useState } from "react";
-import type { ComponentType, SVGProps } from "react";
-
-type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
-
-const ChevronDownIcon = ChevronDown as unknown as IconComponent;
-const ChevronRightIcon = ChevronRight as unknown as IconComponent;
-const LogOutIcon = LogOut as unknown as IconComponent;
 
 interface SidebarProps {
   adminName: string | null;
@@ -116,7 +109,7 @@ function NavLink({ item, depth = 0 }: { item: NavItem; depth?: number }) {
         >
           <Icon className="h-4 w-4 shrink-0" />
           <span className="flex-1 text-left">{item.label}</span>
-          {open ? <ChevronDownIcon className="h-3.5 w-3.5" /> : <ChevronRightIcon className="h-3.5 w-3.5" />}
+          {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
         </button>
         {open && (
           <div className="ml-5 mt-1 space-y-0.5 border-l border-slate-200 pl-2">
@@ -193,7 +186,7 @@ export function Sidebar({ adminName, adminRole }: SidebarProps) {
           onClick={handleLogout}
           className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-950"
         >
-          <LogOutIcon className="h-4 w-4 shrink-0" />
+          <LogOut className="h-4 w-4 shrink-0" />
           Sign out
         </button>
       </div>

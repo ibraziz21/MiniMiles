@@ -18,11 +18,6 @@ import {
   TrendingDown,
 } from "lucide-react";
 import type { OverviewStats } from "@/types";
-import type { ComponentType, SVGProps } from "react";
-
-type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
-
-const AlertTriangleIcon = AlertTriangle as unknown as IconComponent;
 
 async function getOverviewStats(): Promise<OverviewStats> {
   const [usersRes, activeWalletsRes, milesRes, merchantsRes, ordersRes, vouchersRes, pollRes, incidentsRes] =
@@ -109,7 +104,7 @@ export default async function OverviewPage() {
       <div className="p-6 space-y-6">
         {stats.open_incidents > 0 && (
           <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            <AlertTriangleIcon className="h-4 w-4 shrink-0" />
+            <AlertTriangle className="h-4 w-4 shrink-0" />
             <span>
               <strong>{stats.open_incidents}</strong> open ops incident{stats.open_incidents !== 1 ? "s" : ""} require attention.{" "}
               <a href="/ops-queue" className="underline font-medium">View queue →</a>

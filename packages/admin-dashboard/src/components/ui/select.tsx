@@ -5,8 +5,8 @@ import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const CheckIcon = Check as unknown as React.ComponentType<React.SVGProps<SVGSVGElement>>;
-const ChevronDownIcon = ChevronDown as unknown as React.ComponentType<React.SVGProps<SVGSVGElement>>;
+const CheckIcon = Check as React.ComponentType<{ className?: string }>;
+const ChevronDownIcon = ChevronDown as React.ComponentType<{ className?: string }>;
 
 export const Select = SelectPrimitive.Root;
 export const SelectGroup = SelectPrimitive.Group;

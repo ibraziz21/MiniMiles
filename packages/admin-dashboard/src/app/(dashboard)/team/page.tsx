@@ -4,13 +4,12 @@ import { supabase } from "@/lib/supabase";
 import { TopBar } from "@/components/layout/TopBar";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
-import { InviteAdminForm } from "@/components/team/InviteAdminForm";
-import { ADMIN_ROLE_LABELS, hasPermission, type AdminRole } from "@/types";
+import { CreateAdminUserForm } from "@/components/team/CreateAdminUserForm";
 
 async function getTeam() {
   const { data } = await supabase
     .from("admin_users")
-    .select("id, email, name, role, is_active, password_setup_expires_at, password_set_at, last_login_at, created_at")
+    .select("id, email, name, role, is_active, last_login_at, created_at")
     .order("created_at", { ascending: false });
   return data ?? [];
 }
@@ -20,13 +19,12 @@ export default async function AdminTeamPage() {
   if (!session) redirect("/login");
 
   const team = await getTeam();
-  const canManageTeam = hasPermission(session.role, "team.write");
 
   return (
     <div>
       <TopBar title="Admin Team" subtitle="Internal AkibaMiles admin accounts" />
       <div className="p-6">
-        {canManageTeam && <InviteAdminForm />}
+        {session.role === "super_admin" && <CreateAdminUserForm />}
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           <table className="w-full text-sm">
             <thead>
@@ -44,14 +42,8 @@ export default async function AdminTeamPage() {
                     <p className="font-medium text-slate-900">{admin.name ?? admin.email}</p>
                     <p className="text-xs text-slate-400">{admin.email}</p>
                   </td>
-                  <td className="px-4 py-3"><Badge variant="secondary">{ADMIN_ROLE_LABELS[admin.role as AdminRole]}</Badge></td>
-                  <td className="px-4 py-3">
-                    {admin.password_setup_expires_at && !admin.password_set_at ? (
-                      <Badge variant="warning">invited</Badge>
-                    ) : (
-                      <Badge variant={admin.is_active ? "success" : "destructive"}>{admin.is_active ? "active" : "disabled"}</Badge>
-                    )}
-                  </td>
+                  <td className="px-4 py-3"><Badge variant="secondary">{admin.role}</Badge></td>
+                  <td className="px-4 py-3"><Badge variant={admin.is_active ? "success" : "destructive"}>{admin.is_active ? "active" : "disabled"}</Badge></td>
                   <td className="px-4 py-3 text-slate-500">{formatDate(admin.last_login_at)}</td>
                 </tr>
               ))}
