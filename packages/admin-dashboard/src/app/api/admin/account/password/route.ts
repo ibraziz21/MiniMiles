@@ -10,9 +10,8 @@ import {
   verifyPassword,
 } from "@/lib/auth";
 import { writeAdminAuditLog } from "@/lib/audit";
+import { getAdminSettings } from "@/lib/adminSettings";
 import { supabase } from "@/lib/supabase";
-
-const MIN_PASSWORD_LENGTH = 12;
 
 export async function PATCH(req: Request) {
   const session = await requireAdminSession();
@@ -31,9 +30,12 @@ export async function PATCH(req: Request) {
   if (!currentPassword || !newPassword) {
     return NextResponse.json({ error: "Current and new password are required" }, { status: 400 });
   }
-  if (newPassword.length < MIN_PASSWORD_LENGTH) {
+
+  const settings = await getAdminSettings();
+  const minPasswordLength = settings.security.passwordMinLength;
+  if (newPassword.length < minPasswordLength) {
     return NextResponse.json(
-      { error: `New password must be at least ${MIN_PASSWORD_LENGTH} characters` },
+      { error: `New password must be at least ${minPasswordLength} characters` },
       { status: 400 },
     );
   }
@@ -64,6 +66,7 @@ export async function PATCH(req: Request) {
     .from("admin_users")
     .update({
       password_hash: passwordHash,
+      must_change_password: false,
       updated_at: new Date().toISOString(),
     })
     .eq("id", session.adminUserId);
@@ -75,6 +78,7 @@ export async function PATCH(req: Request) {
 
   const cookieSession = await getSession();
   cookieSession.issuedAt = Date.now();
+  cookieSession.mustChangePassword = false;
   await cookieSession.save();
 
   void writeAdminAuditLog({

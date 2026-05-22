@@ -3,6 +3,7 @@
 
 import { NextResponse } from "next/server";
 import { adminIdForWrite, hashPassword, requireAdminSession } from "@/lib/auth";
+import { getAdminSettings } from "@/lib/adminSettings";
 import { writeAdminAuditLog } from "@/lib/audit";
 import { supabase } from "@/lib/supabase";
 import { ADMIN_ROLES, type AdminRole } from "@/types";
@@ -19,12 +20,16 @@ export async function POST(req: Request) {
   const name = typeof body?.name === "string" && body.name.trim() ? body.name.trim() : null;
   const password = typeof body?.password === "string" ? body.password : "";
   const role = body?.role as AdminRole;
+  const settings = await getAdminSettings();
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: "Valid email is required" }, { status: 400 });
   }
-  if (!password || password.length < 10) {
-    return NextResponse.json({ error: "Password must be at least 10 characters" }, { status: 400 });
+  if (!password || password.length < settings.security.passwordMinLength) {
+    return NextResponse.json(
+      { error: `Password must be at least ${settings.security.passwordMinLength} characters` },
+      { status: 400 },
+    );
   }
   if (!ADMIN_ROLES.includes(role)) {
     return NextResponse.json({ error: "Valid admin role is required" }, { status: 400 });
@@ -38,9 +43,10 @@ export async function POST(req: Request) {
       name,
       role,
       password_hash: passwordHash,
+      must_change_password: settings.security.requireTempPasswordReset,
       created_by: adminIdForWrite(session),
     })
-    .select("id, email, name, role, is_active, created_at")
+    .select("id, email, name, role, is_active, must_change_password, created_at")
     .single();
 
   if (error) {

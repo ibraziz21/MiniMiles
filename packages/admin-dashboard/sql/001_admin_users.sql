@@ -16,6 +16,7 @@ create table if not exists admin_users (
   name          text,
   role          admin_role not null default 'readonly',
   is_active     boolean not null default true,
+  must_change_password boolean not null default false,
   created_by    uuid references admin_users(id) on delete set null,
   last_login_at timestamptz,
   created_at    timestamptz not null default now(),

@@ -7,10 +7,17 @@ import { Input } from "@/components/ui/input";
 
 interface PasswordSettingsFormProps {
   email: string;
+  minLength: number;
+  mustChangePassword?: boolean;
   disabled?: boolean;
 }
 
-export function PasswordSettingsForm({ email, disabled = false }: PasswordSettingsFormProps) {
+export function PasswordSettingsForm({
+  email,
+  minLength,
+  mustChangePassword = false,
+  disabled = false,
+}: PasswordSettingsFormProps) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -56,9 +63,13 @@ export function PasswordSettingsForm({ email, disabled = false }: PasswordSettin
       <div className="flex items-start gap-3 rounded-lg border border-cyan-100 bg-cyan-50 p-3">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#238D9D]" />
         <div>
-          <p className="text-sm font-semibold text-slate-900">{email}</p>
+          <p className="text-sm font-semibold text-slate-900">
+            {mustChangePassword ? "Temporary password reset required" : email}
+          </p>
           <p className="mt-1 text-xs leading-5 text-slate-600">
-            Replace temporary credentials with a private password. Current sessions stay active.
+            {mustChangePassword
+              ? "Set a private password before using the rest of the admin dashboard."
+              : "Replace temporary credentials with a private password. Current sessions stay active."}
           </p>
         </div>
       </div>
@@ -83,7 +94,7 @@ export function PasswordSettingsForm({ email, disabled = false }: PasswordSettin
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             autoComplete="new-password"
-            minLength={12}
+            minLength={minLength}
             disabled={disabled || loading}
             required
           />
@@ -95,7 +106,7 @@ export function PasswordSettingsForm({ email, disabled = false }: PasswordSettin
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             autoComplete="new-password"
-            minLength={12}
+            minLength={minLength}
             disabled={disabled || loading}
             required
           />
@@ -107,7 +118,7 @@ export function PasswordSettingsForm({ email, disabled = false }: PasswordSettin
           <KeyRound className="h-4 w-4" />
           {loading ? "Updating..." : "Update password"}
         </Button>
-        <p className="text-xs text-slate-500">Minimum 12 characters.</p>
+        <p className="text-xs text-slate-500">Minimum {minLength} characters.</p>
       </div>
 
       {disabled && (

@@ -3,6 +3,7 @@
 
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/auth";
+import { getAdminSettings } from "@/lib/adminSettings";
 import { supabase } from "@/lib/supabase";
 
 function money(value: unknown): string {
@@ -32,10 +33,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: "Receipt is only available after payout is paid" }, { status: 409 });
   }
 
+  const settings = await getAdminSettings();
   const destination = invoice.payment_destination_snapshot ?? {};
-  const receipt = invoice.receipt_number ?? `RCPT-${invoice.period_month}-${invoice.id.slice(0, 8).toUpperCase()}`;
+  const receipt = invoice.receipt_number ?? `${settings.finance.receiptPrefix}-${invoice.period_month}-${invoice.id.slice(0, 8).toUpperCase()}`;
   const partnerName = invoice.partners?.name ?? invoice.partner_id;
   const paidAt = invoice.paid_at ?? invoice.resolved_at ?? invoice.updated_at;
+  const businessName = settings.finance.businessName || "AkibaMiles";
 
   const html = `<!doctype html>
 <html>
@@ -61,8 +64,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 <body>
   <div class="header">
     <div>
-      <div class="brand">AkibaMiles</div>
+      <div class="brand">${esc(businessName)}</div>
       <div class="muted">Merchant Payout Receipt</div>
+      ${settings.finance.businessEmail ? `<div class="muted">${esc(settings.finance.businessEmail)}</div>` : ""}
+      ${settings.finance.businessPhone ? `<div class="muted">${esc(settings.finance.businessPhone)}</div>` : ""}
+      ${settings.finance.businessAddress ? `<div class="muted">${esc(settings.finance.businessAddress)}</div>` : ""}
     </div>
     <div style="text-align:right">
       <h1>${esc(receipt)}</h1>

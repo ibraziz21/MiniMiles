@@ -27,7 +27,7 @@ export async function POST(req: Request) {
 
   const { data: adminUser, error } = await supabase
     .from("admin_users")
-    .select("id, email, name, password_hash, role, is_active")
+    .select("id, email, name, password_hash, role, is_active, must_change_password")
     .eq("email", email.toLowerCase().trim())
     .single();
 
@@ -53,6 +53,7 @@ export async function POST(req: Request) {
   session.email = adminUser.email;
   session.name = adminUser.name ?? null;
   session.role = adminUser.role;
+  session.mustChangePassword = Boolean(adminUser.must_change_password);
   session.issuedAt = Date.now();
   await session.save();
 
@@ -68,5 +69,14 @@ export async function POST(req: Request) {
     metadata: { email: adminUser.email },
   });
 
-  return NextResponse.json({ ok: true, admin: { id: adminUser.id, email: adminUser.email, name: adminUser.name, role: adminUser.role } });
+  return NextResponse.json({
+    ok: true,
+    admin: {
+      id: adminUser.id,
+      email: adminUser.email,
+      name: adminUser.name,
+      role: adminUser.role,
+      mustChangePassword: Boolean(adminUser.must_change_password),
+    },
+  });
 }

@@ -11,6 +11,13 @@ const PUBLIC_PATHS = [
   "/api/auth/bootstrap",
 ];
 
+const PASSWORD_RESET_PATHS = [
+  "/settings",
+  "/api/admin/account/password",
+  "/api/admin/account/profile",
+  "/api/auth/logout",
+];
+
 function isOpenAccessMode(): boolean {
   if (process.env.ADMIN_OPEN_ACCESS === "true") return true;
   if (process.env.ADMIN_OPEN_ACCESS === "false") return false;
@@ -38,6 +45,18 @@ export async function middleware(request: NextRequest) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("from", pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  if (session.mustChangePassword && !PASSWORD_RESET_PATHS.some((p) => pathname.startsWith(p))) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        { error: "Password change required", code: "password_change_required" },
+        { status: 403 },
+      );
+    }
+    const settingsUrl = new URL("/settings", request.url);
+    settingsUrl.searchParams.set("required", "password");
+    return NextResponse.redirect(settingsUrl);
   }
 
   return response;

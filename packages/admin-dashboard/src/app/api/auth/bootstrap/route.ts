@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { hashPassword } from "@/lib/auth";
+import { getAdminSettings } from "@/lib/adminSettings";
 
 export async function POST(req: Request) {
   const secret = process.env.ADMIN_BOOTSTRAP_SECRET;
@@ -39,11 +40,18 @@ export async function POST(req: Request) {
   }
 
   const passwordHash = await hashPassword(password);
+  const settings = await getAdminSettings();
 
   const { data, error } = await supabase
     .from("admin_users")
-    .insert({ email: email.toLowerCase().trim(), password_hash: passwordHash, name: name ?? null, role: "super_admin" })
-    .select("id, email, role")
+    .insert({
+      email: email.toLowerCase().trim(),
+      password_hash: passwordHash,
+      name: name ?? null,
+      role: "super_admin",
+      must_change_password: settings.security.requireTempPasswordReset,
+    })
+    .select("id, email, role, must_change_password")
     .single();
 
   if (error) {

@@ -9,7 +9,7 @@ import { CreateAdminUserForm } from "@/components/team/CreateAdminUserForm";
 async function getTeam() {
   const { data } = await supabase
     .from("admin_users")
-    .select("id, email, name, role, is_active, last_login_at, created_at")
+    .select("id, email, name, role, is_active, must_change_password, last_login_at, created_at")
     .order("created_at", { ascending: false });
   return data ?? [];
 }
@@ -43,7 +43,12 @@ export default async function AdminTeamPage() {
                     <p className="text-xs text-slate-400">{admin.email}</p>
                   </td>
                   <td className="px-4 py-3"><Badge variant="secondary">{admin.role}</Badge></td>
-                  <td className="px-4 py-3"><Badge variant={admin.is_active ? "success" : "destructive"}>{admin.is_active ? "active" : "disabled"}</Badge></td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant={admin.is_active ? "success" : "destructive"}>{admin.is_active ? "active" : "disabled"}</Badge>
+                      {admin.must_change_password && <Badge variant="warning">temp password</Badge>}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-slate-500">{formatDate(admin.last_login_at)}</td>
                 </tr>
               ))}

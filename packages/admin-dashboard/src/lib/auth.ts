@@ -4,6 +4,7 @@ import { sessionOptions } from "./session";
 import { supabase } from "./supabase";
 import type { AdminSessionData, AdminRole } from "@/types";
 import { hasPermission } from "@/types";
+import { getAdminSettings } from "./adminSettings";
 
 export function isOpenAccessMode(): boolean {
   if (process.env.ADMIN_OPEN_ACCESS === "true") return true;
@@ -17,6 +18,7 @@ export function getOpenAccessSession(): AdminSessionData {
     email: "open-access@akibamiles.local",
     name: "Open Access",
     role: "super_admin",
+    mustChangePassword: false,
     issuedAt: Date.now(),
     openAccess: true,
   };
@@ -43,13 +45,25 @@ export async function requireAdminSession(
   const session = await getSession();
   if (!session.adminUserId) return null;
 
+  const settings = await getAdminSettings();
+  const sessionAgeMs = Date.now() - (session.issuedAt ?? 0);
+  if (sessionAgeMs > settings.security.sessionTimeoutMinutes * 60 * 1000) {
+    session.destroy();
+    return null;
+  }
+
   const { data: user } = await supabase
     .from("admin_users")
-    .select("is_active, role")
+    .select("email, name, is_active, role, must_change_password")
     .eq("id", session.adminUserId)
     .single();
 
   if (!user || !user.is_active) return null;
+
+  session.email = user.email;
+  session.name = user.name ?? null;
+  session.role = user.role;
+  session.mustChangePassword = Boolean(user.must_change_password);
 
   if (requiredPermission && !hasPermission(session.role, requiredPermission)) {
     return null;
@@ -123,9 +137,6 @@ export async function verifyPassword(password: string, stored: string): Promise<
 
 // ── Login rate limit ──────────────────────────────────────────────────────────
 
-const MAX_FAILURES = 5;
-const LOCKOUT_MINUTES = 15;
-
 export async function checkLoginRateLimit(
   email: string,
 ): Promise<{ allowed: boolean; retryAfter: Date }> {
@@ -146,6 +157,7 @@ export async function checkLoginRateLimit(
 
 export async function recordLoginFailure(email: string): Promise<void> {
   const key = email.toLowerCase();
+  const settings = await getAdminSettings();
   const { data } = await supabase
     .from("admin_login_attempts")
     .select("failure_count")
@@ -154,8 +166,8 @@ export async function recordLoginFailure(email: string): Promise<void> {
 
   const count = (data?.failure_count ?? 0) + 1;
   const lockedUntil =
-    count >= MAX_FAILURES
-      ? new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000).toISOString()
+    count >= settings.security.loginLockoutMaxFailures
+      ? new Date(Date.now() + settings.security.loginLockoutMinutes * 60 * 1000).toISOString()
       : null;
 
   await supabase.from("admin_login_attempts").upsert(

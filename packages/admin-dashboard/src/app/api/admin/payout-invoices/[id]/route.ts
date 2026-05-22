@@ -4,6 +4,7 @@
 
 import { NextResponse } from "next/server";
 import { adminIdForWrite, requireAdminSession } from "@/lib/auth";
+import { getAdminSettings } from "@/lib/adminSettings";
 import { writeAdminAuditLog } from "@/lib/audit";
 import { supabase } from "@/lib/supabase";
 
@@ -15,8 +16,8 @@ function textOrNull(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function receiptNumber(periodMonth: string, id: string): string {
-  return `RCPT-${periodMonth}-${id.slice(0, 8).toUpperCase()}`;
+function receiptNumber(prefix: string, periodMonth: string, id: string): string {
+  return `${prefix}-${periodMonth}-${id.slice(0, 8).toUpperCase()}`;
 }
 
 function buildDestinationSnapshot(settings: Record<string, any> | null) {
@@ -72,6 +73,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
   }
 
+  const appSettings = await getAdminSettings();
+
   if (!["draft", "submitted"].includes(existing.status)) {
     return NextResponse.json(
       { error: `Only draft or submitted invoices can be resolved. Current status: ${existing.status}` },
@@ -96,6 +99,25 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         { status: 400 },
       );
     }
+    if (
+      paymentMethod !== "manual" &&
+      !appSettings.finance.enabledPayoutMethods.includes(paymentMethod as "wallet" | "bank" | "mpesa")
+    ) {
+      return NextResponse.json(
+        { error: `${paymentMethod} payouts are disabled in admin settings` },
+        { status: 400 },
+      );
+    }
+    if (
+      appSettings.finance.payoutApprovalThreshold > 0 &&
+      Number(existing.net_cusd ?? 0) >= appSettings.finance.payoutApprovalThreshold &&
+      session.role !== "super_admin"
+    ) {
+      return NextResponse.json(
+        { error: "This payout exceeds the super-admin approval threshold" },
+        { status: 403 },
+      );
+    }
 
     const paymentTxHash = textOrNull(body?.payment_tx_hash);
     if (paymentTxHash && !/^0x[0-9a-fA-F]{64}$/.test(paymentTxHash)) {
@@ -103,6 +125,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
 
     const paymentReference = textOrNull(body?.payment_reference);
+    if (paymentMethod === "wallet" && appSettings.finance.requireTxHashForWallet && !paymentTxHash) {
+      return NextResponse.json(
+        { error: "Wallet payouts require a transaction hash" },
+        { status: 400 },
+      );
+    }
     if (!paymentTxHash && !paymentReference) {
       return NextResponse.json(
         { error: "Provide a payment reference or transaction hash for paid payouts" },
@@ -120,7 +148,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     update.payment_destination_snapshot = buildDestinationSnapshot(settings);
     update.payment_tx_hash = paymentTxHash;
     update.payment_reference = paymentReference;
-    update.receipt_number = existing.receipt_number ?? receiptNumber(existing.period_month, existing.id);
+    update.receipt_number = existing.receipt_number ?? receiptNumber(
+      appSettings.finance.receiptPrefix,
+      existing.period_month,
+      existing.id,
+    );
     update.paid_by_admin_user_id = adminIdForWrite(session);
     update.paid_at = now;
   }

@@ -30,6 +30,7 @@ export interface AdminSessionData {
   email: string;
   name: string | null;
   role: AdminRole;
+  mustChangePassword?: boolean;
   issuedAt: number;
   openAccess?: boolean;
 }
@@ -42,6 +43,7 @@ export interface AdminUser {
   name: string | null;
   role: AdminRole;
   is_active: boolean;
+  must_change_password: boolean;
   created_by: string | null;
   last_login_at: string | null;
   created_at: string;
