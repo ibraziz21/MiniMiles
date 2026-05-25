@@ -1,0 +1,120 @@
+<svg width="1080" height="1080" viewBox="0 0 1080 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background — deep dark with slight blue tint -->
+  <rect width="1080" height="1080" fill="#081420"/>
+
+  <!-- Radial glow — USDT green tint from center -->
+  <radialGradient id="glow2" cx="50%" cy="52%" r="45%">
+    <stop offset="0%" stop-color="#26A17B" stop-opacity="0.28"/>
+    <stop offset="100%" stop-color="#081420" stop-opacity="0"/>
+  </radialGradient>
+  <rect width="1080" height="1080" fill="url(#glow2)"/>
+
+  <!-- Teal accent arcs -->
+  <circle cx="1080" cy="0"    r="340" fill="none" stroke="#238D9D" stroke-width="2" stroke-opacity="0.15"/>
+  <circle cx="1080" cy="0"    r="520" fill="none" stroke="#238D9D" stroke-width="1" stroke-opacity="0.08"/>
+  <circle cx="0"    cy="1080" r="340" fill="none" stroke="#26A17B" stroke-width="2" stroke-opacity="0.15"/>
+  <circle cx="0"    cy="1080" r="520" fill="none" stroke="#26A17B" stroke-width="1" stroke-opacity="0.08"/>
+
+  <!-- Dotted grid -->
+  <pattern id="dots2" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+    <circle cx="20" cy="20" r="1.2" fill="#238D9D" fill-opacity="0.10"/>
+  </pattern>
+  <rect width="1080" height="1080" fill="url(#dots2)"/>
+
+  <!-- ===== BIG USDT COIN — hero element ===== -->
+  <!-- Outer glow rings -->
+  <circle cx="540" cy="470" r="220" fill="#26A17B" fill-opacity="0.06"/>
+  <circle cx="540" cy="470" r="185" fill="#26A17B" fill-opacity="0.10"/>
+  <!-- Coin body -->
+  <circle cx="540" cy="470" r="155" fill="#26A17B"/>
+  <!-- Coin shine -->
+  <ellipse cx="500" cy="410" rx="55" ry="35" fill="white" fill-opacity="0.12"/>
+  <!-- Coin border -->
+  <circle cx="540" cy="470" r="155" fill="none" stroke="#2ECC9A" stroke-width="4" stroke-opacity="0.7"/>
+  <!-- Inner ring -->
+  <circle cx="540" cy="470" r="130" fill="none" stroke="white" stroke-width="1.5" stroke-opacity="0.25"/>
+  <!-- USDT symbol -->
+  <text x="540" y="430" font-family="Arial Black, Arial, sans-serif" font-size="88" font-weight="900" fill="white" text-anchor="middle">$</text>
+  <!-- "USDT" label inside coin -->
+  <text x="540" y="504" font-family="Arial, sans-serif" font-size="36" font-weight="800" fill="white" fill-opacity="0.9" text-anchor="middle" letter-spacing="8">USDT</text>
+
+  <!-- ===== Raffle tickets floating around coin ===== -->
+  <!-- Ticket 1 — top-left -->
+  <g transform="translate(240, 295) rotate(-25)">
+    <rect width="140" height="56" rx="10" fill="#1A2E48" stroke="#238D9D" stroke-width="2"/>
+    <line x1="40" y1="0" x2="40" y2="56" stroke="#238D9D" stroke-width="1.5" stroke-dasharray="4,3"/>
+    <circle cx="40" cy="28" r="10" fill="#0A1628"/>
+    <text x="82" y="34" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#238D9D" text-anchor="middle">#0042</text>
+  </g>
+
+  <!-- Ticket 2 — top-right -->
+  <g transform="translate(724, 278) rotate(20)">
+    <rect width="140" height="56" rx="10" fill="#1A2E48" stroke="#238D9D" stroke-width="2"/>
+    <line x1="40" y1="0" x2="40" y2="56" stroke="#238D9D" stroke-width="1.5" stroke-dasharray="4,3"/>
+    <circle cx="40" cy="28" r="10" fill="#081420"/>
+    <text x="82" y="34" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#238D9D" text-anchor="middle">#0117</text>
+  </g>
+
+  <!-- Ticket 3 — bottom-left -->
+  <g transform="translate(268, 598) rotate(15)">
+    <rect width="120" height="50" rx="9" fill="#0F2035" stroke="#26A17B" stroke-width="2" stroke-opacity="0.8"/>
+    <line x1="35" y1="0" x2="35" y2="50" stroke="#26A17B" stroke-width="1.5" stroke-dasharray="4,3" stroke-opacity="0.8"/>
+    <circle cx="35" cy="25" r="9" fill="#081420"/>
+    <text x="75" y="30" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#26A17B" text-anchor="middle">#0258</text>
+  </g>
+
+  <!-- Ticket 4 — bottom-right -->
+  <g transform="translate(700, 606) rotate(-12)">
+    <rect width="120" height="50" rx="9" fill="#0F2035" stroke="#26A17B" stroke-width="2" stroke-opacity="0.8"/>
+    <line x1="35" y1="0" x2="35" y2="50" stroke="#26A17B" stroke-width="1.5" stroke-dasharray="4,3" stroke-opacity="0.8"/>
+    <circle cx="35" cy="25" r="9" fill="#081420"/>
+    <text x="75" y="30" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#26A17B" text-anchor="middle">#0381</text>
+  </g>
+
+  <!-- ===== Sparkles / stars ===== -->
+  <g fill="#F7C948">
+    <!-- star 1 -->
+    <path d="M200 200 L207 220 L228 220 L211 232 L218 252 L200 240 L182 252 L189 232 L172 220 L193 220 Z" transform="scale(0.5) translate(198,192)"/>
+    <!-- star 2 -->
+    <path d="M200 200 L207 220 L228 220 L211 232 L218 252 L200 240 L182 252 L189 232 L172 220 L193 220 Z" transform="scale(0.35) translate(2310,450)"/>
+    <!-- star 3 -->
+    <path d="M200 200 L207 220 L228 220 L211 232 L218 252 L200 240 L182 252 L189 232 L172 220 L193 220 Z" transform="scale(0.28) translate(750,2360)"/>
+    <!-- small diamond 1 -->
+    <rect x="160" y="470" width="12" height="12" rx="2" transform="rotate(45 166 476)" fill="#38C9DC" fill-opacity="0.8"/>
+    <!-- small diamond 2 -->
+    <rect x="892" y="388" width="10" height="10" rx="2" transform="rotate(45 897 393)" fill="#38C9DC" fill-opacity="0.8"/>
+    <!-- small diamond 3 -->
+    <rect x="872" y="538" width="8" height="8" rx="1.5" transform="rotate(45 876 542)" fill="#F7C948" fill-opacity="0.7"/>
+  </g>
+
+  <!-- ===== Prize amount banner ===== -->
+  <!-- pill behind prize -->
+  <rect x="360" y="654" width="360" height="62" rx="31" fill="#26A17B" fill-opacity="0.18" stroke="#26A17B" stroke-width="2"/>
+  <text x="540" y="696" font-family="Arial Black, Arial, sans-serif" font-size="38" font-weight="900" fill="#2ECC9A" text-anchor="middle" letter-spacing="2">WIN USDT</text>
+
+  <!-- ===== HEADLINE ===== -->
+  <text x="540" y="786" font-family="Arial Black, Arial, sans-serif" font-size="90" font-weight="900" fill="white" text-anchor="middle" letter-spacing="2">RAFFLE</text>
+  <text x="540" y="860" font-family="Arial Black, Arial, sans-serif" font-size="90" font-weight="900" fill="#238D9D" text-anchor="middle" letter-spacing="2">IS LIVE</text>
+
+  <!-- Teal underline bar -->
+  <rect x="340" y="872" width="400" height="5" rx="2.5" fill="#238D9D"/>
+
+  <!-- Sub-copy -->
+  <text x="540" y="920" font-family="Arial, sans-serif" font-size="28" fill="#8BBCC8" text-anchor="middle">Get your tickets. One lucky winner</text>
+  <text x="540" y="954" font-family="Arial, sans-serif" font-size="28" fill="#8BBCC8" text-anchor="middle">takes it all in real USDT.</text>
+
+  <!-- CTA pill -->
+  <rect x="380" y="980" width="320" height="60" rx="30" fill="#238D9D"/>
+  <text x="540" y="1021" font-family="Arial Black, Arial, sans-serif" font-size="24" font-weight="900" fill="white" text-anchor="middle" letter-spacing="2">ENTER RAFFLE</text>
+
+  <!-- ===== LOGO ===== -->
+  <circle cx="540" cy="136" r="52" fill="#238D9D"/>
+  <g transform="translate(515, 111) scale(1.5625)">
+    <path d="M13.394 15.518C16.5363 14.0152 18.9955 11.4649 20.4073 8.27704C19.4964 7.32068 18.3124 6.63757 17.0372 6.2277L16.3541 6C16.3086 6.09108 16.263 6.22771 16.263 6.31879C15.1701 9.41557 12.9386 11.9203 9.93288 13.3321C7.838 14.334 6.28961 16.1556 5.56096 18.3416L5.33325 19.0247C5.42433 19.0702 5.56096 19.1157 5.65204 19.1157C6.51731 19.4345 7.38259 19.8444 8.20232 20.3454C9.34084 18.296 11.1625 16.5655 13.394 15.518Z" fill="white"/>
+    <path d="M24.0228 11.3333C22.3378 13.8835 20.0152 15.9329 17.1461 17.2991C14.8235 18.3921 13.0474 20.4414 12.2277 22.9006L12 23.6748C12.8653 24.449 13.9127 25.041 15.0512 25.4054L15.7343 25.6331C15.7799 25.542 15.8254 25.4054 15.8254 25.3143C16.9184 22.2175 19.1499 19.7128 22.1556 18.301C24.2505 17.2991 25.8444 15.4775 26.5275 13.2915L26.7552 12.6084C25.7989 12.3352 24.888 11.8797 24.0228 11.3333Z" fill="white"/>
+  </g>
+  <text x="540" y="222" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="white" text-anchor="middle" letter-spacing="6" opacity="0.9">AKIBAMILES</text>
+
+  <!-- Footer -->
+  <text x="540" y="1060" font-family="Arial, sans-serif" font-size="20" fill="#3A6070" text-anchor="middle" letter-spacing="2">akibamiles.com  •  Powered by Celo</text>
+</svg>

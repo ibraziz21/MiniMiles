@@ -1,0 +1,107 @@
+<svg width="1080" height="1080" viewBox="0 0 1080 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1080" height="1080" fill="#0A1628"/>
+
+  <!-- Radial glow behind dice -->
+  <radialGradient id="glow" cx="50%" cy="48%" r="42%">
+    <stop offset="0%" stop-color="#238D9D" stop-opacity="0.35"/>
+    <stop offset="100%" stop-color="#0A1628" stop-opacity="0"/>
+  </radialGradient>
+  <rect width="1080" height="1080" fill="url(#glow)"/>
+
+  <!-- Top-left teal accent arc -->
+  <circle cx="0" cy="0" r="300" fill="none" stroke="#238D9D" stroke-width="2" stroke-opacity="0.18"/>
+  <circle cx="0" cy="0" r="450" fill="none" stroke="#238D9D" stroke-width="1" stroke-opacity="0.10"/>
+
+  <!-- Bottom-right teal accent arc -->
+  <circle cx="1080" cy="1080" r="300" fill="none" stroke="#238D9D" stroke-width="2" stroke-opacity="0.18"/>
+  <circle cx="1080" cy="1080" r="450" fill="none" stroke="#238D9D" stroke-width="1" stroke-opacity="0.10"/>
+
+  <!-- ===== DICE 1 (large, center-left, tilted) ===== -->
+  <g transform="translate(320, 390) rotate(-18)">
+    <rect width="200" height="200" rx="32" fill="#1A2E48" stroke="#238D9D" stroke-width="3"/>
+    <!-- dot pattern: 5 -->
+    <circle cx="52"  cy="52"  r="16" fill="#238D9D"/>
+    <circle cx="148" cy="52"  r="16" fill="#238D9D"/>
+    <circle cx="100" cy="100" r="16" fill="#238D9D"/>
+    <circle cx="52"  cy="148" r="16" fill="#238D9D"/>
+    <circle cx="148" cy="148" r="16" fill="#238D9D"/>
+  </g>
+
+  <!-- ===== DICE 2 (medium, center-right, tilted other way) ===== -->
+  <g transform="translate(580, 330) rotate(14)">
+    <rect width="160" height="160" rx="26" fill="#1A2E48" stroke="#238D9D" stroke-width="3"/>
+    <!-- dot pattern: 6 -->
+    <circle cx="44"  cy="44"  r="12" fill="#238D9D"/>
+    <circle cx="80"  cy="44"  r="12" fill="#38C9DC"/>
+    <circle cx="116" cy="44"  r="12" fill="#238D9D"/>
+    <circle cx="44"  cy="116" r="12" fill="#238D9D"/>
+    <circle cx="80"  cy="116" r="12" fill="#38C9DC"/>
+    <circle cx="116" cy="116" r="12" fill="#238D9D"/>
+  </g>
+
+  <!-- ===== DICE 3 (small, top accent) ===== -->
+  <g transform="translate(460, 270) rotate(6)">
+    <rect width="100" height="100" rx="18" fill="#0F2035" stroke="#38C9DC" stroke-width="2" stroke-opacity="0.7"/>
+    <!-- dot pattern: 3 -->
+    <circle cx="30" cy="30" r="9" fill="#38C9DC" fill-opacity="0.8"/>
+    <circle cx="50" cy="50" r="9" fill="#38C9DC" fill-opacity="0.8"/>
+    <circle cx="70" cy="70" r="9" fill="#38C9DC" fill-opacity="0.8"/>
+  </g>
+
+  <!-- ===== USDT coin (floating, glowing) ===== -->
+  <g transform="translate(680, 480)">
+    <circle cx="80" cy="80" r="80" fill="#26A17B" opacity="0.15"/>
+    <circle cx="80" cy="80" r="68" fill="#26A17B"/>
+    <circle cx="80" cy="80" r="80" fill="none" stroke="#2ECC9A" stroke-width="3" stroke-opacity="0.6"/>
+    <!-- USDT $ symbol simplified -->
+    <text x="80" y="98" font-family="Arial, sans-serif" font-size="72" font-weight="900" fill="white" text-anchor="middle">$</text>
+  </g>
+
+  <!-- ===== Coin sparkles ===== -->
+  <g fill="#F7C948" opacity="0.85">
+    <polygon points="780,390 787,410 808,410 791,422 798,442 780,430 762,442 769,422 752,410 773,410" transform="scale(0.55) translate(612,500)"/>
+    <polygon points="780,390 787,410 808,410 791,422 798,442 780,430 762,442 769,422 752,410 773,410" transform="scale(0.38) translate(1380,200)"/>
+    <polygon points="780,390 787,410 808,410 791,422 798,442 780,430 762,442 769,422 752,410 773,410" transform="scale(0.3)  translate(600,1400)"/>
+  </g>
+
+  <!-- ===== Dotted grid texture ===== -->
+  <pattern id="dots" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+    <circle cx="20" cy="20" r="1.2" fill="#238D9D" fill-opacity="0.12"/>
+  </pattern>
+  <rect width="1080" height="1080" fill="url(#dots)"/>
+
+  <!-- ===== HEADLINE ===== -->
+  <!-- "DICE BONUS" large -->
+  <text x="540" y="660" font-family="Arial Black, Arial, sans-serif" font-size="96" font-weight="900" fill="white" text-anchor="middle" letter-spacing="4">DICE BONUS</text>
+  <!-- teal underline -->
+  <rect x="300" y="672" width="480" height="6" rx="3" fill="#238D9D"/>
+
+  <!-- "REWARDS REFILLED" sub-headline -->
+  <text x="540" y="740" font-family="Arial Black, Arial, sans-serif" font-size="52" font-weight="900" fill="#238D9D" text-anchor="middle" letter-spacing="8">REWARDS REFILLED</text>
+
+  <!-- Body copy -->
+  <text x="540" y="810" font-family="Arial, sans-serif" font-size="30" fill="#A8C8D0" text-anchor="middle">The pool is back. Play Dice &amp; claim your</text>
+  <text x="540" y="848" font-family="Arial, sans-serif" font-size="30" fill="#A8C8D0" text-anchor="middle">extra USDT bonus — right now.</text>
+
+  <!-- CTA pill -->
+  <rect x="365" y="884" width="350" height="64" rx="32" fill="#238D9D"/>
+  <text x="540" y="926" font-family="Arial Black, Arial, sans-serif" font-size="26" font-weight="900" fill="white" text-anchor="middle" letter-spacing="2">PLAY &amp; WIN NOW</text>
+
+  <!-- ===== LOGO AREA ===== -->
+  <!-- Logo symbol (MiniMiles S-curve, white on teal circle) -->
+  <circle cx="540" cy="136" r="52" fill="#238D9D"/>
+  <!-- M path from logo.svg scaled/translated -->
+  <g transform="translate(515, 111) scale(1.5625)">
+    <!-- left swirl -->
+    <path d="M13.394 15.518C16.5363 14.0152 18.9955 11.4649 20.4073 8.27704C19.4964 7.32068 18.3124 6.63757 17.0372 6.2277L16.3541 6C16.3086 6.09108 16.263 6.22771 16.263 6.31879C15.1701 9.41557 12.9386 11.9203 9.93288 13.3321C7.838 14.334 6.28961 16.1556 5.56096 18.3416L5.33325 19.0247C5.42433 19.0702 5.56096 19.1157 5.65204 19.1157C6.51731 19.4345 7.38259 19.8444 8.20232 20.3454C9.34084 18.296 11.1625 16.5655 13.394 15.518Z" fill="white"/>
+    <!-- right swirl -->
+    <path d="M24.0228 11.3333C22.3378 13.8835 20.0152 15.9329 17.1461 17.2991C14.8235 18.3921 13.0474 20.4414 12.2277 22.9006L12 23.6748C12.8653 24.449 13.9127 25.041 15.0512 25.4054L15.7343 25.6331C15.7799 25.542 15.8254 25.4054 15.8254 25.3143C16.9184 22.2175 19.1499 19.7128 22.1556 18.301C24.2505 17.2991 25.8444 15.4775 26.5275 13.2915L26.7552 12.6084C25.7989 12.3352 24.888 11.8797 24.0228 11.3333Z" fill="white"/>
+  </g>
+
+  <!-- Brand name -->
+  <text x="540" y="222" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="white" text-anchor="middle" letter-spacing="6" opacity="0.9">AKIBAMILES</text>
+
+  <!-- ===== Footer ===== -->
+  <text x="540" y="1048" font-family="Arial, sans-serif" font-size="20" fill="#4A7080" text-anchor="middle" letter-spacing="2">akibamiles.com  •  Powered by Celo</text>
+</svg>

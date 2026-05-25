@@ -1,4 +1,6 @@
 node_modules
+.next
+packages/*/.next
 .env
 packages/*/.env
 
