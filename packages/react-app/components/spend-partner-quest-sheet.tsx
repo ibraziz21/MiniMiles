@@ -290,14 +290,14 @@ export default function SpendPartnerQuestSheet({
             </div>
 
             <div className="text-gray-500 rounded-xl py-3 text-center mb-4">
-              <p className="text-sm">Join our Reward for {raffle.prize} and win big!</p>
+              <p className="text-sm">Join Our Daily June Rewards Powered by MiniPay</p>
             </div>
 
             <div className="mb-4 text-sm space-y-2">
               <div className="flex justify-between">
                 <span className="font-medium">Prize</span>
                 <span className="text-gray-700 flex">
-                  <Image src={akibaMilesSymbol} alt="" width={16} height={16} className="mr-1" /> {raffle.prize}
+                  {raffle.prize}
                 </span>
               </div>
               <div className="flex justify-between">
