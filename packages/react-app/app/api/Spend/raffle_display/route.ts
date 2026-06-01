@@ -93,6 +93,15 @@ function buildRequirementsShape(row: RaffleRequirementRow | undefined, roundId: 
   }
 }
 
+// ── Default requirement applied when no raffle_requirements row exists ────────
+
+const DEFAULT_REQUIREMENT_ROW: RaffleRequirementRow = {
+  round_id: 0,
+  mode: 'all',
+  gates: [{ type: 'min_usdt_balance', minUsd: 10 }],
+  enabled: true,
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 export async function GET() {
@@ -217,13 +226,13 @@ export async function GET() {
           rewardPool: formatUnits(rf.rewardPoolRaw, decimals),
           ticketCost: formatUnits(rf.ticketCostRaw, 18),
           raffleType: 'token',
-          // Supabase meta — fallback to 1 winner if no row
-          winners:      meta?.winners ?? 1,
+          // Supabase meta — fallback to campaign defaults if no row
+          winners:      meta?.winners ?? 10,
           cardTitle:    meta?.card_title ?? null,
           prizeTitle:   meta?.prize_title ?? null,
           description:  meta?.description ?? null,
           cardImageUrl: meta?.card_image_url ?? null,
-          requirements: buildRequirementsShape(req, rf.id),
+          requirements: buildRequirementsShape(req ?? DEFAULT_REQUIREMENT_ROW, rf.id),
         }
       })
     )
@@ -251,12 +260,12 @@ export async function GET() {
         prizeNFT,
         ticketCost: formatUnits(rf.ticketCostRaw, 18),
         raffleType: 'physical',
-        winners:      meta?.winners ?? 1,
+        winners:      meta?.winners ?? 10,
         cardTitle:    meta?.card_title ?? null,
         prizeTitle:   meta?.prize_title ?? null,
         description:  meta?.description ?? null,
         cardImageUrl: meta?.card_image_url ?? null,
-        requirements: buildRequirementsShape(req, rf.id),
+        requirements: buildRequirementsShape(req ?? DEFAULT_REQUIREMENT_ROW, rf.id),
       }
     })
 

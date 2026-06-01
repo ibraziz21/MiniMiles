@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth";
-import {
-  evaluateRaffleRequirements,
-  getRaffleRequirementConfig,
-} from "@/lib/raffleRequirements";
+import { evaluateRaffleRequirements } from "@/lib/raffleRequirements";
 
 export async function GET(req: NextRequest) {
   const roundIdParam = req.nextUrl.searchParams.get("roundId");
@@ -14,13 +11,6 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const config = await getRaffleRequirementConfig(roundId);
-    if (!config) {
-      return NextResponse.json(
-        await evaluateRaffleRequirements(roundId),
-      );
-    }
-
     const session = await requireSession();
     if (!session) {
       return NextResponse.json(

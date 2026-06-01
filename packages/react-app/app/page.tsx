@@ -947,13 +947,14 @@ const badgeButtonLabel =
       {/* TOKEN / Join Rewards */}
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-medium">Digital Cash Prizes</h3>
+          <h3 className="text-lg font-medium">MiniPay x AkibaMiles June Rewards</h3>
           <Link href="/spend">
             <span className="text-sm text-[#238D9D] hover:underline">
               View more ›
             </span>
           </Link>
         </div>
+
 
         <div className="flex gap-3 overflow-x-auto">
           {tokenRaffles.map((r) => {

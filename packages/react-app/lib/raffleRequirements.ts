@@ -185,6 +185,11 @@ async function evaluateGate(
   return evaluateDaily5TxCompleted(userAddress);
 }
 
+const DEFAULT_REQUIREMENT_CONFIG: RaffleRequirementConfig = {
+  mode: "all",
+  gates: [{ type: "min_usdt_balance", minUsd: 10 }],
+};
+
 export async function getRaffleRequirementConfig(roundId: number) {
   const { data, error } = await supabase
     .from("raffle_requirements")
@@ -201,10 +206,7 @@ export async function evaluateRaffleRequirements(
   roundId: number,
   userAddress?: string,
 ): Promise<RaffleRequirementsResult> {
-  const config = await getRaffleRequirementConfig(roundId);
-  if (!config) {
-    return { roundId, gated: false, eligible: true, mode: "all", gates: [] };
-  }
+  const config = (await getRaffleRequirementConfig(roundId)) ?? DEFAULT_REQUIREMENT_CONFIG;
 
   if (!userAddress) {
     return {

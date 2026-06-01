@@ -559,6 +559,10 @@ export default function PhysicalRaffleSheet({
 
               <div className="mb-3 text-sm space-y-2">
                 <div className="flex justify-between">
+                  <span className="font-medium">Winners</span>
+                  <span className="text-gray-700">{raffle.winners ?? 10}</span>
+                </div>
+                <div className="flex justify-between">
                   <span className="font-medium">Price per ticket</span>
                   <span className="text-gray-700 flex">
                     <Image
