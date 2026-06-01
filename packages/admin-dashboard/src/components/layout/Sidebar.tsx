@@ -12,6 +12,7 @@ import {
   Tag,
   Landmark,
   Users,
+  Inbox,
   Gamepad2,
   Dice5,
   Ticket,
@@ -59,6 +60,7 @@ const navSections: Array<{ label: string; items: NavItem[] }> = [
     label: "Operations",
     items: [
       { href: "/merchants", label: "Merchants", icon: Store },
+      { href: "/leads", label: "Leads", icon: Inbox },
       { href: "/orders", label: "Orders", icon: ShoppingBag },
       { href: "/vouchers", label: "Vouchers", icon: Tag },
       { href: "/finance", label: "Finance", icon: Landmark },

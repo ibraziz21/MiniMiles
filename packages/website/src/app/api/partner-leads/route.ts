@@ -79,7 +79,7 @@ export async function POST(request: Request) {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !serviceRoleKey) {
     return NextResponse.json(
-      { error: "Partner lead storage is not configured." },
+      { error: "Lead storage is not configured." },
       { status: 503 },
     );
   }
@@ -90,8 +90,9 @@ export async function POST(request: Request) {
 
   const userAgent = request.headers.get("user-agent")?.slice(0, 500) ?? null;
   const ipHash = hashIp(clientIp(request));
+  const tableName = tableForSource(lead.source);
 
-  const { error } = await supabase.from("partner_leads").insert({
+  const { error } = await supabase.from(tableName).insert({
     name: lead.name,
     email: lead.email,
     company: lead.company,
@@ -106,7 +107,10 @@ export async function POST(request: Request) {
   });
 
   if (error) {
-    console.error("[partner-leads] Supabase insert failed", error);
+    console.error("[business-leads] Supabase insert failed", {
+      tableName,
+      error,
+    });
     return NextResponse.json(
       { error: "We could not save your inquiry. Please try again." },
       { status: 500 },
@@ -160,6 +164,10 @@ function hashIp(ip: string) {
   if (!ip) return null;
   const salt = process.env.PARTNER_LEAD_IP_HASH_SALT ?? "akibamiles-partner-leads";
   return createHash("sha256").update(`${salt}:${ip}`).digest("hex");
+}
+
+function tableForSource(source: string) {
+  return source === "website_merchants_page" ? "merchant_leads" : "partner_leads";
 }
 
 async function verifyTurnstile(token: string, request: Request) {

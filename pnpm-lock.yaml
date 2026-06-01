@@ -85,11 +85,11 @@ importers:
         specifier: ^10.4.20
         version: 10.4.27(postcss@8.5.8)
       eslint:
-        specifier: ^9.13.0
-        version: 9.39.4(jiti@1.21.7)
+        specifier: ^8.57.1
+        version: 8.57.1
       eslint-config-next:
         specifier: ^14.2.0
-        version: 14.2.35(eslint@9.39.4(jiti@1.21.7))(typescript@5.9.3)
+        version: 14.2.35(eslint@8.57.1)(typescript@5.9.3)
       postcss:
         specifier: ^8.4.47
         version: 8.5.8

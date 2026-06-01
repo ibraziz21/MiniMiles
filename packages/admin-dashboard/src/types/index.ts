@@ -220,6 +220,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, Set<string>> = {
   super_admin: new Set(["*"]),
   ops_admin: new Set([
     "merchants.read", "merchants.write",
+    "leads.read", "leads.write",
     "orders.read", "orders.write",
     "users.read",
     "audit.read",
@@ -227,17 +228,20 @@ export const ROLE_PERMISSIONS: Record<AdminRole, Set<string>> = {
   ]),
   finance_admin: new Set([
     "finance.read", "finance.write",
+    "leads.read",
     "vouchers.read",
     "orders.read",
     "audit.read",
   ]),
   insights_admin: new Set([
+    "leads.read", "leads.write",
     "polls.read", "polls.write",
     "insights.read", "insights.write",
     "audit.read",
   ]),
   readonly: new Set([
     "merchants.read", "orders.read", "users.read",
+    "leads.read",
     "finance.read", "polls.read", "insights.read",
     "vouchers.read", "audit.read",
   ]),
