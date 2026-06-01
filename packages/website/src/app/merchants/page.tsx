@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
 import { ButtonLink } from "@/components/ButtonLink";
+import { PartnerLeadForm } from "@/components/PartnerLeadForm";
 import { SectionHeader } from "@/components/SectionHeader";
 import { partnerContent, siteConfig } from "@/content/site";
 
@@ -13,6 +14,14 @@ export const metadata: Metadata = {
 
 const merchantPartners = [
   { name: "Leshan", sub: "Retail partner" },
+];
+
+const merchantIntentOptions = [
+  "Listing plan",
+  "Growth plan",
+  "Commerce plan",
+  "Voucher campaign",
+  "Need help choosing",
 ];
 
 export default function MerchantsPage() {
@@ -34,14 +43,14 @@ export default function MerchantsPage() {
             {merchant.body}
           </p>
           <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <ButtonLink href="/merchants#pricing">
-              See pricing plans
+            <ButtonLink href="/merchants#contact">
+              Become a merchant partner
             </ButtonLink>
             <Link
-              href="/merchants#how-it-works"
+              href="/merchants#pricing"
               className="inline-flex items-center gap-2 text-sm font-semibold text-akiba-muted hover:text-akiba-ink"
             >
-              How it works <ArrowRight className="h-4 w-4" />
+              See pricing plans <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </div>
@@ -187,26 +196,52 @@ export default function MerchantsPage() {
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="bg-akiba-ink px-4 py-16 text-white sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-3xl text-center">
-          <h2 className="font-sterling text-4xl font-medium leading-[1.08]">
-            List your products.<br />Get customers. Grow.
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-lg leading-8 text-white/65">
-            Pick a plan and set up your store. We&apos;ll handle the customer pipeline — you handle the product.
-          </p>
-          <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <ButtonLink href={`mailto:${siteConfig.email}`} className="bg-white text-akiba-ink hover:bg-white/90">
-              Become a merchant partner
-            </ButtonLink>
+      {/* Merchant lead form */}
+      <section id="contact" className="scroll-mt-20 bg-akiba-ink px-4 py-16 text-white sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-7xl items-start gap-8 lg:grid-cols-[0.9fr_1.1fr]">
+          <div>
+            <p className="font-sterling text-base font-medium text-[#74D4DF]">
+              Merchant intake
+            </p>
+            <h2 className="mt-3 font-sterling text-4xl font-medium leading-[1.08]">
+              List your products. Get customers. Grow.
+            </h2>
+            <p className="mt-4 max-w-xl text-lg leading-8 text-white/65">
+              Pick a plan and set up your store. We&apos;ll handle the customer
+              pipeline through games, vouchers, and rewards.
+            </p>
+            <ul className="mt-7 space-y-3">
+              {[
+                "Product listing and voucher setup",
+                "Order management and fulfilment dashboard",
+                "Monthly payouts to crypto, bank, or M-Pesa",
+              ].map((item) => (
+                <li key={item} className="flex items-start gap-2.5 text-sm text-white/75">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#74D4DF]" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-7 text-sm text-white/45">
+              Questions?{" "}
+              <a href={`mailto:${siteConfig.email}`} className="text-[#74D4DF] hover:underline">
+                {siteConfig.email}
+              </a>
+            </p>
           </div>
-          <p className="mt-5 text-sm text-white/40">
-            Questions?{" "}
-            <a href={`mailto:${siteConfig.email}`} className="text-[#74D4DF] hover:underline">
-              {siteConfig.email}
-            </a>
-          </p>
+          <PartnerLeadForm
+            eyebrow="Lead generation"
+            title="Become a merchant partner"
+            body="Share your store details and we will help you choose a plan, voucher setup, and launch path."
+            source="website_merchants_page"
+            intentLabel="Plan or offer type"
+            intentOptions={merchantIntentOptions}
+            messageLabel="Store brief"
+            messagePlaceholder="Example: We sell electronics in Nairobi and want to list products, run voucher campaigns, or drive repeat purchases. Include product categories, fulfilment coverage, and timing."
+            submitLabel="Request merchant setup"
+            successMessage="Thanks. We will review your merchant inquiry and follow up."
+            className="shadow-none"
+          />
         </div>
       </section>
     </main>

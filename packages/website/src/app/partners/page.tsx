@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
 import { ButtonLink } from "@/components/ButtonLink";
+import { PartnerLeadForm } from "@/components/PartnerLeadForm";
 import { SectionHeader } from "@/components/SectionHeader";
 import { partnerContent } from "@/content/site";
 
@@ -12,8 +14,38 @@ export const metadata: Metadata = {
 };
 
 const campaignPartners = [
-  { name: "MiniPay", sub: "by Opera" },
-  { name: "Celo PG", sub: "Public Goods" },
+  {
+    name: "MiniPay",
+    sub: "Wallet campaign partner",
+    logo: "/Logo on white.png",
+    width: 1024,
+    height: 1024,
+    imageClassName: "h-20 w-20 object-contain",
+  },
+  {
+    name: "Web3 Mashinani",
+    sub: "Community campaign partner",
+    logo: "/WMLogo.svg",
+    width: 459,
+    height: 143,
+    imageClassName: "h-14 w-auto object-contain",
+  },
+  {
+    name: "CeloPG",
+    sub: "Public goods partner",
+    logo: "/celopg.png",
+    width: 2048,
+    height: 2048,
+    imageClassName: "h-20 w-20 rounded-full object-contain",
+  },
+];
+
+const partnerIntentOptions = [
+  "$100 Growth Test",
+  "Full Campaign",
+  "Partner Quests",
+  "Sponsored Raffle",
+  "Not sure yet",
 ];
 
 export default function PartnersPage() {
@@ -51,14 +83,28 @@ export default function PartnersPage() {
       <section className="border-b border-akiba-line bg-white px-4 py-10 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <p className="text-center text-xs font-semibold uppercase tracking-widest text-akiba-muted">
-            Trusted by
+            Previous campaign partners
           </p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-8 md:gap-14">
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
             {campaignPartners.map((p) => (
-              <div key={p.name} className="flex flex-col items-center gap-1">
-                <span className="font-sterling text-2xl font-semibold text-akiba-ink">{p.name}</span>
-                <span className="text-xs text-akiba-muted">{p.sub}</span>
-              </div>
+              <article
+                key={p.name}
+                className="flex min-h-40 flex-col items-center justify-between rounded-lg border border-akiba-line bg-akiba-paper p-5 text-center"
+              >
+                <div className="flex h-24 w-full items-center justify-center">
+                  <Image
+                    src={p.logo}
+                    width={p.width}
+                    height={p.height}
+                    alt={`${p.name} logo`}
+                    className={p.imageClassName}
+                  />
+                </div>
+                <div>
+                  <h2 className="font-sterling text-xl font-semibold text-akiba-ink">{p.name}</h2>
+                  <p className="mt-1 text-xs text-akiba-muted">{p.sub}</p>
+                </div>
+              </article>
             ))}
           </div>
         </div>
@@ -185,16 +231,50 @@ export default function PartnersPage() {
           </div>
           <p className="mt-5 text-center text-sm text-akiba-muted">{project.pilotFootnote}</p>
 
-          <div className="mt-10 text-center">
-            <ButtonLink href={`mailto:${partnerContent.form.email}`}>
-              Start a $100 Growth Test
-            </ButtonLink>
-            <p className="mt-4 text-sm text-akiba-muted">
-              Or tell us your KPI and we&apos;ll design the campaign structure.{" "}
-              <a href={`mailto:hello@akibamiles.com`} className="font-semibold text-akiba-teal">
-                hello@akibamiles.com
-              </a>
-            </p>
+          <div className="mt-12 grid items-start gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+            <aside className="rounded-lg bg-akiba-ink p-6 text-white lg:sticky lg:top-24">
+              <p className="font-sterling text-base font-medium text-[#74D4DF]">
+                Campaign intake
+              </p>
+              <h3 className="mt-3 font-sterling text-3xl font-medium leading-tight">
+                Tell us the KPI. We will shape the campaign.
+              </h3>
+              <p className="mt-4 text-sm leading-7 text-white/65">
+                Use the form for growth tests, full campaigns, raffles, or a
+                custom partner quest. The first reply focuses on campaign
+                mechanics, expected user actions, and reporting.
+              </p>
+              <ul className="mt-6 space-y-3">
+                {[
+                  "Target action and wallet segment",
+                  "Reward structure and campaign window",
+                  "Reporting metrics for D7, D14, and D30",
+                ].map((item) => (
+                  <li key={item} className="flex items-start gap-2.5 text-sm text-white/75">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#74D4DF]" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-6 text-sm text-white/45">
+                Prefer email?{" "}
+                <a href={`mailto:${partnerContent.form.email}`} className="text-[#74D4DF] hover:underline">
+                  {partnerContent.form.email}
+                </a>
+              </p>
+            </aside>
+            <PartnerLeadForm
+              eyebrow="Lead generation"
+              title="Start a partner campaign"
+              body="Share the basics and we will come back with a growth-test or full-campaign structure."
+              source="website_partners_page"
+              intentOptions={partnerIntentOptions}
+              messageLabel="Campaign brief"
+              messagePlaceholder="Example: We want MiniPay users to swap, deposit, bridge, hold, or return daily. Include target countries, budget range, timing, and any KPI that matters."
+              submitLabel="Request campaign plan"
+              successMessage="Thanks. We will review your campaign inquiry and follow up."
+              className="h-full"
+            />
           </div>
         </div>
       </section>
