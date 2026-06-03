@@ -26,7 +26,7 @@ import {
   laptop,
   jbl,
   bag,
-  docking, camera, washmachine, chair
+  docking, camera, washmachine, chair, usdtround
 } from "@/lib/img";
 import { akibaMilesSymbol, akibaMilesSymbolAlt, RefreshSvg, usdtSymbol } from "@/lib/svg";
 import Image from "next/image";
@@ -85,7 +85,7 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   cUSD: RaffleImg1,
   USDT: RaffleImg2,
   Miles: RaffleImg5,
-  default: RaffleImg3,
+  default: usdtround,
 };
 
 const PHYSICAL_IMAGES: Record<number, StaticImageData> = {

@@ -34,6 +34,7 @@ import docking from "../public/img/docking.png"
 import camera from "../public/img/camera.png"
 import washmachine from "../public/img/washmachine.png"
 import chair from "../public/img/gaming-chair.png"
+import usdtround from "../public/img/usdt-raffle.jpg"
 
 export {
   WinImg,
@@ -54,5 +55,5 @@ export {
   sambuds,
   jbl,
   ebike, tv,soundbar, ps5, usdt,
-  pods, phone, bag,camera,washmachine, chair
+  pods, phone, bag,camera,washmachine, chair, usdtround
 };
