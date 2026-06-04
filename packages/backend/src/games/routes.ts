@@ -249,6 +249,10 @@ router.post("/verify", async (req, res) => {
     if (expectedCommitment) {
       const actualCommitment = seedCommitment(replaySeed, walletAddress, gameType);
       if (actualCommitment.toLowerCase() !== expectedCommitment.toLowerCase()) {
+        console.error("[games/verify] seed-commitment-mismatch", {
+          sessionId, gameType, walletAddress,
+          replaySeed, expectedCommitment, actualCommitment,
+        });
         res.status(400).json({ accepted: false, error: "seed-commitment-mismatch" });
         return;
       }
