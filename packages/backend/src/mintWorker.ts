@@ -21,6 +21,9 @@ const BATCH_RETRY_ATTEMPTS = 3;
 const BATCH_RETRY_DELAY_MS = 5_000;
 const RECEIPT_POLL_MS = 5_000;
 const STALLED_JOB_AGE_MS = LOCK_LEASE_SECONDS * 1000 * 2;
+const FORCE_SINGLE_TX_MINTS =
+  (process.env.MINT_WORKER_SINGLE_TX ?? "").trim().toLowerCase() === "true" ||
+  (process.env.MINT_WORKER_SINGLE_TX ?? "").trim() === "1";
 
 // Round-robin across these RPCs so wallets don't all hammer the same node.
 const RPC_URLS = [
@@ -29,6 +32,7 @@ const RPC_URLS = [
 ];
 
 const BATCH_MINT_ABI = [
+  "function mint(address account, uint256 amount) external",
   "function batchMint(address[] calldata accounts, uint256[] calldata amounts) external",
   "function claimV2TokensFor(address user) external",
   "error Blacklisted()",
@@ -117,6 +121,10 @@ function describeFailure(err: any): string {
   const msg = err?.shortMessage ?? err?.message ?? "error";
   if (kind === "unknown") return msg;
   return `${kind}: ${msg}`;
+}
+
+function shouldMintWithSingleTx(job: any): boolean {
+  return FORCE_SINGLE_TX_MINTS || job.payload?.autoClaim === true;
 }
 
 function isTransientError(err: any): boolean {
@@ -328,10 +336,7 @@ async function processMintJobsIndividually(
 
   for (const job of jobs) {
     try {
-      const tx = await contract.batchMint(
-        [job.user_address],
-        [ethers.parseUnits(String(job.points), 18)]
-      );
+      const tx = await contract.mint(job.user_address, ethers.parseUnits(String(job.points), 18));
       const receipt = await waitForReceiptWithFallback(tx.hash, `${label} single ${job.id}`);
       succeeded.push({ ...job, txHash: receipt.hash ?? tx.hash });
     } catch (err: any) {
@@ -459,16 +464,21 @@ export async function runDrain() {
         const migrationJobs = allJobs.filter((j) => j.payload?.kind === "v2_migration");
 
         round++;
-        console.log(`[mintWorker] Round ${round}: ${mintJobs.length} mint across ${wallets.length} wallet(s), ${migrationJobs.length} migration`);
+        const singleTxMintJobs = mintJobs.filter(shouldMintWithSingleTx);
+        const batchMintJobs = mintJobs.filter((j) => !shouldMintWithSingleTx(j));
+
+        console.log(
+          `[mintWorker] Round ${round}: ${mintJobs.length} mint (${batchMintJobs.length} batch, ${singleTxMintJobs.length} single-tx) across ${wallets.length} wallet(s), ${migrationJobs.length} migration`
+        );
 
         // ── Split mint jobs across wallets and fire in parallel ─────────────
-        if (mintJobs.length > 0) {
-          const chunkSize = Math.ceil(mintJobs.length / wallets.length);
+        if (batchMintJobs.length > 0) {
+          const chunkSize = Math.ceil(batchMintJobs.length / wallets.length);
           const chunks = wallets
             .map((w, i) => ({
               ...w,
               label: `W${i + 1}`,
-              jobs: mintJobs.slice(i * chunkSize, (i + 1) * chunkSize),
+              jobs: batchMintJobs.slice(i * chunkSize, (i + 1) * chunkSize),
             }))
             .filter((c) => c.jobs.length > 0);
 
@@ -494,6 +504,40 @@ export async function runDrain() {
                 await handleFailedJobs(failed);
                 return { minted: succeeded.length };
               }
+            })
+          );
+
+          for (const result of results) {
+            if (result.status === "fulfilled") totalMinted += result.value.minted;
+          }
+        }
+
+        // ── Auto-claim experiment jobs — one direct mint tx per wallet ──────
+        if (singleTxMintJobs.length > 0) {
+          const chunkSize = Math.ceil(singleTxMintJobs.length / wallets.length);
+          const chunks = wallets
+            .map((w, i) => ({
+              ...w,
+              label: `W${i + 1} single`,
+              jobs: singleTxMintJobs.slice(i * chunkSize, (i + 1) * chunkSize),
+            }))
+            .filter((c) => c.jobs.length > 0);
+
+          const results = await Promise.allSettled(
+            chunks.map(async ({ contract, jobs, label }) => {
+              const { succeeded, failed } = await processMintJobsIndividually(jobs, contract, label);
+
+              const byHash = new Map<string, any[]>();
+              for (const j of succeeded) {
+                const arr = byHash.get(j.txHash) ?? [];
+                arr.push(j);
+                byHash.set(j.txHash, arr);
+              }
+              for (const [hash, group] of byHash) {
+                await applyBatchPayloads(group, hash);
+              }
+              await handleFailedJobs(failed);
+              return { minted: succeeded.length };
             })
           );
 
