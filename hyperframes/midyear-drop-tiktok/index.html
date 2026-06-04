@@ -1,0 +1,1074 @@
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      @font-face {
+        font-family: 'FT Sterling';
+        src: url('assets/fonts/FTSterlingTrial-Bold.woff') format('woff');
+        font-weight: 700;
+      }
+      @font-face {
+        font-family: 'FT Sterling';
+        src: url('assets/fonts/FTSterlingTrial-Semi-Bold.woff') format('woff');
+        font-weight: 600;
+      }
+      @font-face {
+        font-family: 'FT Sterling';
+        src: url('assets/fonts/FTSterlingTrial-Medium.woff') format('woff');
+        font-weight: 500;
+      }
+      @font-face {
+        font-family: 'FT Sterling';
+        src: url('assets/fonts/FTSterlingTrial-Regular.woff') format('woff');
+        font-weight: 400;
+      }
+
+      *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+      html, body {
+        width: 1080px;
+        height: 1920px;
+        overflow: hidden;
+        background: #000;
+        font-family: 'FT Sterling', 'DM Sans', system-ui, sans-serif;
+      }
+
+      #root {
+        position: relative;
+        width: 1080px;
+        height: 1920px;
+        overflow: hidden;
+      }
+
+      .scene {
+        position: absolute;
+        inset: 0;
+        width: 1080px;
+        height: 1920px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+
+      /* ── GRAIN OVERLAY ───────────────────────────────── */
+      .grain {
+        position: absolute;
+        inset: 0;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
+        opacity: 0.05;
+        pointer-events: none;
+        z-index: 10;
+      }
+
+      /* ── FLOATING PARTICLES ─────────────────────────── */
+      .particle {
+        position: absolute;
+        border-radius: 50%;
+        pointer-events: none;
+      }
+
+      /* ─────────────────────────────────────────────────────────
+         SCENE 1 · HOOK  [0–4s]
+         "Mid-Year Drop has been live for 3 days…"
+         bg: deep navy #0B1628
+      ───────────────────────────────────────────────────────── */
+      #s1 {
+        background: linear-gradient(155deg, #0B1628 0%, #0E2040 50%, #0A1D1A 100%);
+      }
+
+      /* logo lockup — top center */
+      #s1-logos {
+        display: flex;
+        align-items: center;
+        gap: 32px;
+        margin-bottom: 88px;
+        opacity: 0;
+      }
+      #s1-akiba-box {
+        width: 100px; height: 100px;
+        background: rgba(35,141,157,0.15);
+        border: 1.5px solid rgba(35,141,157,0.35);
+        border-radius: 28px;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+      }
+      #s1-akiba-box svg { width: 62px; height: 62px; }
+      #s1-akiba-name {
+        font-size: 48px;
+        font-weight: 700;
+        color: white;
+        letter-spacing: -1px;
+      }
+      #s1-times {
+        font-size: 52px;
+        font-weight: 300;
+        color: rgba(255,255,255,0.40);
+      }
+      #s1-minipay-box {
+        width: 100px; height: 100px;
+        border-radius: 28px;
+        overflow: hidden;
+        border: 1.5px solid rgba(7,149,111,0.40);
+        flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+      }
+      #s1-minipay-box svg { width: 100%; height: 100%; display: block; }
+      #s1-minipay-name {
+        font-size: 48px;
+        font-weight: 700;
+        color: white;
+        letter-spacing: -1px;
+      }
+
+      /* LIVE badge */
+      #s1-live-badge {
+        background: #07955F;
+        color: white;
+        font-size: 30px;
+        font-weight: 700;
+        padding: 16px 48px;
+        border-radius: 100px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 52px;
+        opacity: 0;
+      }
+      #s1-live-dot {
+        width: 16px; height: 16px;
+        border-radius: 50%;
+        background: white;
+      }
+
+      #s1-headline {
+        font-size: 88px;
+        font-weight: 700;
+        color: white;
+        text-align: center;
+        line-height: 1.06;
+        letter-spacing: -2.5px;
+        padding: 0 68px;
+        margin-bottom: 40px;
+        opacity: 0;
+      }
+      #s1-headline em { font-style: normal; color: #34D399; }
+
+      #s1-sub {
+        font-size: 40px;
+        font-weight: 400;
+        color: rgba(255,255,255,0.45);
+        text-align: center;
+        line-height: 1.4;
+        padding: 0 88px;
+        opacity: 0;
+      }
+
+      /* 3-days pill */
+      #s1-days-pill {
+        position: absolute;
+        bottom: 144px;
+        background: rgba(245,158,11,0.12);
+        border: 2px solid rgba(245,158,11,0.35);
+        border-radius: 100px;
+        padding: 18px 52px;
+        font-size: 36px;
+        font-weight: 700;
+        color: #F59E0B;
+        opacity: 0;
+      }
+
+      /* particles */
+      #p1a { width: 7px; height: 7px; background: rgba(52,211,153,0.45); top: 320px; left: 100px; }
+      #p1b { width: 5px; height: 5px; background: rgba(35,141,157,0.55); top: 560px; right: 88px; }
+      #p1c { width: 9px; height: 9px; background: rgba(255,255,255,0.10); bottom: 500px; left: 72px; }
+      #p1d { width: 5px; height: 5px; background: rgba(52,211,153,0.30); bottom: 380px; right: 128px; }
+
+      /* ─────────────────────────────────────────────────────────
+         SCENE 2 · CATCH UP  [4–12s]
+         "$50 USDT / day · 10 winners · June 1–30"
+         bg: #0F1A1C dark slate
+      ───────────────────────────────────────────────────────── */
+      #s2 {
+        background: linear-gradient(180deg, #0C1E20 0%, #0F1A1C 100%);
+        padding: 0 80px;
+        justify-content: flex-start;
+        padding-top: 200px;
+      }
+
+      #s2-eyebrow {
+        font-size: 28px;
+        font-weight: 600;
+        color: rgba(35,141,157,0.80);
+        letter-spacing: 6px;
+        text-transform: uppercase;
+        text-align: center;
+        margin-bottom: 36px;
+        align-self: center;
+        opacity: 0;
+      }
+
+      #s2-headline {
+        font-size: 80px;
+        font-weight: 700;
+        color: white;
+        text-align: center;
+        line-height: 1.06;
+        letter-spacing: -2px;
+        margin-bottom: 64px;
+        align-self: center;
+        opacity: 0;
+      }
+      #s2-headline em { font-style: normal; color: #69B1BC; }
+
+      /* prize card */
+      #s2-prize-card {
+        width: 100%;
+        background: rgba(35,141,157,0.08);
+        border: 2px solid rgba(35,141,157,0.22);
+        border-radius: 44px;
+        padding: 52px 56px;
+        display: flex;
+        flex-direction: column;
+        gap: 28px;
+        margin-bottom: 36px;
+        opacity: 0;
+      }
+
+      #s2-prize-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      #s2-prize-amount {
+        font-size: 80px;
+        font-weight: 700;
+        color: white;
+        letter-spacing: -2px;
+        line-height: 1;
+      }
+      #s2-prize-unit {
+        font-size: 36px;
+        font-weight: 600;
+        color: rgba(255,255,255,0.45);
+        margin-top: 8px;
+      }
+      #s2-daily-badge {
+        background: #238D9D;
+        color: white;
+        font-size: 26px;
+        font-weight: 700;
+        padding: 14px 32px;
+        border-radius: 100px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+      }
+      #s2-divider { height: 2px; background: rgba(35,141,157,0.20); }
+
+      .s2-stat-row {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+      }
+      .s2-stat-dot {
+        width: 14px; height: 14px;
+        border-radius: 50%;
+        background: #238D9D;
+        flex-shrink: 0;
+      }
+      .s2-stat-text {
+        font-size: 36px;
+        font-weight: 500;
+        color: rgba(255,255,255,0.75);
+      }
+      .s2-stat-text strong {
+        color: white;
+        font-weight: 700;
+      }
+
+      #s2-footer {
+        align-self: center;
+        font-size: 32px;
+        font-weight: 500;
+        color: rgba(255,255,255,0.38);
+        text-align: center;
+        line-height: 1.5;
+        opacity: 0;
+      }
+      #s2-footer strong { color: rgba(35,141,157,0.90); font-weight: 600; }
+
+      /* ─────────────────────────────────────────────────────────
+         SCENE 3 · ELIGIBILITY  [12–20s]
+         "$10 USDT + stay active"
+         bg: #F0FDFF light teal
+      ───────────────────────────────────────────────────────── */
+      #s3 {
+        background: #F0FDFF;
+        padding: 0 72px;
+        gap: 0;
+      }
+
+      #s3-eyebrow {
+        font-size: 28px;
+        font-weight: 600;
+        color: #238D9D;
+        letter-spacing: 6px;
+        text-transform: uppercase;
+        margin-bottom: 28px;
+        text-align: center;
+        opacity: 0;
+      }
+
+      #s3-headline {
+        font-size: 84px;
+        font-weight: 700;
+        color: #0F2830;
+        text-align: center;
+        line-height: 1.08;
+        letter-spacing: -2.5px;
+        margin-bottom: 72px;
+        opacity: 0;
+      }
+      #s3-headline em { font-style: normal; color: #238D9D; }
+
+      .req-block {
+        width: 100%;
+        background: white;
+        border-radius: 40px;
+        padding: 48px 52px;
+        display: flex;
+        align-items: center;
+        gap: 32px;
+        box-shadow: 0 8px 48px rgba(35,141,157,0.10);
+        margin-bottom: 24px;
+        opacity: 0;
+      }
+      .req-icon-wrap {
+        width: 100px; height: 100px;
+        border-radius: 26px;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+      }
+      .req-icon-wrap.green {
+        background: rgba(7,149,111,0.10);
+        border: 2px solid rgba(7,149,111,0.28);
+      }
+      .req-icon-wrap.teal {
+        background: rgba(35,141,157,0.10);
+        border: 2px solid rgba(35,141,157,0.28);
+      }
+      .req-body { flex: 1; }
+      .req-title {
+        font-size: 40px;
+        font-weight: 700;
+        color: #0F2830;
+        margin-bottom: 6px;
+        line-height: 1.2;
+      }
+      .req-desc {
+        font-size: 28px;
+        color: rgba(15,40,48,0.50);
+        font-weight: 400;
+        line-height: 1.3;
+      }
+      .req-check {
+        width: 60px; height: 60px;
+        border-radius: 50%;
+        background: rgba(7,149,111,0.10);
+        border: 2.5px solid #07955F;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+        transform: scale(0);
+      }
+
+      #s3-entry-note {
+        font-size: 34px;
+        font-weight: 500;
+        color: #3A6070;
+        text-align: center;
+        line-height: 1.45;
+        margin-top: 20px;
+        opacity: 0;
+      }
+      #s3-entry-note strong { color: #238D9D; font-weight: 700; }
+
+      /* ─────────────────────────────────────────────────────────
+         SCENE 4 · URGENCY  [20–28s]
+         "3 gone. 27 left."
+         bg: #0F1A1C dark
+      ───────────────────────────────────────────────────────── */
+      #s4 {
+        background: #0F1A1C;
+        padding: 0 80px;
+        gap: 0;
+      }
+
+      #s4-glow {
+        position: absolute;
+        width: 1100px; height: 1100px;
+        background: radial-gradient(ellipse at 50% 42%, rgba(245,158,11,0.12) 0%, transparent 65%);
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+      }
+
+      #s4-headline {
+        font-size: 96px;
+        font-weight: 700;
+        color: white;
+        text-align: center;
+        line-height: 1.06;
+        letter-spacing: -3px;
+        margin-bottom: 56px;
+        opacity: 0;
+        position: relative;
+        z-index: 2;
+      }
+      #s4-headline em { font-style: normal; color: #F59E0B; }
+
+      /* countdown cards row */
+      #s4-counter-row {
+        display: flex;
+        gap: 32px;
+        align-items: stretch;
+        width: 100%;
+        margin-bottom: 56px;
+        position: relative;
+        z-index: 2;
+      }
+      .cnt-card {
+        flex: 1;
+        border-radius: 36px;
+        padding: 44px 32px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+        opacity: 0;
+      }
+      .cnt-card.gone {
+        background: rgba(245,158,11,0.10);
+        border: 2px solid rgba(245,158,11,0.28);
+      }
+      .cnt-card.left {
+        background: rgba(35,141,157,0.10);
+        border: 2px solid rgba(35,141,157,0.28);
+      }
+      .cnt-number {
+        font-size: 100px;
+        font-weight: 700;
+        line-height: 1;
+        letter-spacing: -4px;
+      }
+      .cnt-card.gone .cnt-number { color: #F59E0B; }
+      .cnt-card.left .cnt-number { color: #69B1BC; }
+      .cnt-label {
+        font-size: 30px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 3px;
+      }
+      .cnt-card.gone .cnt-label { color: rgba(245,158,11,0.65); }
+      .cnt-card.left .cnt-label { color: rgba(35,141,157,0.65); }
+      .cnt-sub {
+        font-size: 26px;
+        font-weight: 400;
+      }
+      .cnt-card.gone .cnt-sub { color: rgba(255,255,255,0.32); }
+      .cnt-card.left .cnt-sub { color: rgba(255,255,255,0.32); }
+
+      #s4-urgency-sub {
+        font-size: 42px;
+        font-weight: 400;
+        color: rgba(255,255,255,0.50);
+        text-align: center;
+        line-height: 1.45;
+        padding: 0 24px;
+        position: relative;
+        z-index: 2;
+        opacity: 0;
+      }
+      #s4-urgency-sub strong { color: white; font-weight: 700; }
+
+      #s4-fix-note {
+        background: rgba(35,141,157,0.08);
+        border: 1.5px solid rgba(35,141,157,0.20);
+        border-radius: 32px;
+        padding: 36px 48px;
+        margin-top: 52px;
+        width: 100%;
+        text-align: center;
+        font-size: 36px;
+        font-weight: 600;
+        color: #69B1BC;
+        line-height: 1.4;
+        position: relative;
+        z-index: 2;
+        opacity: 0;
+      }
+
+      /* ─────────────────────────────────────────────────────────
+         SCENE 5 · CTA  [28–33s]
+         "Join AkibaMiles. Load $10. Get in the pool."
+         bg: #238D9D teal
+      ───────────────────────────────────────────────────────── */
+      #s5 {
+        background: #238D9D;
+        padding: 0 72px;
+        gap: 0;
+        justify-content: center;
+        overflow: hidden;
+      }
+
+      #s5-orb-tl {
+        position: absolute;
+        width: 500px; height: 500px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.07);
+        top: 40px; left: 0;
+        pointer-events: none;
+      }
+      #s5-orb-br {
+        position: absolute;
+        width: 450px; height: 450px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.06);
+        bottom: 40px; right: 0;
+        pointer-events: none;
+      }
+
+      #s5-eyebrow {
+        font-size: 26px;
+        font-weight: 600;
+        color: rgba(255,255,255,0.65);
+        letter-spacing: 6px;
+        text-transform: uppercase;
+        text-align: center;
+        margin-bottom: 20px;
+        opacity: 0;
+        position: relative; z-index: 2;
+      }
+
+      #s5-headline {
+        font-size: 72px;
+        font-weight: 700;
+        color: white;
+        text-align: center;
+        line-height: 1.04;
+        letter-spacing: -2px;
+        margin-bottom: 48px;
+        opacity: 0;
+        position: relative; z-index: 2;
+      }
+
+      /* CTA steps */
+      .cta-step {
+        width: 100%;
+        background: rgba(255,255,255,0.12);
+        border: 2px solid rgba(255,255,255,0.22);
+        border-radius: 32px;
+        padding: 32px 40px;
+        display: flex;
+        align-items: center;
+        gap: 28px;
+        margin-bottom: 16px;
+        opacity: 0;
+        position: relative; z-index: 2;
+      }
+      .cta-step-num {
+        width: 68px; height: 68px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.20);
+        font-size: 30px;
+        font-weight: 700;
+        color: white;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+      }
+      .cta-step-text {
+        font-size: 38px;
+        font-weight: 700;
+        color: white;
+        line-height: 1.2;
+      }
+      .cta-step-sub {
+        font-size: 26px;
+        font-weight: 400;
+        color: rgba(255,255,255,0.60);
+        margin-top: 4px;
+        line-height: 1.3;
+      }
+
+      /* ─────────────────────────────────────────────────────────
+         SCENE 6 · CLOSER  [33–36s]
+         TEXT ONLY — no VO
+         bg: #0F1A1C dark
+      ───────────────────────────────────────────────────────── */
+      #s6 {
+        background: #0F1A1C;
+      }
+
+      #s6-glow {
+        position: absolute;
+        width: 1200px; height: 1200px;
+        background: radial-gradient(ellipse at 50% 44%, rgba(35,141,157,0.18) 0%, transparent 66%);
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+      }
+
+      #s6-lockup {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 56px;
+        position: relative;
+        z-index: 2;
+      }
+
+      /* logo pair */
+      #s6-logo-row {
+        display: flex;
+        align-items: center;
+        gap: 40px;
+        opacity: 0;
+      }
+      #s6-akiba-logo {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+      }
+      #s6-akiba-box {
+        width: 96px; height: 96px;
+        background: #238D9D;
+        border-radius: 28px;
+        display: flex; align-items: center; justify-content: center;
+      }
+      #s6-akiba-box svg { width: 60px; height: 60px; }
+      #s6-akiba-name {
+        font-size: 52px;
+        font-weight: 700;
+        color: white;
+        letter-spacing: -1px;
+      }
+      #s6-times {
+        font-size: 52px;
+        font-weight: 300;
+        color: rgba(255,255,255,0.40);
+      }
+      #s6-minipay-logo {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+      }
+      #s6-minipay-box {
+        width: 96px; height: 96px;
+        border-radius: 28px;
+        overflow: hidden;
+        border: 2px solid rgba(7,149,111,0.40);
+        flex-shrink: 0;
+      }
+      #s6-minipay-box svg { width: 100%; height: 100%; display: block; }
+      #s6-minipay-name {
+        font-size: 52px;
+        font-weight: 700;
+        color: white;
+        letter-spacing: -1px;
+      }
+
+      /* campaign name */
+      #s6-campaign {
+        font-size: 52px;
+        font-weight: 700;
+        color: rgba(255,255,255,0.85);
+        text-align: center;
+        letter-spacing: -1px;
+        line-height: 1.2;
+        opacity: 0;
+      }
+      #s6-campaign em { font-style: normal; color: #69B1BC; }
+
+      /* tagline dots row */
+      #s6-taglines {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        opacity: 0;
+      }
+      .s6-tag {
+        font-size: 30px;
+        font-weight: 500;
+        color: rgba(255,255,255,0.40);
+      }
+      .s6-dot {
+        width: 8px; height: 8px;
+        border-radius: 50%;
+        background: rgba(35,141,157,0.60);
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="36"
+      data-width="1080"
+      data-height="1920"
+    >
+
+      <!-- ════════════════════════════════════════
+           SCENE 1 · HOOK  (0 – 4s)
+      ════════════════════════════════════════ -->
+      <div id="s1" class="scene clip" data-start="0" data-duration="4" data-track-index="1">
+        <div class="grain"></div>
+
+        <div class="particle" id="p1a" data-layout-allow-overflow="true"></div>
+        <div class="particle" id="p1b" data-layout-allow-overflow="true"></div>
+        <div class="particle" id="p1c" data-layout-allow-overflow="true"></div>
+        <div class="particle" id="p1d" data-layout-allow-overflow="true"></div>
+
+        <!-- AkibaMiles × MiniPay lockup -->
+        <div id="s1-logos">
+          <!-- AkibaMiles -->
+          <div id="s1-akiba-box">
+            <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="8" cy="8" r="8" fill="#238D9D"/>
+              <path d="M6.69711 7.75901C8.26827 7.00759 9.49787 5.73245 10.2038 4.13852C9.74834 3.66034 9.15631 3.31879 8.51874 3.11385L8.17718 3C8.15441 3.04554 8.13164 3.11385 8.13164 3.1594C7.58515 4.70778 6.46941 5.96015 4.96656 6.66604C3.91912 7.16698 3.14493 8.0778 2.7806 9.17078L2.66675 9.51234C2.71229 9.53511 2.7806 9.55787 2.82614 9.55787C3.25878 9.71727 3.69142 9.9222 4.10128 10.1727C4.67054 9.14801 5.58136 8.28273 6.69711 7.75901Z" fill="white"/>
+              <path d="M12.0116 5.66675C11.1691 6.94189 10.0078 7.96656 8.5733 8.64967C7.41201 9.19616 6.52396 10.2208 6.1141 11.4504L6.00024 11.8375C6.43288 12.2246 6.9566 12.5206 7.52586 12.7028L7.86742 12.8167C7.89019 12.7711 7.91296 12.7028 7.91296 12.6573C8.45945 11.1089 9.5752 9.85651 11.078 9.15062C12.1255 8.64967 12.9224 7.73886 13.264 6.64588L13.3779 6.30432C12.8997 6.1677 12.4443 5.93999 12.0116 5.66675Z" fill="white"/>
+            </svg>
+          </div>
+          <span id="s1-akiba-name">AkibaMiles</span>
+          <span id="s1-times">×</span>
+          <!-- MiniPay -->
+          <div id="s1-minipay-box">
+            <img src="assets/img/minipay-app-icon.png" width="100" height="100" alt="MiniPay" style="display:block;width:100px;height:100px;object-fit:cover;" />
+          </div>
+          <span id="s1-minipay-name">MiniPay</span>
+        </div>
+
+        <!-- LIVE badge -->
+        <div id="s1-live-badge">
+          <span id="s1-live-dot"></span>
+          Live for 3 Days
+        </div>
+
+        <div id="s1-headline">
+          Mid-Year Drop.<br/><em>Don't scroll past.</em>
+        </div>
+
+        <div id="s1-sub">
+          The AkibaMiles × MiniPay<br/>campaign is running right now.
+        </div>
+
+        <div id="s1-days-pill">Day 3 of 30</div>
+      </div>
+
+      <!-- ════════════════════════════════════════
+           SCENE 2 · CATCH UP  (4 – 12s)
+      ════════════════════════════════════════ -->
+      <div id="s2" class="scene clip" data-start="4" data-duration="8" data-track-index="1">
+        <div class="grain"></div>
+
+        <div id="s2-eyebrow">What's happening</div>
+        <div id="s2-headline">$50 USDT<br/>every single <em>day.</em></div>
+
+        <div id="s2-prize-card">
+          <div id="s2-prize-top">
+            <div>
+              <div id="s2-prize-amount">$50</div>
+              <div id="s2-prize-unit">USDT daily prize pool</div>
+            </div>
+            <div id="s2-daily-badge">Daily</div>
+          </div>
+          <div id="s2-divider"></div>
+          <div class="s2-stat-row" id="s2r1">
+            <div class="s2-stat-dot"></div>
+            <span class="s2-stat-text"><strong>10 winners</strong> per draw</span>
+          </div>
+          <div class="s2-stat-row" id="s2r2">
+            <div class="s2-stat-dot"></div>
+            <span class="s2-stat-text"><strong>$5 USDT</strong> each, straight to MiniPay</span>
+          </div>
+          <div class="s2-stat-row" id="s2r3">
+            <div class="s2-stat-dot"></div>
+            <span class="s2-stat-text">Runs <strong>June 1 – June 30</strong></span>
+          </div>
+        </div>
+
+        <div id="s2-footer">
+          30 draws · 300 winners total<br/>
+          <strong>$1,500 USDT in prizes</strong>
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════════
+           SCENE 3 · ELIGIBILITY  (12 – 20s)
+      ════════════════════════════════════════ -->
+      <div id="s3" class="scene clip" data-start="12" data-duration="8" data-track-index="1">
+        <div id="s3-eyebrow">To qualify</div>
+        <div id="s3-headline">Two things.<br/><em>That's it.</em></div>
+
+        <!-- Req 1: $10 USDT -->
+        <div id="rb1" class="req-block">
+          <div class="req-icon-wrap green">
+            <!-- USDT icon: green circle with $ -->
+            <svg width="60" height="60" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" fill="rgba(7,149,111,0.15)" stroke="#07955F" stroke-width="1.4"/>
+              <text x="12" y="17" text-anchor="middle" font-size="11" font-weight="700" fill="#07955F" font-family="system-ui">$</text>
+            </svg>
+          </div>
+          <div class="req-body">
+            <div class="req-title">Hold $10 USDT</div>
+            <div class="req-desc">Minimum balance in your MiniPay wallet</div>
+          </div>
+          <div class="req-check" id="ck1">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+              <path d="M7 11.878C7.941 12.563 9.824 14.446 10.595 15.73C11.536 13.676 13.932 9.054 16.5 7" stroke="#07955F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Req 2: Stay active on AkibaMiles -->
+        <div id="rb2" class="req-block">
+          <div class="req-icon-wrap teal">
+            <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" width="60" height="60">
+              <circle cx="8" cy="8" r="8" fill="#238D9D"/>
+              <path d="M6.69711 7.75901C8.26827 7.00759 9.49787 5.73245 10.2038 4.13852C9.74834 3.66034 9.15631 3.31879 8.51874 3.11385L8.17718 3C8.15441 3.04554 8.13164 3.11385 8.13164 3.1594C7.58515 4.70778 6.46941 5.96015 4.96656 6.66604C3.91912 7.16698 3.14493 8.0778 2.7806 9.17078L2.66675 9.51234C2.71229 9.53511 2.7806 9.55787 2.82614 9.55787C3.25878 9.71727 3.69142 9.9222 4.10128 10.1727C4.67054 9.14801 5.58136 8.28273 6.69711 7.75901Z" fill="white"/>
+              <path d="M12.0116 5.66675C11.1691 6.94189 10.0078 7.96656 8.5733 8.64967C7.41201 9.19616 6.52396 10.2208 6.1141 11.4504L6.00024 11.8375C6.43288 12.2246 6.9566 12.5206 7.52586 12.7028L7.86742 12.8167C7.89019 12.7711 7.91296 12.7028 7.91296 12.6573C8.45945 11.1089 9.5752 9.85651 11.078 9.15062C12.1255 8.64967 12.9224 7.73886 13.264 6.64588L13.3779 6.30432C12.8997 6.1677 12.4443 5.93999 12.0116 5.66675Z" fill="white"/>
+            </svg>
+          </div>
+          <div class="req-body">
+            <div class="req-title">Stay active on AkibaMiles</div>
+            <div class="req-desc">Your activity is your daily entry</div>
+          </div>
+          <div class="req-check" id="ck2">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+              <path d="M7 11.878C7.941 12.563 9.824 14.446 10.595 15.73C11.536 13.676 13.932 9.054 16.5 7" stroke="#07955F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+
+        <div id="s3-entry-note">
+          Both conditions met → <strong>you're in the draw.</strong><br/>Resets every single day.
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════════
+           SCENE 4 · URGENCY  (20 – 28s)
+      ════════════════════════════════════════ -->
+      <div id="s4" class="scene clip" data-start="20" data-duration="8" data-track-index="1">
+        <div id="s4-glow" data-layout-allow-overflow="true"></div>
+
+        <div id="s4-headline">
+          The clock<br/>is <em>running.</em>
+        </div>
+
+        <div id="s4-counter-row">
+          <div id="cnt-gone" class="cnt-card gone">
+            <div class="cnt-number">3</div>
+            <div class="cnt-label">Days gone</div>
+            <div class="cnt-sub">Missed draws</div>
+          </div>
+          <div id="cnt-left" class="cnt-card left">
+            <div class="cnt-number">27</div>
+            <div class="cnt-label">Days left</div>
+            <div class="cnt-sub">Still open</div>
+          </div>
+        </div>
+
+        <div id="s4-urgency-sub">
+          Every day you're not set up<br/>is a draw you're <strong>sitting out.</strong>
+        </div>
+
+        <div id="s4-fix-note">
+          The good news — you can fix that right now.
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════════
+           SCENE 5 · CTA  (28 – 33s)
+      ════════════════════════════════════════ -->
+      <div id="s5" class="scene clip" data-start="28" data-duration="5" data-track-index="1">
+        <div id="s5-orb-tl" data-layout-allow-overflow="true"></div>
+        <div id="s5-orb-br" data-layout-allow-overflow="true"></div>
+
+        <div id="s5-eyebrow">Do this now</div>
+        <div id="s5-headline">Three steps.<br/>Get in the pool.</div>
+
+        <!-- Step 1 -->
+        <div id="ct1" class="cta-step">
+          <div class="cta-step-num">1</div>
+          <div>
+            <div class="cta-step-text">Join AkibaMiles</div>
+            <div class="cta-step-sub">Sign up and activate your account</div>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div id="ct2" class="cta-step">
+          <div class="cta-step-num">2</div>
+          <div>
+            <div class="cta-step-text">Load $10 in MiniPay</div>
+            <div class="cta-step-sub">Keep at least $10 USDT in your wallet</div>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div id="ct3" class="cta-step">
+          <div class="cta-step-num">3</div>
+          <div>
+            <div class="cta-step-text">Get in the pool</div>
+            <div class="cta-step-sub">Stay active — you're automatically entered</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════════
+           SCENE 6 · CLOSER  (33 – 36s)
+           TEXT ONLY — no VO
+      ════════════════════════════════════════ -->
+      <div id="s6" class="scene clip" data-start="33" data-duration="3" data-track-index="1">
+        <div id="s6-glow" data-layout-allow-overflow="true"></div>
+
+        <div id="s6-lockup">
+          <!-- Dual logo row -->
+          <div id="s6-logo-row">
+            <div id="s6-akiba-logo">
+              <div id="s6-akiba-box">
+                <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="8" cy="8" r="8" fill="rgba(255,255,255,0.15)"/>
+                  <path d="M6.69711 7.75901C8.26827 7.00759 9.49787 5.73245 10.2038 4.13852C9.74834 3.66034 9.15631 3.31879 8.51874 3.11385L8.17718 3C8.15441 3.04554 8.13164 3.11385 8.13164 3.1594C7.58515 4.70778 6.46941 5.96015 4.96656 6.66604C3.91912 7.16698 3.14493 8.0778 2.7806 9.17078L2.66675 9.51234C2.71229 9.53511 2.7806 9.55787 2.82614 9.55787C3.25878 9.71727 3.69142 9.9222 4.10128 10.1727C4.67054 9.14801 5.58136 8.28273 6.69711 7.75901Z" fill="white"/>
+                  <path d="M12.0116 5.66675C11.1691 6.94189 10.0078 7.96656 8.5733 8.64967C7.41201 9.19616 6.52396 10.2208 6.1141 11.4504L6.00024 11.8375C6.43288 12.2246 6.9566 12.5206 7.52586 12.7028L7.86742 12.8167C7.89019 12.7711 7.91296 12.7028 7.91296 12.6573C8.45945 11.1089 9.5752 9.85651 11.078 9.15062C12.1255 8.64967 12.9224 7.73886 13.264 6.64588L13.3779 6.30432C12.8997 6.1677 12.4443 5.93999 12.0116 5.66675Z" fill="white"/>
+                </svg>
+              </div>
+              <span id="s6-akiba-name">AkibaMiles</span>
+            </div>
+            <span id="s6-times">×</span>
+            <div id="s6-minipay-logo">
+              <div id="s6-minipay-box">
+                <img src="assets/img/minipay-app-icon.png" width="96" height="96" alt="MiniPay" style="display:block;width:96px;height:96px;object-fit:cover;" />
+              </div>
+              <span id="s6-minipay-name">MiniPay</span>
+            </div>
+          </div>
+
+          <!-- Campaign name -->
+          <div id="s6-campaign">
+            Mid-Year <em>Drop</em>
+          </div>
+
+          <!-- tagline dots -->
+          <div id="s6-taglines">
+            <span class="s6-tag">June 2026</span>
+            <span class="s6-dot"></span>
+            <span class="s6-tag">$50 USDT / day</span>
+            <span class="s6-dot"></span>
+            <span class="s6-tag">10 winners</span>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- #root -->
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      // ── SCENE 1 · HOOK  0–4s ────────────────────────────────────
+      tl.from('#p1a', { y: -18, opacity: 0, duration: 0.7, ease: 'power2.out' }, 0.05);
+      tl.from('#p1b', { y: 18, opacity: 0, duration: 0.7, ease: 'power2.out' }, 0.12);
+      tl.from('#p1c', { x: -14, opacity: 0, duration: 0.7, ease: 'power2.out' }, 0.18);
+      tl.from('#p1d', { x: 14, opacity: 0, duration: 0.7, ease: 'power2.out' }, 0.08);
+
+      tl.to('#p1a', { y: -12, duration: 1.8, ease: 'sine.inOut', yoyo: true, repeat: 1 }, 0.9);
+      tl.to('#p1b', { y: 12, duration: 1.6, ease: 'sine.inOut', yoyo: true, repeat: 1 }, 1.1);
+      tl.to('#p1c', { x: 10, duration: 2.0, ease: 'sine.inOut', yoyo: true, repeat: 1, overwrite: 'auto' }, 0.8);
+      tl.to('#p1d', { x: -10, duration: 1.7, ease: 'sine.inOut', yoyo: true, repeat: 1 }, 1.0);
+
+      tl.to('#s1-logos',     { opacity: 1, duration: 0.55, ease: 'power3.out' }, 0.1);
+      tl.from('#s1-logos',   { y: 40, duration: 0.55, ease: 'power3.out' }, 0.1);
+      tl.to('#s1-live-badge', { opacity: 1, duration: 0.45, ease: 'power2.out' }, 0.55);
+      tl.from('#s1-live-badge', { scale: 0.82, duration: 0.45, ease: 'back.out(1.8)' }, 0.55);
+      tl.to('#s1-headline',  { opacity: 1, duration: 0.55, ease: 'power3.out' }, 0.85);
+      tl.from('#s1-headline', { y: 56, duration: 0.55, ease: 'power3.out' }, 0.85);
+      tl.to('#s1-sub',       { opacity: 1, duration: 0.45, ease: 'power2.out' }, 1.25);
+      tl.from('#s1-sub',     { y: 32, duration: 0.45, ease: 'power2.out' }, 1.25);
+      tl.to('#s1-days-pill', { opacity: 1, duration: 0.4, ease: 'power2.out' }, 1.9);
+      tl.from('#s1-days-pill', { y: 20, duration: 0.4, ease: 'power2.out' }, 1.9);
+
+      // ── SCENE 2 · CATCH UP  4–12s ──────────────────────────────
+      tl.to('#s2-eyebrow',    { opacity: 1, duration: 0.4, ease: 'power2.out' }, 4.2);
+      tl.from('#s2-eyebrow',  { y: 24, duration: 0.4, ease: 'power2.out' }, 4.2);
+      tl.to('#s2-headline',   { opacity: 1, duration: 0.6, ease: 'power3.out' }, 4.45);
+      tl.from('#s2-headline', { y: 56, duration: 0.6, ease: 'power3.out' }, 4.45);
+      tl.to('#s2-prize-card', { opacity: 1, duration: 0.65, ease: 'back.out(1.2)' }, 4.95);
+      tl.from('#s2-prize-card', { y: 64, duration: 0.65, ease: 'back.out(1.2)' }, 4.95);
+      tl.from('#s2r1', { x: 32, opacity: 0, duration: 0.45, ease: 'power3.out' }, 5.7);
+      tl.from('#s2r2', { x: 32, opacity: 0, duration: 0.45, ease: 'power3.out' }, 5.9);
+      tl.from('#s2r3', { x: 32, opacity: 0, duration: 0.45, ease: 'power3.out' }, 6.1);
+      tl.to('#s2-footer',    { opacity: 1, duration: 0.5, ease: 'power2.out' }, 7.2);
+      tl.from('#s2-footer',  { y: 28, duration: 0.5, ease: 'power2.out' }, 7.2);
+
+      // ── SCENE 3 · ELIGIBILITY  12–20s ──────────────────────────
+      tl.to('#s3-eyebrow',    { opacity: 1, duration: 0.4, ease: 'power2.out' }, 12.2);
+      tl.from('#s3-eyebrow',  { y: 24, duration: 0.4, ease: 'power2.out' }, 12.2);
+      tl.to('#s3-headline',   { opacity: 1, duration: 0.6, ease: 'power3.out' }, 12.45);
+      tl.from('#s3-headline', { y: 56, duration: 0.6, ease: 'power3.out' }, 12.45);
+      tl.to('#rb1', { opacity: 1, duration: 0.55, ease: 'back.out(1.2)' }, 13.1);
+      tl.from('#rb1', { x: 64, duration: 0.55, ease: 'power3.out' }, 13.1);
+      tl.to('#ck1',  { scale: 1, duration: 0.38, ease: 'back.out(2.2)' }, 13.75);
+      tl.to('#rb2', { opacity: 1, duration: 0.55, ease: 'back.out(1.2)' }, 14.1);
+      tl.from('#rb2', { x: 64, duration: 0.55, ease: 'power3.out' }, 14.1);
+      tl.to('#ck2',  { scale: 1, duration: 0.38, ease: 'back.out(2.2)' }, 14.75);
+      tl.to('#s3-entry-note',   { opacity: 1, duration: 0.5, ease: 'power2.out' }, 15.6);
+      tl.from('#s3-entry-note', { y: 28, duration: 0.5, ease: 'power2.out' }, 15.6);
+
+      // ── SCENE 4 · URGENCY  20–28s ──────────────────────────────
+      tl.to('#s4-headline',   { opacity: 1, duration: 0.65, ease: 'power3.out' }, 20.2);
+      tl.from('#s4-headline', { y: 64, duration: 0.65, ease: 'power3.out' }, 20.2);
+      tl.to('#cnt-gone', { opacity: 1, duration: 0.55, ease: 'back.out(1.4)' }, 20.95);
+      tl.from('#cnt-gone', { scale: 0.75, duration: 0.55, ease: 'back.out(1.4)' }, 20.95);
+      tl.to('#cnt-left', { opacity: 1, duration: 0.55, ease: 'back.out(1.4)' }, 21.2);
+      tl.from('#cnt-left', { scale: 0.75, duration: 0.55, ease: 'back.out(1.4)' }, 21.2);
+      tl.to('#s4-urgency-sub',   { opacity: 1, duration: 0.5, ease: 'power2.out' }, 22.1);
+      tl.from('#s4-urgency-sub', { y: 32, duration: 0.5, ease: 'power2.out' }, 22.1);
+      tl.to('#s4-fix-note',   { opacity: 1, duration: 0.5, ease: 'power2.out' }, 23.8);
+      tl.from('#s4-fix-note', { y: 28, duration: 0.5, ease: 'power2.out' }, 23.8);
+
+      // ── SCENE 5 · CTA  28–33s ──────────────────────────────────
+      tl.to('#s5-eyebrow',    { opacity: 1, duration: 0.4, ease: 'power2.out' }, 28.2);
+      tl.from('#s5-eyebrow',  { y: 24, duration: 0.4, ease: 'power2.out' }, 28.2);
+      tl.to('#s5-headline',   { opacity: 1, duration: 0.6, ease: 'power3.out' }, 28.45);
+      tl.from('#s5-headline', { y: 56, duration: 0.6, ease: 'power3.out' }, 28.45);
+      tl.to('#ct1', { opacity: 1, duration: 0.5, ease: 'back.out(1.2)' }, 29.0);
+      tl.from('#ct1', { x: -56, duration: 0.5, ease: 'power3.out' }, 29.0);
+      tl.to('#ct2', { opacity: 1, duration: 0.5, ease: 'back.out(1.2)' }, 29.45);
+      tl.from('#ct2', { x: -56, duration: 0.5, ease: 'power3.out' }, 29.45);
+      tl.to('#ct3', { opacity: 1, duration: 0.5, ease: 'back.out(1.2)' }, 29.9);
+      tl.from('#ct3', { x: -56, duration: 0.5, ease: 'power3.out' }, 29.9);
+
+      // ── SCENE 6 · CLOSER  33–36s ───────────────────────────────
+      tl.to('#s6-logo-row',    { opacity: 1, duration: 0.6, ease: 'power3.out' }, 33.15);
+      tl.from('#s6-logo-row',  { scale: 0.8, duration: 0.6, ease: 'back.out(1.5)' }, 33.15);
+      tl.to('#s6-campaign',    { opacity: 1, duration: 0.5, ease: 'power2.out' }, 33.65);
+      tl.from('#s6-campaign',  { y: 36, duration: 0.5, ease: 'power3.out' }, 33.65);
+      tl.to('#s6-taglines',    { opacity: 1, duration: 0.45, ease: 'power2.out' }, 34.2);
+      tl.from('#s6-taglines',  { y: 20, duration: 0.45, ease: 'power2.out' }, 34.2);
+
+      // soft fade out at end
+      tl.to('#root', { opacity: 0, duration: 0.4, ease: 'power1.in' }, 35.6);
+
+      window.__timelines['main'] = tl;
+    </script>
+  </body>
+</html>

@@ -4,6 +4,28 @@ import { ethers } from "hardhat";
 describe("AkibaDiceGame", () => {
   const points = (amount: string | number) => ethers.parseEther(String(amount));
 
+  async function queueHouseCommits(dice: any, count = 12) {
+    const chainId = (await ethers.provider.getNetwork()).chainId;
+    const diceAddress = await dice.getAddress();
+    const startNonce = await dice.nextHouseCommitNonce();
+    const commits: string[] = [];
+
+    for (let i = 0; i < count; i++) {
+      const nonce = startNonce + BigInt(i);
+      const secret = ethers.keccak256(
+        ethers.toUtf8Bytes(`akiba-test-secret-${nonce.toString()}`)
+      );
+      commits.push(
+        ethers.solidityPackedKeccak256(
+          ["bytes32", "address", "uint256", "uint256"],
+          [secret, diceAddress, chainId, nonce]
+        )
+      );
+    }
+
+    await dice.queueHouseCommits(commits);
+  }
+
   async function deployFixture() {
     const [owner, alice, bob, carol] = await ethers.getSigners();
 
@@ -18,6 +40,7 @@ describe("AkibaDiceGame", () => {
     await dice.waitForDeployment();
 
     await dice.initialize(await mini.getAddress(), owner.address);
+    await queueHouseCommits(dice);
 
     return { owner, alice, bob, carol, mini, dice };
   }

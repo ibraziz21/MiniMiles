@@ -3,8 +3,6 @@ pragma solidity ^0.8.20;
 
 import "./MiniPoints.sol"; // IMiniPoints
 import "@witnet/solidity/contracts/interfaces/IWitRandomness.sol";
-import "@witnet/solidity/contracts/interfaces/IWitRandomnessConsumer.sol";
-import {Witnet} from "@witnet/solidity/contracts/libs/Witnet.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -14,7 +12,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 /// @notice 6-player pots. Each player picks a unique number 1-6 for a given tier.
 ///         When the pot fills, randomness is requested and one number wins the full pot.
 ///         V2: adds USDT-denominated USD tiers and optional USDT bonus on the 30-Miles tier.
-contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable, IWitRandomnessConsumer {
+contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
 
     /* ────────────────────────────────────────────────────────────── */
@@ -152,6 +150,28 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable, IWitRando
     ///      Default false keeps every pre-existing round on the legacy oracle path.
     mapping(uint256 => bool) public roundUsesCloneRng;
 
+    /* ── V4 storage: local commit-reveal randomness ───────────────── */
+
+    /// @notice Relayer allowed to queue house commits and rescue legacy full rounds.
+    address public randomnessOperator;
+
+    /// @dev nonce => precommitted hash. Consumed in FIFO order when a round opens.
+    mapping(uint256 => bytes32) public queuedHouseCommit;
+    uint256 public nextHouseCommitNonce;
+    uint256 public nextHouseCommitToUse;
+
+    /// @dev Commit metadata assigned to each round. New rounds always have one.
+    mapping(uint256 => bytes32) public roundHouseCommit;
+    mapping(uint256 => uint256) public roundHouseCommitNonce;
+
+    /// @dev Future block used for entropy, plus the last block where reveal is accepted.
+    mapping(uint256 => uint256) public roundTargetBlock;
+    mapping(uint256 => uint256) public roundRevealDeadlineBlock;
+    mapping(uint256 => bytes32) public roundFinalEntropy;
+
+    uint16 public randomnessDelayBlocks;
+    uint16 public revealWindowBlocks;
+
     /* ────────────────────────────────────────────────────────────── */
     /* Events                                                        */
     /* ────────────────────────────────────────────────────────────── */
@@ -173,6 +193,21 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable, IWitRando
     event BonusPoolWithdrawn(address indexed to, uint256 amount);
     event CloneSetup(address indexed clone);
     event RandomnessDelivered(uint256 indexed roundId, uint256 indexed randomizeBlock, bytes32 randomness);
+    event RandomnessOperatorSet(address indexed operator);
+    event RandomnessConfigSet(uint16 delayBlocks, uint16 revealWindowBlocks);
+    event HouseCommitQueued(uint256 indexed nonce, bytes32 commit);
+    event HouseCommitConsumed(uint256 indexed roundId, uint256 indexed nonce, bytes32 commit);
+    event CommitRandomnessLocked(
+        uint256 indexed roundId,
+        uint256 indexed targetBlock,
+        uint256 revealDeadlineBlock
+    );
+    event CommitRandomnessRevealed(
+        uint256 indexed roundId,
+        uint256 indexed nonce,
+        bytes32 entropy
+    );
+    event CommitRevealExpiredCancelled(uint256 indexed roundId);
 
     /* ────────────────────────────────────────────────────────────── */
     /* Modifiers                                                     */
@@ -180,6 +215,14 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable, IWitRando
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Owner: not owner");
+        _;
+    }
+
+    modifier onlyRandomnessOperator() {
+        require(
+            msg.sender == owner || msg.sender == randomnessOperator,
+            "Dice: not randomness operator"
+        );
         _;
     }
 
@@ -222,6 +265,16 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable, IWitRando
         stablecoin = IERC20(_stablecoin);
         treasury = _treasury;
         emit TreasurySet(_treasury);
+    }
+
+    /// @notice V4 reinitializer for commit-reveal randomness.
+    function initializeV4CommitReveal(
+        address _randomnessOperator,
+        uint16 _delayBlocks,
+        uint16 _revealWindowBlocks
+    ) public reinitializer(4) onlyOwner {
+        _setRandomnessOperator(_randomnessOperator);
+        _setRandomnessConfig(_delayBlocks, _revealWindowBlocks);
     }
 
     function setMiniPoints(address _mp) external onlyOwner {
@@ -279,6 +332,8 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable, IWitRando
             }
             // ─────────────────────────────────────────────────────────────
 
+            _consumeHouseCommit(roundId);
+
             activeRoundByTier[tier] = roundId;
             totalRoundsCreated += 1;
             tierStats[tier].roundsCreated += 1;
@@ -314,7 +369,7 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable, IWitRando
         emit Joined(roundId, chosenNumber, msg.sender);
 
         if (round.filledSlots == 6) {
-            _tryAutoDraw(roundId);
+            _lockCommitRandomness(roundId);
         }
     }
 
@@ -322,27 +377,18 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable, IWitRando
         uint256 roundId
     ) external payable nonReentrant roundExists(roundId) {
         DiceRound storage round = _rounds[roundId];
-        require(round.filledSlots > 0, "Dice: no players yet");
+        require(round.filledSlots == 6, "Dice: pot not full");
         require(!round.winnerSelected, "Dice: already resolved");
-        require(round.randomBlock == 0, "Dice: randomness requested");
 
-        bool useClone = address(rngClone) != address(0);
-        IWitRandomness oracle = useClone ? rngClone : RNG_LEGACY;
-
-        uint256 usedFee = oracle.randomize{value: msg.value}();
-        round.randomBlock = block.number;
-
-        if (useClone) {
-            require(roundByRandomBlock[block.number] == 0, "Dice: randomize block busy");
-            roundUsesCloneRng[roundId] = true;
-            roundByRandomBlock[block.number] = roundId;
+        if (roundHouseCommit[roundId] == bytes32(0)) {
+            _consumeHouseCommit(roundId);
         }
 
-        if (usedFee < msg.value) {
-            payable(msg.sender).transfer(msg.value - usedFee);
-        }
+        _lockCommitRandomness(roundId);
 
-        emit RandomnessRequested(roundId, round.randomBlock);
+        if (msg.value > 0) {
+            payable(msg.sender).transfer(msg.value);
+        }
     }
 
     function drawRound(uint256 roundId) external nonReentrant roundExists(roundId) {
@@ -350,73 +396,183 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable, IWitRando
         require(round.filledSlots == 6, "Dice: pot not full");
         require(!round.winnerSelected, "Dice: already resolved");
         require(round.randomBlock != 0, "Dice: randomness not requested");
+        require(roundHouseCommit[roundId] == bytes32(0), "Dice: reveal required");
         require(_oracleFor(roundId).isRandomized(round.randomBlock), "Dice: randomness pending");
         _finalizeRound(roundId);
+    }
+
+    function revealAndDraw(
+        uint256 roundId,
+        bytes32 secret
+    ) external nonReentrant roundExists(roundId) {
+        _finalizeCommitRound(roundId, secret);
     }
 
     function _tryAutoDraw(uint256 roundId) internal {
         DiceRound storage round = _rounds[roundId];
         if (round.filledSlots != 6) return;
         if (round.winnerSelected) return;
+        if (roundHouseCommit[roundId] != bytes32(0)) {
+            if (roundTargetBlock[roundId] == 0) {
+                _lockCommitRandomness(roundId);
+            }
+            return;
+        }
         if (round.randomBlock == 0) return;
         if (!_oracleFor(roundId).isRandomized(round.randomBlock)) return;
         _finalizeRound(roundId);
+    }
+
+    function queueHouseCommit(bytes32 commit) external onlyRandomnessOperator returns (uint256 nonce) {
+        nonce = _queueHouseCommit(commit);
+    }
+
+    function queueHouseCommits(bytes32[] calldata commits) external onlyRandomnessOperator {
+        require(commits.length > 0, "Dice: no commits");
+        for (uint256 i = 0; i < commits.length; i++) {
+            _queueHouseCommit(commits[i]);
+        }
+    }
+
+    function reanchorCommitReveal(
+        uint256 roundId
+    ) external onlyRandomnessOperator roundExists(roundId) {
+        DiceRound storage round = _rounds[roundId];
+        require(round.filledSlots == 6, "Dice: pot not full");
+        require(!round.winnerSelected, "Dice: already resolved");
+        require(roundHouseCommit[roundId] == bytes32(0), "Dice: commit exists");
+        _consumeHouseCommit(roundId);
+        _lockCommitRandomness(roundId);
+    }
+
+    function cancelExpiredReveal(
+        uint256 roundId
+    ) external nonReentrant roundExists(roundId) {
+        DiceRound storage round = _rounds[roundId];
+        require(round.filledSlots == 6, "Dice: pot not full");
+        require(!round.winnerSelected, "Dice: already resolved");
+        require(roundHouseCommit[roundId] != bytes32(0), "Dice: no commit");
+
+        uint256 targetBlock = roundTargetBlock[roundId];
+        uint256 deadlineBlock = roundRevealDeadlineBlock[roundId];
+        require(targetBlock != 0, "Dice: randomness not locked");
+        require(
+            block.number > deadlineBlock || block.number > targetBlock + 255,
+            "Dice: reveal still open"
+        );
+
+        _refundAndCloseRound(roundId, round);
+        emit CommitRevealExpiredCancelled(roundId);
+    }
+
+    function _queueHouseCommit(bytes32 commit) internal returns (uint256 nonce) {
+        require(commit != bytes32(0), "Dice: zero commit");
+        nonce = nextHouseCommitNonce;
+        require(queuedHouseCommit[nonce] == bytes32(0), "Dice: nonce occupied");
+        queuedHouseCommit[nonce] = commit;
+        nextHouseCommitNonce = nonce + 1;
+        emit HouseCommitQueued(nonce, commit);
+    }
+
+    function _consumeHouseCommit(uint256 roundId) internal {
+        require(roundHouseCommit[roundId] == bytes32(0), "Dice: commit exists");
+
+        uint256 nonce = nextHouseCommitToUse;
+        bytes32 commit = queuedHouseCommit[nonce];
+        require(commit != bytes32(0), "Dice: no house commit");
+
+        delete queuedHouseCommit[nonce];
+        nextHouseCommitToUse = nonce + 1;
+
+        roundHouseCommit[roundId] = commit;
+        roundHouseCommitNonce[roundId] = nonce;
+        emit HouseCommitConsumed(roundId, nonce, commit);
+    }
+
+    function _lockCommitRandomness(uint256 roundId) internal {
+        DiceRound storage round = _rounds[roundId];
+        require(round.filledSlots == 6, "Dice: pot not full");
+        require(!round.winnerSelected, "Dice: already resolved");
+        require(roundHouseCommit[roundId] != bytes32(0), "Dice: no commit");
+        require(roundTargetBlock[roundId] == 0, "Dice: randomness requested");
+
+        uint256 targetBlock = block.number + _randomnessDelay();
+        uint256 deadlineBlock = targetBlock + _revealWindow();
+
+        roundTargetBlock[roundId] = targetBlock;
+        roundRevealDeadlineBlock[roundId] = deadlineBlock;
+        round.randomBlock = targetBlock;
+
+        emit RandomnessRequested(roundId, targetBlock);
+        emit CommitRandomnessLocked(roundId, targetBlock, deadlineBlock);
+    }
+
+    function _finalizeCommitRound(uint256 roundId, bytes32 secret) internal {
+        DiceRound storage round = _rounds[roundId];
+        require(round.filledSlots == 6, "Dice: pot not full");
+        require(!round.winnerSelected, "Dice: already resolved");
+
+        bytes32 commit = roundHouseCommit[roundId];
+        require(commit != bytes32(0), "Dice: no commit");
+
+        uint256 targetBlock = roundTargetBlock[roundId];
+        uint256 deadlineBlock = roundRevealDeadlineBlock[roundId];
+        require(targetBlock != 0, "Dice: randomness not requested");
+        require(block.number > targetBlock, "Dice: target block pending");
+        require(block.number <= deadlineBlock, "Dice: reveal expired");
+        require(block.number <= targetBlock + 255, "Dice: seed expired");
+
+        uint256 nonce = roundHouseCommitNonce[roundId];
+        bytes32 expectedCommit = keccak256(
+            abi.encodePacked(secret, address(this), block.chainid, nonce)
+        );
+        require(expectedCommit == commit, "Dice: bad reveal");
+
+        bytes32 targetHash = blockhash(targetBlock);
+        require(targetHash != bytes32(0), "Dice: seed unavailable");
+
+        bytes32 entropy = keccak256(
+            abi.encode(
+                secret,
+                targetHash,
+                address(this),
+                block.chainid,
+                roundId,
+                round.tier,
+                _roundPlayersHash(round)
+            )
+        );
+
+        roundFinalEntropy[roundId] = entropy;
+        emit CommitRandomnessRevealed(roundId, nonce, entropy);
+        _finalizeRoundWithEntropy(roundId, entropy);
+    }
+
+    function _roundPlayersHash(DiceRound storage round) internal view returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                round.playerByNumber[1],
+                round.playerByNumber[2],
+                round.playerByNumber[3],
+                round.playerByNumber[4],
+                round.playerByNumber[5],
+                round.playerByNumber[6]
+            )
+        );
+    }
+
+    function _randomnessDelay() internal view returns (uint256) {
+        return randomnessDelayBlocks == 0 ? 20 : uint256(randomnessDelayBlocks);
+    }
+
+    function _revealWindow() internal view returns (uint256) {
+        return revealWindowBlocks == 0 ? 220 : uint256(revealWindowBlocks);
     }
 
     /// @dev Returns the correct oracle for a round: clone for new rounds, legacy for old ones.
     ///      roundUsesCloneRng defaults to false, so every pre-existing round stays on RNG_LEGACY.
     function _oracleFor(uint256 roundId) private view returns (IWitRandomness) {
         return roundUsesCloneRng[roundId] ? rngClone : RNG_LEGACY;
-    }
-
-    // ── IWitRandomnessConsumer implementation ────────────────────────
-
-    /// @notice Called by our rngClone when Witnet delivers randomness.
-    ///         Looks up the round registered for this block and finalizes it.
-    ///         Reverts if called by any address other than rngClone.
-    function reportRandomness(
-        bytes32 randomness,
-        uint256 evmRandomizeBlock,
-        uint256 /* evmFinalityBlock */,
-        Witnet.Timestamp /* witnetTimestamp */,
-        Witnet.TransactionHash /* witnetDrTxHash */
-    ) external override nonReentrant {
-        require(msg.sender == address(rngClone), "Dice: invalid randomizer");
-
-        uint256 roundId = roundByRandomBlock[evmRandomizeBlock];
-        if (roundId == 0) return;
-
-        DiceRound storage round = _rounds[roundId];
-        if (round.winnerSelected || round.filledSlots != 6) return;
-
-        require(roundUsesCloneRng[roundId], "Dice: round not clone-oracle");
-        require(round.randomBlock == evmRandomizeBlock, "Dice: block mismatch");
-
-        // Derive entropy directly from callback args — avoids calling fetchRandomnessAfter()
-        // while the result may not yet be past evmFinalityBlock.
-        bytes32 entropy = keccak256(abi.encode(evmRandomizeBlock, bytes8(randomness)));
-
-        emit RandomnessDelivered(roundId, evmRandomizeBlock, randomness);
-        _finalizeRoundWithEntropy(roundId, entropy);
-    }
-
-    /// @notice Required by IWitRandomnessConsumer — returns the clone oracle address.
-    function witRandomness() external view override returns (IWitRandomness) {
-        return rngClone;
-    }
-
-    // ── Clone setup (one-time owner operation) ───────────────────────
-
-    /// @notice Point to the V3 base, create the private clone, register this contract as consumer.
-    ///         Confirm `_rngBase` address with Witnet team before calling on mainnet.
-    ///         `callbackGasLimit` should be ≥ 350_000 to cover _finalizeRound gas.
-    function setupClone(address _rngBase, uint24 callbackGasLimit) external onlyOwner {
-        require(address(rngClone) == address(0), "Dice: clone already set");
-        require(_rngBase != address(0), "Dice: zero rngBase");
-        rngBase = IWitRandomness(_rngBase);
-        rngClone = rngBase.clone(address(this));
-        rngClone.settleConsumer(address(this), callbackGasLimit);
-        emit CloneSetup(address(rngClone));
     }
 
     // ── Snapshot fallbacks for rounds created before V2 ──────────────
@@ -522,9 +678,14 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable, IWitRando
         require(round.filledSlots < 6, "Dice: full pot");
         require(round.randomBlock == 0, "Dice: randomness requested");
 
+        _refundAndCloseRound(roundId, round);
+    }
+
+    function _refundAndCloseRound(uint256 roundId, DiceRound storage round) internal {
         // Use fallback for pre-V2 rounds where snapshots are zero.
         uint256 refundAmount = round.isUsd ? round.entryAmountSnap : _milesEntry(round);
         uint128 refundForStats = uint128(refundAmount);
+        uint8 filledSlots = round.filledSlots;
 
         for (uint8 n = 1; n <= 6; n++) {
             address player = round.playerByNumber[n];
@@ -547,7 +708,7 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable, IWitRando
         }
 
         // Reverse tier + global staked counters
-        uint128 totalRefunded = refundForStats * uint128(round.filledSlots);
+        uint128 totalRefunded = refundForStats * uint128(filledSlots);
         TierStats storage ts = tierStats[round.tier];
         if (ts.totalStaked >= totalRefunded) ts.totalStaked -= totalRefunded;
         if (totalStakedGlobal >= totalRefunded) totalStakedGlobal -= totalRefunded;
@@ -613,6 +774,17 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable, IWitRando
         DiceRound storage r = _rounds[roundId];
         if (r.winnerSelected) return RoundState.Resolved;
         if (r.filledSlots < 6) return RoundState.Open;
+        if (roundHouseCommit[roundId] != bytes32(0)) {
+            uint256 targetBlock = roundTargetBlock[roundId];
+            if (targetBlock == 0 || block.number <= targetBlock) {
+                return RoundState.FullWaiting;
+            }
+            uint256 deadlineBlock = roundRevealDeadlineBlock[roundId];
+            if (block.number > deadlineBlock || block.number > targetBlock + 255) {
+                return RoundState.FullWaiting;
+            }
+            return RoundState.Ready;
+        }
         if (r.randomBlock == 0 || !_oracleFor(roundId).isRandomized(r.randomBlock)) return RoundState.FullWaiting;
         return RoundState.Ready;
     }
@@ -692,6 +864,35 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable, IWitRando
         stablecoin = IERC20(_stablecoin);
     }
 
+    function setRandomnessOperator(address _operator) external onlyOwner {
+        _setRandomnessOperator(_operator);
+    }
+
+    function setRandomnessConfig(
+        uint16 _delayBlocks,
+        uint16 _revealWindowBlocks
+    ) external onlyOwner {
+        _setRandomnessConfig(_delayBlocks, _revealWindowBlocks);
+    }
+
+    function _setRandomnessOperator(address _operator) internal {
+        require(_operator != address(0), "Dice: zero address");
+        randomnessOperator = _operator;
+        emit RandomnessOperatorSet(_operator);
+    }
+
+    function _setRandomnessConfig(
+        uint16 _delayBlocks,
+        uint16 _revealWindowBlocks
+    ) internal {
+        require(_delayBlocks > 0, "Dice: zero delay");
+        require(_revealWindowBlocks > 0, "Dice: zero reveal window");
+        require(_revealWindowBlocks <= 255, "Dice: reveal window too long");
+        randomnessDelayBlocks = _delayBlocks;
+        revealWindowBlocks = _revealWindowBlocks;
+        emit RandomnessConfigSet(_delayBlocks, _revealWindowBlocks);
+    }
+
     /// @notice Deposit USDT into the bonus pool. Only these funds are used to pay
     ///         Miles-tier USDT bonuses. USD-round collateral is never touched.
     function depositBonusPool(uint256 amount) external onlyOwner {
@@ -759,6 +960,6 @@ contract AkibaDiceGame is UUPSUpgradeable, ReentrancyGuardUpgradeable, IWitRando
         }
     }
 
-    // 32 slots remain after the 8 V2 variables consumed from the original gap of 40
-    uint256[32] private __gap;
+    // 22 slots remain after V4 commit-reveal variables were appended.
+    uint256[22] private __gap;
 }
