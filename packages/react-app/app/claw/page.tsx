@@ -4,6 +4,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createPublicClient,
+  createWalletClient,
+  custom,
   http,
   formatUnits,
 } from "viem";
@@ -292,13 +294,23 @@ export default function ClawPage() {
           const key = s.sessionId.toString();
           if (!settlingRef.current.has(key)) {
             settlingRef.current.add(key);
-            fetch("/api/claw/settle", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ sessionId: key }),
-            }).finally(() => {
+            (async () => {
+              try {
+                const walletClient = createWalletClient({ chain: celo, transport: custom(window.ethereum) });
+                const ownershipSig = await walletClient.signMessage({
+                  account: address as `0x${string}`,
+                  message: key,
+                });
+                await fetch("/api/claw/settle", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ sessionId: key, ownershipSig }),
+                });
+              } catch {
+                settlingRef.current.delete(key);
+              }
               // Will be picked up on next poll
-            });
+            })();
           }
         }
       }

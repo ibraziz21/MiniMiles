@@ -74,7 +74,12 @@ type BatchStore = Record<string, BatchManifest>;
 // Module-level cache — loaded once per server process lifetime
 let _store: BatchStore | null = null;
 let _storeFileMtimeMs: number | null = null;
-const _supabaseBatchCache = new Map<string, BatchManifest | null>();
+
+// Supabase manifest cache: entries expire after 5 minutes so a newly-uploaded
+// batch manifest is picked up without requiring a server restart.
+// Errors are NOT cached — a transient DB failure won't permanently poison a batch.
+const SUPABASE_CACHE_TTL_MS = 5 * 60 * 1000;
+const _supabaseBatchCache = new Map<string, { manifest: BatchManifest | null; expiresAt: number }>();
 
 function loadStore(): BatchStore {
   let raw = process.env.CLAW_BATCH_STORE_JSON;
@@ -143,12 +148,12 @@ export function getBatchPlayOutcome(
 }
 
 async function loadSupabaseBatchManifest(batchId: string): Promise<BatchManifest | null> {
-  if (_supabaseBatchCache.has(batchId)) {
-    return _supabaseBatchCache.get(batchId) ?? null;
+  const cached = _supabaseBatchCache.get(batchId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.manifest;
   }
 
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
-    _supabaseBatchCache.set(batchId, null);
     return null;
   }
 
@@ -159,8 +164,8 @@ async function loadSupabaseBatchManifest(batchId: string): Promise<BatchManifest
     .maybeSingle();
 
   if (error) {
+    // Don't cache errors — a transient DB failure shouldn't permanently block a batch.
     console.error("[clawBatchStore] Failed to load Supabase manifest:", error);
-    _supabaseBatchCache.set(batchId, null);
     return null;
   }
 
@@ -169,7 +174,7 @@ async function loadSupabaseBatchManifest(batchId: string): Promise<BatchManifest
     ? rawManifest as BatchManifest
     : rawManifest?.[batchId] ?? null;
 
-  _supabaseBatchCache.set(batchId, manifest);
+  _supabaseBatchCache.set(batchId, { manifest, expiresAt: Date.now() + SUPABASE_CACHE_TTL_MS });
   return manifest;
 }
 

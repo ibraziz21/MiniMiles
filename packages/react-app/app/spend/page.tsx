@@ -287,37 +287,12 @@ const Page = () => {
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center mb-3">
           <h3 className="text-lg font-extrabold">Shop & Save</h3>
-          <Link href="/vouchers" className="text-sm text-[#238D9D] font-medium">
-            My Vouchers →
-          </Link>
         </div>
-
-        {loadingMerchants ? (
-          <div className="flex justify-center py-6">
-            <Spinner size={24} className="animate-spin text-[#238D9D]" />
-          </div>
-        ) : merchants.length === 0 ? (
-          <p className="text-sm text-gray-400 py-4 text-center">
-            No merchants available yet.
-          </p>
-        ) : (
-          <div className="flex gap-3 overflow-x-auto pb-1">
-            {merchants.map((m) => (
-              <MerchantCard
-                key={m.id}
-                merchant={m}
-                onShop={() => {
-                  setOrderMerchant(m);
-                  setOrderSheetOpen(true);
-                }}
-                onBuyVoucher={() => {
-                  setVoucherMerchant(m);
-                  setVoucherSheetOpen(true);
-                }}
-              />
-            ))}
-          </div>
-        )}
+        <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-6 py-8 flex flex-col items-center gap-2 text-center">
+          <span className="text-2xl">🏪</span>
+          <p className="font-semibold text-gray-700">Coming Soon</p>
+          <p className="text-xs text-gray-400">Merchant vouchers & deals are on the way.</p>
+        </div>
       </div>
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">

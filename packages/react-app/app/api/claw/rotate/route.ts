@@ -67,28 +67,46 @@ export async function POST(_req: Request) {
 
     // ── 2. Scan recent GameStarted logs ────────────────────────────────────
     const currentBlock = await pub.getBlockNumber();
-    const fromBlock = currentBlock > 2000n ? currentBlock - 2000n : DEPLOY_BLOCK;
+    // 17 280 blocks ≈ 24 h on Celo (5 s/block) — covers sessions that stalled overnight
+    const fromBlock = currentBlock > 17_280n ? currentBlock - 17_280n : DEPLOY_BLOCK;
+
+    const GAME_STARTED_EVENT = {
+      name: "GameStarted",
+      type: "event" as const,
+      inputs: [
+        { indexed: true,  name: "sessionId",    type: "uint256" },
+        { indexed: true,  name: "player",        type: "address" },
+        { indexed: true,  name: "tierId",        type: "uint8"   },
+        { indexed: false, name: "playCost",      type: "uint256" },
+        { indexed: false, name: "requestBlock",  type: "uint256" },
+      ],
+    };
 
     let logs: any[] = [];
     try {
       logs = await pub.getLogs({
         address: CLAW_GAME,
-        event: {
-          name: "GameStarted",
-          type: "event",
-          inputs: [
-            { indexed: true, name: "sessionId", type: "uint256" },
-            { indexed: true, name: "player", type: "address" },
-            { indexed: true, name: "tierId", type: "uint8" },
-            { indexed: false, name: "playCost", type: "uint256" },
-            { indexed: false, name: "requestBlock", type: "uint256" },
-          ],
-        },
+        event: GAME_STARTED_EVENT,
         fromBlock,
         toBlock: currentBlock,
       });
     } catch {
-      // Some RPC providers reject large range queries — fall through with empty
+      // RPC rejected the large range — retry in 2000-block chunks
+      try {
+        const CHUNK = 2000n;
+        for (let start = fromBlock; start <= currentBlock; start += CHUNK) {
+          const end = start + CHUNK - 1n < currentBlock ? start + CHUNK - 1n : currentBlock;
+          const chunk = await pub.getLogs({
+            address: CLAW_GAME,
+            event: GAME_STARTED_EVENT,
+            fromBlock: start,
+            toBlock: end,
+          }).catch(() => []);
+          logs.push(...chunk);
+        }
+      } catch {
+        // Fall through with whatever logs we accumulated
+      }
     }
 
     // ── 3. Process each session ────────────────────────────────────────────

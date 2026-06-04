@@ -37,21 +37,16 @@ export function useSettlement(gameType: GameType) {
         let verifierResponse: VerifierResponse & { settled?: boolean; settleTxHash?: string };
 
         if (USE_REAL_VERIFIER && address) {
-          // Sign the sessionId so the server can prove this request comes from
-          // the wallet that owns the session, preventing replay pollution.
-          const walletClient = createWalletClient({ chain: celo, transport: custom(window.ethereum) });
-          const ownershipSig = await walletClient.signMessage({
-            account: address as `0x${string}`,
-            message: sessionId,
-          });
-
           // ── Real path ────────────────────────────────────────────────────
           const res = await fetch("/api/games/verify", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ gameType, sessionId, walletAddress: address, replay, ownershipSig }),
+            body: JSON.stringify({ gameType, sessionId, walletAddress: address, replay }),
           });
-          if (!res.ok) throw new Error(`Verifier returned ${res.status}`);
+          if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            throw new Error(`Verifier returned ${res.status}: ${errBody.error ?? JSON.stringify(errBody)}`);
+          }
           verifierResponse = await res.json();
 
           if (verifierResponse.accepted) {

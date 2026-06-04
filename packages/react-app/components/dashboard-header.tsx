@@ -90,15 +90,13 @@ export default function DashboardHeader({
           <Trophy size={24} color="#238D9D" weight="duotone" />
         </button>
 
-        {/* Open order tracking */}
-        <button
-          type="button"
-          onClick={onOpenOrders}
-          aria-label="Track your orders"
-          className="inline-flex items-center justify-center rounded-lg p-1.5 hover:bg-black/5 active:scale-[0.98]"
+        {/* Order tracking — coming soon */}
+        <span
+          aria-label="Order tracking coming soon"
+          className="inline-flex items-center justify-center rounded-lg p-1.5 cursor-default"
         >
-          <Package size={24} color="#238D9D" weight="duotone" />
-        </button>
+          <Package size={24} color="#9CA3AF" weight="duotone" />
+        </span>
 
         {/* Settings */}
         <Link href="/settings" aria-label="Settings">

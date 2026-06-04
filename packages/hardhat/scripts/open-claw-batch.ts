@@ -293,7 +293,7 @@ async function main() {
     counts = {
       loses: getIntArg("loses", 80),
       commons: getIntArg("commons", 15),
-      rares: getIntArg("rares", 4),
+      rares: getIntArg("rares", 0),
       epics: getIntArg("epics", 1),
       legendarys: getIntArg("legendarys", 0),
     };
