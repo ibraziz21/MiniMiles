@@ -1,0 +1,14 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Cup body -->
+  <path d="M8 5H24V18C24 22.4 20.4 26 16 26C11.6 26 8 22.4 8 18V5Z" fill="#F59E0B" opacity="0.9"/>
+  <!-- Cup shine -->
+  <path d="M10 5H13V16C13 18.8 13.9 21.4 15.4 23.5C12.2 22.8 10 20.7 10 18V5Z" fill="white" opacity="0.2"/>
+  <!-- Handles -->
+  <path d="M8 9H5C5 13 7.5 15 8 15" stroke="#B45309" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M24 9H27C27 13 24.5 15 24 15" stroke="#B45309" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <!-- Base stem -->
+  <rect x="13.5" y="26" width="5" height="3" fill="#B45309"/>
+  <rect x="10" y="29" width="12" height="2.5" rx="1.25" fill="#B45309"/>
+  <!-- Star on cup -->
+  <path d="M16 10L17 13H20L17.5 14.8L18.5 17.8L16 16L13.5 17.8L14.5 14.8L12 13H15L16 10Z" fill="white" opacity="0.8"/>
+</svg>

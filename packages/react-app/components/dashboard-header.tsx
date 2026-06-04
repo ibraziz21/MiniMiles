@@ -1,11 +1,12 @@
 // src/components/dashboard-header.tsx
 import { GearSvg } from "@/lib/svg";
-import { Fire, Question, Trophy } from "@phosphor-icons/react";
+import { Fire, Package, Question, Trophy } from "@phosphor-icons/react";
 import Image from "next/image";
 import Link from "next/link";
 
 export default function DashboardHeader({
   name,
+  onOpenOrders,
   onOpenWinners,
   onOpenStreaks,
   streakCount = 0,
@@ -13,6 +14,7 @@ export default function DashboardHeader({
   urgentStreakCount = 0,
 }: {
   name: any;
+  onOpenOrders?: () => void;
   onOpenWinners?: () => void;
   onOpenStreaks?: () => void;
   streakCount?: number;
@@ -87,6 +89,14 @@ export default function DashboardHeader({
         >
           <Trophy size={24} color="#238D9D" weight="duotone" />
         </button>
+
+        {/* Order tracking — coming soon */}
+        <span
+          aria-label="Order tracking coming soon"
+          className="inline-flex items-center justify-center rounded-lg p-1.5 cursor-default"
+        >
+          <Package size={24} color="#9CA3AF" weight="duotone" />
+        </span>
 
         {/* Settings */}
         <Link href="/settings" aria-label="Settings">

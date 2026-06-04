@@ -21,7 +21,6 @@ type RaffleRequirementConfig = {
 };
 
 const USDT_ADDRESS = (
-  process.env.USDT_ADDRESS ??
   process.env.NEXT_PUBLIC_USDT_ADDRESS ??
   "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e"
 ) as `0x${string}`;
@@ -185,11 +184,6 @@ async function evaluateGate(
   return evaluateDaily5TxCompleted(userAddress);
 }
 
-const DEFAULT_REQUIREMENT_CONFIG: RaffleRequirementConfig = {
-  mode: "all",
-  gates: [{ type: "min_usdt_balance", minUsd: 10 }],
-};
-
 export async function getRaffleRequirementConfig(roundId: number) {
   const { data, error } = await supabase
     .from("raffle_requirements")
@@ -206,7 +200,10 @@ export async function evaluateRaffleRequirements(
   roundId: number,
   userAddress?: string,
 ): Promise<RaffleRequirementsResult> {
-  const config = (await getRaffleRequirementConfig(roundId)) ?? DEFAULT_REQUIREMENT_CONFIG;
+  const config = await getRaffleRequirementConfig(roundId);
+  if (!config) {
+    return { roundId, gated: false, eligible: true, mode: "all", gates: [] };
+  }
 
   if (!userAddress) {
     return {

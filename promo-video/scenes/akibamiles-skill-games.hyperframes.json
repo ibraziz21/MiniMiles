@@ -1,0 +1,1137 @@
+{
+  "project": {
+    "name": "AkibaMiles — Skill Games Launch",
+    "version": "1.0.0",
+    "format": {
+      "width": 1080,
+      "height": 1920,
+      "fps": 30,
+      "duration_seconds": 28,
+      "aspect_ratio": "9:16"
+    },
+    "brand": {
+      "primary": "#238D9D",
+      "accent_cyan": "#ADF4FF80",
+      "bg_tint": "#F0FDFF",
+      "card_white": "#FFFFFF",
+      "text_primary": "#1A1A1A",
+      "text_secondary": "#525252",
+      "text_muted": "#817E7E",
+      "border": "#238D9D33",
+      "rule_tap_gradient": ["#0D7A8A", "#238D9D"],
+      "memory_flip_gradient": ["#3B1F6E", "#7B4CC0"],
+      "success_green": "#31C76A"
+    },
+    "global_font": "Inter, system-ui, -apple-system, sans-serif",
+    "global_easing": "ease-in-out"
+  },
+
+  "scenes": [
+
+    {
+      "id": "scene_01_opening",
+      "label": "Scene 1 — App Context Opening",
+      "time_in": 0,
+      "time_out": 4.5,
+      "duration": 4.5,
+      "background": {
+        "type": "gradient",
+        "direction": "to bottom",
+        "stops": [
+          { "offset": "0%",   "color": "#F0FDFF" },
+          { "offset": "100%", "color": "#E6F9FC" }
+        ]
+      },
+      "layers": [
+        {
+          "id": "glow_blob",
+          "type": "ellipse",
+          "x": 540, "y": 820,
+          "rx": 420, "ry": 280,
+          "fill": "#238D9D",
+          "opacity": 0.08,
+          "blur": 80,
+          "animation": {
+            "keyframes": [
+              { "t": 0,   "opacity": 0,    "scale": 0.8 },
+              { "t": 1.5, "opacity": 0.08, "scale": 1.0 }
+            ]
+          }
+        },
+        {
+          "id": "phone_frame",
+          "type": "rounded_rect",
+          "x": 200, "y": 180,
+          "width": 680, "height": 1200,
+          "rx": 44,
+          "fill": "#FFFFFF",
+          "stroke": "#E0E0E0",
+          "stroke_width": 2,
+          "shadow": { "y": 24, "blur": 64, "color": "#238D9D22" },
+          "animation": {
+            "keyframes": [
+              { "t": 0,   "y": 260, "opacity": 0, "scale": 0.92 },
+              { "t": 0.6, "y": 180, "opacity": 1, "scale": 1.0 }
+            ]
+          }
+        },
+        {
+          "id": "status_bar",
+          "type": "group",
+          "x": 220, "y": 196,
+          "children": [
+            { "type": "text", "content": "9:41", "x": 20, "y": 16, "font_size": 14, "font_weight": "600", "color": "#1A1A1A" },
+            { "type": "text", "content": "●●●", "x": 580, "y": 16, "font_size": 10, "color": "#525252" }
+          ]
+        },
+        {
+          "id": "app_header",
+          "type": "group",
+          "x": 220, "y": 240,
+          "children": [
+            {
+              "type": "image",
+              "src": "assets/svg/akibamiles-logo.svg",
+              "x": 20, "y": 12,
+              "width": 140, "height": 38
+            }
+          ]
+        },
+        {
+          "id": "miles_balance_card",
+          "type": "group",
+          "x": 236, "y": 310,
+          "children": [
+            {
+              "type": "rounded_rect",
+              "x": 0, "y": 0, "width": 648, "height": 110, "rx": 20,
+              "fill_gradient": { "direction": "135deg", "stops": [
+                { "offset": "0%",   "color": "#0D7A8A" },
+                { "offset": "100%", "color": "#238D9D" }
+              ]},
+              "shadow": { "y": 8, "blur": 24, "color": "#238D9D44" }
+            },
+            { "type": "text", "content": "Total AkibaMiles", "x": 20, "y": 28, "font_size": 13, "color": "#FFFFFF", "opacity": 0.8 },
+            { "type": "image", "src": "assets/svg/miles-token.svg", "x": 20, "y": 46, "width": 40, "height": 40 },
+            { "type": "text", "content": "2,450", "x": 68, "y": 74, "font_size": 34, "font_weight": "700", "color": "#FFFFFF" }
+          ],
+          "animation": {
+            "keyframes": [
+              { "t": 0.3, "opacity": 0, "y_offset": 20 },
+              { "t": 0.9, "opacity": 1, "y_offset": 0 }
+            ]
+          }
+        },
+        {
+          "id": "earn_card",
+          "type": "group",
+          "x": 236, "y": 438,
+          "children": [
+            {
+              "type": "rounded_rect",
+              "x": 0, "y": 0, "width": 314, "height": 90, "rx": 18,
+              "fill": "#FFFFFF", "stroke": "#238D9D33", "stroke_width": 1.5
+            },
+            { "type": "text", "content": "Earn", "x": 16, "y": 30, "font_size": 15, "font_weight": "700", "color": "#1A1A1A" },
+            { "type": "text", "content": "Complete quests", "x": 16, "y": 52, "font_size": 12, "color": "#525252" }
+          ]
+        },
+        {
+          "id": "games_card",
+          "type": "group",
+          "x": 570, "y": 438,
+          "children": [
+            {
+              "type": "rounded_rect",
+              "x": 0, "y": 0, "width": 314, "height": 90, "rx": 18,
+              "fill_gradient": { "direction": "135deg", "stops": [
+                { "offset": "0%", "color": "#F0FDFF" },
+                { "offset": "100%", "color": "#E0F8FC" }
+              ]},
+              "stroke": "#238D9D4D", "stroke_width": 1.5,
+              "shadow": { "y": 6, "blur": 18, "color": "#238D9D33" }
+            },
+            { "type": "image", "src": "assets/svg/gamepad-icon.svg", "x": 14, "y": 20, "width": 36, "height": 36 },
+            { "type": "text", "content": "Games", "x": 58, "y": 38, "font_size": 15, "font_weight": "700", "color": "#238D9D" },
+            {
+              "type": "rounded_rect",
+              "x": 58, "y": 54, "width": 38, "height": 16, "rx": 8,
+              "fill": "#238D9D"
+            },
+            { "type": "text", "content": "NEW", "x": 77, "y": 66, "font_size": 10, "font_weight": "700", "color": "#FFFFFF", "text_anchor": "middle" }
+          ],
+          "animation": {
+            "keyframes": [
+              { "t": 0.5, "y": 460, "opacity": 0, "scale": 0.9 },
+              { "t": 1.2, "y": 438, "opacity": 1, "scale": 1.0 },
+              { "t": 2.0, "scale": 1.04 },
+              { "t": 2.4, "scale": 1.0 }
+            ]
+          }
+        },
+        {
+          "id": "text_overlay_headline",
+          "type": "text",
+          "content": "New ways to earn Miles",
+          "x": 540, "y": 1560,
+          "text_anchor": "middle",
+          "font_size": 38,
+          "font_weight": "700",
+          "color": "#1A1A1A",
+          "animation": {
+            "keyframes": [
+              { "t": 0.8, "opacity": 0, "y": 1590 },
+              { "t": 1.4, "opacity": 1, "y": 1560 }
+            ]
+          }
+        },
+        {
+          "id": "text_overlay_sub",
+          "type": "text",
+          "content": "Skill games are live",
+          "x": 540, "y": 1608,
+          "text_anchor": "middle",
+          "font_size": 22,
+          "font_weight": "400",
+          "color": "#238D9D",
+          "animation": {
+            "keyframes": [
+              { "t": 1.0, "opacity": 0 },
+              { "t": 1.7, "opacity": 1 }
+            ]
+          }
+        }
+      ]
+    },
+
+    {
+      "id": "scene_02_games_page",
+      "label": "Scene 2 — AkibaMiles Games Page",
+      "time_in": 4.5,
+      "time_out": 9.0,
+      "duration": 4.5,
+      "transition_in": { "type": "slide_up", "duration": 0.35 },
+      "background": { "type": "solid", "color": "#F7FEFF" },
+      "layers": [
+        {
+          "id": "phone_shell",
+          "type": "rounded_rect",
+          "x": 200, "y": 80,
+          "width": 680, "height": 1400,
+          "rx": 44, "fill": "#FFFFFF",
+          "stroke": "#E0E0E0", "stroke_width": 1.5,
+          "shadow": { "y": 20, "blur": 60, "color": "#00000018" }
+        },
+        {
+          "id": "games_hero_band",
+          "type": "group",
+          "x": 200, "y": 96,
+          "children": [
+            {
+              "type": "rounded_rect",
+              "x": 0, "y": 0, "width": 680, "height": 200, "rx_top": 44, "rx_bottom": 0,
+              "fill_gradient": { "direction": "135deg", "stops": [
+                { "offset": "0%",   "color": "#0D7A8A" },
+                { "offset": "50%",  "color": "#238D9D" },
+                { "offset": "100%", "color": "#2CBDD4" }
+              ]}
+            },
+            { "type": "image", "src": "assets/svg/akibamiles-logo.svg", "x": 24, "y": 24, "width": 140, "height": 38", "tint": "white" },
+            {
+              "type": "group", "x": 24, "y": 74,
+              "children": [
+                {
+                  "type": "rounded_rect",
+                  "x": 0, "y": 0, "width": 148, "height": 24, "rx": 12,
+                  "fill": "#FFFFFF26"
+                },
+                { "type": "circle", "cx": 14, "cy": 12, "r": 5, "fill": "#4EFFA0", "animation": { "pulse": true } },
+                { "type": "text", "content": "Skill Games · Live", "x": 24, "y": 16, "font_size": 11, "font_weight": "600", "color": "#FFFFFF" }
+              ]
+            },
+            { "type": "text", "content": "Play & Earn", "x": 24, "y": 118, "font_size": 36, "font_weight": "700", "color": "#FFFFFF" },
+            { "type": "text", "content": "Onchain entry. Verified rewards.", "x": 24, "y": 152, "font_size": 14, "color": "#FFFFFF", "opacity": 0.8 }
+          ]
+        },
+        {
+          "id": "rule_tap_card",
+          "type": "group",
+          "x": 216, "y": 312,
+          "children": [
+            {
+              "type": "rounded_rect",
+              "x": 0, "y": 0, "width": 648, "height": 220, "rx": 20,
+              "fill": "#FFFFFF", "stroke": "#F0F0F0", "stroke_width": 1.5,
+              "shadow": { "y": 6, "blur": 20, "color": "#00000012" }
+            },
+            {
+              "type": "rounded_rect",
+              "x": 0, "y": 0, "width": 648, "height": 140, "rx_top": 20, "rx_bottom": 0,
+              "fill_gradient": { "direction": "to right", "stops": [
+                { "offset": "0%",   "color": "#0D7A8A" },
+                { "offset": "100%", "color": "#238D9D" }
+              ]}
+            },
+            {
+              "type": "circle", "cx": 700, "cy": -20, "r": 120,
+              "fill": "#FFFFFF10"
+            },
+            { "type": "text", "content": "⚡", "x": 24, "y": 50, "font_size": 32 },
+            { "type": "text", "content": "Rule Tap", "x": 24, "y": 88, "font_size": 26, "font_weight": "700", "color": "#FFFFFF" },
+            { "type": "text", "content": "Read the rule. Tap fast. Avoid mistakes.", "x": 24, "y": 112, "font_size": 13, "color": "#FFFFFF", "opacity": 0.8 },
+            { "type": "image", "src": "assets/svg/tile-star-blue.svg",    "x": 24,  "y": 152, "width": 44, "height": 44 },
+            { "type": "image", "src": "assets/svg/tile-circle-green.svg", "x": 76,  "y": 152, "width": 44, "height": 44 },
+            { "type": "image", "src": "assets/svg/tile-square-red.svg",   "x": 128, "y": 152, "width": 44, "height": 44 },
+            { "type": "image", "src": "assets/svg/tile-diamond-gold.svg", "x": 180, "y": 152, "width": 44, "height": 44 },
+            { "type": "image", "src": "assets/svg/miles-token.svg", "x": 460, "y": 158, "width": 26, "height": 26 },
+            { "type": "text", "content": "5 entry · up to 35", "x": 492, "y": 176, "font_size": 12, "color": "#525252" }
+          ],
+          "animation": {
+            "keyframes": [
+              { "t": 0,    "opacity": 0, "y_offset": 30 },
+              { "t": 0.4,  "opacity": 1, "y_offset": 0 }
+            ]
+          }
+        },
+        {
+          "id": "memory_flip_card",
+          "type": "group",
+          "x": 216, "y": 548,
+          "children": [
+            {
+              "type": "rounded_rect",
+              "x": 0, "y": 0, "width": 648, "height": 220, "rx": 20,
+              "fill": "#FFFFFF", "stroke": "#F0F0F0", "stroke_width": 1.5,
+              "shadow": { "y": 6, "blur": 20, "color": "#00000012" }
+            },
+            {
+              "type": "rounded_rect",
+              "x": 0, "y": 0, "width": 648, "height": 140, "rx_top": 20, "rx_bottom": 0,
+              "fill_gradient": { "direction": "to right", "stops": [
+                { "offset": "0%",   "color": "#3B1F6E" },
+                { "offset": "100%", "color": "#7B4CC0" }
+              ]}
+            },
+            { "type": "text", "content": "🧠", "x": 24, "y": 50, "font_size": 32 },
+            { "type": "text", "content": "Memory Flip", "x": 24, "y": 88, "font_size": 26, "font_weight": "700", "color": "#FFFFFF" },
+            { "type": "text", "content": "Match pairs before time runs out.", "x": 24, "y": 112, "font_size": 13, "color": "#FFFFFF", "opacity": 0.8 },
+            { "type": "image", "src": "assets/svg/memory-sun.svg",     "x": 24,  "y": 152, "width": 40, "height": 40 },
+            { "type": "image", "src": "assets/svg/memory-key.svg",     "x": 72,  "y": 152, "width": 40, "height": 40 },
+            { "type": "image", "src": "assets/svg/memory-sparkle.svg", "x": 120, "y": 152, "width": 40, "height": 40 },
+            { "type": "image", "src": "assets/svg/memory-moon.svg",    "x": 168, "y": 152, "width": 40, "height": 40 },
+            { "type": "image", "src": "assets/svg/miles-token.svg", "x": 460, "y": 158, "width": 26, "height": 26 },
+            { "type": "text", "content": "5 entry · up to 20", "x": 492, "y": 176, "font_size": 12, "color": "#525252" }
+          ],
+          "animation": {
+            "keyframes": [
+              { "t": 0.2,  "opacity": 0, "y_offset": 30 },
+              { "t": 0.7,  "opacity": 1, "y_offset": 0 }
+            ]
+          }
+        },
+        {
+          "id": "leaderboard_preview",
+          "type": "group",
+          "x": 216, "y": 784,
+          "children": [
+            {
+              "type": "rounded_rect",
+              "x": 0, "y": 0, "width": 648, "height": 80, "rx": 18,
+              "fill": "#FFFFFF", "stroke": "#F0F0F0", "stroke_width": 1.5
+            },
+            { "type": "image", "src": "assets/svg/trophy-icon.svg", "x": 16, "y": 22, "width": 36, "height": 36 },
+            { "type": "text", "content": "Daily Leaderboard", "x": 60, "y": 36, "font_size": 14, "font_weight": "700", "color": "#1A1A1A" },
+            { "type": "text", "content": "#1  0x91a2…8c01 · 19 pts", "x": 60, "y": 58, "font_size": 12, "color": "#525252" }
+          ],
+          "animation": {
+            "keyframes": [
+              { "t": 0.5,  "opacity": 0 },
+              { "t": 1.0,  "opacity": 1 }
+            ]
+          }
+        }
+      ]
+    },
+
+    {
+      "id": "scene_03_rule_tap",
+      "label": "Scene 3 — Rule Tap Gameplay",
+      "time_in": 9.0,
+      "time_out": 15.0,
+      "duration": 6.0,
+      "transition_in": { "type": "slide_up", "duration": 0.3 },
+      "background": { "type": "solid", "color": "#F7FEFF" },
+      "layers": [
+        {
+          "id": "phone_shell_rt",
+          "type": "rounded_rect",
+          "x": 200, "y": 80, "width": 680, "height": 1400, "rx": 44,
+          "fill": "#FFFFFF", "stroke": "#E0E0E0", "stroke_width": 1.5,
+          "shadow": { "y": 20, "blur": 60, "color": "#00000018" }
+        },
+        {
+          "id": "rt_header",
+          "type": "group",
+          "x": 200, "y": 96,
+          "children": [
+            {
+              "type": "rounded_rect",
+              "x": 0, "y": 0, "width": 680, "height": 130, "rx_top": 44, "rx_bottom": 0,
+              "fill_gradient": { "direction": "to right", "stops": [
+                { "offset": "0%",   "color": "#0D7A8A" },
+                { "offset": "100%", "color": "#1A9AAD" }
+              ]}
+            },
+            { "type": "text", "content": "← All Games", "x": 24, "y": 32, "font_size": 13, "font_weight": "500", "color": "#FFFFFF", "opacity": 0.8 },
+            { "type": "text", "content": "⚡", "x": 24, "y": 90, "font_size": 28 },
+            { "type": "text", "content": "Rule Tap", "x": 64, "y": 88, "font_size": 22, "font_weight": "700", "color": "#FFFFFF" },
+            { "type": "text", "content": "Read the rule. React fast.", "x": 64, "y": 110, "font_size": 12, "color": "#FFFFFF", "opacity": 0.7 },
+            {
+              "type": "rounded_rect",
+              "x": 530, "y": 18, "width": 126, "height": 24, "rx": 12,
+              "fill": "#FFFFFF26"
+            },
+            { "type": "image", "src": "assets/svg/akibamiles-logo.svg", "x": 538, "y": 22, "width": 110, "height": 22, "tint": "white" }
+          ]
+        },
+        {
+          "id": "rt_timer_bar",
+          "type": "group",
+          "x": 216, "y": 240,
+          "children": [
+            { "type": "rounded_rect", "x": 0, "y": 0, "width": 648, "height": 8, "rx": 4, "fill": "#E8F5F0" },
+            {
+              "type": "rounded_rect",
+              "x": 0, "y": 0, "height": 8, "rx": 4,
+              "fill": "#4EFFA0",
+              "animation": {
+                "keyframes": [
+                  { "t": 0,   "width": 648 },
+                  { "t": 6.0, "width": 130 }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "rt_score_panel",
+          "type": "group",
+          "x": 216, "y": 260,
+          "children": [
+            {
+              "type": "rounded_rect",
+              "x": 0, "y": 0, "width": 648, "height": 100, "rx": 18,
+              "fill": "#0D7A8A"
+            },
+            { "type": "text", "content": "SCORE",    "x": 110, "y": 24, "font_size": 10, "font_weight": "600", "color": "#FFFFFF80", "text_anchor": "middle" },
+            { "type": "text", "content": "COMBO",    "x": 324, "y": 24, "font_size": 10, "font_weight": "600", "color": "#FFFFFF80", "text_anchor": "middle" },
+            { "type": "text", "content": "TIME",     "x": 538, "y": 24, "font_size": 10, "font_weight": "600", "color": "#FFFFFF80", "text_anchor": "middle" },
+            {
+              "type": "text", "x": 110, "y": 70, "font_size": 40, "font_weight": "700",
+              "color": "#FDE68A", "text_anchor": "middle",
+              "animation": {
+                "keyframes": [
+                  { "t": 0,   "content": "0"  },
+                  { "t": 1.2, "content": "3"  },
+                  { "t": 2.4, "content": "8"  },
+                  { "t": 3.8, "content": "12" },
+                  { "t": 5.0, "content": "14" }
+                ]
+              }
+            },
+            {
+              "type": "text", "x": 324, "y": 70, "font_size": 40, "font_weight": "700",
+              "color": "#FB923C", "text_anchor": "middle",
+              "animation": {
+                "keyframes": [
+                  { "t": 0,   "content": "×1" },
+                  { "t": 1.2, "content": "×3" },
+                  { "t": 2.4, "content": "×5" },
+                  { "t": 3.2, "content": "×1" },
+                  { "t": 3.8, "content": "×3" }
+                ]
+              }
+            },
+            {
+              "type": "text", "x": 538, "y": 70, "font_size": 40, "font_weight": "700",
+              "color": "#FFFFFF", "text_anchor": "middle",
+              "animation": {
+                "keyframes": [
+                  { "t": 0,   "content": "20s" },
+                  { "t": 1.5, "content": "17s" },
+                  { "t": 3.0, "content": "13s" },
+                  { "t": 4.5, "content": "8s",  "color": "#FCA5A5" },
+                  { "t": 5.5, "content": "6s",  "color": "#F87171" }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "rt_rule_banner",
+          "type": "group",
+          "x": 216, "y": 374,
+          "children": [
+            {
+              "type": "rounded_rect",
+              "x": 0, "y": 0, "width": 648, "height": 56, "rx": 16,
+              "fill_gradient": { "direction": "to right", "stops": [
+                { "offset": "0%",   "color": "#238D9D" },
+                { "offset": "100%", "color": "#2CBDD4" }
+              ]}
+            },
+            { "type": "text", "content": "CURRENT RULE", "x": 324, "y": 18, "font_size": 10, "font_weight": "600", "color": "#FFFFFF80", "text_anchor": "middle" },
+            { "type": "text", "content": "Tap blue stars", "x": 324, "y": 40, "font_size": 18, "font_weight": "700", "color": "#FFFFFF", "text_anchor": "middle" }
+          ]
+        },
+        {
+          "id": "rt_grid",
+          "type": "group",
+          "x": 216, "y": 448,
+          "children": [
+            { "type": "image", "src": "assets/svg/tile-star-blue.svg",    "x": 0,   "y": 0,   "width": 196, "height": 196, "rx": 18 },
+            { "type": "image", "src": "assets/svg/tile-square-red.svg",   "x": 228, "y": 0,   "width": 196, "height": 196, "rx": 18 },
+            { "type": "image", "src": "assets/svg/tile-circle-green.svg", "x": 452, "y": 0,   "width": 196, "height": 196, "rx": 18 },
+            { "type": "image", "src": "assets/svg/tile-diamond-gold.svg", "x": 0,   "y": 216, "width": 196, "height": 196, "rx": 18 },
+            { "type": "image", "src": "assets/svg/tile-star-blue.svg",    "x": 228, "y": 216, "width": 196, "height": 196, "rx": 18 },
+            { "type": "image", "src": "assets/svg/tile-circle-green.svg", "x": 452, "y": 216, "width": 196, "height": 196, "rx": 18 },
+            { "type": "image", "src": "assets/svg/tile-square-red.svg",   "x": 0,   "y": 432, "width": 196, "height": 196, "rx": 18 },
+            { "type": "image", "src": "assets/svg/tile-diamond-gold.svg", "x": 228, "y": 432, "width": 196, "height": 196, "rx": 18 },
+            { "type": "image", "src": "assets/svg/tile-star-blue.svg",    "x": 452, "y": 432, "width": 196, "height": 196, "rx": 18 },
+            {
+              "id": "tap_ripple_1",
+              "type": "image", "src": "assets/svg/tap-feedback-correct.svg",
+              "x": 16, "y": 16, "width": 164, "height": 164,
+              "animation": {
+                "keyframes": [
+                  { "t": 0.8, "opacity": 0, "scale": 0.4 },
+                  { "t": 1.0, "opacity": 1, "scale": 1.0 },
+                  { "t": 1.4, "opacity": 0, "scale": 1.3 }
+                ]
+              }
+            },
+            {
+              "id": "tap_ripple_2",
+              "type": "image", "src": "assets/svg/tap-feedback-correct.svg",
+              "x": 244, "y": 232, "width": 164, "height": 164,
+              "animation": {
+                "keyframes": [
+                  { "t": 2.1, "opacity": 0, "scale": 0.4 },
+                  { "t": 2.3, "opacity": 1, "scale": 1.0 },
+                  { "t": 2.7, "opacity": 0, "scale": 1.3 }
+                ]
+              }
+            },
+            {
+              "id": "tap_ripple_3",
+              "type": "image", "src": "assets/svg/tap-feedback-correct.svg",
+              "x": 468, "y": 448, "width": 164, "height": 164,
+              "animation": {
+                "keyframes": [
+                  { "t": 3.5, "opacity": 0, "scale": 0.4 },
+                  { "t": 3.7, "opacity": 1, "scale": 1.0 },
+                  { "t": 4.1, "opacity": 0, "scale": 1.3 }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "rt_scene_label",
+          "type": "text",
+          "content": "Rule Tap",
+          "x": 540, "y": 1560, "text_anchor": "middle",
+          "font_size": 34, "font_weight": "700", "color": "#1A1A1A",
+          "animation": {
+            "keyframes": [
+              { "t": 0,   "opacity": 0 },
+              { "t": 0.5, "opacity": 1 }
+            ]
+          }
+        },
+        {
+          "id": "rt_scene_sub",
+          "type": "text",
+          "content": "Read the rule. React fast.",
+          "x": 540, "y": 1604, "text_anchor": "middle",
+          "font_size": 20, "font_weight": "400", "color": "#238D9D",
+          "animation": {
+            "keyframes": [
+              { "t": 0.3, "opacity": 0 },
+              { "t": 0.9, "opacity": 1 }
+            ]
+          }
+        }
+      ]
+    },
+
+    {
+      "id": "scene_04_memory_flip",
+      "label": "Scene 4 — Memory Flip Gameplay",
+      "time_in": 15.0,
+      "time_out": 21.5,
+      "duration": 6.5,
+      "transition_in": { "type": "slide_left", "duration": 0.35 },
+      "background": { "type": "solid", "color": "#F7F4FF" },
+      "layers": [
+        {
+          "id": "phone_shell_mf",
+          "type": "rounded_rect",
+          "x": 200, "y": 80, "width": 680, "height": 1400, "rx": 44,
+          "fill": "#FFFFFF", "stroke": "#E0E0E0", "stroke_width": 1.5,
+          "shadow": { "y": 20, "blur": 60, "color": "#00000018" }
+        },
+        {
+          "id": "mf_header",
+          "type": "group",
+          "x": 200, "y": 96,
+          "children": [
+            {
+              "type": "rounded_rect",
+              "x": 0, "y": 0, "width": 680, "height": 130, "rx_top": 44, "rx_bottom": 0,
+              "fill_gradient": { "direction": "to right", "stops": [
+                { "offset": "0%",   "color": "#3B1F6E" },
+                { "offset": "100%", "color": "#7B4CC0" }
+              ]}
+            },
+            { "type": "text", "content": "← All Games", "x": 24, "y": 32, "font_size": 13, "font_weight": "500", "color": "#FFFFFF", "opacity": 0.8 },
+            { "type": "text", "content": "🧠", "x": 24, "y": 90, "font_size": 28 },
+            { "type": "text", "content": "Memory Flip", "x": 64, "y": 88, "font_size": 22, "font_weight": "700", "color": "#FFFFFF" },
+            { "type": "text", "content": "Match pairs. Beat the timer.", "x": 64, "y": 110, "font_size": 12, "color": "#FFFFFF", "opacity": 0.7 },
+            {
+              "type": "rounded_rect",
+              "x": 530, "y": 18, "width": 126, "height": 24, "rx": 12,
+              "fill": "#FFFFFF26"
+            },
+            { "type": "image", "src": "assets/svg/akibamiles-logo.svg", "x": 538, "y": 22, "width": 110, "height": 22, "tint": "white" }
+          ]
+        },
+        {
+          "id": "mf_timer_bar",
+          "type": "group",
+          "x": 216, "y": 240,
+          "children": [
+            { "type": "rounded_rect", "x": 0, "y": 0, "width": 648, "height": 8, "rx": 4, "fill": "#EDE8F8" },
+            {
+              "type": "rounded_rect",
+              "x": 0, "y": 0, "height": 8, "rx": 4,
+              "fill": "#A78BFA",
+              "animation": {
+                "keyframes": [
+                  { "t": 0,   "width": 648 },
+                  { "t": 6.5, "width": 280 }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "mf_stats",
+          "type": "group",
+          "x": 216, "y": 260,
+          "children": [
+            {
+              "type": "rounded_rect",
+              "x": 0, "y": 0, "width": 648, "height": 100, "rx": 18,
+              "fill": "#3B1F6E"
+            },
+            { "type": "text", "content": "SCORE",  "x": 82,  "y": 24, "font_size": 9, "font_weight": "600", "color": "#FFFFFF60", "text_anchor": "middle" },
+            { "type": "text", "content": "MOVES",  "x": 244, "y": 24, "font_size": 9, "font_weight": "600", "color": "#FFFFFF60", "text_anchor": "middle" },
+            { "type": "text", "content": "PAIRS",  "x": 406, "y": 24, "font_size": 9, "font_weight": "600", "color": "#FFFFFF60", "text_anchor": "middle" },
+            { "type": "text", "content": "TIME",   "x": 566, "y": 24, "font_size": 9, "font_weight": "600", "color": "#FFFFFF60", "text_anchor": "middle" },
+            {
+              "type": "text", "x": 82, "y": 70, "font_size": 28, "font_weight": "700",
+              "color": "#FDE68A", "text_anchor": "middle",
+              "animation": {
+                "keyframes": [
+                  { "t": 0,   "content": "300" },
+                  { "t": 2.0, "content": "480" },
+                  { "t": 4.0, "content": "620" }
+                ]
+              }
+            },
+            {
+              "type": "text", "x": 244, "y": 70, "font_size": 28, "font_weight": "700",
+              "color": "#FFFFFF", "text_anchor": "middle",
+              "animation": {
+                "keyframes": [
+                  { "t": 0,   "content": "10" },
+                  { "t": 2.0, "content": "14" },
+                  { "t": 4.0, "content": "16" }
+                ]
+              }
+            },
+            {
+              "type": "text", "x": 406, "y": 70, "font_size": 28, "font_weight": "700",
+              "color": "#C4B5FD", "text_anchor": "middle",
+              "animation": {
+                "keyframes": [
+                  { "t": 0,   "content": "5/8" },
+                  { "t": 2.0, "content": "6/8" },
+                  { "t": 4.0, "content": "7/8" }
+                ]
+              }
+            },
+            {
+              "type": "text", "x": 566, "y": 70, "font_size": 28, "font_weight": "700",
+              "color": "#FFFFFF", "text_anchor": "middle",
+              "animation": {
+                "keyframes": [
+                  { "t": 0,   "content": "38s" },
+                  { "t": 2.0, "content": "31s" },
+                  { "t": 4.5, "content": "24s" }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "mf_grid",
+          "type": "group",
+          "x": 216, "y": 376,
+          "children": [
+            { "type": "image", "src": "assets/svg/memory-sun.svg",     "x": 0,   "y": 0,   "width": 148, "height": 148, "rx": 16 },
+            { "type": "image", "src": "assets/svg/memory-key.svg",     "x": 166, "y": 0,   "width": 148, "height": 148, "rx": 16 },
+            { "type": "image", "src": "assets/svg/memory-sparkle.svg", "x": 332, "y": 0,   "width": 148, "height": 148, "rx": 16 },
+            { "type": "image", "src": "assets/svg/memory-moon.svg",    "x": 498, "y": 0,   "width": 148, "height": 148, "rx": 16 },
+            { "type": "image", "src": "assets/svg/card-back.svg",      "x": 0,   "y": 164, "width": 148, "height": 148, "rx": 16 },
+            { "type": "image", "src": "assets/svg/memory-sun.svg",     "x": 166, "y": 164, "width": 148, "height": 148, "rx": 16, "stroke": "#31C76A66", "stroke_width": 2.5 },
+            { "type": "image", "src": "assets/svg/card-back.svg",      "x": 332, "y": 164, "width": 148, "height": 148, "rx": 16 },
+            { "type": "image", "src": "assets/svg/card-back.svg",      "x": 498, "y": 164, "width": 148, "height": 148, "rx": 16 },
+            { "type": "image", "src": "assets/svg/card-back.svg",      "x": 0,   "y": 328, "width": 148, "height": 148, "rx": 16 },
+            { "type": "image", "src": "assets/svg/memory-key.svg",     "x": 166, "y": 328, "width": 148, "height": 148, "rx": 16 },
+            { "type": "image", "src": "assets/svg/card-back.svg",      "x": 332, "y": 328, "width": 148, "height": 148, "rx": 16 },
+            { "type": "image", "src": "assets/svg/memory-sparkle.svg", "x": 498, "y": 328, "width": 148, "height": 148, "rx": 16 },
+            { "type": "image", "src": "assets/svg/memory-moon.svg",    "x": 0,   "y": 492, "width": 148, "height": 148, "rx": 16 },
+            { "type": "image", "src": "assets/svg/card-back.svg",      "x": 166, "y": 492, "width": 148, "height": 148, "rx": 16 },
+            { "type": "image", "src": "assets/svg/card-back.svg",      "x": 332, "y": 492, "width": 148, "height": 148, "rx": 16 },
+            { "type": "image", "src": "assets/svg/card-back.svg",      "x": 498, "y": 492, "width": 148, "height": 148, "rx": 16 },
+            {
+              "id": "flip_reveal_a",
+              "type": "image", "src": "assets/svg/card-back.svg",
+              "x": 332, "y": 164, "width": 148, "height": 148, "rx": 16,
+              "animation": {
+                "keyframes": [
+                  { "t": 1.5, "rotate_y": 0,    "src": "assets/svg/card-back.svg" },
+                  { "t": 1.8, "rotate_y": 90  },
+                  { "t": 2.0, "rotate_y": 90,   "src": "assets/svg/memory-sparkle.svg" },
+                  { "t": 2.3, "rotate_y": 180 }
+                ]
+              }
+            },
+            {
+              "id": "flip_reveal_b",
+              "type": "image", "src": "assets/svg/card-back.svg",
+              "x": 0, "y": 328, "width": 148, "height": 148, "rx": 16,
+              "animation": {
+                "keyframes": [
+                  { "t": 2.8, "rotate_y": 0,    "src": "assets/svg/card-back.svg" },
+                  { "t": 3.1, "rotate_y": 90  },
+                  { "t": 3.3, "rotate_y": 90,   "src": "assets/svg/memory-moon.svg" },
+                  { "t": 3.6, "rotate_y": 180 },
+                  { "t": 4.2, "stroke": "#31C76A66", "stroke_width": 2.5, "bg": "#F0FFF6" }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "mf_efficiency_pill",
+          "type": "group",
+          "x": 540, "y": 950, "anchor": "center",
+          "children": [
+            { "type": "rounded_rect", "x": -90, "y": -14, "width": 180, "height": 28, "rx": 14, "fill": "#EDE8F8" },
+            { "type": "text", "content": "⚡ Sharp memory", "x": 0, "y": 4, "font_size": 12, "font_weight": "600", "color": "#5B35A0", "text_anchor": "middle" }
+          ],
+          "animation": {
+            "keyframes": [
+              { "t": 3.0, "opacity": 0, "scale": 0.8 },
+              { "t": 3.6, "opacity": 1, "scale": 1.0 },
+              { "t": 5.5, "opacity": 1 },
+              { "t": 6.0, "opacity": 0 }
+            ]
+          }
+        }
+      ]
+    },
+
+    {
+      "id": "scene_05_result",
+      "label": "Scene 5 — Verified Settlement",
+      "time_in": 21.5,
+      "time_out": 26.5,
+      "duration": 5.0,
+      "transition_in": { "type": "slide_up", "duration": 0.4 },
+      "background": { "type": "solid", "color": "#F7FEFF" },
+      "layers": [
+        {
+          "id": "phone_shell_result",
+          "type": "rounded_rect",
+          "x": 200, "y": 80, "width": 680, "height": 1400, "rx": 44,
+          "fill": "#F7FEFF", "stroke": "#E0E0E0", "stroke_width": 1.5
+        },
+        {
+          "id": "dimmed_bg",
+          "type": "rounded_rect",
+          "x": 200, "y": 80, "width": 680, "height": 1400, "rx": 44,
+          "fill": "#000000", "opacity": 0.25,
+          "animation": {
+            "keyframes": [
+              { "t": 0, "opacity": 0 },
+              { "t": 0.4, "opacity": 0.25 }
+            ]
+          }
+        },
+        {
+          "id": "bottom_sheet",
+          "type": "group",
+          "x": 200, "y": 780,
+          "animation": {
+            "keyframes": [
+              { "t": 0,   "y": 1400 },
+              { "t": 0.5, "y": 780  }
+            ]
+          },
+          "children": [
+            {
+              "type": "rounded_rect",
+              "x": 0, "y": 0, "width": 680, "height": 700, "rx_top": 28, "rx_bottom": 44,
+              "fill": "#FFFFFF"
+            },
+            { "type": "rounded_rect", "x": 290, "y": 14, "width": 100, "height": 5, "rx": 2.5, "fill": "#E0E0E0" },
+            { "type": "text", "content": "Round result", "x": 340, "y": 60, "font_size": 20, "font_weight": "700", "color": "#1A1A1A", "text_anchor": "middle" },
+            {
+              "type": "rounded_rect",
+              "x": 24, "y": 80, "width": 632, "height": 180, "rx": 20,
+              "fill_gradient": { "direction": "135deg", "stops": [
+                { "offset": "0%",   "color": "#0D7A8A" },
+                { "offset": "100%", "color": "#238D9D" }
+              ]},
+              "shadow": { "y": 6, "blur": 18, "color": "#238D9D44" }
+            },
+            { "type": "image", "src": "assets/svg/trophy-icon.svg", "x": 276, "y": 96", "width": 48, "height": 48 },
+            { "type": "text", "content": "YOUR SCORE", "x": 340, "y": 158, "font_size": 11, "font_weight": "600", "color": "#FFFFFF80", "text_anchor": "middle" },
+            {
+              "type": "text", "x": 340, "y": 228, "font_size": 72, "font_weight": "800",
+              "color": "#FFFFFF", "text_anchor": "middle",
+              "animation": {
+                "keyframes": [
+                  { "t": 0.5, "content": "0",   "scale": 0.7, "opacity": 0 },
+                  { "t": 0.9, "content": "620", "scale": 1.0, "opacity": 1 }
+                ]
+              }
+            },
+            {
+              "type": "group", "x": 220, "y": 282",
+              "children": [
+                { "type": "rounded_rect", "x": 0, "y": 0, "width": 200, "height": 32, "rx": 16, "fill": "#F0FFF6", "stroke": "#138A4533", "stroke_width": 1 },
+                { "type": "image", "src": "assets/svg/verified-badge.svg", "x": 10, "y": 2, "width": 28, "height": 28 },
+                { "type": "text", "content": "Verified", "x": 46, "y": 21, "font_size": 13, "font_weight": "600", "color": "#138A45" }
+              ],
+              "animation": {
+                "keyframes": [
+                  { "t": 1.2, "opacity": 0, "scale": 0.9 },
+                  { "t": 1.7, "opacity": 1, "scale": 1.0 }
+                ]
+              }
+            },
+            {
+              "type": "rounded_rect",
+              "x": 24, "y": 336, "width": 632, "height": 80, "rx": 16,
+              "fill": "#FAFAFA", "stroke": "#F0F0F0", "stroke_width": 1.5
+            },
+            { "type": "text", "content": "Reward earned", "x": 44, "y": 364, "font_size": 12, "color": "#817E7E" },
+            { "type": "image", "src": "assets/svg/miles-token.svg", "x": 44, "y": 382, "width": 26, "height": 26 },
+            { "type": "text", "content": "20 Miles", "x": 76, "y": 401, "font_size": 18, "font_weight": "700", "color": "#1A1A1A" },
+            { "type": "image", "src": "assets/svg/usdt-token.svg",  "x": 200, "y": 382, "width": 22, "height": 22 },
+            { "type": "text", "content": "+$0.25 bonus", "x": 228, "y": 399, "font_size": 14, "color": "#26A17B", "font_weight": "600" },
+            {
+              "type": "group", "x": 24, "y": 430",
+              "children": [
+                { "type": "rounded_rect", "x": 0, "y": 0, "width": 632, "height": 52, "rx": 14, "fill": "#F0FDFF", "stroke": "#238D9D22", "stroke_width": 1 },
+                { "type": "image", "src": "assets/svg/onchain-badge.svg", "x": 14, "y": 12, "width": 28, "height": 28 },
+                { "type": "text", "content": "Session verified onchain", "x": 50, "y": 32, "font_size": 13, "font_weight": "600", "color": "#238D9D" },
+                { "type": "text", "content": "Best daily score counts on the leaderboard", "x": 50, "y": 48, "font_size": 11, "color": "#525252" }
+              ]
+            },
+            {
+              "type": "rounded_rect",
+              "x": 24, "y": 496, "width": 632, "height": 60, "rx": 16,
+              "fill": "#238D9D",
+              "shadow": { "y": 4, "blur": 16, "color": "#238D9D44" }
+            },
+            { "type": "image", "src": "assets/svg/miles-token.svg", "x": 184, "y": 510, "width": 28, "height": 28, "tint": "white" },
+            { "type": "text", "content": "Play again", "x": 340, "y": 534, "font_size": 17, "font_weight": "700", "color": "#FFFFFF", "text_anchor": "middle" }
+          ]
+        },
+        {
+          "id": "result_overlay_text",
+          "type": "text",
+          "content": "Verified play. Real rewards.",
+          "x": 540, "y": 1660, "text_anchor": "middle",
+          "font_size": 28, "font_weight": "700", "color": "#1A1A1A",
+          "animation": {
+            "keyframes": [
+              { "t": 1.2, "opacity": 0 },
+              { "t": 1.8, "opacity": 1 }
+            ]
+          }
+        }
+      ]
+    },
+
+    {
+      "id": "scene_06_cta",
+      "label": "Scene 6 — Final CTA",
+      "time_in": 26.5,
+      "time_out": 30.0,
+      "duration": 3.5,
+      "transition_in": { "type": "fade", "duration": 0.5 },
+      "background": {
+        "type": "gradient",
+        "direction": "to bottom",
+        "stops": [
+          { "offset": "0%",   "color": "#0D7A8A" },
+          { "offset": "45%",  "color": "#238D9D" },
+          { "offset": "100%", "color": "#2CBDD4" }
+        ]
+      },
+      "layers": [
+        {
+          "id": "cta_bg_circle_1",
+          "type": "circle", "cx": 1000, "cy": 300, "r": 320,
+          "fill": "#FFFFFF", "opacity": 0.06
+        },
+        {
+          "id": "cta_bg_circle_2",
+          "type": "circle", "cx": 80, "cy": 1600, "r": 280,
+          "fill": "#FFFFFF", "opacity": 0.06
+        },
+        {
+          "id": "cta_logo",
+          "type": "image",
+          "src": "assets/svg/akibamiles-logo.svg",
+          "x": 540, "y": 260,
+          "width": 220, "height": 60,
+          "anchor": "center",
+          "tint": "white",
+          "animation": {
+            "keyframes": [
+              { "t": 0,   "opacity": 0, "scale": 0.8 },
+              { "t": 0.5, "opacity": 1, "scale": 1.0 }
+            ]
+          }
+        },
+        {
+          "id": "cta_tagline",
+          "type": "text",
+          "content": "Skill games are here.",
+          "x": 540, "y": 480,
+          "text_anchor": "middle",
+          "font_size": 18,
+          "font_weight": "400",
+          "color": "#FFFFFF",
+          "opacity": 0.85,
+          "animation": {
+            "keyframes": [
+              { "t": 0.3, "opacity": 0 },
+              { "t": 0.8, "opacity": 0.85 }
+            ]
+          }
+        },
+        {
+          "id": "cta_headline",
+          "type": "text",
+          "content": "Play Rule Tap\n& Memory Flip",
+          "x": 540, "y": 600,
+          "text_anchor": "middle",
+          "font_size": 52,
+          "font_weight": "800",
+          "color": "#FFFFFF",
+          "line_height": 1.15,
+          "animation": {
+            "keyframes": [
+              { "t": 0.4, "opacity": 0, "y": 630 },
+              { "t": 0.9, "opacity": 1, "y": 600 }
+            ]
+          }
+        },
+        {
+          "id": "cta_mini_cards",
+          "type": "group",
+          "x": 540, "y": 820, "anchor": "center",
+          "children": [
+            {
+              "type": "rounded_rect",
+              "x": -224, "y": 0, "width": 210, "height": 100, "rx": 18,
+              "fill": "#FFFFFF26", "stroke": "#FFFFFF30", "stroke_width": 1
+            },
+            { "type": "text", "content": "⚡", "x": -214, "y": 36, "font_size": 28 },
+            { "type": "text", "content": "Rule Tap",     "x": -174, "y": 42, "font_size": 17, "font_weight": "700", "color": "#FFFFFF" },
+            { "type": "text", "content": "up to 35 Miles", "x": -174, "y": 62, "font_size": 12, "color": "#FFFFFF", "opacity": 0.75 },
+            { "type": "image", "src": "assets/svg/miles-token.svg", "x": -174, "y": 72, "width": 18, "height": 18, "tint": "white" },
+            {
+              "type": "rounded_rect",
+              "x": 14, "y": 0, "width": 210, "height": 100, "rx": 18,
+              "fill": "#FFFFFF26", "stroke": "#FFFFFF30", "stroke_width": 1
+            },
+            { "type": "text", "content": "🧠", "x": 24, "y": 36, "font_size": 28 },
+            { "type": "text", "content": "Memory Flip",  "x": 64, "y": 42, "font_size": 17, "font_weight": "700", "color": "#FFFFFF" },
+            { "type": "text", "content": "up to 20 Miles", "x": 64, "y": 62, "font_size": 12, "color": "#FFFFFF", "opacity": 0.75 },
+            { "type": "image", "src": "assets/svg/miles-token.svg", "x": 64, "y": 72, "width": 18, "height": 18, "tint": "white" }
+          ],
+          "animation": {
+            "keyframes": [
+              { "t": 0.6, "opacity": 0, "y_offset": 20 },
+              { "t": 1.1, "opacity": 1, "y_offset": 0 }
+            ]
+          }
+        },
+        {
+          "id": "cta_subtext",
+          "type": "text",
+          "content": "Open the app and earn Miles with skill-based games.",
+          "x": 540, "y": 1000,
+          "text_anchor": "middle",
+          "font_size": 18,
+          "font_weight": "400",
+          "color": "#FFFFFF",
+          "opacity": 0.85,
+          "max_width": 580,
+          "line_height": 1.5,
+          "animation": {
+            "keyframes": [
+              { "t": 0.8, "opacity": 0 },
+              { "t": 1.3, "opacity": 0.85 }
+            ]
+          }
+        },
+        {
+          "id": "cta_button",
+          "type": "image",
+          "src": "assets/svg/cta-button.svg",
+          "x": 540, "y": 1100,
+          "width": 560, "height": 80,
+          "anchor": "top_center",
+          "shadow": { "y": 12, "blur": 32, "color": "#00000044" },
+          "animation": {
+            "keyframes": [
+              { "t": 1.0, "opacity": 0, "scale": 0.92 },
+              { "t": 1.5, "opacity": 1, "scale": 1.0  },
+              { "t": 2.0, "scale": 1.03 },
+              { "t": 2.4, "scale": 1.0 }
+            ]
+          }
+        },
+        {
+          "id": "cta_footer",
+          "type": "text",
+          "content": "Onchain sessions · Verified rewards",
+          "x": 540, "y": 1220,
+          "text_anchor": "middle",
+          "font_size": 14,
+          "font_weight": "500",
+          "color": "#FFFFFF",
+          "opacity": 0.6,
+          "animation": {
+            "keyframes": [
+              { "t": 1.3, "opacity": 0 },
+              { "t": 1.8, "opacity": 0.6 }
+            ]
+          }
+        },
+        {
+          "id": "cta_icon_row",
+          "type": "group",
+          "x": 540, "y": 1280, "anchor": "center",
+          "children": [
+            { "type": "image", "src": "assets/svg/miles-token.svg",   "x": -60, "y": -16, "width": 32, "height": 32 },
+            { "type": "image", "src": "assets/svg/verified-badge.svg", "x": -14, "y": -16, "width": 32, "height": 32 },
+            { "type": "image", "src": "assets/svg/onchain-badge.svg",  "x": 32,  "y": -16, "width": 32, "height": 32 }
+          ],
+          "animation": {
+            "keyframes": [
+              { "t": 1.5, "opacity": 0 },
+              { "t": 2.0, "opacity": 1 }
+            ]
+          }
+        }
+      ]
+    }
+
+  ],
+
+  "audio": {
+    "voiceover": {
+      "file": "voiceover/akibamiles-vo-final.mp3",
+      "start_at": 0.5,
+      "volume": 1.0
+    },
+    "music": {
+      "description": "Light upbeat fintech/rewards app background track. BPM 100-115. Soft piano + gentle synth pads. No bass drops.",
+      "file": "audio/bg-music.mp3",
+      "volume": 0.18,
+      "fade_out_start": 26.0,
+      "fade_out_end": 30.0
+    },
+    "sfx": [
+      { "event": "scene_01_opening",        "file": "sfx/soft-whoosh.mp3",   "at": 0.6,  "volume": 0.5 },
+      { "event": "games_card_appear",       "file": "sfx/card-lift.mp3",     "at": 1.2,  "volume": 0.5 },
+      { "event": "rule_tap_card_appear",    "file": "sfx/slide-in.mp3",      "at": 4.9,  "volume": 0.4 },
+      { "event": "memory_flip_card_appear", "file": "sfx/slide-in.mp3",      "at": 5.4,  "volume": 0.4 },
+      { "event": "tap_ripple_1",            "file": "sfx/tap-correct.mp3",   "at": 10.0, "volume": 0.6 },
+      { "event": "tap_ripple_2",            "file": "sfx/tap-correct.mp3",   "at": 11.3, "volume": 0.6 },
+      { "event": "tap_ripple_3",            "file": "sfx/tap-correct.mp3",   "at": 12.7, "volume": 0.6 },
+      { "event": "card_flip_a",             "file": "sfx/card-flip.mp3",     "at": 16.5, "volume": 0.55 },
+      { "event": "card_flip_b",             "file": "sfx/card-flip.mp3",     "at": 18.3, "volume": 0.55 },
+      { "event": "pair_matched",            "file": "sfx/match-chime.mp3",   "at": 19.6, "volume": 0.65 },
+      { "event": "result_score_reveal",     "file": "sfx/score-reveal.mp3",  "at": 22.4, "volume": 0.6  },
+      { "event": "verified_badge_appear",   "file": "sfx/soft-chime.mp3",    "at": 23.2, "volume": 0.55 },
+      { "event": "cta_button_pulse",        "file": "sfx/cta-pulse.mp3",     "at": 28.0, "volume": 0.5  }
+    ]
+  },
+
+  "export_profiles": [
+    {
+      "name": "tiktok_reels",
+      "resolution": "1080x1920",
+      "fps": 30,
+      "codec": "h264",
+      "bitrate": "8M",
+      "audio_codec": "aac",
+      "audio_bitrate": "192k",
+      "format": "mp4"
+    },
+    {
+      "name": "whatsapp_status",
+      "resolution": "1080x1920",
+      "fps": 30,
+      "codec": "h264",
+      "bitrate": "5M",
+      "max_duration_seconds": 30,
+      "audio_codec": "aac",
+      "audio_bitrate": "128k",
+      "format": "mp4"
+    },
+    {
+      "name": "instagram_reels",
+      "resolution": "1080x1920",
+      "fps": 30,
+      "codec": "h264",
+      "bitrate": "8M",
+      "audio_codec": "aac",
+      "audio_bitrate": "192k",
+      "format": "mp4"
+    },
+    {
+      "name": "in_app_promo",
+      "resolution": "1080x1920",
+      "fps": 30,
+      "codec": "h265",
+      "bitrate": "4M",
+      "audio_codec": "aac",
+      "audio_bitrate": "128k",
+      "format": "mp4"
+    }
+  ]
+}

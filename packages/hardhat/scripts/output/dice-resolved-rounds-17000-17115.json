@@ -1,0 +1,1676 @@
+{
+  "generatedAt": "2026-04-13T09:11:46.591Z",
+  "network": "celo",
+  "chainId": "42220",
+  "diceAddress": "0xf77e7395Aa5c89BcC8d6e23F67a9c7914AB9702a",
+  "startRound": 17000,
+  "endRound": 17115,
+  "summary": {
+    "resolved": 75,
+    "randomness_pending": 13,
+    "drawn": 8,
+    "error": 20
+  },
+  "resolvedRounds": [
+    {
+      "roundId": 17000,
+      "winner": "0x7bb4A62a48AaCCac0EB73Dfcedd117C332E38d5f",
+      "winningNumber": 4,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17001,
+      "winner": "0x0aA6c2Dc4D3CD44B3713922E52713855c41b8A76",
+      "winningNumber": 2,
+      "tier": "20",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17002,
+      "winner": "0xC096e7008490600604e17a73f7aD8336A7b6EA55",
+      "winningNumber": 4,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17003,
+      "winner": "0xb7BD91973632E1A3794e9C06BD3FCb45d6C33739",
+      "winningNumber": 5,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17004,
+      "winner": "0xb7BD91973632E1A3794e9C06BD3FCb45d6C33739",
+      "winningNumber": 6,
+      "tier": "20",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17005,
+      "winner": "0xc7956B26b4C866bE8b03De3559DE67d514E1d105",
+      "winningNumber": 2,
+      "tier": "20",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17006,
+      "winner": "0x6b50Af167C8A650367Eb80a5c5f756d2F78d1826",
+      "winningNumber": 1,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17008,
+      "winner": "0x3b3997FDf4D0B4176A9C6a9f74B95Dd1cdf45D1D",
+      "winningNumber": 2,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17009,
+      "winner": "0x62e3eF15d13eDcb45775b1163c05acD835d016AC",
+      "winningNumber": 6,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17010,
+      "winner": "0xE51A8e1E376a3917aa75B87D0a721B6C797a1AC5",
+      "winningNumber": 4,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17011,
+      "winner": "0x9Cdd8888aB2dc41D226469F6CD96F1d482f18D35",
+      "winningNumber": 6,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17012,
+      "winner": "0x968d8CA77A2D1ba42acCe6C5ad3A3ce683F6db48",
+      "winningNumber": 1,
+      "tier": "20",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17013,
+      "winner": "0x9Cdd8888aB2dc41D226469F6CD96F1d482f18D35",
+      "winningNumber": 4,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17014,
+      "winner": "0x2269Fa02a174986DFF089768e844e4Bb69246fBf",
+      "winningNumber": 6,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17015,
+      "winner": "0xfa357E167B3c54026Da617eBaC8e7C1A78227c53",
+      "winningNumber": 3,
+      "tier": "20",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17016,
+      "winner": "0xb7BD91973632E1A3794e9C06BD3FCb45d6C33739",
+      "winningNumber": 4,
+      "tier": "20",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17017,
+      "winner": "0xd05a135C32cA56738B521e72366F9a91CB1B6621",
+      "winningNumber": 3,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17018,
+      "winner": "0x798A895354D132ff71C8d50DF712BA98D82076C9",
+      "winningNumber": 6,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17019,
+      "winner": "0xb7BD91973632E1A3794e9C06BD3FCb45d6C33739",
+      "winningNumber": 4,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17020,
+      "winner": "0x6359cCa50f2fd9f242a726Ad970ac4F3c6Bde768",
+      "winningNumber": 4,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17021,
+      "winner": "0xb7BD91973632E1A3794e9C06BD3FCb45d6C33739",
+      "winningNumber": 3,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17022,
+      "winner": "0x6359cCa50f2fd9f242a726Ad970ac4F3c6Bde768",
+      "winningNumber": 3,
+      "tier": "20",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17024,
+      "winner": "0x3b3997FDf4D0B4176A9C6a9f74B95Dd1cdf45D1D",
+      "winningNumber": 4,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17025,
+      "winner": "0xFE3334d52F919921fd1D7646B34B6CA3dBe0ae95",
+      "winningNumber": 3,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17027,
+      "winner": "0x76289fb3f70F6A11585f02554e04F28724752D33",
+      "winningNumber": 3,
+      "tier": "20",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17028,
+      "winner": "0x6359cCa50f2fd9f242a726Ad970ac4F3c6Bde768",
+      "winningNumber": 4,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17029,
+      "winner": "0x3b3997FDf4D0B4176A9C6a9f74B95Dd1cdf45D1D",
+      "winningNumber": 5,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17030,
+      "winner": "0x38A349C4AcF03B3ab8987Bc58F0db224b32A9955",
+      "winningNumber": 6,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17031,
+      "winner": "0x968d8CA77A2D1ba42acCe6C5ad3A3ce683F6db48",
+      "winningNumber": 5,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17032,
+      "winner": "0x6455Ac3638F67c537fD17c2b8f3b0100D4DE3f33",
+      "winningNumber": 3,
+      "tier": "10",
+      "source": "drawn_now"
+    },
+    {
+      "roundId": 17033,
+      "winner": "0xaa5FdDb083891b0b16aDBE58ac040A4C81D267A4",
+      "winningNumber": 3,
+      "tier": "20",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17034,
+      "winner": "0x44c787A9b08E5D37166640A94797f9672ECbeFC6",
+      "winningNumber": 5,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17035,
+      "winner": "0x80e54a130481A23b6bC159BF586550aA5DFBD7FA",
+      "winningNumber": 3,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17036,
+      "winner": "0x5b6a0eA606197646B72967d36A87d2261010aEF7",
+      "winningNumber": 6,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17037,
+      "winner": "0x53eC5e09a74EEC560DB83f1Dd5cbD23f6eE222D2",
+      "winningNumber": 2,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17038,
+      "winner": "0x5b6a0eA606197646B72967d36A87d2261010aEF7",
+      "winningNumber": 3,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17040,
+      "winner": "0x4961b9E19399460755F347d06D17EF952ECFc8E6",
+      "winningNumber": 4,
+      "tier": "20",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17041,
+      "winner": "0x5b6a0eA606197646B72967d36A87d2261010aEF7",
+      "winningNumber": 6,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17042,
+      "winner": "0x5DDb12b65Ef9773beaD6420390554C7B4D1C0980",
+      "winningNumber": 3,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17043,
+      "winner": "0x55D0ef16dcF0337c8663d052A4d4037F27734B62",
+      "winningNumber": 3,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17044,
+      "winner": "0x6a43d9DBcF0FB0eAC3dc6720C5393CB1F8FaBA46",
+      "winningNumber": 3,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17046,
+      "winner": "0xBeF34b7D94aAc4cF90d0a1818fE9E87d0b5Fa4A2",
+      "winningNumber": 3,
+      "tier": "20",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17047,
+      "winner": "0xc197763ddCFdc9d2A4590944dA599450735E8791",
+      "winningNumber": 1,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17049,
+      "winner": "0xBeF34b7D94aAc4cF90d0a1818fE9E87d0b5Fa4A2",
+      "winningNumber": 2,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17051,
+      "winner": "0x3b3997FDf4D0B4176A9C6a9f74B95Dd1cdf45D1D",
+      "winningNumber": 5,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17052,
+      "winner": "0xFc9135bAC6765916399E285EA22eCE11970aE8ac",
+      "winningNumber": 4,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17053,
+      "winner": "0x6359cCa50f2fd9f242a726Ad970ac4F3c6Bde768",
+      "winningNumber": 4,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17054,
+      "winner": "0xc9ED9Fa298beBcfa760d6F299AFa0419d983e299",
+      "winningNumber": 1,
+      "tier": "20",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17055,
+      "winner": "0x6b50Af167C8A650367Eb80a5c5f756d2F78d1826",
+      "winningNumber": 1,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17056,
+      "winner": "0x80b5C86a93d4BBC1c1C95c0DF5cd9D91F6622D30",
+      "winningNumber": 4,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17057,
+      "winner": "0x60FdE2929DC87da72dfc6fa78353b2c8a19EEA70",
+      "winningNumber": 3,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17058,
+      "winner": "0x6bf214188dD4012a09A8d4eCda30C3035F3CD27d",
+      "winningNumber": 5,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17059,
+      "winner": "0xdBC4d1A2631ae688b5a85e8aC6508c11f1127060",
+      "winningNumber": 5,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17060,
+      "winner": "0x7c3406a9877A4F52023E825cB228766F66F02714",
+      "winningNumber": 5,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17061,
+      "winner": "0x3265AFAee207FB424E0f21Fadb2D443866b10B10",
+      "winningNumber": 4,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17064,
+      "winner": "0x92ACBEa5A35dE4CFFE13F7f63c6C56E11b5785f0",
+      "winningNumber": 5,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17065,
+      "winner": "0x3265AFAee207FB424E0f21Fadb2D443866b10B10",
+      "winningNumber": 5,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17066,
+      "winner": "0x203dD2420B8a666D9f07d68AF2755FA78257b28c",
+      "winningNumber": 4,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17069,
+      "winner": "0xBF6714e2ba677837aDBDe606a11f96e3d78CB1Fd",
+      "winningNumber": 5,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17070,
+      "winner": "0xA3144fa3DC373769C59355031741803cD0AF31f3",
+      "winningNumber": 2,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17071,
+      "winner": "0x1dA68B6a22Dac6f57fb40580BfF9F39037F1405f",
+      "winningNumber": 4,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17072,
+      "winner": "0xCf111a265D8DC4A25b221505455b639B180F82b1",
+      "winningNumber": 4,
+      "tier": "10",
+      "source": "drawn_now"
+    },
+    {
+      "roundId": 17073,
+      "winner": "0x6b50Af167C8A650367Eb80a5c5f756d2F78d1826",
+      "winningNumber": 6,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17076,
+      "winner": "0x6b50Af167C8A650367Eb80a5c5f756d2F78d1826",
+      "winningNumber": 6,
+      "tier": "30",
+      "source": "drawn_now"
+    },
+    {
+      "roundId": 17077,
+      "winner": "0xBF6714e2ba677837aDBDe606a11f96e3d78CB1Fd",
+      "winningNumber": 1,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17079,
+      "winner": "0xB3EeEc62B1159ab94a39942DaBB86b4cE97d3d56",
+      "winningNumber": 2,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17082,
+      "winner": "0xf7186bba4CaBd60386937916702C70286c375181",
+      "winningNumber": 5,
+      "tier": "10",
+      "source": "drawn_now"
+    },
+    {
+      "roundId": 17084,
+      "winner": "0xc545dba5E07B51864df83945f72f997a172e8D3C",
+      "winningNumber": 6,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17086,
+      "winner": "0x3D52bd9EB017E450Aef2968639f2f9F9894F8103",
+      "winningNumber": 2,
+      "tier": "20",
+      "source": "drawn_now"
+    },
+    {
+      "roundId": 17087,
+      "winner": "0xc545dba5E07B51864df83945f72f997a172e8D3C",
+      "winningNumber": 6,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17088,
+      "winner": "0x16257e6DF11E0016832CF2CCfb666Aa070B7C686",
+      "winningNumber": 4,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17089,
+      "winner": "0x0D3f5F000e60aCbeDf46Fa5810e63CC0aC578F54",
+      "winningNumber": 2,
+      "tier": "10",
+      "source": "drawn_now"
+    },
+    {
+      "roundId": 17091,
+      "winner": "0x5AAFf0dD2A4Af3bA5c24B227ca27E3588f256eC7",
+      "winningNumber": 5,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17093,
+      "winner": "0xb8D51fB8b73b4298F0309D31ea867a9fB787Ae60",
+      "winningNumber": 5,
+      "tier": "20",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17094,
+      "winner": "0x2f408D8AEee7d872A5D4f92f6910Ac3e352026F1",
+      "winningNumber": 4,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17096,
+      "winner": "0xD8d08C363fa9b55C09f194ad9eeB9767C71B4163",
+      "winningNumber": 6,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17100,
+      "winner": "0xC7fc420dE9537E21AA73b61c770A6E766B67157D",
+      "winningNumber": 5,
+      "tier": "30",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17102,
+      "winner": "0x9aE7E9f0fA60B79DE2f241117bE53ECC1Bb67c5E",
+      "winningNumber": 4,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17103,
+      "winner": "0x4b36A32ae77cAf0e670b55D771eC747339391f71",
+      "winningNumber": 6,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17104,
+      "winner": "0xf339AA48A5508eBfEdC1897aB3879d1D61AF4995",
+      "winningNumber": 5,
+      "tier": "10",
+      "source": "already_resolved"
+    },
+    {
+      "roundId": 17105,
+      "winner": "0x3Da38423Cf448fbe62466EBD18c36450b9A75f12",
+      "winningNumber": 6,
+      "tier": "20",
+      "source": "drawn_now"
+    },
+    {
+      "roundId": 17109,
+      "winner": "0x1459D1f5D627752ec4647dAb78e76d7a132AD935",
+      "winningNumber": 4,
+      "tier": "30",
+      "source": "drawn_now"
+    },
+    {
+      "roundId": 17113,
+      "winner": "0x80e54a130481A23b6bC159BF586550aA5DFBD7FA",
+      "winningNumber": 2,
+      "tier": "10",
+      "source": "already_resolved"
+    }
+  ],
+  "rounds": [
+    {
+      "roundId": 17000,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x7bb4A62a48AaCCac0EB73Dfcedd117C332E38d5f",
+      "winningNumber": 4,
+      "randomBlock": "64146774"
+    },
+    {
+      "roundId": 17001,
+      "status": "resolved",
+      "tier": "20",
+      "filledSlots": 6,
+      "winner": "0x0aA6c2Dc4D3CD44B3713922E52713855c41b8A76",
+      "winningNumber": 2,
+      "randomBlock": "64146801"
+    },
+    {
+      "roundId": 17002,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0xC096e7008490600604e17a73f7aD8336A7b6EA55",
+      "winningNumber": 4,
+      "randomBlock": "64146829"
+    },
+    {
+      "roundId": 17003,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0xb7BD91973632E1A3794e9C06BD3FCb45d6C33739",
+      "winningNumber": 5,
+      "randomBlock": "64146888"
+    },
+    {
+      "roundId": 17004,
+      "status": "resolved",
+      "tier": "20",
+      "filledSlots": 6,
+      "winner": "0xb7BD91973632E1A3794e9C06BD3FCb45d6C33739",
+      "winningNumber": 6,
+      "randomBlock": "64146958"
+    },
+    {
+      "roundId": 17005,
+      "status": "resolved",
+      "tier": "20",
+      "filledSlots": 6,
+      "winner": "0xc7956B26b4C866bE8b03De3559DE67d514E1d105",
+      "winningNumber": 2,
+      "randomBlock": "64147109"
+    },
+    {
+      "roundId": 17006,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x6b50Af167C8A650367Eb80a5c5f756d2F78d1826",
+      "winningNumber": 1,
+      "randomBlock": "64147139"
+    },
+    {
+      "roundId": 17007,
+      "status": "randomness_pending",
+      "tier": "30",
+      "filledSlots": 6,
+      "randomBlock": "64147224",
+      "rngStatus": 1
+    },
+    {
+      "roundId": 17008,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x3b3997FDf4D0B4176A9C6a9f74B95Dd1cdf45D1D",
+      "winningNumber": 2,
+      "randomBlock": "64147335"
+    },
+    {
+      "roundId": 17009,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x62e3eF15d13eDcb45775b1163c05acD835d016AC",
+      "winningNumber": 6,
+      "randomBlock": "64147391"
+    },
+    {
+      "roundId": 17010,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0xE51A8e1E376a3917aa75B87D0a721B6C797a1AC5",
+      "winningNumber": 4,
+      "randomBlock": "64147471"
+    },
+    {
+      "roundId": 17011,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x9Cdd8888aB2dc41D226469F6CD96F1d482f18D35",
+      "winningNumber": 6,
+      "randomBlock": "64147542"
+    },
+    {
+      "roundId": 17012,
+      "status": "resolved",
+      "tier": "20",
+      "filledSlots": 6,
+      "winner": "0x968d8CA77A2D1ba42acCe6C5ad3A3ce683F6db48",
+      "winningNumber": 1,
+      "randomBlock": "64147719"
+    },
+    {
+      "roundId": 17013,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x9Cdd8888aB2dc41D226469F6CD96F1d482f18D35",
+      "winningNumber": 4,
+      "randomBlock": "64147810"
+    },
+    {
+      "roundId": 17014,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x2269Fa02a174986DFF089768e844e4Bb69246fBf",
+      "winningNumber": 6,
+      "randomBlock": "64148138"
+    },
+    {
+      "roundId": 17015,
+      "status": "resolved",
+      "tier": "20",
+      "filledSlots": 6,
+      "winner": "0xfa357E167B3c54026Da617eBaC8e7C1A78227c53",
+      "winningNumber": 3,
+      "randomBlock": "64148157"
+    },
+    {
+      "roundId": 17016,
+      "status": "resolved",
+      "tier": "20",
+      "filledSlots": 6,
+      "winner": "0xb7BD91973632E1A3794e9C06BD3FCb45d6C33739",
+      "winningNumber": 4,
+      "randomBlock": "64148704"
+    },
+    {
+      "roundId": 17017,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0xd05a135C32cA56738B521e72366F9a91CB1B6621",
+      "winningNumber": 3,
+      "randomBlock": "64148714"
+    },
+    {
+      "roundId": 17018,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x798A895354D132ff71C8d50DF712BA98D82076C9",
+      "winningNumber": 6,
+      "randomBlock": "64149096"
+    },
+    {
+      "roundId": 17019,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0xb7BD91973632E1A3794e9C06BD3FCb45d6C33739",
+      "winningNumber": 4,
+      "randomBlock": "64149112"
+    },
+    {
+      "roundId": 17020,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x6359cCa50f2fd9f242a726Ad970ac4F3c6Bde768",
+      "winningNumber": 4,
+      "randomBlock": "64149775"
+    },
+    {
+      "roundId": 17021,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0xb7BD91973632E1A3794e9C06BD3FCb45d6C33739",
+      "winningNumber": 3,
+      "randomBlock": "64149806"
+    },
+    {
+      "roundId": 17022,
+      "status": "resolved",
+      "tier": "20",
+      "filledSlots": 6,
+      "winner": "0x6359cCa50f2fd9f242a726Ad970ac4F3c6Bde768",
+      "winningNumber": 3,
+      "randomBlock": "64149862"
+    },
+    {
+      "roundId": 17023,
+      "status": "randomness_pending",
+      "tier": "30",
+      "filledSlots": 6,
+      "randomBlock": "64150011",
+      "rngStatus": 1
+    },
+    {
+      "roundId": 17024,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x3b3997FDf4D0B4176A9C6a9f74B95Dd1cdf45D1D",
+      "winningNumber": 4,
+      "randomBlock": "64150125"
+    },
+    {
+      "roundId": 17025,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0xFE3334d52F919921fd1D7646B34B6CA3dBe0ae95",
+      "winningNumber": 3,
+      "randomBlock": "64150202"
+    },
+    {
+      "roundId": 17026,
+      "status": "randomness_pending",
+      "tier": "30",
+      "filledSlots": 6,
+      "randomBlock": "64150293",
+      "rngStatus": 1
+    },
+    {
+      "roundId": 17027,
+      "status": "resolved",
+      "tier": "20",
+      "filledSlots": 6,
+      "winner": "0x76289fb3f70F6A11585f02554e04F28724752D33",
+      "winningNumber": 3,
+      "randomBlock": "64150358"
+    },
+    {
+      "roundId": 17028,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x6359cCa50f2fd9f242a726Ad970ac4F3c6Bde768",
+      "winningNumber": 4,
+      "randomBlock": "64150382"
+    },
+    {
+      "roundId": 17029,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x3b3997FDf4D0B4176A9C6a9f74B95Dd1cdf45D1D",
+      "winningNumber": 5,
+      "randomBlock": "64150757"
+    },
+    {
+      "roundId": 17030,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x38A349C4AcF03B3ab8987Bc58F0db224b32A9955",
+      "winningNumber": 6,
+      "randomBlock": "64150940"
+    },
+    {
+      "roundId": 17031,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x968d8CA77A2D1ba42acCe6C5ad3A3ce683F6db48",
+      "winningNumber": 5,
+      "randomBlock": "64151613"
+    },
+    {
+      "roundId": 17032,
+      "status": "drawn",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x6455Ac3638F67c537fD17c2b8f3b0100D4DE3f33",
+      "winningNumber": 3,
+      "randomBlock": "64151651",
+      "rngStatus": 2,
+      "drawTxHash": "0x2ca86192768ab9cc9c0193692ab1e2096eb840e0c131b65ed2f1d8a8727aa70e"
+    },
+    {
+      "roundId": 17033,
+      "status": "resolved",
+      "tier": "20",
+      "filledSlots": 6,
+      "winner": "0xaa5FdDb083891b0b16aDBE58ac040A4C81D267A4",
+      "winningNumber": 3,
+      "randomBlock": "64151675"
+    },
+    {
+      "roundId": 17034,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x44c787A9b08E5D37166640A94797f9672ECbeFC6",
+      "winningNumber": 5,
+      "randomBlock": "64152028"
+    },
+    {
+      "roundId": 17035,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x80e54a130481A23b6bC159BF586550aA5DFBD7FA",
+      "winningNumber": 3,
+      "randomBlock": "64152303"
+    },
+    {
+      "roundId": 17036,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x5b6a0eA606197646B72967d36A87d2261010aEF7",
+      "winningNumber": 6,
+      "randomBlock": "64152524"
+    },
+    {
+      "roundId": 17037,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x53eC5e09a74EEC560DB83f1Dd5cbD23f6eE222D2",
+      "winningNumber": 2,
+      "randomBlock": "64152555"
+    },
+    {
+      "roundId": 17038,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x5b6a0eA606197646B72967d36A87d2261010aEF7",
+      "winningNumber": 3,
+      "randomBlock": "64152694"
+    },
+    {
+      "roundId": 17039,
+      "status": "error",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x0000000000000000000000000000000000000000",
+      "winningNumber": 0,
+      "randomBlock": "64152761",
+      "rngStatus": 2,
+      "drawTxHash": "0x4273d16dcbc19b27d95630d64b1f09ca216bb632d00113556d256c0ed3a89916",
+      "detail": "draw transaction completed but round still unresolved"
+    },
+    {
+      "roundId": 17040,
+      "status": "resolved",
+      "tier": "20",
+      "filledSlots": 6,
+      "winner": "0x4961b9E19399460755F347d06D17EF952ECFc8E6",
+      "winningNumber": 4,
+      "randomBlock": "64152781"
+    },
+    {
+      "roundId": 17041,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x5b6a0eA606197646B72967d36A87d2261010aEF7",
+      "winningNumber": 6,
+      "randomBlock": "64152984"
+    },
+    {
+      "roundId": 17042,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x5DDb12b65Ef9773beaD6420390554C7B4D1C0980",
+      "winningNumber": 3,
+      "randomBlock": "64153136"
+    },
+    {
+      "roundId": 17043,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x55D0ef16dcF0337c8663d052A4d4037F27734B62",
+      "winningNumber": 3,
+      "randomBlock": "64153259"
+    },
+    {
+      "roundId": 17044,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x6a43d9DBcF0FB0eAC3dc6720C5393CB1F8FaBA46",
+      "winningNumber": 3,
+      "randomBlock": "64153282"
+    },
+    {
+      "roundId": 17045,
+      "status": "randomness_pending",
+      "tier": "30",
+      "filledSlots": 6,
+      "randomBlock": "64153353",
+      "rngStatus": 1
+    },
+    {
+      "roundId": 17046,
+      "status": "resolved",
+      "tier": "20",
+      "filledSlots": 6,
+      "winner": "0xBeF34b7D94aAc4cF90d0a1818fE9E87d0b5Fa4A2",
+      "winningNumber": 3,
+      "randomBlock": "64153459"
+    },
+    {
+      "roundId": 17047,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0xc197763ddCFdc9d2A4590944dA599450735E8791",
+      "winningNumber": 1,
+      "randomBlock": "64153964"
+    },
+    {
+      "roundId": 17048,
+      "status": "randomness_pending",
+      "tier": "10",
+      "filledSlots": 6,
+      "randomBlock": "64154270",
+      "rngStatus": 1
+    },
+    {
+      "roundId": 17049,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0xBeF34b7D94aAc4cF90d0a1818fE9E87d0b5Fa4A2",
+      "winningNumber": 2,
+      "randomBlock": "64154328"
+    },
+    {
+      "roundId": 17050,
+      "status": "randomness_pending",
+      "tier": "10",
+      "filledSlots": 6,
+      "randomBlock": "64154468",
+      "rngStatus": 1
+    },
+    {
+      "roundId": 17051,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x3b3997FDf4D0B4176A9C6a9f74B95Dd1cdf45D1D",
+      "winningNumber": 5,
+      "randomBlock": "64154745"
+    },
+    {
+      "roundId": 17052,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0xFc9135bAC6765916399E285EA22eCE11970aE8ac",
+      "winningNumber": 4,
+      "randomBlock": "64154772"
+    },
+    {
+      "roundId": 17053,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x6359cCa50f2fd9f242a726Ad970ac4F3c6Bde768",
+      "winningNumber": 4,
+      "randomBlock": "64155120"
+    },
+    {
+      "roundId": 17054,
+      "status": "resolved",
+      "tier": "20",
+      "filledSlots": 6,
+      "winner": "0xc9ED9Fa298beBcfa760d6F299AFa0419d983e299",
+      "winningNumber": 1,
+      "randomBlock": "64155292"
+    },
+    {
+      "roundId": 17055,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x6b50Af167C8A650367Eb80a5c5f756d2F78d1826",
+      "winningNumber": 1,
+      "randomBlock": "64155604"
+    },
+    {
+      "roundId": 17056,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x80b5C86a93d4BBC1c1C95c0DF5cd9D91F6622D30",
+      "winningNumber": 4,
+      "randomBlock": "64155657"
+    },
+    {
+      "roundId": 17057,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x60FdE2929DC87da72dfc6fa78353b2c8a19EEA70",
+      "winningNumber": 3,
+      "randomBlock": "64156548"
+    },
+    {
+      "roundId": 17058,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x6bf214188dD4012a09A8d4eCda30C3035F3CD27d",
+      "winningNumber": 5,
+      "randomBlock": "64156603"
+    },
+    {
+      "roundId": 17059,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0xdBC4d1A2631ae688b5a85e8aC6508c11f1127060",
+      "winningNumber": 5,
+      "randomBlock": "64157041"
+    },
+    {
+      "roundId": 17060,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x7c3406a9877A4F52023E825cB228766F66F02714",
+      "winningNumber": 5,
+      "randomBlock": "64157155"
+    },
+    {
+      "roundId": 17061,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x3265AFAee207FB424E0f21Fadb2D443866b10B10",
+      "winningNumber": 4,
+      "randomBlock": "64157169"
+    },
+    {
+      "roundId": 17062,
+      "status": "error",
+      "tier": "10",
+      "filledSlots": 6,
+      "randomBlock": "64157729",
+      "rngStatus": 2,
+      "detail": "draw failed: transaction execution reverted"
+    },
+    {
+      "roundId": 17063,
+      "status": "randomness_pending",
+      "tier": "30",
+      "filledSlots": 6,
+      "randomBlock": "64157868",
+      "rngStatus": 1
+    },
+    {
+      "roundId": 17064,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x92ACBEa5A35dE4CFFE13F7f63c6C56E11b5785f0",
+      "winningNumber": 5,
+      "randomBlock": "64158147"
+    },
+    {
+      "roundId": 17065,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x3265AFAee207FB424E0f21Fadb2D443866b10B10",
+      "winningNumber": 5,
+      "randomBlock": "64158297"
+    },
+    {
+      "roundId": 17066,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x203dD2420B8a666D9f07d68AF2755FA78257b28c",
+      "winningNumber": 4,
+      "randomBlock": "64158976"
+    },
+    {
+      "roundId": 17067,
+      "status": "error",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x0000000000000000000000000000000000000000",
+      "winningNumber": 0,
+      "randomBlock": "64159552",
+      "rngStatus": 2,
+      "drawTxHash": "0x73e7eefaaa385e0ce3dcd4efa01c17fd68b50378a7bdbc88042f532ff4446b34",
+      "detail": "draw transaction completed but round still unresolved"
+    },
+    {
+      "roundId": 17068,
+      "status": "error",
+      "tier": "20",
+      "filledSlots": 6,
+      "winner": "0x0000000000000000000000000000000000000000",
+      "winningNumber": 0,
+      "randomBlock": "64159571",
+      "rngStatus": 2,
+      "drawTxHash": "0xe3dd5b6822f0a1601ae55eac4bd18297539f76faefcd9bcc12a1b9d5c651e813",
+      "detail": "draw transaction completed but round still unresolved"
+    },
+    {
+      "roundId": 17069,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0xBF6714e2ba677837aDBDe606a11f96e3d78CB1Fd",
+      "winningNumber": 5,
+      "randomBlock": "64159597"
+    },
+    {
+      "roundId": 17070,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0xA3144fa3DC373769C59355031741803cD0AF31f3",
+      "winningNumber": 2,
+      "randomBlock": "64159938"
+    },
+    {
+      "roundId": 17071,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x1dA68B6a22Dac6f57fb40580BfF9F39037F1405f",
+      "winningNumber": 4,
+      "randomBlock": "64160000"
+    },
+    {
+      "roundId": 17072,
+      "status": "drawn",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0xCf111a265D8DC4A25b221505455b639B180F82b1",
+      "winningNumber": 4,
+      "randomBlock": "64160295",
+      "rngStatus": 2,
+      "drawTxHash": "0x4a80020dab0c88b674f1790d384eb1c7e80855889c1ad33704fe6ffb5a7b123f"
+    },
+    {
+      "roundId": 17073,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x6b50Af167C8A650367Eb80a5c5f756d2F78d1826",
+      "winningNumber": 6,
+      "randomBlock": "64160378"
+    },
+    {
+      "roundId": 17074,
+      "status": "randomness_pending",
+      "tier": "30",
+      "filledSlots": 6,
+      "randomBlock": "64160756",
+      "rngStatus": 1
+    },
+    {
+      "roundId": 17075,
+      "status": "error",
+      "tier": "20",
+      "filledSlots": 6,
+      "randomBlock": "64160793",
+      "rngStatus": 2,
+      "detail": "draw failed: transaction execution reverted"
+    },
+    {
+      "roundId": 17076,
+      "status": "drawn",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x6b50Af167C8A650367Eb80a5c5f756d2F78d1826",
+      "winningNumber": 6,
+      "randomBlock": "64160888",
+      "rngStatus": 2,
+      "drawTxHash": "0x8402bdd9f81d1165f7120f8bad9010c59d0d74fd81365337bc780ac234901ab0"
+    },
+    {
+      "roundId": 17077,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0xBF6714e2ba677837aDBDe606a11f96e3d78CB1Fd",
+      "winningNumber": 1,
+      "randomBlock": "64160977"
+    },
+    {
+      "roundId": 17078,
+      "status": "error",
+      "tier": "20",
+      "filledSlots": 6,
+      "randomBlock": "64161032",
+      "rngStatus": 2,
+      "detail": "draw failed: nonce too low: next nonce 48144, tx nonce 48143"
+    },
+    {
+      "roundId": 17079,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0xB3EeEc62B1159ab94a39942DaBB86b4cE97d3d56",
+      "winningNumber": 2,
+      "randomBlock": "64161116"
+    },
+    {
+      "roundId": 17080,
+      "status": "error",
+      "tier": "10",
+      "filledSlots": 6,
+      "randomBlock": "64161254",
+      "rngStatus": 2,
+      "detail": "draw failed: execution reverted: Dice: already resolved"
+    },
+    {
+      "roundId": 17081,
+      "status": "error",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x0000000000000000000000000000000000000000",
+      "winningNumber": 0,
+      "randomBlock": "64161350",
+      "rngStatus": 2,
+      "drawTxHash": "0x94ac25f32b88b593e74eb4d1a1902b25ee9bfee3ddf9b80b1a25498dabdab1a1",
+      "detail": "draw transaction completed but round still unresolved"
+    },
+    {
+      "roundId": 17082,
+      "status": "drawn",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0xf7186bba4CaBd60386937916702C70286c375181",
+      "winningNumber": 5,
+      "randomBlock": "64161667",
+      "rngStatus": 2,
+      "drawTxHash": "0xe3d019ef00017490126783854865e021554faedfadfbcad2707cf3cb2336857b"
+    },
+    {
+      "roundId": 17083,
+      "status": "error",
+      "tier": "20",
+      "filledSlots": 6,
+      "randomBlock": "64161699",
+      "rngStatus": 2,
+      "detail": "draw failed: transaction execution reverted"
+    },
+    {
+      "roundId": 17084,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0xc545dba5E07B51864df83945f72f997a172e8D3C",
+      "winningNumber": 6,
+      "randomBlock": "64161707"
+    },
+    {
+      "roundId": 17085,
+      "status": "error",
+      "tier": "30",
+      "filledSlots": 6,
+      "randomBlock": "64161793",
+      "rngStatus": 2,
+      "detail": "draw failed: transaction execution reverted"
+    },
+    {
+      "roundId": 17086,
+      "status": "drawn",
+      "tier": "20",
+      "filledSlots": 6,
+      "winner": "0x3D52bd9EB017E450Aef2968639f2f9F9894F8103",
+      "winningNumber": 2,
+      "randomBlock": "64161851",
+      "rngStatus": 2,
+      "drawTxHash": "0x19d8e62ce817d69132ddf96dd3b34f39bad6b6ec767f7b50cb23c80ebd74224f"
+    },
+    {
+      "roundId": 17087,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0xc545dba5E07B51864df83945f72f997a172e8D3C",
+      "winningNumber": 6,
+      "randomBlock": "64161888"
+    },
+    {
+      "roundId": 17088,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x16257e6DF11E0016832CF2CCfb666Aa070B7C686",
+      "winningNumber": 4,
+      "randomBlock": "64161986"
+    },
+    {
+      "roundId": 17089,
+      "status": "drawn",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x0D3f5F000e60aCbeDf46Fa5810e63CC0aC578F54",
+      "winningNumber": 2,
+      "randomBlock": "64162036",
+      "rngStatus": 2,
+      "drawTxHash": "0x351401978c4e5b683a2a5c43ce2ac3ac044a1f0c2840fbb2ebad4121801b82f2"
+    },
+    {
+      "roundId": 17090,
+      "status": "error",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x0000000000000000000000000000000000000000",
+      "winningNumber": 0,
+      "randomBlock": "64162196",
+      "rngStatus": 2,
+      "drawTxHash": "0xaa1ac277d0be44f11e4e96a61feb5bad37983184d9c4111144c11884cf29e714",
+      "detail": "draw transaction completed but round still unresolved"
+    },
+    {
+      "roundId": 17091,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x5AAFf0dD2A4Af3bA5c24B227ca27E3588f256eC7",
+      "winningNumber": 5,
+      "randomBlock": "64162395"
+    },
+    {
+      "roundId": 17092,
+      "status": "randomness_pending",
+      "tier": "10",
+      "filledSlots": 6,
+      "randomBlock": "64162914",
+      "rngStatus": 1
+    },
+    {
+      "roundId": 17093,
+      "status": "resolved",
+      "tier": "20",
+      "filledSlots": 6,
+      "winner": "0xb8D51fB8b73b4298F0309D31ea867a9fB787Ae60",
+      "winningNumber": 5,
+      "randomBlock": "64164076"
+    },
+    {
+      "roundId": 17094,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x2f408D8AEee7d872A5D4f92f6910Ac3e352026F1",
+      "winningNumber": 4,
+      "randomBlock": "64164098"
+    },
+    {
+      "roundId": 17095,
+      "status": "randomness_pending",
+      "tier": "10",
+      "filledSlots": 6,
+      "randomBlock": "64164443",
+      "rngStatus": 1
+    },
+    {
+      "roundId": 17096,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0xD8d08C363fa9b55C09f194ad9eeB9767C71B4163",
+      "winningNumber": 6,
+      "randomBlock": "64164844"
+    },
+    {
+      "roundId": 17097,
+      "status": "error",
+      "tier": "30",
+      "filledSlots": 6,
+      "randomBlock": "64165160",
+      "rngStatus": 2,
+      "detail": "draw failed: execution reverted: Dice: already resolved"
+    },
+    {
+      "roundId": 17098,
+      "status": "error",
+      "tier": "20",
+      "filledSlots": 6,
+      "randomBlock": "64165232",
+      "rngStatus": 2,
+      "detail": "draw failed: nonce too low: next nonce 48152, tx nonce 48151"
+    },
+    {
+      "roundId": 17099,
+      "status": "error",
+      "tier": "10",
+      "filledSlots": 6,
+      "randomBlock": "64165251",
+      "rngStatus": 2,
+      "detail": "draw failed: transaction execution reverted"
+    },
+    {
+      "roundId": 17100,
+      "status": "resolved",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0xC7fc420dE9537E21AA73b61c770A6E766B67157D",
+      "winningNumber": 5,
+      "randomBlock": "64165305"
+    },
+    {
+      "roundId": 17101,
+      "status": "error",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x0000000000000000000000000000000000000000",
+      "winningNumber": 0,
+      "randomBlock": "64166007",
+      "rngStatus": 2,
+      "drawTxHash": "0x8604e5ec59319f6a8c483686bbfe838db77f0c5fbd42ab47dc67da03f21a6f0e",
+      "detail": "draw transaction completed but round still unresolved"
+    },
+    {
+      "roundId": 17102,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x9aE7E9f0fA60B79DE2f241117bE53ECC1Bb67c5E",
+      "winningNumber": 4,
+      "randomBlock": "64166255"
+    },
+    {
+      "roundId": 17103,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x4b36A32ae77cAf0e670b55D771eC747339391f71",
+      "winningNumber": 6,
+      "randomBlock": "64166558"
+    },
+    {
+      "roundId": 17104,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0xf339AA48A5508eBfEdC1897aB3879d1D61AF4995",
+      "winningNumber": 5,
+      "randomBlock": "64166803"
+    },
+    {
+      "roundId": 17105,
+      "status": "drawn",
+      "tier": "20",
+      "filledSlots": 6,
+      "winner": "0x3Da38423Cf448fbe62466EBD18c36450b9A75f12",
+      "winningNumber": 6,
+      "randomBlock": "64166833",
+      "rngStatus": 2,
+      "drawTxHash": "0x87b4d3f10630188366609c7bd3ff3d5ba29ac5e950885133d56c8ef6d7d89a32"
+    },
+    {
+      "roundId": 17106,
+      "status": "error",
+      "tier": "30",
+      "filledSlots": 6,
+      "randomBlock": "64166857",
+      "rngStatus": 2,
+      "detail": "draw failed: execution reverted: Dice: already resolved"
+    },
+    {
+      "roundId": 17107,
+      "status": "error",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x0000000000000000000000000000000000000000",
+      "winningNumber": 0,
+      "randomBlock": "64167291",
+      "rngStatus": 2,
+      "drawTxHash": "0x6c5a6eb8bbefc0520e04eb5aaa18a4f3f60c565f57e3930d6a62e0b1e4e16da9",
+      "detail": "draw transaction completed but round still unresolved"
+    },
+    {
+      "roundId": 17108,
+      "status": "error",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x0000000000000000000000000000000000000000",
+      "winningNumber": 0,
+      "randomBlock": "64167425",
+      "rngStatus": 2,
+      "drawTxHash": "0xf2b524cf98cf0f05ef8598a3663fbd0e0ba9a909dfb4ea8c066928d2ff8b4574",
+      "detail": "draw transaction completed but round still unresolved"
+    },
+    {
+      "roundId": 17109,
+      "status": "drawn",
+      "tier": "30",
+      "filledSlots": 6,
+      "winner": "0x1459D1f5D627752ec4647dAb78e76d7a132AD935",
+      "winningNumber": 4,
+      "randomBlock": "64167773",
+      "rngStatus": 2,
+      "drawTxHash": "0x4deb04251a8769cca1377173ad810425c512742bffd1f48f72f38afbb03dfe23"
+    },
+    {
+      "roundId": 17110,
+      "status": "error",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x0000000000000000000000000000000000000000",
+      "winningNumber": 0,
+      "randomBlock": "64167784",
+      "rngStatus": 2,
+      "drawTxHash": "0x6b9d777980ff090e4a9219e4b299499de1f81ae4e4b091d238abecfa7acae3ca",
+      "detail": "draw transaction completed but round still unresolved"
+    },
+    {
+      "roundId": 17111,
+      "status": "randomness_pending",
+      "tier": "20",
+      "filledSlots": 6,
+      "randomBlock": "64167804",
+      "rngStatus": 1
+    },
+    {
+      "roundId": 17112,
+      "status": "randomness_pending",
+      "tier": "30",
+      "filledSlots": 6,
+      "randomBlock": "64168218",
+      "rngStatus": 1
+    },
+    {
+      "roundId": 17113,
+      "status": "resolved",
+      "tier": "10",
+      "filledSlots": 6,
+      "winner": "0x80e54a130481A23b6bC159BF586550aA5DFBD7FA",
+      "winningNumber": 2,
+      "randomBlock": "64168317"
+    },
+    {
+      "roundId": 17114,
+      "status": "randomness_pending",
+      "tier": "30",
+      "filledSlots": 6,
+      "randomBlock": "64168370",
+      "rngStatus": 1
+    },
+    {
+      "roundId": 17115,
+      "status": "error",
+      "tier": "20",
+      "filledSlots": 6,
+      "winner": "0x0000000000000000000000000000000000000000",
+      "winningNumber": 0,
+      "randomBlock": "64168428",
+      "rngStatus": 2,
+      "drawTxHash": "0xb1ffb19c198bce52cb4ea2ce984c9d61973872d54e1c7e72cedaf6c36351bb6b",
+      "detail": "draw transaction completed but round still unresolved"
+    }
+  ]
+}

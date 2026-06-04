@@ -19,6 +19,7 @@ import StableTokenABI from "@/contexts/cusd-abi.json";
 import MiniMilesAbi from "@/contexts/minimiles.json";
 import raffleAbi from "@/contexts/miniraffle.json";
 import diceAbi from "@/contexts/akibadice.json";
+import clawAbi from "@/contexts/akibaClawGame.json";
 import vaultAbi from "@/contexts/vault.json";
 import posthog from "posthog-js";
 import { USD_TIERS } from "@/lib/diceTypes";
@@ -40,6 +41,24 @@ const VAULT_ADDRESS = (
   "0xe44326FA2ea736A4c973Fa98892d0487246e8D2D"
 ) as `0x${string}`;
 const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
+const CLAW_GAME_ADDRESS = (
+  process.env.NEXT_PUBLIC_CLAW_GAME_ADDRESS ??
+  "0x32cd4449A49786f8e9C68A5466d46E4dbC5197B3"
+) as `0x${string}`;
+const CLAW_USDT_ADDRESS = (
+  process.env.NEXT_PUBLIC_CLAW_USDT_ADDRESS ??
+  "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e"
+) as `0x${string}`;
+
+const USDT_ABI = [
+  {
+    inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }],
+    name: "approve",
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+] as const;
 
 type Web3ContextValue = ReturnType<typeof useWeb3Logic>;
 
@@ -162,6 +181,15 @@ function useWeb3Logic() {
             chain: celo,
             transport: http(),
           }),
+    []
+  );
+
+  const writePublicClient = useMemo(
+    () =>
+      createPublicClient({
+        chain: celo,
+        transport: http("https://forno.celo.org"),
+      }),
     []
   );
 
@@ -543,6 +571,50 @@ function useWeb3Logic() {
     [walletClient, address, publicClient]
   );
 
+  const approveClawUsdt = useCallback(async () => {
+    if (!walletClient || !address) throw new Error("Wallet not connected");
+    const MAX = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+    const hash = await walletClient.writeContract({
+      chain: walletClient.chain,
+      address: CLAW_USDT_ADDRESS,
+      abi: USDT_ABI,
+      functionName: "approve",
+      account: address as `0x${string}`,
+      args: [CLAW_GAME_ADDRESS, MAX],
+    });
+    await writePublicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 60_000 });
+    return hash;
+  }, [walletClient, address, writePublicClient]);
+
+  const startClawGame = useCallback(async (tierId: number) => {
+    if (!walletClient || !address) throw new Error("Wallet not connected");
+    const { request } = await writePublicClient.simulateContract({
+      address: CLAW_GAME_ADDRESS,
+      abi: clawAbi.abi,
+      functionName: "startGame",
+      args: [tierId],
+      account: address as `0x${string}`,
+      chain: celo,
+    });
+    const hash = await walletClient.writeContract(request);
+    await writePublicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 90_000 });
+    return hash;
+  }, [walletClient, address, writePublicClient]);
+
+  const burnClawVoucherReward = useCallback(async (sessionId: bigint) => {
+    if (!walletClient || !address) throw new Error("Wallet not connected");
+    const hash = await walletClient.writeContract({
+      chain: walletClient.chain,
+      address: CLAW_GAME_ADDRESS,
+      abi: clawAbi.abi,
+      functionName: "burnVoucherReward",
+      account: address as `0x${string}`,
+      args: [sessionId],
+    });
+    await writePublicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 90_000 });
+    return hash;
+  }, [walletClient, address, writePublicClient]);
+
   const getDiceBonusPool = useCallback(async (): Promise<bigint> => {
     const dice = getDiceReadContract();
     return (await dice.read.bonusPool([])) as bigint;
@@ -622,6 +694,9 @@ function useWeb3Logic() {
     joinRaffle,
     fetchDiceRound,
     joinDice,
+    approveClawUsdt,
+    startClawGame,
+    burnClawVoucherReward,
     approveUsdtForDice,
     getStablecoinBalance,
     getUSDTBalance,

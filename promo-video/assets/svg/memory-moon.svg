@@ -1,0 +1,6 @@
+<svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="56" height="56" rx="12" fill="#F0F4FF"/>
+  <rect width="56" height="56" rx="12" stroke="#4A5FC133" stroke-width="1.5"/>
+  <!-- Crescent moon -->
+  <path d="M33 16C25.3 16 19 22.3 19 30C19 37.7 25.3 44 33 44C36.7 44 40 42.5 42.3 40C38.4 39.3 35.5 35.9 35.5 31.8C35.5 27.2 39.1 23.4 43.7 22.7C41.3 18.5 37.4 16 33 16Z" fill="#4A5FC1" opacity="0.85"/>
+</svg>

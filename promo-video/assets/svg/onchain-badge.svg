@@ -1,0 +1,12 @@
+<svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Block 1 -->
+  <rect x="3" y="10" width="8" height="8" rx="2" fill="#238D9D" opacity="0.9"/>
+  <!-- Block 2 -->
+  <rect x="17" y="10" width="8" height="8" rx="2" fill="#238D9D" opacity="0.9"/>
+  <!-- Chain link -->
+  <path d="M11 14H17" stroke="#238D9D" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Check in block 2 -->
+  <path d="M19.5 13.5L21 15L24 12" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Dot in block 1 -->
+  <circle cx="7" cy="14" r="1.5" fill="white"/>
+</svg>

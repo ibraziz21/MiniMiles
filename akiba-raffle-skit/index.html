@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>AkibaMiles — POV: You Never Win Anything</title>
+</head>
+<body>
+<div
+  data-composition-id="akiba-raffle-skit"
+  data-width="1080"
+  data-height="1920"
+  data-start="0"
+  data-duration="42"
+  data-track-index="0"
+>
+
+<!-- ═══════════════════════════════════════════════════
+     SCENE 1 — Bored on the couch (0 – 5.5s)
+═══════════════════════════════════════════════════ -->
+<div id="s1" style="
+  position:absolute; inset:0;
+  background: #F5F9FF;
+  display:flex; flex-direction:column; align-items:center;
+  justify-content:flex-start; overflow:hidden;
+">
+  <!-- POV text top -->
+  <div id="s1-pov" style="
+    margin-top:120px; font-family:'Syne',sans-serif; font-weight:800;
+    font-size:52px; color:#1A1A2E; text-align:center;
+    line-height:1.15; max-width:860px; padding:0 40px;
+    background:#FFD700; border-radius:20px; padding:22px 48px;
+    box-shadow: 0 6px 30px rgba(255,215,0,0.35);
+  ">POV: You say you never<br>win anything…</div>
+
+  <!-- Character — bored on couch -->
+  <div id="s1-char" style="
+    margin-top:60px; font-size:220px; line-height:1;
+    user-select:none; text-align:center;
+  ">😑</div>
+
+  <!-- Phone mockup -->
+  <div id="s1-phone" style="
+    margin-top:30px;
+    width:340px; height:580px; border-radius:44px;
+    background:#fff; border:6px solid #238D9D;
+    box-shadow:0 20px 60px rgba(35,141,157,0.25);
+    display:flex; flex-direction:column; overflow:hidden;
+  ">
+    <!-- Phone status bar -->
+    <div style="
+      background:#238D9D; height:52px; display:flex;
+      align-items:center; justify-content:center; gap:8px; flex-shrink:0;
+    ">
+      <div style="
+        font-family:'Syne',sans-serif; font-size:18px; font-weight:700;
+        color:#fff; letter-spacing:0.05em;
+      ">✦ AkibaMiles</div>
+    </div>
+    <!-- Phone content -->
+    <div style="flex:1; padding:20px 16px; display:flex; flex-direction:column; gap:12px; background:#F0FFFE;">
+      <div style="
+        background:#fff; border-radius:16px; padding:16px;
+        border:1.5px solid #e0f7f9;
+        font-family:'Inter',sans-serif; font-size:14px; color:#238D9D; font-weight:600;
+      ">🎟 Grand Raffle — PS5</div>
+      <div style="
+        background:#fff; border-radius:16px; padding:16px;
+        border:1.5px solid #e0f7f9;
+        font-family:'Inter',sans-serif; font-size:14px; color:#238D9D; font-weight:600;
+      ">🎟 Fridge Giveaway</div>
+      <div style="
+        background:#fff; border-radius:16px; padding:16px;
+        border:1.5px solid #e0f7f9;
+        font-family:'Inter',sans-serif; font-size:14px; color:#238D9D; font-weight:600;
+      ">🎟 USDT Prize Pool</div>
+      <div style="
+        margin-top:auto; background:#238D9D; border-radius:14px; padding:14px;
+        text-align:center; font-family:'Syne',sans-serif; font-size:15px;
+        font-weight:700; color:#fff;
+      ">✦ My Miles: 1,240</div>
+    </div>
+  </div>
+
+  <!-- Zzz floating -->
+  <div id="s1-zzz" style="
+    position:absolute; top:560px; right:80px;
+    font-family:'Syne',sans-serif; font-size:48px; font-weight:800;
+    color:#B0C4D8; letter-spacing:0.1em;
+  ">z z z</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     TRANSITION A — flash wipe (5.5 – 6.5s)
+═══════════════════════════════════════════════════ -->
+<div id="trans-a" style="
+  position:absolute; inset:0; background:#0FF5E4;
+  pointer-events:none; opacity:0; z-index:100;
+"></div>
+
+<!-- ═══════════════════════════════════════════════════
+     SCENE 2 — Challenge Accepted (6.5 – 12s)
+═══════════════════════════════════════════════════ -->
+<div id="s2" style="
+  position:absolute; inset:0; opacity:0;
+  background:#1A1A2E;
+  display:flex; flex-direction:column; align-items:center;
+  justify-content:center; overflow:hidden;
+">
+  <!-- Glow radial bg -->
+  <div style="
+    position:absolute; inset:0;
+    background: radial-gradient(ellipse 70% 50% at 50% 50%, rgba(35,141,157,0.22) 0%, transparent 70%);
+    pointer-events:none;
+  "></div>
+
+  <!-- Logo blink -->
+  <div id="s2-logo" style="
+    font-family:'Syne',sans-serif; font-size:36px; font-weight:800;
+    color:#0FF5E4; letter-spacing:0.08em; margin-bottom:20px;
+  ">✦ AKIBAMILES</div>
+
+  <!-- Challenge accepted card -->
+  <div id="s2-card" style="
+    background:#fff; border-radius:32px; padding:48px 60px;
+    text-align:center; box-shadow:0 0 60px rgba(15,245,228,0.4);
+    border:3px solid #0FF5E4; max-width:780px; width:88%;
+  ">
+    <div style="
+      font-family:'Syne',sans-serif; font-size:80px; font-weight:800;
+      color:#1A1A2E; line-height:1;
+    ">Challenge<br>accepted.</div>
+    <div id="s2-sub" style="
+      margin-top:24px; font-family:'Inter',sans-serif; font-size:28px;
+      color:#238D9D; font-weight:600;
+    ">Your luck just got an upgrade 📡</div>
+  </div>
+
+  <!-- Game show lights row bottom -->
+  <div id="s2-lights" style="
+    position:absolute; bottom:0; left:0; right:0; height:120px;
+    display:flex; align-items:flex-end; justify-content:center; gap:0;
+    overflow:hidden;
+  ">
+    <!-- 14 light beams -->
+    <div class="beam" style="background:linear-gradient(to top,#FFD700,transparent);width:5%;height:110px;opacity:0.7;transform:skewX(-8deg);"></div>
+    <div class="beam" style="background:linear-gradient(to top,#0FF5E4,transparent);width:5%;height:90px;opacity:0.5;transform:skewX(4deg);margin-top:20px;"></div>
+    <div class="beam" style="background:linear-gradient(to top,#FF4D6D,transparent);width:5%;height:105px;opacity:0.6;transform:skewX(-12deg);"></div>
+    <div class="beam" style="background:linear-gradient(to top,#FFD700,transparent);width:5%;height:80px;opacity:0.7;transform:skewX(6deg);margin-top:30px;"></div>
+    <div class="beam" style="background:linear-gradient(to top,#0FF5E4,transparent);width:5%;height:115px;opacity:0.5;transform:skewX(-5deg);"></div>
+    <div class="beam" style="background:linear-gradient(to top,#ffffff,transparent);width:5%;height:95px;opacity:0.3;transform:skewX(10deg);margin-top:15px;"></div>
+    <div class="beam" style="background:linear-gradient(to top,#FFD700,transparent);width:5%;height:100px;opacity:0.7;transform:skewX(-9deg);"></div>
+    <div class="beam" style="background:linear-gradient(to top,#0FF5E4,transparent);width:5%;height:88px;opacity:0.5;transform:skewX(7deg);margin-top:22px;"></div>
+    <div class="beam" style="background:linear-gradient(to top,#FF4D6D,transparent);width:5%;height:112px;opacity:0.55;transform:skewX(-4deg);"></div>
+    <div class="beam" style="background:linear-gradient(to top,#FFD700,transparent);width:5%;height:78px;opacity:0.65;transform:skewX(11deg);margin-top:32px;"></div>
+    <div class="beam" style="background:linear-gradient(to top,#ffffff,transparent);width:5%;height:105px;opacity:0.3;transform:skewX(-7deg);"></div>
+    <div class="beam" style="background:linear-gradient(to top,#0FF5E4,transparent);width:5%;height:92px;opacity:0.5;transform:skewX(5deg);margin-top:18px;"></div>
+    <div class="beam" style="background:linear-gradient(to top,#FFD700,transparent);width:5%;height:108px;opacity:0.7;transform:skewX(-10deg);"></div>
+    <div class="beam" style="background:linear-gradient(to top,#FF4D6D,transparent);width:5%;height:85px;opacity:0.6;transform:skewX(8deg);margin-top:25px;"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     TRANSITION B — slam scale (12 – 13s)
+═══════════════════════════════════════════════════ -->
+<div id="trans-b" style="
+  position:absolute; inset:0; background:#FFD700;
+  pointer-events:none; opacity:0; z-index:100;
+"></div>
+
+<!-- ═══════════════════════════════════════════════════
+     SCENE 3 — Prize Storm (13 – 20s)
+═══════════════════════════════════════════════════ -->
+<div id="s3" style="
+  position:absolute; inset:0; opacity:0;
+  background:#1A1A2E;
+  display:flex; flex-direction:column; align-items:center;
+  justify-content:center; overflow:hidden;
+">
+  <div style="
+    position:absolute; inset:0;
+    background:radial-gradient(ellipse 80% 60% at 50% 55%, rgba(255,215,0,0.15) 0%, transparent 70%);
+    pointer-events:none;
+  "></div>
+
+  <!-- Prize cards — positioned at their tornado final positions -->
+  <div id="p1" style="position:absolute;top:200px;left:60px;background:#fff;border-radius:22px;padding:18px 22px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.4);border:2px solid #FFD700;z-index:4;">
+    <div style="font-size:64px;">🎮</div>
+    <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:#1A1A2E;margin-top:6px;">PS5</div>
+  </div>
+  <div id="p2" style="position:absolute;top:150px;right:50px;background:#fff;border-radius:22px;padding:18px 22px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.4);border:2px solid #0FF5E4;z-index:4;">
+    <div style="font-size:64px;">🧊</div>
+    <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:#1A1A2E;margin-top:6px;">Fridge</div>
+  </div>
+  <div id="p3" style="position:absolute;top:420px;left:30px;background:#fff;border-radius:22px;padding:18px 22px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.4);border:2px solid #FF4D6D;z-index:4;">
+    <div style="font-size:64px;">🫧</div>
+    <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:#1A1A2E;margin-top:6px;">Washer</div>
+  </div>
+  <div id="p4" style="position:absolute;top:400px;right:30px;background:#fff;border-radius:22px;padding:18px 22px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.4);border:2px solid #238D9D;z-index:4;">
+    <div style="font-size:64px;">📱</div>
+    <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:#1A1A2E;margin-top:6px;">Phone</div>
+  </div>
+  <div id="p5" style="position:absolute;top:660px;left:80px;background:#fff;border-radius:22px;padding:18px 22px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.4);border:2px solid #FFD700;z-index:4;">
+    <div style="font-size:64px;">🎧</div>
+    <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:#1A1A2E;margin-top:6px;">Accessories</div>
+  </div>
+  <div id="p6" style="position:absolute;top:640px;right:60px;background:#fff;border-radius:22px;padding:18px 22px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.4);border:2px solid #0FF5E4;z-index:4;">
+    <div style="font-size:64px;">💵</div>
+    <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:#1A1A2E;margin-top:6px;">USDT</div>
+  </div>
+
+  <!-- Character eyes wide -->
+  <div id="s3-char" style="
+    position:absolute; top:830px; left:50%; transform:translateX(-50%);
+    font-size:180px; line-height:1; text-align:center; z-index:5;
+  ">😳</div>
+
+  <!-- Bottom text -->
+  <div id="s3-text" style="
+    position:absolute; bottom:130px; left:0; right:0;
+    text-align:center; padding:0 60px;
+  ">
+    <div style="
+      display:inline-block;
+      background:#FFD700; border-radius:20px; padding:20px 40px;
+      font-family:'Syne',sans-serif; font-size:40px; font-weight:800;
+      color:#1A1A2E; line-height:1.2;
+    ">AkibaMiles prizes don't<br>believe in your bad luck.</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     TRANSITION C — pink slam (20 – 21s)
+═══════════════════════════════════════════════════ -->
+<div id="trans-c" style="
+  position:absolute; inset:0; background:#FF4D6D;
+  pointer-events:none; opacity:0; z-index:100;
+"></div>
+
+<!-- ═══════════════════════════════════════════════════
+     SCENE 4 — Luck Meter (21 – 28s)
+═══════════════════════════════════════════════════ -->
+<div id="s4" style="
+  position:absolute; inset:0; opacity:0;
+  background:#F5F9FF;
+  display:flex; flex-direction:column; align-items:center;
+  justify-content:flex-start; padding-top:140px;
+  overflow:hidden; box-sizing:border-box;
+">
+  <!-- Title -->
+  <div id="s4-title" style="
+    font-family:'Syne',sans-serif; font-size:56px; font-weight:800;
+    color:#1A1A2E; text-align:center; line-height:1.1; max-width:880px;
+    padding:0 40px;
+  ">Fake Luck Meter™</div>
+  <div id="s4-subtitle" style="
+    margin-top:16px; font-family:'Inter',sans-serif; font-size:28px;
+    color:#238D9D; font-weight:600; text-align:center;
+  ">(powered by vibes)</div>
+
+  <!-- Meter card -->
+  <div id="s4-meter-card" style="
+    margin-top:50px; width:84%; background:#fff; border-radius:28px;
+    padding:48px 48px; box-shadow:0 10px 48px rgba(35,141,157,0.15);
+    border:2px solid #e0f7f9;
+  ">
+    <div style="
+      font-family:'Syne',sans-serif; font-size:22px; font-weight:700;
+      color:#888; margin-bottom:20px; text-transform:uppercase; letter-spacing:0.1em;
+    ">LUCK LEVEL</div>
+
+    <!-- Bar track -->
+    <div style="
+      background:#F0FFFE; border-radius:999px; height:44px; overflow:hidden;
+      border:2px solid #e0f7f9; position:relative;
+    ">
+      <div id="s4-bar" style="
+        height:100%; width:2%; border-radius:999px;
+        background:linear-gradient(90deg,#238D9D,#0FF5E4);
+        box-shadow:0 0 20px rgba(15,245,228,0.6);
+        transition:none;
+      "></div>
+    </div>
+
+    <!-- Percentage label -->
+    <div id="s4-pct" style="
+      margin-top:20px; font-family:'Syne',sans-serif; font-size:80px;
+      font-weight:800; color:#238D9D; text-align:center;
+      font-variant-numeric:tabular-nums;
+    ">2%</div>
+
+    <!-- Glitch message -->
+    <div id="s4-glitch" style="
+      margin-top:12px; background:#FF4D6D; border-radius:14px;
+      padding:16px 24px; text-align:center; opacity:0;
+    ">
+      <div style="
+        font-family:'Syne',sans-serif; font-size:24px; font-weight:800;
+        color:#fff;
+      ">⚠ Unverified confidence detected.</div>
+    </div>
+  </div>
+
+  <!-- Character becoming confident -->
+  <div id="s4-char" style="
+    margin-top:48px; font-size:160px; line-height:1; text-align:center;
+  ">😑</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     TRANSITION D — teal flash (28 – 29s)
+═══════════════════════════════════════════════════ -->
+<div id="trans-d" style="
+  position:absolute; inset:0; background:#0FF5E4;
+  pointer-events:none; opacity:0; z-index:100;
+"></div>
+
+<!-- ═══════════════════════════════════════════════════
+     SCENE 5 — Ticket Has Entered the Chat (29 – 34.5s)
+═══════════════════════════════════════════════════ -->
+<div id="s5" style="
+  position:absolute; inset:0; opacity:0;
+  background:#1A1A2E;
+  display:flex; flex-direction:column; align-items:center;
+  justify-content:center; overflow:hidden;
+">
+  <div style="
+    position:absolute; inset:0;
+    background:radial-gradient(ellipse 70% 50% at 50% 40%, rgba(35,141,157,0.3) 0%, transparent 70%);
+    pointer-events:none;
+  "></div>
+
+  <!-- Miles button tap -->
+  <div id="s5-btn" style="
+    background:#238D9D; border-radius:20px; padding:24px 64px;
+    font-family:'Syne',sans-serif; font-size:36px; font-weight:800;
+    color:#fff; box-shadow:0 8px 32px rgba(35,141,157,0.5);
+    border:2px solid #0FF5E4;
+  ">✦ Use Miles</div>
+
+  <!-- Raffle drum -->
+  <div id="s5-drum" style="
+    margin-top:50px; width:220px; height:220px; border-radius:50%;
+    background:#fff; border:6px solid #FFD700;
+    box-shadow:0 0 60px rgba(255,215,0,0.4);
+    display:flex; align-items:center; justify-content:center;
+    font-size:80px; position:relative;
+  ">🥁
+    <div style="
+      position:absolute; inset:-6px; border-radius:50%;
+      border:4px solid #0FF5E4; opacity:0.5;
+    "></div>
+  </div>
+
+  <!-- Flying ticket -->
+  <div id="s5-ticket" style="
+    margin-top:40px;
+    background:linear-gradient(135deg,#FFD700,#FFA500);
+    border-radius:18px; padding:20px 44px;
+    font-family:'Syne',sans-serif; font-size:34px; font-weight:800;
+    color:#1A1A2E; box-shadow:0 8px 32px rgba(255,165,0,0.5);
+    border:3px dashed #fff;
+  ">🎟 #A7F2K9</div>
+
+  <!-- Dramatic silence then big text -->
+  <div id="s5-silence" style="
+    margin-top:36px; font-family:'Inter',sans-serif; font-size:26px;
+    color:#888; letter-spacing:0.2em; text-transform:uppercase;
+    opacity:0;
+  ">. . .</div>
+
+  <div id="s5-big" style="
+    margin-top:32px; text-align:center; padding:0 60px; opacity:0;
+  ">
+    <div style="
+      font-family:'Syne',sans-serif; font-size:60px; font-weight:800;
+      color:#fff; line-height:1.1;
+    ">Your ticket has</div>
+    <div style="
+      font-family:'Syne',sans-serif; font-size:60px; font-weight:800;
+      color:#0FF5E4; line-height:1.1;
+    ">entered the chat.</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     TRANSITION E — white flash (34.5 – 35.5s)
+═══════════════════════════════════════════════════ -->
+<div id="trans-e" style="
+  position:absolute; inset:0; background:#ffffff;
+  pointer-events:none; opacity:0; z-index:100;
+"></div>
+
+<!-- ═══════════════════════════════════════════════════
+     SCENE 6 — Pretending to be calm (35.5 – 39s)
+═══════════════════════════════════════════════════ -->
+<div id="s6" style="
+  position:absolute; inset:0; opacity:0;
+  background:#F5F9FF;
+  display:flex; flex-direction:column; align-items:center;
+  justify-content:flex-start; padding-top:120px;
+  overflow:hidden; box-sizing:border-box;
+">
+  <div id="s6-caption" style="
+    font-family:'Syne',sans-serif; font-size:44px; font-weight:800;
+    color:#1A1A2E; text-align:center; line-height:1.2; max-width:900px;
+    padding:0 50px;
+  ">Me pretending I don't care<br>after joining one raffle:</div>
+
+  <!-- Character holding phone -->
+  <div id="s6-char" style="
+    margin-top:50px; font-size:200px; line-height:1; text-align:center;
+  ">🧍</div>
+
+  <!-- Refreshing phone UI -->
+  <div id="s6-phone" style="
+    margin-top:30px; background:#fff; border-radius:24px;
+    border:3px solid #238D9D; padding:22px 28px; width:76%;
+    box-shadow:0 8px 40px rgba(35,141,157,0.18);
+    font-family:'Inter',sans-serif;
+  ">
+    <div style="
+      font-size:18px; color:#888; text-align:center; letter-spacing:0.08em;
+      text-transform:uppercase; font-weight:600; margin-bottom:12px;
+    ">RESULTS</div>
+    <div id="s6-refresh" style="
+      background:#F0FFFE; border-radius:14px; padding:16px 20px;
+      text-align:center; font-size:22px; font-weight:700; color:#238D9D;
+      border:1.5px solid #e0f7f9;
+    ">⟳ Checking…</div>
+  </div>
+
+  <!-- Internal monologue -->
+  <div id="s6-bubble" style="
+    margin-top:30px; background:#FF4D6D; border-radius:20px;
+    padding:20px 36px; max-width:82%; text-align:center;
+    box-shadow:0 6px 24px rgba(255,77,109,0.3);
+  ">
+    <div style="
+      font-family:'Syne',sans-serif; font-size:28px; font-weight:800;
+      color:#fff;
+    ">internally: 👀👀👀</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     FINAL SCENE — Logo + CTA (39 – 42s)
+═══════════════════════════════════════════════════ -->
+<div id="s7" style="
+  position:absolute; inset:0; opacity:0;
+  background:#1A1A2E;
+  display:flex; flex-direction:column; align-items:center;
+  justify-content:center; overflow:hidden;
+">
+  <div style="
+    position:absolute; inset:0;
+    background:radial-gradient(ellipse 80% 60% at 50% 50%, rgba(35,141,157,0.25) 0%, transparent 70%);
+    pointer-events:none;
+  "></div>
+
+  <!-- Confetti dots (deterministic) -->
+  <div id="conf-1"  style="position:absolute;top:80px;left:120px;width:18px;height:18px;border-radius:50%;background:#FFD700;"></div>
+  <div id="conf-2"  style="position:absolute;top:140px;left:380px;width:14px;height:14px;border-radius:4px;background:#0FF5E4;transform:rotate(30deg);"></div>
+  <div id="conf-3"  style="position:absolute;top:60px;right:140px;width:20px;height:20px;border-radius:50%;background:#FF4D6D;"></div>
+  <div id="conf-4"  style="position:absolute;top:200px;right:80px;width:12px;height:12px;border-radius:3px;background:#FFD700;transform:rotate(45deg);"></div>
+  <div id="conf-5"  style="position:absolute;top:300px;left:60px;width:16px;height:16px;border-radius:50%;background:#0FF5E4;"></div>
+  <div id="conf-6"  style="position:absolute;top:120px;left:600px;width:10px;height:10px;border-radius:50%;background:#FF4D6D;"></div>
+  <div id="conf-7"  style="position:absolute;bottom:240px;left:100px;width:18px;height:18px;border-radius:4px;background:#FFD700;transform:rotate(20deg);"></div>
+  <div id="conf-8"  style="position:absolute;bottom:280px;right:110px;width:14px;height:14px;border-radius:50%;background:#0FF5E4;"></div>
+  <div id="conf-9"  style="position:absolute;bottom:180px;left:400px;width:12px;height:12px;background:#FF4D6D;border-radius:3px;transform:rotate(55deg);"></div>
+  <div id="conf-10" style="position:absolute;top:380px;right:200px;width:16px;height:16px;border-radius:50%;background:#FFD700;"></div>
+  <div id="conf-11" style="position:absolute;top:450px;left:200px;width:10px;height:10px;border-radius:50%;background:#0FF5E4;"></div>
+  <div id="conf-12" style="position:absolute;bottom:400px;right:60px;width:20px;height:20px;border-radius:5px;background:#FF4D6D;transform:rotate(35deg);"></div>
+
+  <!-- Floating ticket cards -->
+  <div id="ft1" style="position:absolute;top:180px;left:80px;background:rgba(255,215,0,0.15);border:2px solid #FFD700;border-radius:16px;padding:12px 20px;font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:#FFD700;">🎟 Raffle</div>
+  <div id="ft2" style="position:absolute;top:220px;right:70px;background:rgba(15,245,228,0.12);border:2px solid #0FF5E4;border-radius:16px;padding:12px 20px;font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:#0FF5E4;">🎮 PS5</div>
+  <div id="ft3" style="position:absolute;bottom:300px;left:60px;background:rgba(255,77,109,0.12);border:2px solid #FF4D6D;border-radius:16px;padding:12px 20px;font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:#FF4D6D;">💵 USDT</div>
+  <div id="ft4" style="position:absolute;bottom:260px;right:50px;background:rgba(35,141,157,0.15);border:2px solid #238D9D;border-radius:16px;padding:12px 20px;font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:#0FF5E4;">📱 Phone</div>
+
+  <!-- Logo -->
+  <div id="s7-logo" style="
+    font-family:'Syne',sans-serif; font-size:48px; font-weight:800;
+    color:#0FF5E4; letter-spacing:0.08em; text-align:center;
+    margin-bottom:24px;
+  ">✦ AKIBAMILES</div>
+
+  <!-- Tagline -->
+  <div id="s7-tag" style="
+    text-align:center; padding:0 60px; margin-bottom:40px;
+  ">
+    <div style="
+      font-family:'Syne',sans-serif; font-size:44px; font-weight:800;
+      color:#fff; line-height:1.2;
+    ">Earn Miles. Enter raffles.</div>
+    <div style="
+      font-family:'Syne',sans-serif; font-size:44px; font-weight:800;
+      color:#FFD700; line-height:1.2;
+    ">Let luck explain itself.</div>
+  </div>
+
+  <!-- CTA button -->
+  <div id="s7-cta" style="
+    background:#238D9D; border-radius:24px; padding:30px 80px;
+    font-family:'Syne',sans-serif; font-size:38px; font-weight:800;
+    color:#fff; text-align:center;
+    box-shadow:0 0 48px rgba(35,141,157,0.6);
+    border:3px solid #0FF5E4;
+  ">Open AkibaMiles</div>
+
+  <!-- Fade-out overlay (final scene exit only) -->
+  <div id="s7-fadeout" style="
+    position:absolute; inset:0; background:#000; opacity:0; pointer-events:none; z-index:50;
+  "></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     STYLES
+═══════════════════════════════════════════════════ -->
+<style>
+  [data-composition-id="akiba-raffle-skit"] {
+    font-family: 'Inter', sans-serif;
+    overflow: hidden;
+    position: relative;
+  }
+  [data-composition-id="akiba-raffle-skit"] > div[id^="s"],
+  [data-composition-id="akiba-raffle-skit"] > div[id^="trans"] {
+    position: absolute;
+    inset: 0;
+  }
+</style>
+
+<!-- ═══════════════════════════════════════════════════
+     GSAP TIMELINE
+═══════════════════════════════════════════════════ -->
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<script>
+(function () {
+  window.__timelines = window.__timelines || {};
+
+  // Seeded PRNG (mulberry32)
+  function mulberry32(seed) {
+    return function () {
+      seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+      var t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = t + Math.imul(t ^ (t >>> 7), 61 | t) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  var rng = mulberry32(42);
+
+  var tl = gsap.timeline({ paused: true });
+
+  // ─── SCENE 1 (0 – 5.5s) ───────────────────────────────────────────────────
+  tl.from("#s1-pov",   { y: -80, opacity: 0, duration: 0.6, ease: "back.out(1.7)" }, 0.15);
+  tl.from("#s1-char",  { scale: 0.5, opacity: 0, duration: 0.5, ease: "elastic.out(1,0.5)" }, 0.5);
+  tl.from("#s1-phone", { y: 120, opacity: 0, rotation: -6, duration: 0.7, ease: "back.out(1.4)" }, 0.8);
+  tl.from("#s1-zzz",   { x: 40, opacity: 0, duration: 0.5, ease: "power2.out" }, 1.2);
+  // Phone gentle float
+  tl.to("#s1-phone", { y: -12, duration: 1.8, ease: "sine.inOut", repeat: Math.floor(5.5 / 3.6) - 1, yoyo: true, overwrite: "auto" }, 1.5);
+
+  // ─── TRANSITION A — teal flash wipe (5.5 – 6.5s) ─────────────────────────
+  tl.to("#trans-a", { opacity: 1, duration: 0.18, ease: "power3.in" }, 5.5);
+  tl.to("#trans-a", { opacity: 0, duration: 0.28, ease: "power2.out" }, 5.9);
+  tl.set("#s1", { opacity: 0 }, 5.7);
+  tl.set("#s2", { opacity: 1 }, 5.7);
+
+  // ─── SCENE 2 (6.5 – 12s) ──────────────────────────────────────────────────
+  tl.from("#s2-logo", { y: -60, opacity: 0, duration: 0.5, ease: "back.out(2)" }, 6.0);
+  tl.from("#s2-card", { scale: 0.6, opacity: 0, duration: 0.6, ease: "elastic.out(1,0.45)" }, 6.3);
+  tl.from("#s2-sub",  { x: -40, opacity: 0, duration: 0.45, ease: "power3.out" }, 6.7);
+  tl.from("#s2-lights .beam", { y: 120, opacity: 0, duration: 0.5, ease: "power2.out", stagger: 0.04 }, 6.5);
+  // Logo blink pulse (game-show energy)
+  tl.to("#s2-logo", { color: "#FFD700", duration: 0.15, ease: "none", repeat: 5, yoyo: true }, 7.2);
+  // Card glow pulse
+  tl.to("#s2-card", { boxShadow: "0 0 100px rgba(15,245,228,0.7)", duration: 0.4, ease: "power2.inOut", repeat: 3, yoyo: true }, 7.8);
+
+  // ─── TRANSITION B — gold slam (12 – 13s) ─────────────────────────────────
+  tl.to("#trans-b", { opacity: 1, duration: 0.15, ease: "power4.in" }, 12.0);
+  tl.to("#trans-b", { opacity: 0, duration: 0.3, ease: "power2.out" }, 12.3);
+  tl.set("#s2", { opacity: 0 }, 12.2);
+  tl.set("#s3", { opacity: 1 }, 12.2);
+
+  // ─── SCENE 3 — Prize Storm (13 – 20s) ────────────────────────────────────
+  // Cards fly in from random offscreen directions (seeded)
+  var prizes = ["#p1","#p2","#p3","#p4","#p5","#p6"];
+  prizes.forEach(function(id, i) {
+    var fromX = (rng() - 0.5) * 1200;
+    var fromY = (rng() > 0.5 ? -1 : 1) * (400 + rng() * 300);
+    var rot = (rng() - 0.5) * 720;
+    tl.from(id, {
+      x: fromX, y: fromY, rotation: rot,
+      opacity: 0, scale: 0.3,
+      duration: 0.7 + rng() * 0.3,
+      ease: "back.out(1.5)"
+    }, 12.5 + i * 0.18);
+  });
+  // Prize cards float / wiggle
+  prizes.forEach(function(id, i) {
+    var dy = 12 + i * 3;
+    var dur = 1.8 + i * 0.2;
+    tl.to(id, { y: "+="+dy, rotation: "+=4", duration: dur, ease: "sine.inOut", repeat: Math.floor(7 / (dur * 2)) - 1, yoyo: true }, 13.8 + i * 0.1);
+  });
+  tl.from("#s3-char", { scale: 0.3, opacity: 0, duration: 0.5, ease: "elastic.out(1,0.5)" }, 14.5);
+  tl.from("#s3-text",  { y: 60, opacity: 0, duration: 0.5, ease: "back.out(1.7)" }, 15.2);
+  // Character reaction scale pop
+  tl.to("#s3-char", { scale: 1.15, duration: 0.22, ease: "power2.out", overwrite: "auto" }, 14.95);
+  tl.to("#s3-char", { scale: 1.0,  duration: 0.22, ease: "power2.in"  }, 15.2);
+
+  // ─── TRANSITION C — pink slam (20 – 21s) ─────────────────────────────────
+  tl.to("#trans-c", { opacity: 1, duration: 0.15, ease: "power4.in" }, 20.0);
+  tl.to("#trans-c", { opacity: 0, duration: 0.3,  ease: "power2.out" }, 20.3);
+  tl.set("#s3", { opacity: 0 }, 20.2);
+  tl.set("#s4", { opacity: 1 }, 20.2);
+
+  // ─── SCENE 4 — Luck Meter (21 – 28s) ─────────────────────────────────────
+  tl.from("#s4-title",    { y: -50, opacity: 0, duration: 0.5, ease: "back.out(1.7)" }, 20.5);
+  tl.from("#s4-subtitle", { x: 40,  opacity: 0, duration: 0.4, ease: "power3.out" },   20.85);
+  tl.from("#s4-meter-card", { scale: 0.85, opacity: 0, duration: 0.55, ease: "back.out(1.4)" }, 21.1);
+  tl.from("#s4-char",     { y: 80, opacity: 0, duration: 0.5, ease: "elastic.out(1,0.6)" }, 21.4);
+
+  // Bar & number animates: 2% → 18% → 44% → 87% in steps
+  // Step 1: 2% (start)
+  tl.set("#s4-bar",  { width: "2%" },  20.5);
+  tl.set("#s4-pct",  { innerText: "2%" }, 20.5);
+  // Step 2: jump to 18%
+  tl.to("#s4-bar",   { width: "18%", duration: 0.35, ease: "power3.out" }, 22.0);
+  tl.set("#s4-pct",  { innerText: "18%" }, 22.0);
+  // Step 3: jump to 44%
+  tl.to("#s4-bar",   { width: "44%", duration: 0.35, ease: "power3.out" }, 23.2);
+  tl.set("#s4-pct",  { innerText: "44%" }, 23.2);
+  // Step 4: slam to 87%
+  tl.to("#s4-bar",   { width: "87%", duration: 0.4, ease: "back.out(1.3)" }, 24.5);
+  tl.set("#s4-pct",  { innerText: "87%" }, 24.5);
+  // Number vibrates
+  tl.to("#s4-pct",   { x: -6, duration: 0.06, ease: "none", repeat: 7, yoyo: true }, 24.5);
+  // Bar color flash
+  tl.to("#s4-bar",   { backgroundColor: "#FFD700", duration: 0.2 }, 24.8);
+  tl.to("#s4-bar",   { backgroundColor: "#0FF5E4", duration: 0.2 }, 25.0);
+  // Glitch message
+  tl.to("#s4-glitch", { opacity: 1, scale: 1, duration: 0.2, ease: "back.out(2)" }, 25.3);
+  tl.from("#s4-glitch", { scale: 0.6 }, 25.3);
+  // Glitch shake
+  tl.to("#s4-glitch", { x: -8, duration: 0.05, ease: "none", repeat: 7, yoyo: true }, 25.5);
+  // Character becomes confident
+  tl.set("#s4-char",  { innerText: "😎" }, 25.8);
+  tl.to("#s4-char",   { scale: 1.2, duration: 0.25, ease: "back.out(2)" }, 25.8);
+  tl.to("#s4-char",   { scale: 1.0, duration: 0.2, ease: "power2.in" }, 26.05);
+
+  // ─── TRANSITION D — teal flash (28 – 29s) ────────────────────────────────
+  tl.to("#trans-d", { opacity: 1, duration: 0.15, ease: "power4.in" }, 28.0);
+  tl.to("#trans-d", { opacity: 0, duration: 0.3,  ease: "power2.out" }, 28.3);
+  tl.set("#s4", { opacity: 0 }, 28.2);
+  tl.set("#s5", { opacity: 1 }, 28.2);
+
+  // ─── SCENE 5 — Ticket Enters the Chat (29 – 34.5s) ───────────────────────
+  tl.from("#s5-btn",    { scale: 0.5, opacity: 0, duration: 0.5, ease: "elastic.out(1,0.45)" }, 28.5);
+  tl.to("#s5-btn",      { scale: 0.93, duration: 0.15, ease: "power2.in" }, 29.2);
+  tl.to("#s5-btn",      { scale: 1.05, duration: 0.15, ease: "power2.out" }, 29.35);
+  tl.to("#s5-btn",      { scale: 1.0,  duration: 0.12, ease: "power1.in" }, 29.5);
+  tl.from("#s5-drum",   { y: 60, opacity: 0, rotation: -180, duration: 0.45, ease: "back.out(1.5)" }, 29.0);
+  // Drum spin
+  tl.to("#s5-drum", { rotation: 360 * 3, duration: 1.8, ease: "power2.inOut" }, 29.6);
+  // Ticket flies from button to drum
+  tl.from("#s5-ticket", { x: 0, y: -300, rotation: -90, opacity: 0, scale: 0.4, duration: 0.55, ease: "back.out(1.2)" }, 31.2);
+  tl.to("#s5-ticket",   { y: -60, rotation: 15, duration: 0.35, ease: "power2.in" }, 31.75);
+  tl.to("#s5-ticket",   { scale: 0.5, opacity: 0, duration: 0.25, ease: "power3.in" }, 32.1);
+  // Drum celebration
+  tl.to("#s5-drum", { scale: 1.2, duration: 0.2, ease: "power2.out" }, 32.2);
+  tl.to("#s5-drum", { scale: 1.0, duration: 0.3, ease: "power2.in", overwrite: "auto"  }, 32.45);
+  tl.to("#s5-drum", { boxShadow: "0 0 80px rgba(255,215,0,0.8)", duration: 0.2, ease: "power2.out" }, 32.2);
+  tl.to("#s5-drum", { boxShadow: "0 0 60px rgba(255,215,0,0.4)", duration: 0.35, ease: "power2.in"  }, 32.5);
+  // Dramatic silence
+  tl.to("#s5-silence", { opacity: 1, duration: 0.3, ease: "power2.out" }, 32.5);
+  // Big text slam
+  tl.to("#s5-big",  { opacity: 1, duration: 0.1 }, 33.2);
+  tl.from("#s5-big div:first-child",  { y: 50, duration: 0.45, ease: "back.out(2)" }, 33.2);
+  tl.from("#s5-big div:last-child",   { y: 50, duration: 0.45, ease: "back.out(2)" }, 33.45);
+  tl.to("#s5-big", { scale: 1.05, duration: 0.2, ease: "power2.out", yoyo: true, repeat: 1 }, 33.8);
+
+  // ─── TRANSITION E — white flash (34.5 – 35.5s) ───────────────────────────
+  tl.to("#trans-e", { opacity: 1, duration: 0.15, ease: "power4.in" }, 34.5);
+  tl.to("#trans-e", { opacity: 0, duration: 0.3,  ease: "power2.out" }, 34.85);
+  tl.set("#s5", { opacity: 0 }, 34.7);
+  tl.set("#s6", { opacity: 1 }, 34.7);
+
+  // ─── SCENE 6 — Pretending to be calm (35.5 – 39s) ────────────────────────
+  tl.from("#s6-caption", { y: -50, opacity: 0, duration: 0.5, ease: "back.out(1.7)" }, 34.9);
+  tl.from("#s6-char",    { scale: 0.6, opacity: 0, duration: 0.5, ease: "elastic.out(1,0.5)" }, 35.2);
+  tl.from("#s6-phone",   { x: 60, opacity: 0, duration: 0.45, ease: "power3.out" }, 35.5);
+  tl.from("#s6-bubble",  { y: 40, opacity: 0, duration: 0.4, ease: "back.out(1.5)" }, 35.8);
+  // Refresh text cycles
+  tl.set("#s6-refresh", { innerText: "⟳ Checking…" }, 35.5);
+  tl.set("#s6-refresh", { innerText: "⟳ Refreshing…" }, 36.3);
+  tl.set("#s6-refresh", { innerText: "⟳ Loading…" }, 37.0);
+  tl.set("#s6-refresh", { innerText: "⟳ Checking…" }, 37.6);
+  tl.set("#s6-refresh", { innerText: "🫠 Nothing yet." }, 38.2);
+  // Phone shake — "refreshing"
+  tl.to("#s6-phone", { x: -8, duration: 0.07, ease: "none", repeat: 4, yoyo: true }, 36.2);
+  tl.to("#s6-phone", { x: -8, duration: 0.07, ease: "none", repeat: 4, yoyo: true }, 37.2);
+
+  // No exits — transition to final
+  tl.set("#s6", { opacity: 0 }, 39.0);
+  tl.set("#s7", { opacity: 1 }, 39.0);
+
+  // ─── FINAL SCENE (39 – 42s) ───────────────────────────────────────────────
+  // Confetti rains in
+  var confs = ["#conf-1","#conf-2","#conf-3","#conf-4","#conf-5","#conf-6",
+                "#conf-7","#conf-8","#conf-9","#conf-10","#conf-11","#conf-12"];
+  confs.forEach(function(id, i) {
+    var r = mulberry32(i * 7 + 13);
+    tl.from(id, {
+      y: -200 - r() * 300,
+      x: (r() - 0.5) * 200,
+      rotation: r() * 360,
+      opacity: 0,
+      duration: 0.6 + r() * 0.4,
+      ease: "power2.out"
+    }, 39.0 + r() * 0.5);
+    // Gentle fall
+    tl.to(id, {
+      y: "+=" + (40 + r() * 60),
+      rotation: "+=" + (90 + r() * 180),
+      duration: 2.5,
+      ease: "sine.inOut"
+    }, 39.5 + r() * 0.3);
+  });
+  // Floating ticket cards bob in
+  tl.from("#ft1", { x: -120, opacity: 0, duration: 0.5, ease: "back.out(1.5)" }, 39.1);
+  tl.from("#ft2", { x: 120,  opacity: 0, duration: 0.5, ease: "back.out(1.5)" }, 39.2);
+  tl.from("#ft3", { x: -120, opacity: 0, duration: 0.5, ease: "back.out(1.5)" }, 39.3);
+  tl.from("#ft4", { x: 120,  opacity: 0, duration: 0.5, ease: "back.out(1.5)" }, 39.4);
+  // Float animation
+  tl.to("#ft1", { y: -14, duration: 1.6, ease: "sine.inOut", yoyo: true, repeat: 1 }, 39.6);
+  tl.to("#ft2", { y: -18, duration: 1.8, ease: "sine.inOut", yoyo: true, repeat: 1 }, 39.8);
+  tl.to("#ft3", { y: -12, duration: 1.5, ease: "sine.inOut", yoyo: true, repeat: 1 }, 39.7);
+  tl.to("#ft4", { y: -16, duration: 1.7, ease: "sine.inOut", yoyo: true, repeat: 1 }, 39.9);
+  // Logo
+  tl.from("#s7-logo", { scale: 0.5, opacity: 0, duration: 0.6, ease: "elastic.out(1,0.4)" }, 39.2);
+  tl.to("#s7-logo",   { color: "#FFD700", duration: 0.2, ease: "none", repeat: 3, yoyo: true }, 39.8);
+  tl.to("#s7-logo",   { color: "#0FF5E4", duration: 0.2 }, 40.7);
+  // Tagline
+  tl.from("#s7-tag", { y: 40, opacity: 0, duration: 0.55, ease: "power3.out" }, 39.7);
+  // CTA
+  tl.from("#s7-cta", { scale: 0.7, opacity: 0, duration: 0.55, ease: "back.out(1.7)" }, 40.1);
+  tl.to("#s7-cta",   { boxShadow: "0 0 80px rgba(35,141,157,0.9)", duration: 0.4, ease: "power2.inOut", repeat: 2, yoyo: true }, 40.5);
+
+  // Final fade to black
+  tl.to("#s7-fadeout", { opacity: 1, duration: 0.7, ease: "power2.in" }, 41.3);
+
+  window.__timelines["akiba-raffle-skit"] = tl;
+})();
+</script>
+
+</div>
+</body>
+</html>

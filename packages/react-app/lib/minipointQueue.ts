@@ -37,6 +37,13 @@ type ReferralBonusPayload = {
   referredAddress: string;   // the referred wallet that triggered the bonus
 };
 
+type OrderMilesPayload = {
+  kind: "order_miles_reward";
+  userAddress: string;
+  orderId: string;
+  pointsAwarded: number;
+};
+
 export type VaultDailyRewardPayload = {
   kind: "vault_daily_reward";
   userAddress: string;
@@ -60,6 +67,7 @@ type MintJobPayload =
   | ProfileMilestonePayload
   | NewUserSignupPayload
   | ReferralBonusPayload
+  | OrderMilesPayload
   | VaultDailyRewardPayload
   | PollCompletionPayload;
 
@@ -315,6 +323,26 @@ export async function enqueueSimpleMint(opts: {
   payload: NewUserSignupPayload | ReferralBonusPayload;
 }) {
   await ensureMintJob(opts);
+}
+
+export async function enqueueOrderReward(opts: {
+  orderId: string;
+  userAddress: string;
+  points: number;
+}) {
+  const userLc = opts.userAddress.toLowerCase();
+  await ensureMintJob({
+    idempotencyKey: `order-miles:${opts.orderId}`,
+    userAddress: userLc,
+    points: opts.points,
+    reason: `order-miles:${opts.orderId}`,
+    payload: {
+      kind: "order_miles_reward",
+      userAddress: userLc,
+      orderId: opts.orderId,
+      pointsAwarded: opts.points,
+    },
+  });
 }
 
 export async function claimQueuedPollReward(opts: {

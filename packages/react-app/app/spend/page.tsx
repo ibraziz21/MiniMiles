@@ -2,7 +2,6 @@
 import dynamic from 'next/dynamic';
 import DailyChallenges from '@/components/daily-challenge';
 import EnterRaffleSheet from '@/components/enter-raffle-sheet';
-import { GameCard } from '@/components/game-card';
 import { Hero } from '@/components/Hero';
 import MiniPointsCard from '@/components/mini-points-card';
 import { RaffleCard } from '@/components/raffle-card';
@@ -15,12 +14,72 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
 import type { RaffleRequirementsResult } from "@/types/raffleRequirements"
 import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
-import { Dice, RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5, pods, phone, jbl,bag, sambuds, tv, soundbar, ps5, ebike, usdt, docking,camera,washmachine,chair, usdtround} from '@/lib/img';
-import { Coin, akibaMilesSymbol } from '@/lib/svg';
-import { Question } from '@phosphor-icons/react';
+import { RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5, pods, phone, jbl,bag, sambuds, tv, soundbar, ps5, ebike, usdt, docking,camera,washmachine,chair} from '@/lib/img';
+import { akibaMilesSymbol } from '@/lib/svg';
+import { Question, ShoppingBag, Spinner, Lightning, Brain, Ticket, Trophy, ArrowRight } from '@phosphor-icons/react';
 import { StaticImageData } from 'next/image';
+import Image from 'next/image';
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
+import type { SpendMerchant } from '@/components/voucher-order-sheet';
+import { MilesAmount } from '@/components/games/miles-amount';
+
+const VoucherOrderSheet = dynamic(() => import('@/components/voucher-order-sheet'), { ssr: false });
+const MerchantVoucherSheet = dynamic(() => import('@/components/merchant-voucher-sheet'), { ssr: false });
+
+// ── Merchant card ─────────────────────────────────────────────────────────────
+
+function MerchantCard({
+  merchant,
+  onShop,
+  onBuyVoucher,
+}: {
+  merchant: SpendMerchant & { template_count?: number };
+  onShop: () => void;
+  onBuyVoucher: () => void;
+}) {
+  return (
+    <div className="shrink-0 w-56 border border-gray-100 rounded-2xl bg-white overflow-hidden shadow-sm flex flex-col">
+      {/* Fixed-height image */}
+      <div className="relative w-full h-32 bg-gray-100">
+        {merchant.image_url ? (
+          <Image src={merchant.image_url} alt={merchant.name} fill className="object-cover" />
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <ShoppingBag size={32} className="text-gray-300" />
+          </div>
+        )}
+      </div>
+
+      {/* Content — flex-1 so buttons always sit at the same Y */}
+      <div className="p-3 flex flex-col flex-1">
+        {/* Fixed 2-line name area */}
+        <p className="font-semibold text-sm leading-snug line-clamp-2 mb-1 min-h-[2.5rem]">
+          {merchant.name}
+        </p>
+        {/* Fixed-height sub-label so buttons don't shift */}
+        <p className="text-xs text-gray-400 mb-3 h-4 leading-none">
+          {(merchant.template_count ?? 0) > 0
+            ? `${merchant.template_count} voucher${merchant.template_count === 1 ? '' : 's'} available`
+            : '\u00A0'}
+        </p>
+        {/* Buttons always at the bottom of the card */}
+        <div className="flex gap-2 mt-auto">
+          <Button
+            title="Shop"
+            onClick={onShop}
+            className="flex-1 bg-[#238D9D] text-white rounded-xl h-9 text-xs font-semibold"
+          />
+          <Button
+            title="Voucher"
+            onClick={onBuyVoucher}
+            className="flex-1 border-2 border-[#238D9D] bg-transparent text-[#238D9D] rounded-xl h-9 text-xs font-semibold hover:bg-[#238D9D0D]"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
 const PhysicalRaffleSheet = dynamic(() => import('@/components/physical-raffle-sheet'), { ssr: false });
 
 import {
@@ -38,7 +97,7 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   USDT: RaffleImg2,
   Miles: RaffleImg5,
   // default fallback:
-  default: usdtround,
+  default: RaffleImg3,
 }
 
 
@@ -130,11 +189,6 @@ const nftRaffles = [
   { image: nft2, title: "CryptoPunk #789", endsIn: 3, ticketCost: "12 AkibaMiles" },
 ];
 
-const upcomingGames = [
-  { name: "Dice", date: "xx/xx/xx", image: Dice },
-  { name: "Coin flip", date: "xx/xx/xx", image: Coin },
-];
-
 const Page = () => {
 
   const { address, getUserAddress, getakibaMilesBalance } = useWeb3();
@@ -150,6 +204,14 @@ const Page = () => {
   const [spendRaffle, setSpendRaffle] = useState<SpendRaffle | null>(null);
   const [hasMounted, setHasMounted] = useState(false);
   const [openSuccess, setOpenSuccess] = useState(false);
+
+  // ── Merchant state ──────────────────────────────────────────────────────
+  const [merchants, setMerchants] = useState<(SpendMerchant & { template_count?: number })[]>([]);
+  const [loadingMerchants, setLoadingMerchants] = useState(true);
+  const [orderMerchant, setOrderMerchant] = useState<SpendMerchant | null>(null);
+  const [orderSheetOpen, setOrderSheetOpen] = useState(false);
+  const [voucherMerchant, setVoucherMerchant] = useState<SpendMerchant | null>(null);
+  const [voucherSheetOpen, setVoucherSheetOpen] = useState(false);
 
 
   useEffect(() => {
@@ -183,6 +245,15 @@ const Page = () => {
       .finally(() => setLoading(false))
   }, [])
 
+  // Fetch merchants
+  useEffect(() => {
+    fetch('/api/Spend/merchants')
+      .then((r) => r.json())
+      .then((d) => setMerchants(d.merchants ?? []))
+      .catch(() => setMerchants([]))
+      .finally(() => setLoadingMerchants(false));
+  }, []);
+
   const formatEndsIn = (ends: number) => {
     const nowSec = Math.floor(Date.now() / 1000);
     let secondsLeft = ends - nowSec;
@@ -207,8 +278,21 @@ const Page = () => {
         <h3 className='font-poppins'>Win big by entering our Raffles</h3>
       </div>
       <MiniPointsCard points={Number(akibaMilesBalance)} />
+
       <div className="mx-3">
         <EnterRaffleSheet />
+      </div>
+
+      {/* ── Merchants ────────────────────────────────────────────── */}
+      <div className="mx-4 mt-6">
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-lg font-extrabold">Shop & Save</h3>
+        </div>
+        <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-6 py-8 flex flex-col items-center gap-2 text-center">
+          <span className="text-2xl">🏪</span>
+          <p className="font-semibold text-gray-700">Coming Soon</p>
+          <p className="text-xs text-gray-400">Merchant vouchers & deals are on the way.</p>
+        </div>
       </div>
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center">
@@ -274,7 +358,6 @@ const Page = () => {
       endsIn={formatEndsIn(r.ends)}
       ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
       icon={akibaMilesSymbol}
-      winners={r.winners}
       locked={false}
       onClick={() => {
         setSpendRaffle(null);
@@ -287,8 +370,6 @@ const Page = () => {
           balance: Number(akibaMilesBalance),
           totalTickets: r.totalTickets,
           maxTickets: r.maxTickets,
-          winners: r.winners,
-          requirements: r.requirements as RaffleRequirementsResult | null ?? null,
         });
         setActiveSheet("physical");
       }}
@@ -303,43 +384,99 @@ const Page = () => {
         </div>
       </div>
 
-      <div>
-        <SectionHeading title="Games" />
-        <div className="flex space-x-3 overflow-x-auto px-4">
-  {upcomingGames.map((game, idx) => {
-    const locked = game.name !== 'Dice'; // Dice is live, others locked
+      {/* ── GAMES ──────────────────────────────────────────── */}
+      <div className="mt-6 px-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-extrabold">Games</h3>
+          <Link href="/games" className="text-xs font-semibold text-[#238D9D]">See all →</Link>
+        </div>
 
-    const card = (
-      <GameCard
-        name={game.name}
-        date={game.date}
-        image={game.image}
-        locked={locked}
-      />
-    );
+        {/* Dice */}
+        <div className="mb-3">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-[#817E7E] mb-2">Chance</p>
+          <Link href="/dice" className="flex items-center gap-3 rounded-2xl bg-gradient-to-r from-[#1A3A2A] to-[#204D38] p-4 shadow-sm">
+            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-white/10 text-2xl">🎲</div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-white">Dice</p>
+              <p className="text-xs text-white/70 font-poppins">Pick a number · Win the pot</p>
+            </div>
+            <span className="flex items-center gap-1 rounded-full bg-[#4EFFA0]/20 px-2.5 py-1 text-xs font-semibold text-[#4EFFA0]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#4EFFA0] animate-pulse" />
+              Live
+            </span>
+          </Link>
+          <Link href="/claw" className="mt-3 flex items-center gap-3 rounded-2xl bg-gradient-to-r from-[#3A2C1A] to-[#5A3D1F] p-4 shadow-sm">
+            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-white/10 text-2xl">🕹</div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-white">Akiba Claw</p>
+              <p className="text-xs text-white/70 font-poppins">Grab rewards with a live play</p>
+            </div>
+            <span className="flex items-center gap-1 rounded-full bg-[#4EFFA0]/20 px-2.5 py-1 text-xs font-semibold text-[#4EFFA0]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#4EFFA0] animate-pulse" />
+              Live
+            </span>
+          </Link>
+        </div>
 
-    if (!locked && game.name === 'Dice') {
-      // Dice is live → clickable
-      return (
+        {/* Skill games — entry card */}
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-[#817E7E] mb-2">Skill</p>
         <Link
-          key={idx}
-          href="/dice"
-          className="shrink-0"
+          href="/games"
+          className="block rounded-2xl overflow-hidden shadow-md bg-gradient-to-br from-[#0A6B7A] via-[#0D7A8A] to-[#1A9AAD] relative"
         >
-          {card}
-        </Link>
-      );
-    }
+          {/* Decorative blobs */}
+          <div className="pointer-events-none absolute -right-6 -top-6 h-28 w-28 rounded-full bg-white/10" />
+          <div className="pointer-events-none absolute left-0 bottom-0 h-16 w-16 rounded-full bg-white/10" />
 
-    // Locked previews (non-clickable)
-    return (
-      <div key={idx} className="shrink-0">
-        {card}
+          <div className="relative z-10 px-4 pt-4 pb-3">
+            {/* Header */}
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-2.5 py-1 text-[10px] font-semibold text-white/90 mb-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#4EFFA0] animate-pulse" />
+                  Skill Games · Live
+                </div>
+                <h3 className="text-lg font-bold text-white">Play & Earn</h3>
+                <p className="text-xs text-white/70 font-poppins flex items-center gap-1">Short skill rounds. Win <MilesAmount value="AkibaMiles" size={12} variant="alt" />.</p>
+              </div>
+              <div className="flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1.5 text-xs font-semibold text-white">
+                See all <ArrowRight size={12} />
+              </div>
+            </div>
+
+            {/* Info pills */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              <div className="flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[11px] text-white/80">
+                <Ticket size={11} weight="fill" /> 1 ticket entry
+              </div>
+              <div className="flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[11px] text-white/80">
+                <Trophy size={11} weight="fill" className="text-yellow-300" /> Up to <MilesAmount value={12} size={11} variant="alt" />
+              </div>
+              <div className="flex items-center gap-1 rounded-full bg-yellow-400/20 px-2.5 py-1 text-[11px] text-yellow-200">
+                🏆 $10 weekly prize pool
+              </div>
+            </div>
+
+            {/* Game mini-tiles */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-xl bg-white/15 p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <Lightning size={14} weight="fill" className="text-yellow-300" />
+                  <p className="text-sm font-bold text-white">Rule Tap</p>
+                </div>
+                <p className="text-[11px] text-white/60 font-poppins">20s · tap matching tiles</p>
+              </div>
+              <div className="rounded-xl bg-white/15 p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <Brain size={14} weight="fill" className="text-purple-200" />
+                  <p className="text-sm font-bold text-white">Memory Flip</p>
+                </div>
+                <p className="text-[11px] text-white/60 font-poppins">60s · match 8 pairs</p>
+              </div>
+            </div>
+          </div>
+        </Link>
       </div>
-    );
-  })}
-</div>
-</div>
 
 <PhysicalRaffleSheet
   open={activeSheet === "physical"}
@@ -355,6 +492,17 @@ const Page = () => {
   />
 )}
 
+<VoucherOrderSheet
+  open={orderSheetOpen}
+  onOpenChange={setOrderSheetOpen}
+  merchant={orderMerchant}
+/>
+
+<MerchantVoucherSheet
+  open={voucherSheetOpen}
+  onOpenChange={setVoucherSheetOpen}
+  merchant={voucherMerchant}
+/>
 
     </main>
   );

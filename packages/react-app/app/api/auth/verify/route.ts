@@ -36,7 +36,7 @@ export async function POST(req: Request) {
   const nonce = nonceMatch[1];
 
   // verifyNonce checks validity and atomically consumes the nonce (one-time use)
-  if (!verifyNonce(addr, nonce)) {
+  if (!await verifyNonce(addr, nonce)) {
     return Response.json({ error: "Nonce expired or invalid. Please try again." }, { status: 401 });
   }
 
