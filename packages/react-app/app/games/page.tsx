@@ -4,14 +4,13 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { LeaderboardCard } from "@/components/games/leaderboard-card";
 import { BuyPlaysSheet } from "@/components/games/buy-plays-sheet";
-import { GAME_CONFIGS } from "@/lib/games/config";
+import { SHARED_DAILY_PLAY_CAP } from "@/lib/games/config";
 import { useCredits } from "@/hooks/games/useCredits";
 import { useLeaderboard } from "@/hooks/games/useLeaderboard";
 import { useWeb3 } from "@/contexts/useWeb3";
 import {
   Lightning, Brain, ShoppingCart, Ticket,
-  Info, Trophy, Timer, ArrowRight,
-  Lightning as LightningFill,
+  Info, Trophy, Timer,
 } from "@phosphor-icons/react";
 import { MilesAmount } from "@/components/games/miles-amount";
 import { GAME_CONFIGS as GC } from "@/lib/games/config";
@@ -53,15 +52,12 @@ export default function GamesPage() {
 
   const resetCountdown = useCountdown(msUntilReset());
 
-  // Combined ticket count across both games
-  const rtTickets = rtCredits.status.credits;
-  const mfTickets = mfCredits.status.credits;
-  const totalTickets = rtTickets + mfTickets;
+  const totalTickets = Math.max(rtCredits.status.credits, mfCredits.status.credits);
 
-  // Use the higher of the two play counts for the shared daily counter
+  // Both status calls return the same shared daily count once loaded.
   const playsToday = Math.max(rtCredits.status.playsToday, mfCredits.status.playsToday);
-  const MAX_DAILY  = 20;
-  const dailyPct   = Math.round((playsToday / MAX_DAILY) * 100);
+  const MAX_DAILY  = SHARED_DAILY_PLAY_CAP;
+  const dailyPct   = Math.min(100, Math.round((playsToday / MAX_DAILY) * 100));
 
   function openBuySheet(gameType: "rule_tap" | "memory_flip") {
     setActiveGameType(gameType);
@@ -199,7 +195,7 @@ export default function GamesPage() {
             {
               icon: <Ticket size={15} weight="fill" className="text-[#0D7A8A]" />,
               title: "Buy tickets",
-              body: <span className="flex items-center gap-1 flex-wrap">1 ticket = <MilesAmount value={5} size={12} />. Tickets never expire. Max 50 per game.</span>,
+              body: <span className="flex items-center gap-1 flex-wrap">1 ticket = <MilesAmount value={5} size={12} />. Tickets never expire.</span>,
             },
             {
               icon: <Lightning size={15} weight="fill" className="text-[#0D7A8A]" />,
@@ -214,7 +210,7 @@ export default function GamesPage() {
             {
               icon: <Timer size={15} weight="fill" className="text-[#0D7A8A]" />,
               title: "Daily limit",
-              body: "20 rounds per day. Counter resets at midnight UTC.",
+              body: `${MAX_DAILY} total rounds per day across all skill games. Counter resets at midnight UTC.`,
             },
           ] as const).map((item) => (
             <div key={item.title} className="flex items-start gap-3">
@@ -236,9 +232,9 @@ export default function GamesPage() {
         <div className="space-y-3">
           <GameCard
             gameType="rule_tap"
-            tickets={rtTickets}
-            playsToday={rtCredits.status.playsToday}
-            isDailyCapped={rtCredits.status.isDailyCapped}
+            tickets={totalTickets}
+            playsToday={playsToday}
+            isDailyCapped={playsToday >= MAX_DAILY}
             walletConnected={!!address}
             personalBest={personalBests.rule_tap}
             onPlay={() => router.push("/games/rule-tap")}
@@ -246,9 +242,9 @@ export default function GamesPage() {
           />
           <GameCard
             gameType="memory_flip"
-            tickets={mfTickets}
-            playsToday={mfCredits.status.playsToday}
-            isDailyCapped={mfCredits.status.isDailyCapped}
+            tickets={totalTickets}
+            playsToday={playsToday}
+            isDailyCapped={playsToday >= MAX_DAILY}
             walletConnected={!!address}
             personalBest={personalBests.memory_flip}
             onPlay={() => router.push("/games/memory-flip")}
@@ -289,10 +285,7 @@ export default function GamesPage() {
         onClose={() => setBuyPlaysOpen(false)}
         gameType={activeGameType}
         creditStatus={activeCreditStatus}
-        onBuy={async (count) => {
-          await activeBuy(count);
-          setBuyPlaysOpen(false);
-        }}
+        onBuy={activeBuy}
         buying={activeBuying}
         buyError={activeBuyError}
       />
@@ -340,7 +333,7 @@ function GameCard({
 }) {
   const config = GC[gameType];
   const meta   = GAME_META[gameType];
-  const MAX    = 20;
+  const MAX    = SHARED_DAILY_PLAY_CAP;
 
   // Button state
   let cta: { label: string; style: string; action: (() => void) | null };
@@ -385,14 +378,9 @@ function GameCard({
             <Trophy size={11} weight="fill" className="text-yellow-300" />
             Up to <MilesAmount value={config.maxRewardMiles} size={11} variant="alt" />
           </div>
-          {config.weeklyPrizeUsd > 0 && (
-            <div className="flex items-center gap-1 rounded-full bg-yellow-400/20 px-2.5 py-1 text-[11px] text-yellow-200">
-              🏆 Weekly top 3 share ${config.weeklyPrizeUsd}
-            </div>
-          )}
         </div>
 
-        {/* Personal best + tickets left */}
+        {/* Personal best + daily usage */}
         <div className="relative z-10 flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
             {personalBest != null && (
@@ -402,17 +390,8 @@ function GameCard({
             )}
           </div>
           <div className="flex items-center gap-1.5">
-            {tickets > 0 ? (
-              <span className="text-xs bg-white/20 text-white rounded-full px-2.5 py-0.5 font-medium">
-                {tickets} ticket{tickets !== 1 ? "s" : ""} left
-              </span>
-            ) : (
-              <span className="text-xs bg-white/10 text-white/50 rounded-full px-2.5 py-0.5 font-medium">
-                No tickets
-              </span>
-            )}
             <span className="text-xs text-white/50">
-              {playsToday}/{MAX} today
+              {playsToday}/{MAX} total today
             </span>
           </div>
         </div>
@@ -426,19 +405,6 @@ function GameCard({
         >
           {cta.label}
         </button>
-      </div>
-
-      {/* Reward threshold bar */}
-      <div className="bg-black/20 px-4 py-2.5 flex items-center gap-2 flex-wrap">
-        <span className="text-[10px] text-white/50 font-poppins mr-1">Rewards:</span>
-        {config.thresholds.map((t) => (
-          <span
-            key={t.label}
-            className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-white/70"
-          >
-            {t.minScore}+ pts → <MilesAmount value={t.miles} size={10} variant="alt" />
-          </span>
-        ))}
       </div>
     </div>
   );

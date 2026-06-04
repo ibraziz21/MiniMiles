@@ -56,13 +56,14 @@ export async function GET(req: Request) {
 
   const range = period === "weekly" ? currentWeekRange() : utcTodayRange();
 
-  // Only count sessions that have been confirmed on-chain (settle_tx_hash set)
+  // Count server-verified results immediately. Reward delivery can still be
+  // pending or completed via client fallback, so settle_tx_hash is not a
+  // reliable visibility gate for the leaderboard.
   const { data, error } = await supabase
     .from("skill_game_sessions")
     .select("wallet_address, score, reward_miles, reward_stable, created_at")
     .eq("game_type", gameType)
     .eq("accepted", true)
-    .not("settle_tx_hash", "is", null)
     .gte("created_at", range.from)
     .lt("created_at", range.to)
     .order("score", { ascending: false });

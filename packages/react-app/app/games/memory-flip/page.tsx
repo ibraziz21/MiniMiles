@@ -14,13 +14,16 @@ import { useSettlement } from "@/hooks/games/useSettlement";
 import { useCredits } from "@/hooks/games/useCredits";
 import { useWeeklyLeaderboard } from "@/hooks/games/useWeeklyLeaderboard";
 import { Brain, ArrowCounterClockwise, Trophy, ShoppingCart } from "@phosphor-icons/react";
-import { SubmittingOverlay } from "@/components/games/submitting-overlay";
 import { MilesAmount } from "@/components/games/miles-amount";
+import { rewardForScore } from "@/lib/games/score";
+import type { GameResult } from "@/lib/games/types";
+import { SHARED_DAILY_PLAY_CAP } from "@/lib/games/config";
 
 export default function MemoryFlipPage() {
   const [introOpen,    setIntroOpen]    = useState(true);
   const [resultOpen,   setResultOpen]   = useState(false);
   const [buyPlaysOpen, setBuyPlaysOpen] = useState(false);
+  const [localResult,  setLocalResult]  = useState<GameResult | null>(null);
 
   const sessionFlow = useGameSession("memory_flip");
   const settlement  = useSettlement("memory_flip");
@@ -29,10 +32,11 @@ export default function MemoryFlipPage() {
   const weeklyLb    = useWeeklyLeaderboard("memory_flip");
 
   const { isDailyCapped, playsToday, credits, hasCredits } = creditStatus;
-  const MAX_DAILY = 20;
+  const MAX_DAILY = SHARED_DAILY_PLAY_CAP;
 
   async function startRound() {
     settlement.reset();
+    setLocalResult(null);
     const session = await sessionFlow.startSession(creditStatus);
     await refreshCredits();
     setIntroOpen(false);
@@ -43,15 +47,30 @@ export default function MemoryFlipPage() {
 
   useEffect(() => {
     if (game.phase !== "submitting" || !game.replay || settlement.status === "submitting") return;
+    const { rewardMiles, rewardStable } = rewardForScore("memory_flip", game.score);
+    setLocalResult({
+      sessionId:   game.replay.sessionId,
+      gameType:    "memory_flip",
+      score:       game.score,
+      mistakes:    game.mistakes,
+      moves:       game.moves,
+      matches:     game.matches,
+      completed:   game.matches === 8,
+      elapsedMs:   game.replay.durationMs,
+      rewardMiles,
+      rewardStable,
+    });
+    game.setPhase("settled");
+    setResultOpen(true);
     settlement.submitReplay(game.replay.sessionId, game.replay).then(() => {
-      game.setPhase("settled");
-      setResultOpen(true);
       refreshCredits();
       weeklyLb.refresh();
+    }).catch((err) => {
+      console.error("[memory-flip] settlement failed", err);
     });
   }, [game, settlement, refreshCredits, weeklyLb]);
 
-  const result     = settlement.response?.result ?? null;
+  const result     = settlement.response?.result ?? localResult;
   const isPlaying  = game.phase === "playing" || game.phase === "countdown";
   const isDone     = game.phase === "settled" || game.phase === "error";
   const weeklyRank = weeklyLb.myBest?.rank ?? null;
@@ -79,8 +98,6 @@ export default function MemoryFlipPage() {
           disabled={game.phase !== "playing"}
         />
 
-        <SubmittingOverlay visible={game.phase === "submitting"} label="Verifying result" />
-
         {/* Countdown */}
         {game.phase === "countdown" && (
           <div className="mx-4 rounded-2xl bg-gradient-to-br from-[#3B1F6E] to-[#5B35A0] p-10 text-center shadow-lg">
@@ -102,7 +119,7 @@ export default function MemoryFlipPage() {
             </button>
             {isDailyCapped ? (
               <div className="w-full rounded-2xl bg-[#F0F0F0] px-5 py-3.5 text-sm font-semibold text-[#888] text-center">
-                20/20 played today · Come back tomorrow
+                {MAX_DAILY}/{MAX_DAILY} played today · Come back tomorrow
               </div>
             ) : (
               <button
@@ -181,7 +198,7 @@ export default function MemoryFlipPage() {
         loading={sessionFlow.isStarting}
         onPlay={startRound}
         disabled={isDailyCapped}
-        disabledReason={isDailyCapped ? `20/20 played today · Come back tomorrow` : undefined}
+        disabledReason={isDailyCapped ? `${MAX_DAILY}/${MAX_DAILY} played today · Come back tomorrow` : undefined}
         rules={[
           "Flip two cards at a time and match all 8 pairs.",
           "Cards lock briefly after each flip to keep the game fair.",

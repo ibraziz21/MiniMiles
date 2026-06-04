@@ -7,15 +7,9 @@ import { AKIBA_SKILL_GAMES_ADDRESS, akibaSkillGamesAbi } from "@/lib/games/contr
 import { mockVerifier } from "@/lib/games/mock-verifier";
 import type { GameSession, GameType } from "@/lib/games/types";
 import { celo } from "viem/chains";
-import { createPublicClient, createWalletClient, custom, http, decodeEventLog, keccak256 } from "viem";
+import { createPublicClient, createWalletClient, custom, http, decodeEventLog } from "viem";
+import { seedCommitment as computeSeedCommitment } from "@/lib/games/replay-validation";
 import type { CreditStatus } from "./useCredits";
-
-function makeSeedCommitment(): `0x${string}` {
-  // 32 random bytes, client-chosen — the server re-seeds from this commitment
-  const buf = new Uint8Array(32);
-  crypto.getRandomValues(buf);
-  return keccak256(buf) as `0x${string}`;
-}
 
 export function useGameSession(gameType: GameType) {
   const { address, getUserAddress } = useWeb3();
@@ -47,8 +41,13 @@ export function useGameSession(gameType: GameType) {
       const wallet = address ?? MOCK_WALLET;
       const next   = await mockVerifier.createGameSession(gameType, wallet);
 
+      if (creditStatus?.isDailyCapped) {
+        throw new Error("Daily play limit reached");
+      }
+
       if (AKIBA_SKILL_GAMES_ADDRESS && typeof window !== "undefined" && window.ethereum && address) {
-        const seedCommitment = makeSeedCommitment();
+        // Derive on-chain commitment from the session seed so server validation matches.
+        const onchainCommitment = computeSeedCommitment(next.seed, address, gameType) as `0x${string}`;
 
         // ── Path 1: Sponsored start (backend pays gas, player has credits) ──
         if (creditStatus?.hasCredits && !creditStatus.isDailyCapped) {
@@ -67,7 +66,7 @@ export function useGameSession(gameType: GameType) {
             const digest = kec(
               encodeAbiParameters(
                 parseAbiParameters("bytes32,address,uint8,bytes32,uint256,uint256,address,uint256"),
-                [INTENT_TYPEHASH, address as `0x${string}`, chainGameType, seedCommitment, BigInt(nonce), BigInt(expiry), AKIBA_SKILL_GAMES_ADDRESS, BigInt(celo.id)]
+                [INTENT_TYPEHASH, address as `0x${string}`, chainGameType, onchainCommitment, BigInt(nonce), BigInt(expiry), AKIBA_SKILL_GAMES_ADDRESS, BigInt(celo.id)]
               )
             );
             const walletClient = createWalletClient({ chain: celo, transport: custom(window.ethereum) });
@@ -76,7 +75,7 @@ export function useGameSession(gameType: GameType) {
             const resp = await fetch("/api/games/start-intent", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ gameType, walletAddress: address, seedCommitment, nonce, expiry, playerSignature: playerSig }),
+              body: JSON.stringify({ gameType, walletAddress: address, seedCommitment: onchainCommitment, nonce, expiry, playerSignature: playerSig }),
             });
 
             if (resp.ok) {
@@ -88,9 +87,16 @@ export function useGameSession(gameType: GameType) {
               setStartMode("sponsored");
               return next;
             }
+            const errorBody = await resp.json().catch(() => null);
+            if (resp.status === 429 || errorBody?.error === "shared-daily-cap-reached") {
+              throw new Error("Daily play limit reached");
+            }
             // Sponsored start failed — fall through to self-start
             console.warn("[useGameSession] sponsored start failed, falling back to self-start");
           } catch (sponsoredErr) {
+            if ((sponsoredErr as Error)?.message === "Daily play limit reached") {
+              throw sponsoredErr;
+            }
             console.warn("[useGameSession] sponsored start error, falling back:", sponsoredErr);
           }
         }
@@ -105,7 +111,7 @@ export function useGameSession(gameType: GameType) {
           address: AKIBA_SKILL_GAMES_ADDRESS,
           abi: akibaSkillGamesAbi,
           functionName: "startGame",
-          args: [GAME_CONFIGS[gameType].chainGameType, seedCommitment],
+          args: [GAME_CONFIGS[gameType].chainGameType, onchainCommitment],
         });
 
         const receipt = await publicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 120_000 });

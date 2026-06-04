@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { celo } from "viem/chains";
 import { createPublicClient, createWalletClient, custom, http } from "viem";
 import { AKIBA_SKILL_GAMES_ADDRESS, akibaSkillGamesAbi } from "@/lib/games/contracts";
-import { GAME_CONFIGS } from "@/lib/games/config";
+import { GAME_CONFIGS, SHARED_DAILY_PLAY_CAP } from "@/lib/games/config";
 import type { GameType } from "@/lib/games/types";
 
 export type CreditStatus = {
@@ -18,7 +18,7 @@ export type CreditStatus = {
 };
 
 const EMPTY: CreditStatus = {
-  credits: 0, playsToday: 0, playsRemaining: 20,
+  credits: 0, playsToday: 0, playsRemaining: SHARED_DAILY_PLAY_CAP,
   nonce: 0, isDailyCapped: false, hasCredits: false, contractAvailable: false,
 };
 
@@ -49,9 +49,9 @@ export function useCredits(gameType: GameType, walletAddress: string | null | un
       setStatus({
         credits:           data.credits        ?? 0,
         playsToday:        data.playsToday      ?? 0,
-        playsRemaining:    data.playsRemaining  ?? 20,
+        playsRemaining:    data.playsRemaining  ?? SHARED_DAILY_PLAY_CAP,
         nonce:             data.nonce           ?? 0,
-        isDailyCapped:     (data.playsRemaining ?? 20) === 0,
+        isDailyCapped:     (data.playsRemaining ?? SHARED_DAILY_PLAY_CAP) === 0,
         hasCredits:        (data.credits ?? 0) > 0,
         contractAvailable: data.contractAvailable ?? false,
       });

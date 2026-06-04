@@ -1,113 +1,38 @@
-import { concat, keccak256, toUtf8Bytes } from "ethers";
-import { rewardForScore, scoreMemoryFlip, scoreRuleTap } from "./score";
+/**
+ * Server-only replay validators. Never import this from client components,
+ * hooks, or lib/ — it must not appear in the browser bundle.
+ *
+ * Client-safe generators (generateRuleTapSession, generateMemoryDeck,
+ * seedCommitment) remain in lib/games/replay-validation.ts.
+ */
+
+import { generateRuleTapSession, generateMemoryDeck, seedCommitment } from "@/lib/games/replay-validation";
+import { scoreMemoryFlip, scoreRuleTap, rewardForScore } from "@/lib/games/score";
 import type {
   GameResult,
   GameType,
   MemoryFlipReplay,
   RuleTapReplay,
-} from "./types";
+  RuleTapTile,
+  RuleTapRule,
+} from "@/lib/games/types";
 
-type Rng = () => number;
-type RuleTapTileColor = "blue" | "green" | "red" | "gold";
-type RuleTapTileKind = "star" | "circle" | "square" | "diamond";
-type RuleTapRule = {
-  targets: Array<{ color: RuleTapTileColor; kind: RuleTapTileKind }>;
-};
-type RuleTapTile = {
-  index: number;
-  color: RuleTapTileColor;
-  kind: RuleTapTileKind;
-  activeFromMs: number;
-  activeToMs: number;
-};
-
-function hashSeed(input: string) {
-  let h = 2166136261;
-  for (let i = 0; i < input.length; i++) {
-    h ^= input.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
-function createRng(seed: string): Rng {
-  let state = hashSeed(seed) || 1;
-  return () => {
-    state += 0x6d2b79f5;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-export function seedCommitment(seed: string, walletAddress: string, gameType: GameType): string {
-  return keccak256(concat([toUtf8Bytes(seed), toUtf8Bytes(walletAddress.toLowerCase()), toUtf8Bytes(gameType)]));
-}
-
-const colors = ["blue", "green", "red", "gold"] as const;
-const kinds = ["star", "circle", "square", "diamond"] as const;
-
-function generateRuleTapSession(seed: string) {
-  const rng = createRng(seed);
-  const target = {
-    color: colors[Math.floor(rng() * colors.length)],
-    kind: kinds[Math.floor(rng() * kinds.length)],
-  };
-  const avoid = {
-    color: colors[Math.floor(rng() * colors.length)],
-    kind: kinds[Math.floor(rng() * kinds.length)],
-  };
-  const rule: RuleTapRule = { targets: [target] };
-  const timeline: RuleTapTile[][] = [];
-  for (let tick = 0; tick < 40; tick++) {
-    const activeCount = 1 + Math.floor(rng() * 3);
-    const used = new Set<number>();
-    const tiles: RuleTapTile[] = [];
-    for (let i = 0; i < activeCount; i++) {
-      let index = Math.floor(rng() * 9);
-      while (used.has(index)) index = Math.floor(rng() * 9);
-      used.add(index);
-      const forceTarget = rng() > 0.56;
-      const forceAvoid = !forceTarget && rng() > 0.72;
-      const color = forceTarget ? target.color : forceAvoid ? avoid.color : colors[Math.floor(rng() * colors.length)];
-      const kind = forceTarget ? target.kind : forceAvoid ? avoid.kind : kinds[Math.floor(rng() * kinds.length)];
-      tiles.push({
-        index,
-        color,
-        kind,
-        activeFromMs: tick * 500,
-        activeToMs: tick * 500 + 850,
-      });
-    }
-    timeline.push(tiles);
-  }
-  return { rule, timeline };
-}
-
-function generateMemoryDeck(seed: string) {
-  const rng = createRng(seed);
-  const pairs = ["sun", "bolt", "leaf", "gem", "wave", "key", "moon", "spark"];
-  const deck = [...pairs, ...pairs].map((value, index) => ({ id: `${value}-${index}`, value }));
-  for (let i = deck.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
-  }
-  return deck;
-}
+// Re-export so callers only need one import path for server code.
+export { seedCommitment };
 
 const TILE_WINDOW_TOLERANCE_MS = 120;
 
 function activeTileAt(seed: string, offsetMs: number, tileIndex: number) {
   const { timeline } = generateRuleTapSession(seed);
-  return timeline
+  const candidates = timeline
     .flat()
-    .find(
+    .filter(
       (tile) =>
         tile.index === tileIndex &&
         offsetMs >= tile.activeFromMs &&
         offsetMs <= tile.activeToMs + TILE_WINDOW_TOLERANCE_MS
     );
+  return candidates[candidates.length - 1];
 }
 
 function matchesRule(tile: RuleTapTile | undefined, rule: RuleTapRule) {
@@ -209,7 +134,14 @@ export function validateMemoryFlipReplay(replay: MemoryFlipReplay): { result: Ga
   if (intervals.length >= 10 && new Set(intervals.slice(-10)).size <= 2) flags.push("repeated_exact_timing_pattern");
 
   const completed = matches === 8;
-  const score = scoreMemoryFlip({ completed, matches, moves, mistakes, elapsedMs: replay.durationMs, durationMs: 60_000 });
+  const score = scoreMemoryFlip({
+    completed,
+    matches,
+    moves,
+    mistakes,
+    elapsedMs: replay.durationMs,
+    durationMs: 60_000,
+  });
   const reward = rewardForScore("memory_flip", score);
   return {
     flags: [...new Set(flags)],

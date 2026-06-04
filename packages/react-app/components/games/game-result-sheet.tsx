@@ -13,7 +13,7 @@ function SettlementBadge({ status }: { status: "idle" | "submitting" | "settled"
     return (
       <div className="flex items-center gap-2 rounded-full bg-[#FFF8E1] border border-[#F59E0B33] px-3 py-1.5 text-xs font-semibold text-[#B45309]">
         <CircleNotch size={13} className="animate-spin" />
-        Verifying result
+        Reward syncing
       </div>
     );
   }
@@ -21,7 +21,7 @@ function SettlementBadge({ status }: { status: "idle" | "submitting" | "settled"
     return (
       <div className="flex items-center gap-2 rounded-full bg-[#F0FFF6] border border-[#138A4533] px-3 py-1.5 text-xs font-semibold text-[#138A45]">
         <CheckCircle size={13} weight="fill" />
-        Reward sent
+        Result accepted
       </div>
     );
   }
@@ -137,7 +137,7 @@ export function GameResultSheet({
             )}
 
             <p className="mx-5 mt-1.5 text-xs text-[#817E7E] font-poppins">
-              Only your best verified score counts on the leaderboard.
+              Only your best accepted score counts on the leaderboard. Rewards are delivered by the backend.
             </p>
           </>
         )}

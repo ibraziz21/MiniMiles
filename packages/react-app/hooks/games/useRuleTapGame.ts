@@ -23,10 +23,16 @@ export function useRuleTapGame(seed?: string, sessionId?: string) {
   const generated = useMemo(() => generateRuleTapSession(seed ?? "idle"), [seed]);
   const elapsedMs = Math.max(0, config.durationSeconds * 1000 - remainingMs);
   const activeTiles = useMemo(
-    () =>
+    () => {
+      const visibleByIndex = new Map<number, RuleTapTile>();
       generated.timeline
         .flat()
-        .filter((tile) => elapsedMs >= tile.activeFromMs && elapsedMs <= tile.activeToMs),
+        .filter((tile) => elapsedMs >= tile.activeFromMs && elapsedMs <= tile.activeToMs)
+        .forEach((tile) => {
+          visibleByIndex.set(tile.index, tile);
+        });
+      return Array.from(visibleByIndex.values());
+    },
     [elapsedMs, generated.timeline]
   );
 

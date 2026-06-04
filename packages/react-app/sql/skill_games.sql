@@ -19,8 +19,14 @@ create table if not exists skill_game_sessions (
 
 -- Migration: add columns to existing tables (safe to run on already-created tables)
 alter table skill_game_sessions
-  add column if not exists seed_commitment text,
-  add column if not exists settle_tx_hash  text;
+  add column if not exists seed_commitment  text,
+  add column if not exists settle_tx_hash   text,
+  -- settlement recovery: track how many on-chain attempts have been made and when last tried
+  add column if not exists settle_attempts  integer     not null default 0,
+  add column if not exists settled_at       timestamptz,
+  -- signed settlement payload retained so the retry job can resubmit without re-signing
+  add column if not exists settlement_sig   text,
+  add column if not exists settlement_expiry bigint;
 
 -- Index for the daily cap query  (wallet + game_type + date range)
 create index if not exists skill_game_sessions_wallet_game_date
@@ -29,6 +35,11 @@ create index if not exists skill_game_sessions_wallet_game_date
 -- Index for leaderboard query (settled sessions only)
 create index if not exists skill_game_sessions_settled
   on skill_game_sessions (game_type, accepted, settle_tx_hash, created_at);
+
+-- Index for the settlement retry job (accepted but not yet settled on-chain)
+create index if not exists skill_game_sessions_pending_settlement
+  on skill_game_sessions (accepted, settled_at, settle_attempts)
+  where accepted = true and settled_at is null;
 
 -- Row-level security: only the service key can write; anon reads are blocked
 alter table skill_game_sessions enable row level security;

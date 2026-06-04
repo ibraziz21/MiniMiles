@@ -15,13 +15,16 @@ import { useSettlement } from "@/hooks/games/useSettlement";
 import { useCredits } from "@/hooks/games/useCredits";
 import { useWeeklyLeaderboard } from "@/hooks/games/useWeeklyLeaderboard";
 import { Lightning, ArrowCounterClockwise, Trophy, ShoppingCart } from "@phosphor-icons/react";
-import { SubmittingOverlay } from "@/components/games/submitting-overlay";
 import { MilesAmount } from "@/components/games/miles-amount";
+import { rewardForScore } from "@/lib/games/score";
+import type { GameResult } from "@/lib/games/types";
+import { SHARED_DAILY_PLAY_CAP } from "@/lib/games/config";
 
 export default function RuleTapPage() {
   const [introOpen,      setIntroOpen]      = useState(true);
   const [resultOpen,     setResultOpen]     = useState(false);
   const [buyPlaysOpen,   setBuyPlaysOpen]   = useState(false);
+  const [localResult,    setLocalResult]    = useState<GameResult | null>(null);
 
   const sessionFlow = useGameSession("rule_tap");
   const settlement  = useSettlement("rule_tap");
@@ -30,10 +33,11 @@ export default function RuleTapPage() {
   const weeklyLb    = useWeeklyLeaderboard("rule_tap");
 
   const { isDailyCapped, playsToday, credits, hasCredits } = creditStatus;
-  const MAX_DAILY = 20;
+  const MAX_DAILY = SHARED_DAILY_PLAY_CAP;
 
   async function startRound() {
     settlement.reset();
+    setLocalResult(null);
     const session = await sessionFlow.startSession(creditStatus);
     await refreshCredits();
     setIntroOpen(false);
@@ -44,15 +48,28 @@ export default function RuleTapPage() {
 
   useEffect(() => {
     if (game.phase !== "submitting" || !game.replay || settlement.status === "submitting") return;
+    const { rewardMiles, rewardStable } = rewardForScore("rule_tap", game.score);
+    setLocalResult({
+      sessionId:   game.replay.sessionId,
+      gameType:    "rule_tap",
+      score:       game.score,
+      mistakes:    game.mistakes,
+      completed:   game.replay.durationMs >= 18_000,
+      elapsedMs:   game.replay.durationMs,
+      rewardMiles,
+      rewardStable,
+    });
+    game.setPhase("settled");
+    setResultOpen(true);
     settlement.submitReplay(game.replay.sessionId, game.replay).then(() => {
-      game.setPhase("settled");
-      setResultOpen(true);
       refreshCredits();
       weeklyLb.refresh();
+    }).catch((err) => {
+      console.error("[rule-tap] settlement failed", err);
     });
   }, [game, settlement, refreshCredits, weeklyLb]);
 
-  const result       = settlement.response?.result ?? null;
+  const result       = settlement.response?.result ?? localResult;
   const isPlaying    = game.phase === "playing" || game.phase === "countdown";
   const isDone       = game.phase === "settled" || game.phase === "error";
   const weeklyRank   = weeklyLb.myBest?.rank ?? null;
@@ -90,8 +107,6 @@ export default function RuleTapPage() {
           disabled={game.phase !== "playing"}
         />
 
-        <SubmittingOverlay visible={game.phase === "submitting"} label="Verifying result" />
-
         {/* Countdown */}
         {game.phase === "countdown" && (
           <div className="mx-4 rounded-2xl bg-gradient-to-br from-[#0D7A8A] to-[#238D9D] p-10 text-center shadow-lg">
@@ -113,7 +128,7 @@ export default function RuleTapPage() {
             </button>
             {isDailyCapped ? (
               <div className="rounded-2xl bg-[#F0F0F0] px-5 py-3.5 text-sm font-semibold text-[#888] text-center">
-                20/20 played today · Come back tomorrow
+                {MAX_DAILY}/{MAX_DAILY} played today · Come back tomorrow
               </div>
             ) : (
               <button
@@ -192,7 +207,7 @@ export default function RuleTapPage() {
         loading={sessionFlow.isStarting}
         onPlay={startRound}
         disabled={isDailyCapped}
-        disabledReason={isDailyCapped ? `20/20 played today · Come back tomorrow` : undefined}
+        disabledReason={isDailyCapped ? `${MAX_DAILY}/${MAX_DAILY} played today · Come back tomorrow` : undefined}
         rules={[
           "A rule appears above the grid for the full 20-second round.",
           "Tap only tiles matching the rule. Wrong taps reduce your score.",

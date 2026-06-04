@@ -129,6 +129,8 @@ export type VerifierResponse = {
   result: GameResult;
   settlement?: SettlementPayload;
   antiAbuseFlags: string[];
+  settled?: boolean;
+  settleTxHash?: string;
 };
 
 export type LeaderboardEntry = {

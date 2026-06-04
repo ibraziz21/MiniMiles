@@ -4,7 +4,6 @@ import { useCallback, useState } from "react";
 import { useWeb3 } from "@/contexts/useWeb3";
 import { AKIBA_SKILL_GAMES_ADDRESS, akibaSkillGamesAbi } from "@/lib/games/contracts";
 import { mockVerifier } from "@/lib/games/mock-verifier";
-import { MOCK_WALLET } from "@/lib/games/config";
 import type { GameReplay, GameType, VerifierResponse } from "@/lib/games/types";
 import { celo } from "viem/chains";
 import { createPublicClient, createWalletClient, custom, http } from "viem";
@@ -17,12 +16,10 @@ const USE_REAL_VERIFIER = !!process.env.NEXT_PUBLIC_AKIBA_SKILL_GAMES_ADDRESS;
  *   1. POST /api/games/verify — validates replay, signs settlement, AND
  *      submits settleGame() from the backend verifier wallet.
  *
- *   2. If the backend settle succeeded (resp.settled === true) we are done —
- *      the user paid zero gas for settlement.
+ *   2. If the backend settle succeeded (resp.settled === true) we are done.
  *
- *   3. If backend settle failed (network blip, etc.) the signed settlement
- *      payload is still returned. We fall back to the user submitting
- *      settleGame() themselves so no reward is ever lost.
+ *   3. If backend settlement failed, the signed settlement payload is still
+ *      returned and the client submits settleGame() as a fallback.
  */
 export function useSettlement(gameType: GameType) {
   const { address } = useWeb3();
@@ -40,27 +37,31 @@ export function useSettlement(gameType: GameType) {
         let verifierResponse: VerifierResponse & { settled?: boolean; settleTxHash?: string };
 
         if (USE_REAL_VERIFIER && address) {
+          // Sign the sessionId so the server can prove this request comes from
+          // the wallet that owns the session, preventing replay pollution.
+          const walletClient = createWalletClient({ chain: celo, transport: custom(window.ethereum) });
+          const ownershipSig = await walletClient.signMessage({
+            account: address as `0x${string}`,
+            message: sessionId,
+          });
+
           // ── Real path ────────────────────────────────────────────────────
           const res = await fetch("/api/games/verify", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ gameType, sessionId, walletAddress: address, replay }),
+            body: JSON.stringify({ gameType, sessionId, walletAddress: address, replay, ownershipSig }),
           });
           if (!res.ok) throw new Error(`Verifier returned ${res.status}`);
           verifierResponse = await res.json();
 
           if (verifierResponse.accepted) {
             if (verifierResponse.settled && verifierResponse.settleTxHash) {
-              // Backend settled — user paid zero gas
               setSettleTxHash(verifierResponse.settleTxHash);
             } else if (verifierResponse.settlement && typeof window !== "undefined" && window.ethereum) {
-              // Backend settle failed — client fallback
               const s = verifierResponse.settlement;
               const walletClient = createWalletClient({ chain: celo, transport: custom(window.ethereum) });
               const publicClient = createPublicClient({ chain: celo, transport: http() });
 
-              // s.rewardMiles is display units (e.g. 6); contract expects 1e18 scaled.
-              // s.rewardStable is display USD; contract expects USDT 6-decimal.
               const hash = await walletClient.writeContract({
                 chain: celo,
                 account: address as `0x${string}`,
@@ -70,7 +71,7 @@ export function useSettlement(gameType: GameType) {
                 args: [
                   BigInt(s.sessionId),
                   BigInt(s.score),
-                  BigInt(Math.round(s.rewardMiles)) * BigInt(10 ** 18),
+                  BigInt(Math.round(s.rewardMiles)) * 10n ** 18n,
                   BigInt(Math.round(s.rewardStable * 1_000_000)),
                   BigInt(s.expiry),
                   s.signature,

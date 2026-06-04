@@ -1,11 +1,8 @@
 "use client";
 
 import { GAME_CONFIGS, MOCK_WALLET } from "./config";
-import {
-  seedCommitment,
-  validateMemoryFlipReplay,
-  validateRuleTapReplay,
-} from "./replay-validation";
+import { seedCommitment } from "./replay-validation";
+import { validateMemoryFlipReplay, validateRuleTapReplay } from "@/server/games/replay-validation";
 import type {
   GameReplay,
   GameSession,

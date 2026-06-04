@@ -6,12 +6,14 @@ import {
   JsonRpcProvider,
   Wallet,
   getBytes,
+  hashMessage,
   id,
   keccak256,
+  recoverAddress,
 } from "ethers";
 import { supabase } from "../supabaseClient";
 import { GAME_TYPE_ID, SHARED_DAILY_PLAY_CAP, isGameType } from "./config";
-import { akibaSkillGamesAbi, SETTLEMENT_TYPEHASH_PREIMAGE } from "./contracts";
+import { akibaSkillGamesAbi, SETTLEMENT_TYPEHASH_PREIMAGE, START_INTENT_TYPEHASH_PREIMAGE } from "./contracts";
 import { seedCommitment, validateMemoryFlipReplay, validateRuleTapReplay } from "./replayValidation";
 import type { GameReplay, GameType, MemoryFlipReplay, RuleTapReplay, SettlementPayload } from "./types";
 
@@ -71,8 +73,9 @@ function buildSettlementDigest(params: {
   );
 }
 
-function todayUtc() {
-  return new Date().toISOString().slice(0, 10);
+function onchainDayStart(): string {
+  const nowSec = Math.floor(Date.now() / 1000);
+  return new Date(Math.floor(nowSec / 86400) * 86400 * 1000).toISOString();
 }
 
 async function countSharedPlaysToday(walletAddress: string) {
@@ -80,7 +83,7 @@ async function countSharedPlaysToday(walletAddress: string) {
     .from("skill_game_sessions")
     .select("*", { count: "exact", head: true })
     .eq("wallet_address", walletAddress.toLowerCase())
-    .gte("created_at", `${todayUtc()}T00:00:00Z`);
+    .gte("created_at", onchainDayStart());
   if (error) throw error;
   return count ?? 0;
 }
@@ -96,7 +99,6 @@ async function persistStartedSession(input: {
     wallet_address: input.walletAddress.toLowerCase(),
     game_type: input.gameType,
     seed_commitment: input.seedCommitment,
-    status: "started",
     created_at: new Date().toISOString(),
   });
   if (error) throw error;
@@ -149,6 +151,26 @@ router.post("/start-intent", async (req, res) => {
       return;
     }
 
+    // Recover signer from the player's intent signature before spending gas.
+    try {
+      const INTENT_TYPEHASH = id(START_INTENT_TYPEHASH_PREIMAGE);
+      const CELO_CHAIN_ID_N = 42220n;
+      const digest = keccak256(
+        AbiCoder.defaultAbiCoder().encode(
+          ["bytes32", "address", "uint8", "bytes32", "uint256", "uint256", "address", "uint256"],
+          [INTENT_TYPEHASH, walletAddress, GAME_TYPE_ID[gameType], commitment, BigInt(nonce), BigInt(expiry), skillGamesAddress, CELO_CHAIN_ID_N]
+        )
+      );
+      const recovered = recoverAddress(hashMessage(getBytes(digest)), playerSignature);
+      if (recovered.toLowerCase() !== walletAddress.toLowerCase()) {
+        res.status(400).json({ error: "invalid-player-signature" });
+        return;
+      }
+    } catch {
+      res.status(400).json({ error: "invalid-player-signature" });
+      return;
+    }
+
     const contract = getSkillGames(false);
     const tx = await contract.startGameFor(
       walletAddress,
@@ -186,16 +208,36 @@ router.post("/start-intent", async (req, res) => {
 
 router.post("/verify", async (req, res) => {
   try {
-    const { gameType, sessionId, walletAddress, replay } = req.body as {
+    const { gameType, sessionId, walletAddress, replay, ownershipSig } = req.body as {
       gameType?: GameType;
       sessionId?: string;
       walletAddress?: string;
       replay?: GameReplay;
+      ownershipSig?: string;
     };
     if (!isGameType(gameType) || !sessionId || !walletAddress || !replay) {
       res.status(400).json({ accepted: false, error: "missing-fields" });
       return;
     }
+
+    // Verify the caller owns walletAddress by recovering the signer of the sessionId.
+    if (skillGamesAddress) {
+      if (!ownershipSig) {
+        res.status(400).json({ accepted: false, error: "missing-ownership-sig" });
+        return;
+      }
+      try {
+        const recovered = recoverAddress(hashMessage(sessionId), ownershipSig);
+        if (recovered.toLowerCase() !== walletAddress.toLowerCase()) {
+          res.status(403).json({ accepted: false, error: "ownership-sig-mismatch" });
+          return;
+        }
+      } catch {
+        res.status(400).json({ accepted: false, error: "invalid-ownership-sig" });
+        return;
+      }
+    }
+
     if ((await countSharedPlaysToday(walletAddress)) > SHARED_DAILY_PLAY_CAP) {
       res.json({
         accepted: false,
@@ -213,9 +255,15 @@ router.post("/verify", async (req, res) => {
     }
     const { data: sessionRow } = await supabase
       .from("skill_game_sessions")
-      .select("seed_commitment")
+      .select("seed_commitment, accepted")
       .eq("session_id", sessionId)
       .maybeSingle();
+
+    if (sessionRow?.accepted === true) {
+      res.status(409).json({ accepted: false, error: "session-already-settled" });
+      return;
+    }
+
     const expectedCommitment = sessionRow?.seed_commitment as string | undefined;
     if (expectedCommitment) {
       const actualCommitment = seedCommitment(replaySeed, walletAddress, gameType);
@@ -287,16 +335,13 @@ router.post("/verify", async (req, res) => {
       digest,
     };
 
-    void (async () => {
-      try {
-        const contract = getSkillGames(false);
-        const tx = await contract.settleGame(numericSessionId, score, rewardMiles, rewardStable, expiry, signature);
-        await tx.wait(1);
-        await supabase.from("skill_game_sessions").update({ settle_tx_hash: tx.hash }).eq("session_id", sessionId);
-      } catch (err) {
-        console.error("[games/verify] background settlement failed", err);
-      }
-    })();
+    // Persist the signed payload so the retry job can resubmit without re-signing.
+    await supabase.from("skill_game_sessions").update({
+      settlement_sig:    signature,
+      settlement_expiry: Number(expiry),
+    }).eq("session_id", sessionId);
+
+    void attemptSettle(sessionId, numericSessionId, score, rewardMiles, rewardStable, expiry, signature);
 
     res.json({ accepted: true, antiAbuseFlags: validation.flags, result: validation.result, settlement, settled: false });
   } catch (err: any) {
@@ -304,5 +349,77 @@ router.post("/verify", async (req, res) => {
     res.status(500).json({ accepted: false, error: err?.message ?? "server-error" });
   }
 });
+
+async function attemptSettle(
+  sessionId: string,
+  numericSessionId: bigint,
+  score: bigint,
+  rewardMiles: bigint,
+  rewardStable: bigint,
+  expiry: bigint,
+  signature: string
+): Promise<boolean> {
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const contract = getSkillGames(false);
+      const tx = await contract.settleGame(numericSessionId, score, rewardMiles, rewardStable, expiry, signature);
+      await tx.wait(1);
+      await supabase.from("skill_game_sessions").update({
+        settle_tx_hash: tx.hash,
+        settled_at: new Date().toISOString(),
+      }).eq("session_id", sessionId);
+      return true;
+    } catch (err: any) {
+      const msg = err?.shortMessage ?? err?.message ?? String(err);
+      console.error(`[games/settle] attempt ${attempt}/${MAX_ATTEMPTS} for session ${sessionId} failed:`, msg);
+      await supabase.from("skill_game_sessions")
+        .update({ settle_attempts: attempt })
+        .eq("session_id", sessionId);
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, 2000 * attempt));
+      }
+    }
+  }
+  return false;
+}
+
+// Retry accepted sessions that were never settled on-chain (e.g. process restart mid-flight).
+// Runs every 10 minutes. Only retries sessions whose signature hasn't expired yet.
+const RETRY_INTERVAL_MS = 10 * 60 * 1000;
+const MAX_SETTLE_ATTEMPTS = 5;
+
+async function retryPendingSettlements() {
+  if (!verifierPk || !skillGamesAddress) return;
+  const nowSec = Math.floor(Date.now() / 1000);
+  const { data, error } = await supabase
+    .from("skill_game_sessions")
+    .select("session_id, score, reward_miles, reward_stable, settlement_sig, settlement_expiry, settle_attempts")
+    .eq("accepted", true)
+    .is("settled_at", null)
+    .not("settlement_sig", "is", null)
+    .gt("settlement_expiry", nowSec)
+    .lt("settle_attempts", MAX_SETTLE_ATTEMPTS)
+    .order("created_at", { ascending: true })
+    .limit(20);
+
+  if (error) { console.error("[games/settle-retry] query failed", error); return; }
+  if (!data?.length) return;
+
+  console.log(`[games/settle-retry] retrying ${data.length} unsettled sessions`);
+  for (const row of data) {
+    await attemptSettle(
+      row.session_id,
+      BigInt(row.session_id),
+      BigInt(row.score),
+      toMilesUnits(row.reward_miles),
+      toStableUnits(row.reward_stable),
+      BigInt(row.settlement_expiry),
+      row.settlement_sig
+    );
+  }
+}
+
+setInterval(() => { void retryPendingSettlements(); }, RETRY_INTERVAL_MS);
 
 export default router;
