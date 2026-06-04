@@ -208,34 +208,15 @@ router.post("/start-intent", async (req, res) => {
 
 router.post("/verify", async (req, res) => {
   try {
-    const { gameType, sessionId, walletAddress, replay, ownershipSig } = req.body as {
+    const { gameType, sessionId, walletAddress, replay } = req.body as {
       gameType?: GameType;
       sessionId?: string;
       walletAddress?: string;
       replay?: GameReplay;
-      ownershipSig?: string;
     };
     if (!isGameType(gameType) || !sessionId || !walletAddress || !replay) {
       res.status(400).json({ accepted: false, error: "missing-fields" });
       return;
-    }
-
-    // Verify the caller owns walletAddress by recovering the signer of the sessionId.
-    if (skillGamesAddress) {
-      if (!ownershipSig) {
-        res.status(400).json({ accepted: false, error: "missing-ownership-sig" });
-        return;
-      }
-      try {
-        const recovered = recoverAddress(hashMessage(sessionId), ownershipSig);
-        if (recovered.toLowerCase() !== walletAddress.toLowerCase()) {
-          res.status(403).json({ accepted: false, error: "ownership-sig-mismatch" });
-          return;
-        }
-      } catch {
-        res.status(400).json({ accepted: false, error: "invalid-ownership-sig" });
-        return;
-      }
     }
 
     if ((await countSharedPlaysToday(walletAddress)) > SHARED_DAILY_PLAY_CAP) {
@@ -341,9 +322,17 @@ router.post("/verify", async (req, res) => {
       settlement_expiry: Number(expiry),
     }).eq("session_id", sessionId);
 
-    void attemptSettle(sessionId, numericSessionId, score, rewardMiles, rewardStable, expiry, signature);
+    const settleTxHash = await attemptSettle(sessionId, numericSessionId, score, rewardMiles, rewardStable, expiry, signature);
 
-    res.json({ accepted: true, antiAbuseFlags: validation.flags, result: validation.result, settlement, settled: false });
+    // Only send the settlement payload as a client fallback when the backend settle failed.
+    res.json({
+      accepted: true,
+      antiAbuseFlags: validation.flags,
+      result: validation.result,
+      settlement: settleTxHash ? null : settlement,
+      settled: !!settleTxHash,
+      settleTxHash: settleTxHash || undefined,
+    });
   } catch (err: any) {
     console.error("[games/verify]", err);
     res.status(500).json({ accepted: false, error: err?.message ?? "server-error" });
@@ -358,7 +347,7 @@ async function attemptSettle(
   rewardStable: bigint,
   expiry: bigint,
   signature: string
-): Promise<boolean> {
+): Promise<string | false> {
   const MAX_ATTEMPTS = 3;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
@@ -369,7 +358,7 @@ async function attemptSettle(
         settle_tx_hash: tx.hash,
         settled_at: new Date().toISOString(),
       }).eq("session_id", sessionId);
-      return true;
+      return tx.hash as string;
     } catch (err: any) {
       const msg = err?.shortMessage ?? err?.message ?? String(err);
       console.error(`[games/settle] attempt ${attempt}/${MAX_ATTEMPTS} for session ${sessionId} failed:`, msg);
