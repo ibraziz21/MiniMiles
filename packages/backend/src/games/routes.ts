@@ -15,7 +15,7 @@ import { supabase } from "../supabaseClient";
 import { GAME_TYPE_ID, SHARED_DAILY_PLAY_CAP, isGameType } from "./config";
 import { akibaSkillGamesAbi, SETTLEMENT_TYPEHASH_PREIMAGE, START_INTENT_TYPEHASH_PREIMAGE } from "./contracts";
 import { seedCommitment, validateMemoryFlipReplay, validateRuleTapReplay } from "./replayValidation";
-import type { GameReplay, GameType, MemoryFlipReplay, RuleTapReplay, SettlementPayload } from "./types";
+import type { GameReplay, GameType, MemoryFlipReplay, RuleTapReplay } from "./types";
 
 const router = Router();
 const CELO_RPC = process.env.CELO_RPC_URL ?? "https://forno.celo.org";
@@ -304,17 +304,6 @@ router.post("/verify", async (req, res) => {
     });
     const wallet = new Wallet(verifierPk, provider);
     const signature = await wallet.signMessage(getBytes(digest));
-    const settlement: SettlementPayload = {
-      sessionId,
-      player: walletAddress,
-      gameType,
-      score: validation.result.score,
-      rewardMiles: validation.result.rewardMiles,
-      rewardStable: validation.result.rewardStable,
-      expiry: Number(expiry),
-      signature,
-      digest,
-    };
 
     // Persist the signed payload so the retry job can resubmit without re-signing.
     await supabase.from("skill_game_sessions").update({
@@ -322,16 +311,15 @@ router.post("/verify", async (req, res) => {
       settlement_expiry: Number(expiry),
     }).eq("session_id", sessionId);
 
-    const settleTxHash = await attemptSettle(sessionId, numericSessionId, score, rewardMiles, rewardStable, expiry, signature);
+    // Fire settlement in the background — don't block the HTTP response.
+    // retryPendingSettlements() will catch any failures automatically.
+    void attemptSettle(sessionId, numericSessionId, score, rewardMiles, rewardStable, expiry, signature);
 
-    // Only send the settlement payload as a client fallback when the backend settle failed.
     res.json({
       accepted: true,
       antiAbuseFlags: validation.flags,
       result: validation.result,
-      settlement: settleTxHash ? null : settlement,
-      settled: !!settleTxHash,
-      settleTxHash: settleTxHash || undefined,
+      queued: true,
     });
   } catch (err: any) {
     console.error("[games/verify]", err);
