@@ -1,9 +1,8 @@
 // src/diceSweeper.ts
 //
 // Periodically reconciles active AkibaDice rounds so that:
-//   - commit secrets are kept queued on-chain before new rounds open
-//   - full rounds lock a future block for randomness
-//   - rounds in "Ready" state are revealed and drawn immediately
+//   - randomness is requested as soon as a round has any players and no randomBlock
+//   - rounds in "Ready" state are drawn immediately
 //
 // The sweeper persists unresolved rounds in Supabase so Railway restarts do not
 // lose tracked backlog. A small tier watch-state table is also used so the
@@ -22,7 +21,7 @@ import { supabase } from "./supabaseClient";
 const DICE_ADDRESS =
   process.env.DICE_ADDRESS ?? "0xf77e7395Aa5c89BcC8d6e23F67a9c7914AB9702a";
 
-const ZERO_BYTES32 = `0x${"0".repeat(64)}`;
+const WITNET_RNG_ADDRESS = "0xC0FFEE98AD1434aCbDB894BbB752e138c1006fAB";
 
 const CELO_RPC_URL = process.env.CELO_RPC_URL ?? "https://forno.celo.org";
 
@@ -37,19 +36,12 @@ const ACTIVE_TIERS: number[] = process.env.DICE_TIERS
   ? process.env.DICE_TIERS.split(",").map((t) => Number(t.trim()))
   : DEFAULT_TIERS;
 
-const MIN_ROUND_ID = BigInt(process.env.DICE_MIN_ROUND_ID ?? "23750");
+const FEE_BUFFER_BPS = Number(process.env.DICE_FEE_BUFFER_BPS ?? "0"); // no buffer — Witnet rejects excess
 const UNRESOLVED_RETRY_INTERVAL_SECONDS = Number(
   process.env.DICE_UNRESOLVED_RETRY_INTERVAL_SECONDS ?? "300"
 );
-const COMMIT_BUFFER = Number(process.env.DICE_COMMIT_BUFFER ?? "24");
-const COMMIT_BATCH_SIZE = Number(
-  process.env.DICE_COMMIT_BATCH_SIZE ?? String(COMMIT_BUFFER)
-);
-const REANCHOR_LEGACY_FULL_ROUNDS =
-  process.env.DICE_REANCHOR_LEGACY_FULL_ROUNDS !== "false";
 const UNRESOLVED_TABLE = "dice_unresolved_rounds";
 const TIER_STATE_TABLE = "dice_tier_watch_state";
-const COMMIT_TABLE = "dice_house_commits";
 
 // ── ABIs ──────────────────────────────────────────────────────────────────────
 
@@ -59,16 +51,10 @@ const DICE_ABI = [
   "function getRoundState(uint256 roundId) external view returns (uint8)",
   "function requestRoundRandomness(uint256 roundId) external payable",
   "function drawRound(uint256 roundId) external",
-  "function revealAndDraw(uint256 roundId, bytes32 secret) external",
-  "function cancelExpiredReveal(uint256 roundId) external",
-  "function reanchorCommitReveal(uint256 roundId) external",
-  "function nextHouseCommitNonce() external view returns (uint256)",
-  "function nextHouseCommitToUse() external view returns (uint256)",
-  "function queueHouseCommits(bytes32[] commits) external",
-  "function roundHouseCommit(uint256 roundId) external view returns (bytes32)",
-  "function roundHouseCommitNonce(uint256 roundId) external view returns (uint256)",
-  "function roundTargetBlock(uint256 roundId) external view returns (uint256)",
-  "function roundRevealDeadlineBlock(uint256 roundId) external view returns (uint256)",
+];
+
+const WITNET_ABI = [
+  "function estimateRandomizeFee(uint256 evmGasPrice) external view returns (uint256)",
 ];
 
 // ── Round state enum ──────────────────────────────────────────────────────────
@@ -86,198 +72,6 @@ function stateName(s: number): string {
   return (
     Object.entries(RoundState).find(([, v]) => v === s)?.[0] ?? `Unknown(${s})`
   );
-}
-
-function isRoundInScope(roundId: bigint | string): boolean {
-  return BigInt(roundId) >= MIN_ROUND_ID;
-}
-
-function normalizePrivateKey(pk: string): string {
-  return pk.startsWith("0x") ? pk : `0x${pk}`;
-}
-
-function makeHouseCommit(
-  secret: string,
-  nonce: bigint,
-  chainId: bigint
-): string {
-  return ethers.solidityPackedKeccak256(
-    ["bytes32", "address", "uint256", "uint256"],
-    [secret, DICE_ADDRESS, chainId, nonce]
-  );
-}
-
-interface DiceHouseCommitRow {
-  nonce: string;
-  chain_id: string;
-  dice_address: string;
-  commit: string;
-  secret: string;
-  status: "prepared" | "queued" | "assigned" | "revealed" | "expired" | "failed";
-  round_id: string | null;
-}
-
-async function ensureCommitBuffer(
-  dice: ethers.Contract,
-  provider: ethers.JsonRpcProvider
-): Promise<void> {
-  if (COMMIT_BUFFER <= 0) return;
-
-  const [nextNonceRaw, nextToUseRaw, network] = await Promise.all([
-    dice.nextHouseCommitNonce(),
-    dice.nextHouseCommitToUse(),
-    provider.getNetwork(),
-  ]);
-
-  const nextNonce = BigInt(nextNonceRaw);
-  const nextToUse = BigInt(nextToUseRaw);
-  const pending = nextNonce > nextToUse ? nextNonce - nextToUse : 0n;
-  const needed = BigInt(COMMIT_BUFFER) - pending;
-
-  if (needed <= 0n) {
-    console.log(
-      `[diceSweeper] Commit buffer ok pending=${pending.toString()} ` +
-        `next=${nextNonce.toString()} use=${nextToUse.toString()}`
-    );
-    return;
-  }
-
-  const batchSize = Math.min(Number(needed), Math.max(1, COMMIT_BATCH_SIZE));
-  const chainId = BigInt(network.chainId);
-  const rows: Array<Omit<DiceHouseCommitRow, "round_id"> & { round_id: null }> = [];
-  const commits: string[] = [];
-
-  for (let i = 0; i < batchSize; i++) {
-    const nonce = nextNonce + BigInt(i);
-    const secret = ethers.hexlify(ethers.randomBytes(32));
-    const commit = makeHouseCommit(secret, nonce, chainId);
-
-    rows.push({
-      nonce: nonce.toString(),
-      chain_id: chainId.toString(),
-      dice_address: DICE_ADDRESS.toLowerCase(),
-      commit,
-      secret,
-      status: "prepared",
-      round_id: null,
-    });
-    commits.push(commit);
-  }
-
-  const { error: insertError } = await supabase
-    .from(COMMIT_TABLE)
-    .upsert(rows, { onConflict: "nonce" });
-
-  if (insertError) {
-    throw new Error(`failed saving dice commits: ${insertError.message}`);
-  }
-
-  const tx = await dice.queueHouseCommits(commits);
-  const receipt = await tx.wait();
-  const queuedAt = new Date().toISOString();
-
-  const { error: updateError } = await supabase
-    .from(COMMIT_TABLE)
-    .update({
-      status: "queued",
-      queue_tx_hash: receipt?.hash ?? tx.hash,
-      queued_at: queuedAt,
-      last_error: null,
-    })
-    .in(
-      "nonce",
-      rows.map((row) => row.nonce)
-    );
-
-  if (updateError) {
-    console.warn(
-      `[diceSweeper] queued commits on-chain but failed DB update: ${updateError.message}`
-    );
-  }
-
-  console.log(
-    `[diceSweeper] Queued ${commits.length} house commits ` +
-      `nonce=${rows[0].nonce}..${rows[rows.length - 1].nonce} ` +
-      `tx=${receipt?.hash ?? tx.hash}`
-  );
-}
-
-async function getCommitSecret(
-  roundId: bigint,
-  nonce: bigint
-): Promise<string> {
-  const { data, error } = await supabase
-    .from(COMMIT_TABLE)
-    .select("nonce, secret, status, round_id")
-    .eq("nonce", nonce.toString())
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(`failed loading commit nonce=${nonce.toString()}: ${error.message}`);
-  }
-
-  const row = data as Pick<DiceHouseCommitRow, "nonce" | "secret" | "status" | "round_id"> | null;
-  if (!row?.secret) {
-    throw new Error(`missing reveal secret for round=${roundId.toString()} nonce=${nonce.toString()}`);
-  }
-
-  await supabase
-    .from(COMMIT_TABLE)
-    .update({
-      status: "assigned",
-      round_id: roundId.toString(),
-      assigned_at: new Date().toISOString(),
-      last_error: null,
-    })
-    .eq("nonce", nonce.toString())
-    .neq("status", "revealed");
-
-  return row.secret;
-}
-
-async function markCommitRevealed(
-  nonce: bigint,
-  roundId: bigint,
-  txHash: string
-): Promise<void> {
-  const { error } = await supabase
-    .from(COMMIT_TABLE)
-    .update({
-      status: "revealed",
-      round_id: roundId.toString(),
-      reveal_tx_hash: txHash,
-      revealed_at: new Date().toISOString(),
-      last_error: null,
-    })
-    .eq("nonce", nonce.toString());
-
-  if (error) {
-    console.warn(
-      `[diceSweeper] failed marking commit nonce=${nonce.toString()} revealed: ${error.message}`
-    );
-  }
-}
-
-async function markCommitExpired(
-  nonce: bigint,
-  roundId: bigint,
-  txHash: string
-): Promise<void> {
-  const { error } = await supabase
-    .from(COMMIT_TABLE)
-    .update({
-      status: "expired",
-      round_id: roundId.toString(),
-      reveal_tx_hash: txHash,
-      expired_at: new Date().toISOString(),
-    })
-    .eq("nonce", nonce.toString());
-
-  if (error) {
-    console.warn(
-      `[diceSweeper] failed marking commit nonce=${nonce.toString()} expired: ${error.message}`
-    );
-  }
 }
 
 // ── Persisted unresolved-round registry ───────────────────────────────────────
@@ -425,9 +219,7 @@ async function loadActiveUnresolvedRounds(): Promise<UnresolvedRoundEntry[]> {
     return [];
   }
 
-  return ((data ?? []) as UnresolvedRoundRow[])
-    .map(rowToEntry)
-    .filter((entry) => isRoundInScope(entry.roundId));
+  return ((data ?? []) as UnresolvedRoundRow[]).map(rowToEntry);
 }
 
 async function incrementRetry(
@@ -494,12 +286,7 @@ type SweepAction =
   | "skip-no-players"
   | "skip-already-resolved"
   | "skip-randomness-pending"
-  | "skip-before-min-round"
   | "requested-randomness"
-  | "reanchored-commit"
-  | "revealed-drew"
-  | "legacy-drew"
-  | "cancelled-expired-reveal"
   | "drew"
   | "error";
 
@@ -523,22 +310,16 @@ export async function runDiceSweep(): Promise<RoundResult[]> {
   }
 
   const provider = new ethers.JsonRpcProvider(CELO_RPC_URL);
-  const wallet = new ethers.Wallet(normalizePrivateKey(RELAYER_PK), provider);
+  const wallet = new ethers.Wallet(RELAYER_PK, provider);
   const dice = new ethers.Contract(DICE_ADDRESS, DICE_ABI, wallet);
+  const rng = new ethers.Contract(WITNET_RNG_ADDRESS, WITNET_ABI, provider);
   const tierWatchState = await loadTierWatchState();
 
-  try {
-    await ensureCommitBuffer(dice, provider);
-  } catch (err: any) {
-    console.warn(
-      `[diceSweeper] failed ensuring commit buffer: ${err?.shortMessage ?? err?.message ?? err}`
-    );
-  }
-
+  const witnetFee = await estimateFee(provider, rng);
   const results: RoundResult[] = [];
 
   for (const tier of ACTIVE_TIERS) {
-    const result = await processTier(tier, dice, provider, tierWatchState);
+    const result = await processTier(tier, dice, witnetFee, tierWatchState);
     results.push(result);
 
     console.log(
@@ -555,12 +336,35 @@ export async function runDiceSweep(): Promise<RoundResult[]> {
   return results;
 }
 
+// ── Fee estimation ────────────────────────────────────────────────────────────
+
+async function estimateFee(
+  provider: ethers.JsonRpcProvider,
+  rng: ethers.Contract
+): Promise<bigint> {
+  try {
+    const feeData = await provider.getFeeData();
+    const gasPrice = feeData.gasPrice ?? ethers.parseUnits("5", "gwei");
+    const raw: bigint = await rng.estimateRandomizeFee(gasPrice);
+    return (raw * BigInt(10_000 + FEE_BUFFER_BPS)) / 10_000n;
+  } catch (err: any) {
+    const fallback = process.env.WITNET_FEE_WEI
+      ? BigInt(process.env.WITNET_FEE_WEI)
+      : ethers.parseEther("0.015");
+    console.warn(
+      `[diceSweeper] estimateRandomizeFee failed (${err?.message}), ` +
+        `using fallback ${ethers.formatEther(fallback)} CELO`
+    );
+    return fallback;
+  }
+}
+
 // ── Tier + unresolved processing ──────────────────────────────────────────────
 
 async function processTier(
   tier: number,
   dice: ethers.Contract,
-  provider: ethers.JsonRpcProvider,
+  witnetFee: bigint,
   tierWatchState: Record<string, string>
 ): Promise<RoundResult> {
   const activeRoundId = (await dice.getActiveRoundId(BigInt(tier))) as bigint;
@@ -578,22 +382,7 @@ async function processTier(
   const activeRoundIdStr = activeRoundId.toString();
   const previousActiveRoundId = tierWatchState[String(tier)];
 
-  if (!isRoundInScope(activeRoundId)) {
-    return {
-      roundId: activeRoundIdStr,
-      tier,
-      filledSlots: 0,
-      randomBlock: "0",
-      state: `BeforeMinRound(${MIN_ROUND_ID.toString()})`,
-      action: "skip-before-min-round",
-    };
-  }
-
-  if (
-    previousActiveRoundId &&
-    previousActiveRoundId !== activeRoundIdStr &&
-    isRoundInScope(previousActiveRoundId)
-  ) {
+  if (previousActiveRoundId && previousActiveRoundId !== activeRoundIdStr) {
     try {
       const [, prevFilledSlots, prevWinnerSelected, , prevRandomBlock] =
         (await dice.getRoundInfo(BigInt(previousActiveRoundId))) as [
@@ -638,14 +427,14 @@ async function processTier(
   await setTierWatchState(tier, activeRoundIdStr);
   await markResolvedRound(activeRoundIdStr);
 
-  return processRound(activeRoundId, tier, dice, provider);
+  return processRound(activeRoundId, tier, dice, witnetFee);
 }
 
 async function processRound(
   roundId: bigint,
   tier: number,
   dice: ethers.Contract,
-  provider: ethers.JsonRpcProvider
+  witnetFee: bigint
 ): Promise<RoundResult> {
   const base: Omit<RoundResult, "action"> = {
     roundId: roundId.toString(),
@@ -654,14 +443,6 @@ async function processRound(
     randomBlock: "0",
     state: "Unknown",
   };
-
-  if (!isRoundInScope(roundId)) {
-    return {
-      ...base,
-      state: `BeforeMinRound(${MIN_ROUND_ID.toString()})`,
-      action: "skip-before-min-round",
-    };
-  }
 
   try {
     const [, filledSlots, winnerSelected, , randomBlock] =
@@ -692,50 +473,12 @@ async function processRound(
     ) as RoundStateValue;
     base.state = stateName(stateNum);
 
-    const [houseCommit, targetBlockRaw, deadlineBlockRaw] = (await Promise.all([
-      dice.roundHouseCommit(roundId),
-      dice.roundTargetBlock(roundId),
-      dice.roundRevealDeadlineBlock(roundId),
-    ])) as [string, bigint, bigint];
-    const hasCommit = houseCommit !== ZERO_BYTES32;
-    const targetBlock = BigInt(targetBlockRaw);
-    const deadlineBlock = BigInt(deadlineBlockRaw);
-
-    if (base.filledSlots < 6) {
-      return { ...base, action: "skip-randomness-pending" };
-    }
-
-    if (hasCommit && targetBlock > 0n) {
-      const currentBlock = BigInt(await provider.getBlockNumber());
-      if (currentBlock > deadlineBlock || currentBlock > targetBlock + 255n) {
-        const nonce = BigInt(await dice.roundHouseCommitNonce(roundId));
-        console.warn(
-          `[diceSweeper] Reveal expired — round=${roundId} target=${targetBlock} ` +
-            `deadline=${deadlineBlock} current=${currentBlock}; cancelling/refunding`
-        );
-        const tx = await dice.cancelExpiredReveal(roundId);
-        const receipt = await tx.wait();
-        const txHash = receipt?.hash ?? tx.hash;
-        await markCommitExpired(nonce, roundId, txHash);
-        return {
-          ...base,
-          action: "cancelled-expired-reveal",
-          txHash,
-        };
-      }
-    }
-
-    if ((randomBlock === 0n || (hasCommit && targetBlock === 0n)) && stateNum !== RoundState.Resolved) {
+    if (randomBlock === 0n && stateNum !== RoundState.Resolved) {
       try {
-        console.log(
-          `[diceSweeper] Locking commit randomness — round=${roundId} tier=${tier} ` +
-          `slots=${base.filledSlots}`
-        );
-        const tx = await dice.requestRoundRandomness(roundId);
+        const tx = await dice.requestRoundRandomness(roundId, {
+          value: witnetFee,
+        });
         const receipt = await tx.wait();
-        console.log(
-          `[diceSweeper] Commit randomness locked — round=${roundId} tx=${receipt?.hash ?? tx.hash}`
-        );
         return {
           ...base,
           action: "requested-randomness",
@@ -747,58 +490,19 @@ async function processRound(
           msg.includes("already requested") ||
           msg.includes("randomness requested")
         ) {
-          console.log(`[diceSweeper] Randomness already requested for round=${roundId}, skipping`);
           return { ...base, action: "skip-randomness-pending" };
         }
         throw err;
       }
     }
 
-    if (!hasCommit && randomBlock !== 0n && stateNum === RoundState.FullWaiting && REANCHOR_LEGACY_FULL_ROUNDS) {
-      console.log(
-        `[diceSweeper] Reanchoring legacy randomness — round=${roundId} tier=${tier} ` +
-          `oldRandomBlock=${base.randomBlock}`
-      );
-      const tx = await dice.reanchorCommitReveal(roundId);
-      const receipt = await tx.wait();
-      return {
-        ...base,
-        action: "reanchored-commit",
-        txHash: receipt?.hash ?? tx.hash,
-      };
-    }
-
     if (stateNum === RoundState.Ready) {
       try {
-        if (hasCommit) {
-          const nonce = BigInt(await dice.roundHouseCommitNonce(roundId));
-          const secret = await getCommitSecret(roundId, nonce);
-          console.log(
-            `[diceSweeper] Revealing round — round=${roundId} tier=${tier} ` +
-              `nonce=${nonce.toString()} target=${targetBlock.toString()}`
-          );
-          const tx = await dice.revealAndDraw(roundId, secret);
-          const receipt = await tx.wait();
-          const txHash = receipt?.hash ?? tx.hash;
-          await markCommitRevealed(nonce, roundId, txHash);
-          console.log(`[diceSweeper] Round revealed/drawn — round=${roundId} tx=${txHash}`);
-          return {
-            ...base,
-            action: "revealed-drew",
-            txHash,
-          };
-        }
-
-        console.log(
-          `[diceSweeper] Drawing legacy round — round=${roundId} tier=${tier} ` +
-          `randomBlock=${base.randomBlock}`
-        );
         const tx = await dice.drawRound(roundId);
         const receipt = await tx.wait();
-        console.log(`[diceSweeper] Round drawn — round=${roundId} tx=${receipt?.hash ?? tx.hash}`);
         return {
           ...base,
-          action: "legacy-drew",
+          action: "drew",
           txHash: receipt?.hash ?? tx.hash,
         };
       } catch (err: any) {
@@ -807,7 +511,6 @@ async function processRound(
           msg.includes("already resolved") ||
           msg.includes("randomness pending")
         ) {
-          console.log(`[diceSweeper] round=${roundId} already resolved (push callback beat us)`);
           return { ...base, action: "skip-already-resolved" };
         }
         throw err;
@@ -836,16 +539,10 @@ export async function retryTrackedUnresolvedRounds(): Promise<UnresolvedRoundEnt
   }
 
   const provider = new ethers.JsonRpcProvider(CELO_RPC_URL);
-  const wallet = new ethers.Wallet(normalizePrivateKey(RELAYER_PK), provider);
+  const wallet = new ethers.Wallet(RELAYER_PK, provider);
   const dice = new ethers.Contract(DICE_ADDRESS, DICE_ABI, wallet);
-
-  try {
-    await ensureCommitBuffer(dice, provider);
-  } catch (err: any) {
-    console.warn(
-      `[diceSweeper] failed ensuring commit buffer during retry: ${err?.shortMessage ?? err?.message ?? err}`
-    );
-  }
+  const rng = new ethers.Contract(WITNET_RNG_ADDRESS, WITNET_ABI, provider);
+  const witnetFee = await estimateFee(provider, rng);
 
   for (const entry of unresolvedRounds) {
     try {
@@ -853,14 +550,11 @@ export async function retryTrackedUnresolvedRounds(): Promise<UnresolvedRoundEnt
         BigInt(entry.roundId),
         entry.tier,
         dice,
-        provider
+        witnetFee
       );
 
       if (
         result.action === "drew" ||
-        result.action === "legacy-drew" ||
-        result.action === "revealed-drew" ||
-        result.action === "cancelled-expired-reveal" ||
         (result.action === "skip-already-resolved" && result.state === stateName(RoundState.Resolved))
       ) {
         await incrementRetry(entry.roundId, null, result.action);
@@ -884,14 +578,7 @@ export async function retryTrackedUnresolvedRounds(): Promise<UnresolvedRoundEnt
         updated.lastAction
       );
 
-      if (
-        updated.lastAction === "requested-randomness" ||
-        updated.lastAction === "reanchored-commit" ||
-        updated.lastAction === "revealed-drew" ||
-        updated.lastAction === "legacy-drew" ||
-        updated.lastAction === "cancelled-expired-reveal" ||
-        updated.lastAction === "drew"
-      ) {
+      if (updated.lastAction === "requested-randomness" || updated.lastAction === "drew") {
         console.log(
           `[diceSweeper] retried unresolved round=${entry.roundId} action=${updated.lastAction}`
         );
@@ -929,8 +616,7 @@ export function startDiceSweeper(): void {
 
   console.log(
     `[diceSweeper] Starting — tiers=[${ACTIVE_TIERS.join(",")}] ` +
-      `interval=${SWEEP_INTERVAL_SECONDS}s address=${DICE_ADDRESS} ` +
-      `minRoundId=${MIN_ROUND_ID.toString()} unresolvedTable=${UNRESOLVED_TABLE}`
+      `interval=${SWEEP_INTERVAL_SECONDS}s address=${DICE_ADDRESS} unresolvedTable=${UNRESOLVED_TABLE}`
   );
 
   runDiceSweep().catch((err) =>

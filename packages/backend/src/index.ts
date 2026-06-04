@@ -2,13 +2,13 @@
 import express from "express";
 import * as dotenv from "dotenv";
 import questRouter from "./questRoutes";
+import gamesRouter from "./games/routes";
 import { startMintWorker, runDrain, releaseCurrentLock } from "./mintWorker";
 import { startBurnBlacklistWatcher } from "./burnBlacklistWatcher";
 import { startProsperityPassWorker, releaseCurrentPassLock } from "./prosperityPassWorker";
 import { startDiceSweeper, runDiceSweep } from "./diceSweeper";
 import { startVaultEventWatcher } from "./vaultEventWatcher";
 import { startVaultRewardScheduler } from "./vaultRewardScheduler";
-import { startAutoDailyCheckinScheduler, runAutoDailyCheckins } from "./autoDailyCheckinScheduler";
 
 dotenv.config();
 
@@ -17,6 +17,7 @@ app.use(express.json());
 
 // Mount the quest routes at /claim
 app.use("/claim", questRouter);
+app.use("/games", gamesRouter);
 
 app.get("/", (req, res) => {
   res.send("Welcome to the Minimiles Daily Quests Backend!");
@@ -50,25 +51,6 @@ app.post("/drain", async (req, res) => {
   res.json({ ok: true, message: "drain triggered" });
 });
 
-// Manual auto daily check-in run (protected)
-app.post("/auto-daily-checkins/run", async (req, res) => {
-  const secret = process.env.ADMIN_QUEUE_SECRET ?? "";
-  const auth = req.headers.authorization;
-  if (!secret || auth !== `Bearer ${secret}`) {
-    res.status(401).json({ error: "unauthorized" });
-    return;
-  }
-
-  const runDate = typeof req.body?.runDate === "string" ? req.body.runDate : undefined;
-
-  try {
-    const result = await runAutoDailyCheckins(runDate);
-    res.json({ ok: true, ...result });
-  } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message ?? "auto daily check-in failed" });
-  }
-});
-
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
@@ -78,7 +60,6 @@ app.listen(PORT, () => {
   startDiceSweeper();
   startVaultEventWatcher();
   startVaultRewardScheduler();
-  startAutoDailyCheckinScheduler();
 });
 
 // Release the mint queue lock before Railway (or any host) kills the process.
