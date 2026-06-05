@@ -7,6 +7,8 @@ import {
   Mento,
 } from '@/lib/svg';
 import celopg from '@/public/img/celopg.png';
+import girasolonchain from '@/public/img/girasolonchain.png';
+import predictionfrontier from '@/public/img/predictionF.jpg';
 import Image from 'next/image';
 import cn from 'clsx';
 import { createClient } from '@supabase/supabase-js';
@@ -48,6 +50,89 @@ type PartnerGroup = {
 };
 
 const PARTNER_GROUPS: PartnerGroup[] = [
+    {
+    id: 'prediction-frontier',
+    img: predictionfrontier,
+    title: 'Prediction Frontier',
+    description: 'Learn and Get the latest news about Prediction Markets',
+    color: '#FFFFD6',
+    quests: [
+      {
+        id: 'f0678b77-01f0-4ad7-a078-a30985a57306',
+        isLocked: false,
+        title: 'Subscribe on YouTube',
+        description: 'Subscribe to Prediction Frontier on YouTube',
+        reward: '10 akibaMiles',
+        color: '#FFFFD6',
+        actionLink: 'https://www.youtube.com/@PredictionFrontier',
+        instructions: [
+          { title: 'Open YouTube', text: 'Go to the Prediction Frontier YouTube Channel.' },
+          { title: 'Follow', text: 'Hit the Follow button and confirm.' },
+        ],
+      },
+      {
+        id: 'b750f186-a239-4be0-ab55-ef6039c4042d',
+        isLocked: false,
+        title: 'Follow on X',
+        description: 'Follow Prediction Frontier on X (Twitter)',
+        reward: '10 akibaMiles',
+        color: '#FFFFD6',
+        actionLink: 'https://x.com/info_prediction',
+        instructions: [
+          { title: 'Open X', text: 'Go to the Prediction Frontier X (Twitter) profile.' },
+          { title: 'Follow', text: 'Hit the Follow button and confirm.' },
+        ],
+      },
+       {
+        id: '123e5379-b5a8-4e73-b70a-ba5370adba92',
+        isLocked: false,
+        title: 'Follow on Tiktok',
+        description: 'Follow Prediction Frontier on Tiktok',
+        reward: '10 akibaMiles',
+        color: '#FFFFD6',
+        actionLink: 'https://www.tiktok.com/@predictionfrontier?_r=1&_t=ZS-96wwfHgTi6B',
+        instructions: [
+          { title: 'Open Tiktok', text: 'Go to the Prediction Frontier Tiktok profile.' },
+          { title: 'Follow', text: 'Hit the Follow button and confirm.' },
+        ],
+      },
+      {
+        id: '1faedd58-339c-4497-95bc-9f606890f0f3',
+        isLocked: false,
+        title: 'Follow on Instagram',
+        description: 'Follow Prediction Frontier on Instagram',
+        reward: '10 akibaMiles',
+        color: '#FFFFD6',
+        actionLink: 'https://www.instagram.com/predictionfrontier?igsh=dzloeDQxaGhyZTlw',
+        instructions: [
+          { title: 'Open Instagram', text: 'Go to the Prediction Frontier Instagram profile.' },
+          { title: 'Follow', text: 'Hit the Follow button and confirm.' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'girasolonchain',
+    img: girasolonchain,
+    title: 'Girasol OnChain',
+    description: 'Powering crypto and fiat flows in LatAm & Caribbean',
+    color: '#238D9D1A',
+    quests: [
+       {
+        id: '1b6f3010-80b8-4387-87e9-435427cce258',
+        isLocked: false,
+        title: 'Follow on X',
+        description: 'Follow Girasol OnChain on X (Twitter)',
+        reward: '10 akibaMiles',
+        color: '#FFFFD6',
+        actionLink: 'https://x.com/girasolonchain',
+        instructions: [
+          { title: 'Open X', text: 'Go to the Prediction Frontier X (Twitter) profile.' },
+          { title: 'Follow', text: 'Hit the Follow button and confirm.' },
+        ],
+      },
+    ],
+  },
   {
     id: 'akibamiles',
     img: akibaMilesSymbolAlt,
@@ -58,13 +143,13 @@ const PARTNER_GROUPS: PartnerGroup[] = [
       {
         id: FOLLOW_ID,
         isLocked: false,
-        title: 'Follow on Twitter',
-        description: 'Follow @akibaMilesApp on Twitter',
+        title: 'Follow on x',
+        description: 'Follow @akibaMilesApp on X',
         reward: '5 akibaMiles',
         color: '#238D9D1A',
-        actionLink: 'https://twitter.com/akibamiles',
+        actionLink: 'https://x.com/akibamiles',
         instructions: [
-          { title: 'Open Twitter', text: 'Go to our @akibaMilesApp page.' },
+          { title: 'Open X', text: 'Go to our @akibaMilesApp page.' },
           { title: 'Follow', text: 'Hit the Follow button and confirm.' },
         ],
       },
@@ -131,50 +216,8 @@ const PARTNER_GROUPS: PartnerGroup[] = [
       },
     ],
   },
-  {
-    id: 'celopg',
-    img: celopg,
-    title: 'Celo PG',
-    description: 'Follow on X (Twitter)',
-    color: '#FFFFD6',
-    quests: [
-      {
-        id: '8d5a7766-4d2a-4bff-ac97-6b03fd5b570f',
-        isLocked: false,
-        title: 'Follow on X',
-        description: 'Follow Celo PG on X (Twitter)',
-        reward: '5 akibaMiles',
-        color: '#FFFFD6',
-        actionLink: 'https://x.com/CeloPublicGoods',
-        instructions: [
-          { title: 'Open Twitter', text: 'Go to @CeloPublicGoods page.' },
-          { title: 'Follow', text: 'Hit the Follow button and confirm.' },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'mento',
-    img: Mento,
-    title: 'Mento',
-    description: 'Swap Celo & Stablecoins',
-    color: '#238D9D1A',
-    quests: [
-      {
-        id: 'a487d06b-fe99-4f4f-91bb-532f1647a86c',
-        isLocked: true,
-        title: 'Swap on Mento',
-        description: 'Swap Between Celo and a Stablecoin',
-        reward: '5 akibaMiles',
-        color: '#238D9D1A',
-        actionLink: 'https://app.mento.org/',
-        instructions: [
-          { title: 'Open Mento', text: 'Go to the Mento app.' },
-          { title: 'Swap', text: 'Swap some Celo for any Stablecoin.' },
-        ],
-      },
-    ],
-  },
+
+  
 ];
 
 /* ─── Supabase hook ──────────────────────────────────────── */
