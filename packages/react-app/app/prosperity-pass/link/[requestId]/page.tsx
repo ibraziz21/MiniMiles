@@ -1,18 +1,11 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import { ethers } from "ethers";
-import { CheckCircle, LinkSimple, Wallet } from "@phosphor-icons/react";
+import { CheckCircle, Wallet } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import truncateEthAddress from "truncate-eth-address";
-import {
-  CELO_MAINNET_CHAIN_ID,
-  CELO_MAINNET_CHAIN_ID_HEX,
-  SUPERCHAIN_MODULE_LINK_ABI,
-  celoTxUrl,
-  normalizeEvmAddress,
-} from "@/lib/prosperity-pass-linking";
+import { normalizeEvmAddress } from "@/lib/prosperity-pass-linking";
 
 type LinkedWalletRequest = {
   id: string;
@@ -27,10 +20,7 @@ type LinkedWalletRequest = {
     | "failed"
     | "expired";
   signatureMessage: string | null;
-  safeApprovalTxHash: string | null;
-  finalTxHash: string | null;
   lastError: string | null;
-  moduleAddress: `0x${string}`;
 };
 
 type ApiResponse = {
@@ -45,12 +35,12 @@ export default function ProsperityPassLinkPage({
 }) {
   const resolvedParams = React.use(params);
   const requestId = resolvedParams.requestId;
+
   const [request, setRequest] = useState<LinkedWalletRequest | null>(null);
   const [account, setAccount] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [signing, setSigning] = useState(false);
-  const [finalizing, setFinalizing] = useState(false);
 
   const loadRequest = useCallback(async () => {
     setLoading(true);
@@ -59,9 +49,7 @@ export default function ProsperityPassLinkPage({
         cache: "no-store",
       });
       const json = (await res.json()) as ApiResponse;
-      if (!res.ok || !json.request) {
-        throw new Error(json.error ?? "Link request not found");
-      }
+      if (!res.ok || !json.request) throw new Error(json.error ?? "Link request not found");
       setRequest(json.request);
     } catch (err: any) {
       toast.error(err?.message ?? "Could not load link request");
@@ -70,18 +58,16 @@ export default function ProsperityPassLinkPage({
     }
   }, [requestId]);
 
-  useEffect(() => {
-    void loadRequest();
-  }, [loadRequest]);
+  useEffect(() => { void loadRequest(); }, [loadRequest]);
 
-  const connectExternalWallet = async () => {
+  const connectWallet = async (): Promise<string | null> => {
     setConnecting(true);
     try {
       const ethereum = (window as any).ethereum;
-      if (!ethereum) throw new Error("Open this page in your external wallet browser");
+      if (!ethereum) throw new Error("Open this page in your external wallet browser (MetaMask, Coinbase Wallet, etc.)");
       const [addr] = await ethereum.request({ method: "eth_requestAccounts" });
       const normalized = normalizeEvmAddress(addr);
-      if (!normalized) throw new Error("Invalid connected wallet");
+      if (!normalized) throw new Error("Invalid wallet address");
       setAccount(normalized);
       return normalized;
     } catch (err: any) {
@@ -97,10 +83,13 @@ export default function ProsperityPassLinkPage({
 
     setSigning(true);
     try {
-      const signer = account ?? (await connectExternalWallet());
+      const signer = account ?? (await connectWallet());
       if (!signer) return;
+
       if (signer !== request.linkedWallet) {
-        throw new Error("Connect the external wallet requested for this link");
+        throw new Error(
+          `Wrong wallet connected. Switch to ${truncateEthAddress(request.linkedWallet)} and try again.`
+        );
       }
 
       const ethereum = (window as any).ethereum;
@@ -118,72 +107,24 @@ export default function ProsperityPassLinkPage({
         }
       );
       const json = (await res.json()) as ApiResponse;
-      if (!res.ok || !json.request) {
-        throw new Error(json.error ?? "Could not verify signature");
-      }
+      if (!res.ok || !json.request) throw new Error(json.error ?? "Verification failed");
 
       setRequest(json.request);
-      toast.success("External wallet verified");
+      toast.success("Wallet linked successfully!");
     } catch (err: any) {
-      toast.error(err?.shortMessage ?? err?.message ?? "Signature failed");
+      toast.error(err?.shortMessage ?? err?.message ?? "Signing failed");
     } finally {
       setSigning(false);
     }
   };
 
-  const completeOnChainLink = async () => {
-    if (!request) return;
+  const isDone =
+    request?.status === "linked" ||
+    request?.status === "signature_verified" ||
+    request?.status === "safe_approved";
 
-    setFinalizing(true);
-    try {
-      const signerAddress = account ?? (await connectExternalWallet());
-      if (!signerAddress) return;
-      if (signerAddress !== request.linkedWallet) {
-        throw new Error("Connect the external wallet requested for this link");
-      }
-
-      await ensureCelo();
-
-      const provider = new ethers.BrowserProvider((window as any).ethereum);
-      const signer = await provider.getSigner();
-      const module = new ethers.Contract(
-        request.moduleAddress,
-        SUPERCHAIN_MODULE_LINK_ABI,
-        signer
-      );
-
-      const tx = await module.addOwnerWithThreshold(
-        request.safeAddress,
-        request.linkedWallet
-      );
-      toast.info("Final transaction submitted. Waiting for confirmation...");
-
-      const receipt = await tx.wait();
-      if (!receipt || receipt.status !== 1) {
-        throw new Error("Final transaction failed");
-      }
-
-      const res = await fetch(
-        `/api/prosperity-pass/linked-wallets/${request.id}/finalize`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ txHash: tx.hash }),
-        }
-      );
-      const json = (await res.json()) as ApiResponse;
-      if (!res.ok || !json.request) {
-        throw new Error(json.error ?? "Could not finalize linked wallet");
-      }
-
-      setRequest(json.request);
-      toast.success("External wallet linked");
-    } catch (err: any) {
-      toast.error(err?.shortMessage ?? err?.message ?? "Final transaction failed");
-    } finally {
-      setFinalizing(false);
-    }
-  };
+  const isInactive =
+    request?.status === "expired" || request?.status === "failed";
 
   const connectedMatches =
     account && request ? account === request.linkedWallet : false;
@@ -192,131 +133,77 @@ export default function ProsperityPassLinkPage({
     <main className="min-h-screen bg-onboarding px-4 py-8 pb-24 font-sterling">
       <Toaster richColors />
 
-      <div className="mx-auto max-w-md">
-        <div className="mb-6">
-          <h1 className="text-2xl font-medium text-gray-900">
-            Link external wallet
-          </h1>
+      <div className="mx-auto max-w-md space-y-4">
+        <div>
+          <h1 className="text-2xl font-medium text-gray-900">Link your wallet</h1>
           <p className="mt-1 text-sm leading-6 text-gray-500">
-            Complete this request from the wallet you want to add to your
-            Prosperity Pass.
+            Sign one message to prove you own this wallet. No gas, no transaction.
           </p>
         </div>
 
         <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
           {loading ? (
-            <div className="h-9 w-9 rounded-full border-2 border-[#238D9D] border-t-transparent animate-spin" />
+            <div className="h-8 w-8 rounded-full border-2 border-[#238D9D] border-t-transparent animate-spin" />
           ) : !request ? (
             <p className="text-sm text-gray-500">Link request not found.</p>
+          ) : isDone ? (
+            <DoneState linkedWallet={request.linkedWallet} />
+          ) : isInactive ? (
+            <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-700">
+              {request.lastError ?? "This link request is no longer active. Start a new one from your profile."}
+            </p>
           ) : (
             <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#238D9D]/10 text-[#238D9D]">
-                  <Wallet size={20} weight="duotone" />
+              {/* Requested wallet */}
+              <div className="flex items-center gap-3 rounded-xl bg-gray-50 px-3 py-3">
+                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#238D9D]/10 text-[#238D9D]">
+                  <Wallet size={18} weight="duotone" />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-gray-400 uppercase tracking-wide">
-                    Requested wallet
-                  </p>
-                  <p className="mt-0.5 text-sm font-bold text-gray-900">
+                <div>
+                  <p className="text-[11px] text-gray-400 uppercase tracking-wide">Wallet to link</p>
+                  <p className="text-sm font-bold text-gray-900 mt-0.5">
                     {truncateEthAddress(request.linkedWallet)}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Status: {statusLabel(request.status)}
                   </p>
                 </div>
               </div>
 
-              {request.status === "linked" ? (
-                <div className="rounded-2xl border border-[#238D9D]/20 bg-[#CFF2E5] p-3">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle size={18} weight="fill" className="text-[#238D9D]" />
-                    <p className="text-sm font-bold text-gray-900">
-                      Wallet linked
-                    </p>
-                  </div>
-                  {request.finalTxHash && (
-                    <TxLink hash={request.finalTxHash} label="Final tx" />
-                  )}
-                </div>
-              ) : request.status === "expired" || request.status === "failed" ? (
-                <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                  {request.lastError ?? "This link request is no longer active."}
-                </p>
+              {/* Connect button */}
+              {!account ? (
+                <button
+                  type="button"
+                  onClick={connectWallet}
+                  disabled={connecting}
+                  className="w-full rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+                >
+                  {connecting ? "Connecting…" : "Connect wallet"}
+                </button>
               ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={connectExternalWallet}
-                    disabled={connecting}
-                    className="w-full rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
-                  >
-                    {connecting
-                      ? "Connecting..."
-                      : account
-                        ? `Connected ${truncateEthAddress(account)}`
-                        : "Connect external wallet"}
-                  </button>
-
-                  {account && !connectedMatches && (
-                    <p className="rounded-xl bg-red-50 px-3 py-2 text-xs text-red-700">
-                      This request is for {truncateEthAddress(request.linkedWallet)}.
-                      Switch wallets before continuing.
-                    </p>
-                  )}
-
-                  {request.status === "created" && (
-                    <button
-                      type="button"
-                      onClick={signAndVerify}
-                      disabled={signing || !connectedMatches}
-                      className="w-full rounded-xl bg-[#238D9D] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
-                    >
-                      {signing ? "Signing..." : "Sign and verify wallet"}
-                    </button>
-                  )}
-
-                  {request.status === "signature_verified" && (
-                    <div className="rounded-xl bg-gray-50 px-3 py-3">
-                      <p className="text-sm font-bold text-gray-900">
-                        Waiting for pass approval
-                      </p>
-                      <p className="mt-1 text-xs leading-5 text-gray-500">
-                        Return to your AkibaMiles profile in MiniPay and approve
-                        this wallet from the Prosperity Pass.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={loadRequest}
-                        className="mt-3 w-full rounded-xl bg-white px-4 py-2 text-sm font-bold text-gray-700"
-                      >
-                        Refresh status
-                      </button>
-                    </div>
-                  )}
-
-                  {request.status === "safe_approved" && (
-                    <div className="space-y-3">
-                      <p className="rounded-xl bg-[#238D9D]/10 px-3 py-2 text-xs leading-5 text-[#238D9D]">
-                        Final step: this transaction adds the EOA as a Safe owner.
-                      </p>
-                    <button
-                      type="button"
-                      onClick={completeOnChainLink}
-                      disabled={finalizing || !connectedMatches}
-                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#238D9D] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
-                    >
-                      <LinkSimple size={16} />
-                      {finalizing ? "Completing..." : "Complete on-chain link"}
-                    </button>
-                    </div>
-                  )}
-                </>
+                <div className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2">
+                  <span className="text-xs text-gray-500">Connected</span>
+                  <span className="text-xs font-bold text-gray-900">{truncateEthAddress(account)}</span>
+                </div>
               )}
 
-              {request.safeApprovalTxHash && (
-                <TxLink hash={request.safeApprovalTxHash} label="Safe approval tx" />
+              {/* Wrong wallet warning */}
+              {account && !connectedMatches && (
+                <p className="rounded-xl bg-red-50 px-3 py-2 text-xs text-red-700">
+                  Switch to {truncateEthAddress(request.linkedWallet)} in your wallet and reconnect.
+                </p>
               )}
+
+              {/* Sign button */}
+              <button
+                type="button"
+                onClick={signAndVerify}
+                disabled={signing || !connectedMatches}
+                className="w-full rounded-xl bg-[#238D9D] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+              >
+                {signing ? "Signing…" : "Sign to verify ownership"}
+              </button>
+
+              <p className="text-center text-[11px] text-gray-400">
+                This signs a message only — no funds move.
+              </p>
             </div>
           )}
         </div>
@@ -325,64 +212,25 @@ export default function ProsperityPassLinkPage({
   );
 }
 
-function statusLabel(status: LinkedWalletRequest["status"]) {
-  if (status === "signature_verified") return "external wallet verified";
-  if (status === "safe_approved") return "pass approved";
-  return status.replaceAll("_", " ");
-}
-
-function TxLink({ hash, label }: { hash: string; label: string }) {
-  const url = celoTxUrl(hash);
-  if (!url) return null;
-
+function DoneState({ linkedWallet }: { linkedWallet: string }) {
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noreferrer"
-      className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 text-xs font-bold text-[#238D9D]"
-    >
-      <span>{label}</span>
-      <span>{truncateEthAddress(hash)}</span>
-    </a>
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <CheckCircle size={20} weight="fill" className="text-[#238D9D]" />
+        <p className="text-sm font-bold text-gray-900">Wallet linked</p>
+      </div>
+      <div className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2">
+        <span className="text-xs text-gray-500">Linked wallet</span>
+        <span className="text-xs font-bold text-gray-900">{truncateEthAddress(linkedWallet)}</span>
+      </div>
+      <p className="text-xs leading-5 text-gray-500">
+        You can close this page. Your wallet is now linked to your AkibaMiles profile.
+      </p>
+    </div>
   );
 }
 
 function stringToHex(value: string): `0x${string}` {
   const encoded = new TextEncoder().encode(value);
-  return `0x${Array.from(encoded)
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("")}`;
-}
-
-async function ensureCelo() {
-  const ethereum = (window as any).ethereum;
-  if (!ethereum) throw new Error("Wallet provider not found");
-
-  const chainId = await ethereum.request({ method: "eth_chainId" });
-  if (Number(chainId) === CELO_MAINNET_CHAIN_ID || chainId === CELO_MAINNET_CHAIN_ID_HEX) {
-    return;
-  }
-
-  try {
-    await ethereum.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId: CELO_MAINNET_CHAIN_ID_HEX }],
-    });
-  } catch (err: any) {
-    if (err?.code !== 4902) throw err;
-
-    await ethereum.request({
-      method: "wallet_addEthereumChain",
-      params: [
-        {
-          chainId: CELO_MAINNET_CHAIN_ID_HEX,
-          chainName: "Celo",
-          nativeCurrency: { name: "CELO", symbol: "CELO", decimals: 18 },
-          rpcUrls: ["https://forno.celo.org"],
-          blockExplorerUrls: ["https://celoscan.io"],
-        },
-      ],
-    });
-  }
+  return `0x${Array.from(encoded).map((b) => b.toString(16).padStart(2, "0")).join("")}`;
 }

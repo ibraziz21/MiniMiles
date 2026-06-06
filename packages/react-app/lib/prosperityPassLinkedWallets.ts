@@ -245,20 +245,25 @@ export async function verifyExternalWalletSignature(params: {
     throw new Error("Signature does not match the external wallet");
   }
 
-  if (row.status === "safe_approved" || row.status === "linked") {
+  // Already done — idempotent
+  if (row.status === "linked" || row.status === "safe_approved" || row.status === "signature_verified") {
     return row;
   }
 
-  if (row.status !== "created" && row.status !== "signature_verified") {
+  if (row.status !== "created") {
     throw new Error(`Cannot verify signature while request is ${row.status}`);
   }
 
+  // Signature is sufficient proof of ownership — mark as linked immediately.
+  // The Safe owner steps are no longer required for activity-tracking use cases.
+  const now = new Date().toISOString();
   const { data, error } = await supabase
     .from("prosperity_pass_linked_wallets")
     .update({
-      status: "signature_verified",
+      status: "linked",
       signature,
-      signature_verified_at: new Date().toISOString(),
+      signature_verified_at: now,
+      linked_at: now,
       last_error: null,
     })
     .eq("id", row.id)

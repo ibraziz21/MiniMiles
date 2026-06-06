@@ -7,6 +7,7 @@ import { startMintWorker, runDrain, releaseCurrentLock } from "./mintWorker";
 import { startBurnBlacklistWatcher } from "./burnBlacklistWatcher";
 import { startProsperityPassWorker, releaseCurrentPassLock } from "./prosperityPassWorker";
 import { startDiceSweeper, runDiceSweep } from "./diceSweeper";
+import { startCrackPotSweeper, runCrackPotSweep } from "./crackpotSweeper";
 import { startVaultEventWatcher } from "./vaultEventWatcher";
 import { startVaultRewardScheduler } from "./vaultRewardScheduler";
 
@@ -21,6 +22,22 @@ app.use("/games", gamesRouter);
 
 app.get("/", (req, res) => {
   res.send("Welcome to the Minimiles Daily Quests Backend!");
+});
+
+// Manual one-shot CrackPot sweep (protected)
+app.post("/crackpot/sweep", async (req, res) => {
+  const secret = process.env.ADMIN_QUEUE_SECRET ?? "";
+  const auth = req.headers.authorization;
+  if (!secret || auth !== `Bearer ${secret}`) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  try {
+    const results = await runCrackPotSweep();
+    res.json({ ok: true, results });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? "sweep failed" });
+  }
 });
 
 // Manual one-shot dice sweep (protected)
@@ -58,6 +75,7 @@ app.listen(PORT, () => {
   startBurnBlacklistWatcher();
   startProsperityPassWorker();
   startDiceSweeper();
+  startCrackPotSweeper();
   startVaultEventWatcher();
   startVaultRewardScheduler();
 });
