@@ -8,12 +8,20 @@ import { MilesAmount } from "./miles-amount";
 
 const PRIZE_BY_RANK: Record<number, string> = { 1: "$5", 2: "$3", 3: "$2" };
 
-function SettlementBadge({ status }: { status: "idle" | "submitting" | "settled" | "rejected" | "error" }) {
+function SettlementBadge({ status }: { status: "idle" | "submitting" | "queued" | "settled" | "rejected" | "error" }) {
   if (status === "submitting") {
     return (
       <div className="flex items-center gap-2 rounded-full bg-[#FFF8E1] border border-[#F59E0B33] px-3 py-1.5 text-xs font-semibold text-[#B45309]">
         <CircleNotch size={13} className="animate-spin" />
         Reward syncing
+      </div>
+    );
+  }
+  if (status === "queued") {
+    return (
+      <div className="flex items-center gap-2 rounded-full bg-[#FFF8E1] border border-[#F59E0B33] px-3 py-1.5 text-xs font-semibold text-[#B45309]">
+        <CircleNotch size={13} className="animate-spin" />
+        Reward queued
       </div>
     );
   }
@@ -55,7 +63,7 @@ export function GameResultSheet({
   open:             boolean;
   onOpenChange:     (open: boolean) => void;
   result:           GameResult | null;
-  settlementStatus: "idle" | "submitting" | "settled" | "rejected" | "error";
+  settlementStatus: "idle" | "submitting" | "queued" | "settled" | "rejected" | "error";
   weeklyRank?:      number | null;
   onPlayAgain:      () => void;
 }) {

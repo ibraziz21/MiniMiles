@@ -129,6 +129,7 @@ export type VerifierResponse = {
   result: GameResult;
   settlement?: SettlementPayload;
   antiAbuseFlags: string[];
+  queued?: boolean;
   settled?: boolean;
   settleTxHash?: string;
 };

@@ -1,7 +1,9 @@
-export function SettlementStatus({ status }: { status: "idle" | "submitting" | "settled" | "rejected" | "error" }) {
+export function SettlementStatus({ status }: { status: "idle" | "submitting" | "queued" | "settled" | "rejected" | "error" }) {
   const copy =
     status === "submitting"
       ? "Verifier is checking your replay..."
+      : status === "queued"
+        ? "Reward accepted. Backend settlement is queued."
       : status === "settled"
         ? "Verified. Settlement payload is ready for onchain payout."
         : status === "rejected"
