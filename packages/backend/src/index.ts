@@ -6,7 +6,6 @@ import gamesRouter from "./games/routes";
 import { startMintWorker, runDrain, releaseCurrentLock } from "./mintWorker";
 import { startBurnBlacklistWatcher } from "./burnBlacklistWatcher";
 import { startProsperityPassWorker, releaseCurrentPassLock } from "./prosperityPassWorker";
-import { startDiceSweeper, runDiceSweep } from "./diceSweeper";
 import { startCrackPotSweeper, runCrackPotSweep } from "./crackpotSweeper";
 import { startVaultEventWatcher } from "./vaultEventWatcher";
 import { startVaultRewardScheduler } from "./vaultRewardScheduler";
@@ -40,22 +39,6 @@ app.post("/crackpot/sweep", async (req, res) => {
   }
 });
 
-// Manual one-shot dice sweep (protected)
-app.post("/dice/sweep", async (req, res) => {
-  const secret = process.env.ADMIN_QUEUE_SECRET ?? "";
-  const auth = req.headers.authorization;
-  if (!secret || auth !== `Bearer ${secret}`) {
-    res.status(401).json({ error: "unauthorized" });
-    return;
-  }
-  try {
-    const results = await runDiceSweep();
-    res.json({ ok: true, results });
-  } catch (err: any) {
-    res.status(500).json({ error: err?.message ?? "sweep failed" });
-  }
-});
-
 // Manual trigger (protected)
 app.post("/drain", async (req, res) => {
   const secret = process.env.ADMIN_QUEUE_SECRET ?? "";
@@ -74,7 +57,6 @@ app.listen(PORT, () => {
   startMintWorker();
   startBurnBlacklistWatcher();
   startProsperityPassWorker();
-  startDiceSweeper();
   startCrackPotSweeper();
   startVaultEventWatcher();
   startVaultRewardScheduler();

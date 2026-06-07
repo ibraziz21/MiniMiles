@@ -327,6 +327,20 @@ router.post("/verify", async (req, res) => {
   }
 });
 
+const VERIFIER_LOW_BALANCE_CELO = 0.5; // warn below this
+
+async function checkVerifierBalance() {
+  if (!verifierPk) return;
+  try {
+    const wallet = new Wallet(verifierPk, provider);
+    const bal = await provider.getBalance(wallet.address);
+    const celo = Number(bal) / 1e18;
+    if (celo < VERIFIER_LOW_BALANCE_CELO) {
+      console.error(`[games/settle] ⚠️  VERIFIER WALLET LOW ON GAS: ${celo.toFixed(4)} CELO — top up ${wallet.address}`);
+    }
+  } catch { /* non-fatal */ }
+}
+
 async function attemptSettle(
   sessionId: string,
   numericSessionId: bigint,
@@ -334,7 +348,8 @@ async function attemptSettle(
   rewardMiles: bigint,
   rewardStable: bigint,
   expiry: bigint,
-  signature: string
+  signature: string,
+  priorAttempts = 0,
 ): Promise<string | false> {
   const MAX_ATTEMPTS = 3;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -345,14 +360,23 @@ async function attemptSettle(
       await supabase.from("skill_game_sessions").update({
         settle_tx_hash: tx.hash,
         settled_at: new Date().toISOString(),
+        settle_attempts: priorAttempts + attempt,
       }).eq("session_id", sessionId);
+      console.log(`[games/settle] ✅ session ${sessionId} settled tx=${tx.hash}`);
       return tx.hash as string;
     } catch (err: any) {
       const msg = err?.shortMessage ?? err?.message ?? String(err);
-      console.error(`[games/settle] attempt ${attempt}/${MAX_ATTEMPTS} for session ${sessionId} failed:`, msg);
+      console.error(`[games/settle] attempt ${priorAttempts + attempt} for session ${sessionId} failed:`, msg);
+      // Increment total attempt count so the retry cron can bound retries correctly
       await supabase.from("skill_game_sessions")
-        .update({ settle_attempts: attempt })
+        .update({ settle_attempts: priorAttempts + attempt })
         .eq("session_id", sessionId);
+      // Insufficient funds — stop immediately and alert; retrying won't help
+      if (msg.includes("insufficient funds")) {
+        console.error(`[games/settle] ❌ VERIFIER OUT OF GAS — halting settle for session ${sessionId}`);
+        void checkVerifierBalance();
+        return false;
+      }
       if (attempt < MAX_ATTEMPTS) {
         await new Promise((r) => setTimeout(r, 2000 * attempt));
       }
