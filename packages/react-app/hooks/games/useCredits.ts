@@ -4,13 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import { celo } from "viem/chains";
 import { createPublicClient, createWalletClient, custom, http } from "viem";
 import { AKIBA_SKILL_GAMES_ADDRESS, akibaSkillGamesAbi } from "@/lib/games/contracts";
-import { GAME_CONFIGS, SHARED_DAILY_PLAY_CAP } from "@/lib/games/config";
+import { GAME_CONFIGS, PER_GAME_DAILY_PLAY_CAP } from "@/lib/games/config";
 import type { GameType } from "@/lib/games/types";
 
 export type CreditStatus = {
   credits:        number;
   playsToday:     number;
   playsRemaining: number;
+  dailyCap:       number;
   nonce:          number;
   isDailyCapped:  boolean;
   hasCredits:     boolean;
@@ -18,14 +19,14 @@ export type CreditStatus = {
 };
 
 const EMPTY: CreditStatus = {
-  credits: 0, playsToday: 0, playsRemaining: SHARED_DAILY_PLAY_CAP,
+  credits: 0, playsToday: 0, playsRemaining: PER_GAME_DAILY_PLAY_CAP, dailyCap: PER_GAME_DAILY_PLAY_CAP,
   nonce: 0, isDailyCapped: false, hasCredits: false, contractAvailable: false,
 };
 
 export const PLAY_BUNDLES = [
-  { count: 5,  label: "5 plays",  badge: "" },
-  { count: 10, label: "10 plays", badge: "most popular" },
-  { count: 20, label: "20 plays", badge: "best value" },
+  { count: 5,  label: "5 tickets",  badge: "" },
+  { count: 10, label: "10 tickets", badge: "most popular" },
+  { count: 20, label: "20 tickets", badge: "best value" },
 ] as const;
 
 /** @deprecated use PLAY_BUNDLES */
@@ -46,12 +47,16 @@ export function useCredits(gameType: GameType, walletAddress: string | null | un
       );
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
+      const playsToday = data.playsToday ?? 0;
+      const playsRemaining = data.playsRemaining ?? PER_GAME_DAILY_PLAY_CAP;
+      const dailyCap = data.dailyCap ?? Math.max(PER_GAME_DAILY_PLAY_CAP, playsToday + playsRemaining);
       setStatus({
         credits:           data.credits        ?? 0,
-        playsToday:        data.playsToday      ?? 0,
-        playsRemaining:    data.playsRemaining  ?? SHARED_DAILY_PLAY_CAP,
+        playsToday,
+        playsRemaining,
+        dailyCap,
         nonce:             data.nonce           ?? 0,
-        isDailyCapped:     (data.playsRemaining ?? SHARED_DAILY_PLAY_CAP) === 0,
+        isDailyCapped:     playsRemaining === 0,
         hasCredits:        (data.credits ?? 0) > 0,
         contractAvailable: data.contractAvailable ?? false,
       });

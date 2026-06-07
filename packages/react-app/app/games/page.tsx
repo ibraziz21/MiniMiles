@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { LeaderboardCard } from "@/components/games/leaderboard-card";
 import { BuyPlaysSheet } from "@/components/games/buy-plays-sheet";
-import { SHARED_DAILY_PLAY_CAP } from "@/lib/games/config";
 import { useCredits } from "@/hooks/games/useCredits";
 import { useLeaderboard } from "@/hooks/games/useLeaderboard";
 import { useWeb3 } from "@/contexts/useWeb3";
@@ -51,13 +50,12 @@ export default function GamesPage() {
   const mfLb      = useLeaderboard("memory_flip");
 
   const resetCountdown = useCountdown(msUntilReset());
-
-  const totalTickets = Math.max(rtCredits.status.credits, mfCredits.status.credits);
-
-  // Both status calls return the same shared daily count once loaded.
-  const playsToday = Math.max(rtCredits.status.playsToday, mfCredits.status.playsToday);
-  const MAX_DAILY  = SHARED_DAILY_PLAY_CAP;
-  const dailyPct   = Math.min(100, Math.round((playsToday / MAX_DAILY) * 100));
+  const rtStatus = rtCredits.status;
+  const mfStatus = mfCredits.status;
+  const noGameTickets = rtStatus.credits === 0 && mfStatus.credits === 0;
+  const bothDailyCapped = rtStatus.isDailyCapped && mfStatus.isDailyCapped;
+  const rtDailyPct = Math.min(100, Math.round((rtStatus.playsToday / rtStatus.dailyCap) * 100));
+  const mfDailyPct = Math.min(100, Math.round((mfStatus.playsToday / mfStatus.dailyCap) * 100));
 
   function openBuySheet(gameType: "rule_tap" | "memory_flip") {
     setActiveGameType(gameType);
@@ -100,80 +98,101 @@ export default function GamesPage() {
             </button>
           </div>
 
-          {/* ── Ticket + Daily status card ─────────────────── */}
+          {/* ── Game-specific ticket + daily status card ───── */}
           <div className="rounded-2xl bg-white/15 border border-white/20 p-4">
-            <div className="flex items-start justify-between gap-3">
-              {/* Tickets */}
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/20">
-                  <Ticket size={22} weight="fill" className="text-white" />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl bg-white/15 px-3 py-3">
+                <div className="flex items-center gap-2">
+                  <Lightning size={15} weight="fill" className="text-yellow-300" />
+                  <p className="text-[11px] text-white/60 font-poppins">Rule Tap tickets</p>
                 </div>
-                <div>
-                  <p className="text-[11px] text-white/60 font-poppins">Tickets available</p>
-                  <p className="text-2xl font-bold text-white leading-none mt-0.5">{totalTickets}</p>
-                </div>
+                <p className="text-2xl font-bold text-white leading-none mt-1">{rtStatus.credits}</p>
+                <p className="mt-1 text-[11px] text-white/50">{rtStatus.playsToday}/{rtStatus.dailyCap} played today</p>
               </div>
 
-              {/* Divider */}
-              <div className="h-12 w-px bg-white/20 self-center" />
-
-              {/* Today */}
-              <div className="flex-1">
-                <p className="text-[11px] text-white/60 font-poppins">Played today</p>
-                <p className="text-2xl font-bold text-white leading-none mt-0.5">{playsToday}<span className="text-sm font-normal text-white/50">/{MAX_DAILY}</span></p>
-              </div>
-
-              {/* Reset timer */}
-              <div className="text-right">
-                <p className="text-[11px] text-white/60 font-poppins flex items-center gap-1 justify-end">
-                  <Timer size={11} />
-                  Refreshes in
-                </p>
-                <p className="text-sm font-bold text-white mt-0.5 tabular-nums">{resetCountdown}</p>
+              <div className="rounded-xl bg-white/15 px-3 py-3">
+                <div className="flex items-center gap-2">
+                  <Brain size={15} weight="fill" className="text-purple-200" />
+                  <p className="text-[11px] text-white/60 font-poppins">Memory tickets</p>
+                </div>
+                <p className="text-2xl font-bold text-white leading-none mt-1">{mfStatus.credits}</p>
+                <p className="mt-1 text-[11px] text-white/50">{mfStatus.playsToday}/{mfStatus.dailyCap} played today</p>
               </div>
             </div>
 
-            {/* Daily progress bar */}
-            <div className="mt-3">
+            <div className="mt-3 grid grid-cols-2 gap-2">
               <div className="h-1.5 w-full rounded-full bg-white/20">
                 <div
                   className="h-1.5 rounded-full bg-[#4EFFA0] transition-all duration-500"
-                  style={{ width: `${dailyPct}%` }}
+                  style={{ width: `${rtDailyPct}%` }}
                 />
               </div>
+              <div className="h-1.5 w-full rounded-full bg-white/20">
+                <div
+                  className="h-1.5 rounded-full bg-[#C9B6FF] transition-all duration-500"
+                  style={{ width: `${mfDailyPct}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="mt-3 flex items-center justify-between text-[11px] text-white/60 font-poppins">
+              <span>Tickets are game-specific.</span>
+              <span className="flex items-center gap-1 tabular-nums">
+                <Timer size={11} />
+                {resetCountdown}
+              </span>
             </div>
           </div>
 
           {/* Buy tickets CTA */}
-          <button
-            type="button"
-            onClick={() => openBuySheet("rule_tap")}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-white py-3 text-sm font-bold text-[#0D7A8A]"
-          >
-            <ShoppingCart size={16} weight="fill" />
-            Buy tickets
-          </button>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => openBuySheet("rule_tap")}
+              className="flex items-center justify-center gap-2 rounded-xl bg-white py-3 text-sm font-bold text-[#0D7A8A]"
+            >
+              <ShoppingCart size={16} weight="fill" />
+              Rule Tap
+            </button>
+            <button
+              type="button"
+              onClick={() => openBuySheet("memory_flip")}
+              className="flex items-center justify-center gap-2 rounded-xl bg-white/90 py-3 text-sm font-bold text-[#5B35A0]"
+            >
+              <ShoppingCart size={16} weight="fill" />
+              Memory
+            </button>
+          </div>
         </div>
       </div>
 
       {/* ── No-tickets nudge ─────────────────────────────── */}
-      {address && totalTickets === 0 && playsToday < MAX_DAILY && (
+      {address && noGameTickets && !bothDailyCapped && (
         <div className="mx-4 mt-4 rounded-2xl bg-amber-50 border border-amber-200 px-4 py-4 flex items-start gap-3">
           <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-amber-100">
             <Ticket size={16} weight="fill" className="text-amber-600" />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-bold text-amber-800">No tickets left</p>
+            <p className="text-sm font-bold text-amber-800">No game tickets left</p>
             <p className="text-xs text-amber-700 font-poppins mt-0.5 flex items-center gap-1 flex-wrap">
-              Each round costs 1 ticket (<MilesAmount value={5} size={12} />). Buy tickets to play instantly.
+              Rule Tap and Memory tickets are separate. Each ticket costs <MilesAmount value={5} size={12} />.
             </p>
-            <button
-              type="button"
-              onClick={() => openBuySheet("rule_tap")}
-              className="mt-2.5 rounded-lg bg-amber-500 px-4 py-1.5 text-xs font-bold text-white"
-            >
-              Buy tickets
-            </button>
+            <div className="mt-2.5 flex gap-2">
+              <button
+                type="button"
+                onClick={() => openBuySheet("rule_tap")}
+                className="rounded-lg bg-amber-500 px-4 py-1.5 text-xs font-bold text-white"
+              >
+                Buy Rule Tap
+              </button>
+              <button
+                type="button"
+                onClick={() => openBuySheet("memory_flip")}
+                className="rounded-lg bg-white px-4 py-1.5 text-xs font-bold text-amber-700 border border-amber-200"
+              >
+                Buy Memory
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -194,13 +213,13 @@ export default function GamesPage() {
           {([
             {
               icon: <Ticket size={15} weight="fill" className="text-[#0D7A8A]" />,
-              title: "Buy tickets",
-              body: <span className="flex items-center gap-1 flex-wrap">1 ticket = <MilesAmount value={5} size={12} />. Tickets never expire.</span>,
+              title: "Buy game tickets",
+              body: <span className="flex items-center gap-1 flex-wrap">Rule Tap and Memory tickets are separate. Each ticket costs <MilesAmount value={5} size={12} />.</span>,
             },
             {
               icon: <Lightning size={15} weight="fill" className="text-[#0D7A8A]" />,
               title: "Play instantly",
-              body: "Each round uses 1 ticket — no waiting, no extra steps.",
+              body: "Each round uses 1 ticket for that game — no waiting, no extra steps.",
             },
             {
               icon: <Trophy size={15} weight="fill" className="text-amber-500" />,
@@ -210,7 +229,7 @@ export default function GamesPage() {
             {
               icon: <Timer size={15} weight="fill" className="text-[#0D7A8A]" />,
               title: "Daily limit",
-              body: `${MAX_DAILY} total rounds per day across all skill games. Counter resets at midnight UTC.`,
+              body: `${rtStatus.dailyCap} rounds per game per day. Counters reset at midnight UTC.`,
             },
           ] as const).map((item) => (
             <div key={item.title} className="flex items-start gap-3">
@@ -232,9 +251,10 @@ export default function GamesPage() {
         <div className="space-y-3">
           <GameCard
             gameType="rule_tap"
-            tickets={totalTickets}
-            playsToday={playsToday}
-            isDailyCapped={playsToday >= MAX_DAILY}
+            tickets={rtStatus.credits}
+            playsToday={rtStatus.playsToday}
+            dailyCap={rtStatus.dailyCap}
+            isDailyCapped={rtStatus.isDailyCapped}
             walletConnected={!!address}
             personalBest={personalBests.rule_tap}
             onPlay={() => router.push("/games/rule-tap")}
@@ -242,9 +262,10 @@ export default function GamesPage() {
           />
           <GameCard
             gameType="memory_flip"
-            tickets={totalTickets}
-            playsToday={playsToday}
-            isDailyCapped={playsToday >= MAX_DAILY}
+            tickets={mfStatus.credits}
+            playsToday={mfStatus.playsToday}
+            dailyCap={mfStatus.dailyCap}
+            isDailyCapped={mfStatus.isDailyCapped}
             walletConnected={!!address}
             personalBest={personalBests.memory_flip}
             onPlay={() => router.push("/games/memory-flip")}
@@ -316,6 +337,7 @@ function GameCard({
   gameType,
   tickets,
   playsToday,
+  dailyCap,
   isDailyCapped,
   walletConnected,
   personalBest,
@@ -325,6 +347,7 @@ function GameCard({
   gameType:        "rule_tap" | "memory_flip";
   tickets:         number;
   playsToday:      number;
+  dailyCap:        number;
   isDailyCapped:   boolean;
   walletConnected: boolean;
   personalBest:    number | null;
@@ -333,7 +356,7 @@ function GameCard({
 }) {
   const config = GC[gameType];
   const meta   = GAME_META[gameType];
-  const MAX    = SHARED_DAILY_PLAY_CAP;
+  const ticketLabel = gameType === "rule_tap" ? "Rule Tap ticket" : "Memory ticket";
 
   // Button state
   let cta: { label: string; style: string; action: (() => void) | null };
@@ -342,7 +365,7 @@ function GameCard({
   } else if (isDailyCapped) {
     cta = { label: "Come back tomorrow", style: "bg-white/20 text-white/60 cursor-not-allowed", action: null };
   } else if (tickets <= 0) {
-    cta = { label: "Buy tickets", style: "bg-white/25 border border-white/40 text-white font-bold", action: onBuyTickets };
+    cta = { label: `Buy ${gameType === "rule_tap" ? "Rule Tap" : "Memory"} tickets`, style: "bg-white/25 border border-white/40 text-white font-bold", action: onBuyTickets };
   } else {
     cta = { label: "Play →", style: "bg-white text-[#0D7A8A] font-bold shadow-sm", action: onPlay };
   }
@@ -372,7 +395,11 @@ function GameCard({
         <div className="relative z-10 flex flex-wrap gap-2 mb-3">
           <div className="flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[11px] text-white/80">
             <Ticket size={11} weight="fill" />
-            1 ticket entry
+            1 {ticketLabel} entry
+          </div>
+          <div className="flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[11px] text-white/80">
+            <Ticket size={11} weight="fill" />
+            {tickets} left
           </div>
           <div className="flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[11px] text-white/80">
             <Trophy size={11} weight="fill" className="text-yellow-300" />
@@ -391,7 +418,7 @@ function GameCard({
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-white/50">
-              {playsToday}/{MAX} total today
+              {playsToday}/{dailyCap} today
             </span>
           </div>
         </div>

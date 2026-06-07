@@ -17,7 +17,6 @@ import { Brain, ArrowCounterClockwise, Trophy, ShoppingCart } from "@phosphor-ic
 import { MilesAmount } from "@/components/games/miles-amount";
 import { rewardForScore } from "@/lib/games/score";
 import type { GameResult } from "@/lib/games/types";
-import { SHARED_DAILY_PLAY_CAP } from "@/lib/games/config";
 
 export default function MemoryFlipPage() {
   const [introOpen,    setIntroOpen]    = useState(true);
@@ -32,7 +31,7 @@ export default function MemoryFlipPage() {
   const weeklyLb    = useWeeklyLeaderboard("memory_flip");
 
   const { isDailyCapped, playsToday, credits, hasCredits } = creditStatus;
-  const MAX_DAILY = SHARED_DAILY_PLAY_CAP;
+  const MAX_DAILY = creditStatus.dailyCap;
 
   async function startRound() {
     settlement.reset();
@@ -145,13 +144,13 @@ export default function MemoryFlipPage() {
                 <Brain size={36} weight="fill" className="mx-auto mb-2 text-purple-200" />
                 <p className="text-white font-bold text-lg">Memory Flip</p>
                 <p className="text-white/70 text-sm font-poppins mt-0.5 flex items-center gap-1 justify-center flex-wrap">
-                  1 ticket entry · Win up to <MilesAmount value={12} size={13} variant="alt" />
+                  1 Memory ticket · Win up to <MilesAmount value={12} size={13} variant="alt" />
                 </p>
 
                 <div className="flex items-center justify-center gap-3 mt-2">
                   {credits > 0 && (
                     <span className="text-xs bg-white/20 text-white rounded-full px-2.5 py-0.5 font-medium">
-                      {credits} {credits !== 1 ? "plays" : "play"} left
+                      {credits} Memory {credits !== 1 ? "tickets" : "ticket"} left
                     </span>
                   )}
                   <span className="text-white/50 text-xs">{playsToday}/{MAX_DAILY} played today</span>
@@ -167,7 +166,7 @@ export default function MemoryFlipPage() {
                     onClick={() => setIntroOpen(true)}
                     className="mt-4 w-full rounded-xl bg-white py-3 text-sm font-bold text-[#5B35A0]"
                   >
-                    {hasCredits ? `Play (${credits} ${credits !== 1 ? "plays" : "play"} left)` : "View Rules & Play"}
+                    {hasCredits ? `Play (${credits} Memory ${credits !== 1 ? "tickets" : "ticket"} left)` : "View Rules & Play"}
                   </button>
                 )}
               </div>
@@ -180,7 +179,7 @@ export default function MemoryFlipPage() {
               className="w-full rounded-2xl border border-[#5B35A0]/20 bg-white px-4 py-3 text-sm font-semibold text-[#5B35A0] flex items-center justify-center gap-2"
             >
               <ShoppingCart size={16} weight="fill" />
-              {hasCredits ? `Buy plays (${credits} left)` : "Buy plays — enter instantly"}
+              {hasCredits ? `Buy Memory tickets (${credits} left)` : "Buy Memory tickets"}
             </button>
           </div>
         )}

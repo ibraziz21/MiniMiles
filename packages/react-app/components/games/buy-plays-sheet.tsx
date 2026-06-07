@@ -5,7 +5,7 @@ import { CheckCircle, Ticket, X, Warning } from "@phosphor-icons/react";
 import { PLAY_BUNDLES } from "@/hooks/games/useCredits";
 import type { CreditStatus } from "@/hooks/games/useCredits";
 import type { GameType } from "@/lib/games/types";
-import { GAME_CONFIGS, SHARED_DAILY_PLAY_CAP } from "@/lib/games/config";
+import { GAME_CONFIGS } from "@/lib/games/config";
 import { MilesAmount } from "./miles-amount";
 
 interface Props {
@@ -23,6 +23,7 @@ export function BuyPlaysSheet({ open, onClose, gameType, creditStatus, onBuy, bu
   const [purchased, setPurchased] = useState<number | null>(null);
   const config    = GAME_CONFIGS[gameType];
   const costEach  = config.entryCostMiles;
+  const gameLabel = config.shortName;
 
   useEffect(() => {
     if (!open) {
@@ -51,8 +52,7 @@ export function BuyPlaysSheet({ open, onClose, gameType, creditStatus, onBuy, bu
     onClose();
   }
 
-  const { credits, playsToday, isDailyCapped } = creditStatus;
-  const MAX_DAILY = SHARED_DAILY_PLAY_CAP;
+  const { credits, playsToday, isDailyCapped, dailyCap } = creditStatus;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
@@ -71,9 +71,9 @@ export function BuyPlaysSheet({ open, onClose, gameType, creditStatus, onBuy, bu
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#0D7A8A]/10">
                 <CheckCircle size={34} weight="fill" className="text-[#0D7A8A]" />
               </div>
-              <h2 className="text-xl font-bold text-gray-900">Tickets added</h2>
+              <h2 className="text-xl font-bold text-gray-900">{gameLabel} tickets added</h2>
               <p className="mt-1 text-sm text-gray-500">
-                {purchased} ticket{purchased !== 1 ? "s" : ""} added to your balance.
+                {purchased} {gameLabel} ticket{purchased !== 1 ? "s" : ""} added to your balance.
               </p>
 
               <div className="mt-5 rounded-2xl bg-gray-50 p-4">
@@ -81,7 +81,7 @@ export function BuyPlaysSheet({ open, onClose, gameType, creditStatus, onBuy, bu
                   <Ticket size={18} weight="fill" className="text-[#0D7A8A]" />
                   <p className="text-3xl font-bold text-gray-900">{credits}</p>
                 </div>
-                <p className="mt-1 text-xs text-gray-500">tickets available</p>
+                <p className="mt-1 text-xs text-gray-500">{gameLabel} tickets available</p>
               </div>
 
               <button
@@ -97,24 +97,24 @@ export function BuyPlaysSheet({ open, onClose, gameType, creditStatus, onBuy, bu
           <>
             {/* header */}
             <div className="flex items-center justify-between mb-1">
-              <h2 className="text-lg font-bold text-gray-900">Buy tickets</h2>
+              <h2 className="text-lg font-bold text-gray-900">Buy {gameLabel} tickets</h2>
               <button onClick={handleClose} className="p-1 rounded-full hover:bg-gray-100 transition-colors">
                 <X size={20} weight="bold" className="text-gray-500" />
               </button>
             </div>
             <p className="text-sm text-gray-500 mb-4">
-              Buy tickets upfront — enter any game instantly, no extra steps.
+              These tickets only work for {config.name}. Buy the other game separately.
             </p>
 
             {/* status bar */}
             <div className="flex gap-3 mb-5">
               <div className="flex-1 bg-gray-50 rounded-2xl p-3 text-center">
                 <p className="text-2xl font-bold text-gray-900">{credits}</p>
-                <p className="text-xs text-gray-500 mt-0.5">tickets left</p>
+                <p className="text-xs text-gray-500 mt-0.5">{gameLabel} tickets left</p>
               </div>
               <div className={`flex-1 rounded-2xl p-3 text-center ${isDailyCapped ? "bg-red-50" : "bg-gray-50"}`}>
                 <p className={`text-2xl font-bold ${isDailyCapped ? "text-red-500" : "text-gray-900"}`}>
-                  {playsToday}/{MAX_DAILY}
+                  {playsToday}/{dailyCap}
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">played today</p>
               </div>
@@ -123,7 +123,7 @@ export function BuyPlaysSheet({ open, onClose, gameType, creditStatus, onBuy, bu
             {isDailyCapped && (
               <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 mb-4">
                 <Warning size={16} className="text-amber-500 shrink-0" />
-                <p className="text-xs text-amber-700">Daily limit reached. Tickets carry over to tomorrow.</p>
+                <p className="text-xs text-amber-700">Daily limit reached for {config.name}. Tickets carry over to tomorrow.</p>
               </div>
             )}
 
@@ -150,7 +150,7 @@ export function BuyPlaysSheet({ open, onClose, gameType, creditStatus, onBuy, bu
                       </span>
                     )}
                     <p className="text-xl font-bold text-gray-900">{b.count}</p>
-                    <p className="text-xs text-gray-500">tickets</p>
+                    <p className="text-xs text-gray-500">{gameLabel} tickets</p>
                     <div className="mt-1">
                       <MilesAmount value={totalCost} size={13} className="font-semibold text-gray-700" />
                     </div>
@@ -161,7 +161,7 @@ export function BuyPlaysSheet({ open, onClose, gameType, creditStatus, onBuy, bu
 
             {selected && (
               <p className="text-xs text-center text-gray-500 mb-3 flex items-center justify-center gap-1 flex-wrap">
-                You'll spend <MilesAmount value={selected * costEach} size={12} className="font-semibold text-gray-800" /> for <span className="font-semibold text-gray-800">{selected} ticket{selected !== 1 ? "s" : ""}</span>.
+                You'll spend <MilesAmount value={selected * costEach} size={12} className="font-semibold text-gray-800" /> for <span className="font-semibold text-gray-800">{selected} {gameLabel} ticket{selected !== 1 ? "s" : ""}</span>.
               </p>
             )}
 
@@ -180,12 +180,12 @@ export function BuyPlaysSheet({ open, onClose, gameType, creditStatus, onBuy, bu
               {buying
                 ? "Processing…"
                 : selected
-                  ? `Buy ${selected} ticket${selected !== 1 ? "s" : ""}`
+                  ? `Buy ${selected} ${gameLabel} ticket${selected !== 1 ? "s" : ""}`
                   : "Select a bundle"}
             </button>
 
             <p className="text-center text-[10px] text-gray-400 mt-3">
-              Tickets are spent from your AkibaMiles balance. They never expire.
+              {gameLabel} tickets are spent from your AkibaMiles balance. They never expire.
             </p>
           </>
         )}

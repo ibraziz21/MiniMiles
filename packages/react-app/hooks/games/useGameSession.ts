@@ -88,7 +88,11 @@ export function useGameSession(gameType: GameType) {
               return next;
             }
             const errorBody = await resp.json().catch(() => null);
-            if (resp.status === 429 || errorBody?.error === "shared-daily-cap-reached") {
+            if (
+              resp.status === 429 ||
+              errorBody?.error === "shared-daily-cap-reached" ||
+              errorBody?.error === "game-daily-cap-reached"
+            ) {
               throw new Error("Daily play limit reached");
             }
             // Sponsored start failed — fall through to self-start

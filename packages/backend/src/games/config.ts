@@ -1,6 +1,6 @@
 import type { GameType, RewardThreshold } from "./types";
 
-export const SHARED_DAILY_PLAY_CAP = 30;
+export const PER_GAME_DAILY_PLAY_CAP = 20;
 
 export const GAME_TYPE_ID: Record<GameType, number> = {
   rule_tap: 1,

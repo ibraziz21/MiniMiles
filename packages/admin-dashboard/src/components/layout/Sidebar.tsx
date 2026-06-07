@@ -72,6 +72,7 @@ const navSections: Array<{ label: string; items: NavItem[] }> = [
         children: [
           { href: "/games/dice", label: "Dice", icon: Dice5 },
           { href: "/games/claw", label: "Claw", icon: Gamepad2 },
+          { href: "/games/skill-games", label: "Skill Games", icon: ListChecks },
           { href: "/games/raffles", label: "Raffles", icon: Ticket },
         ],
       },

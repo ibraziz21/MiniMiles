@@ -1,6 +1,7 @@
 import type { GameConfig } from "./types";
 
-export const SHARED_DAILY_PLAY_CAP = 30;
+export const PER_GAME_DAILY_PLAY_CAP = 20;
+export const SHARED_DAILY_PLAY_CAP = PER_GAME_DAILY_PLAY_CAP;
 export const GAME_TYPES = ["rule_tap", "memory_flip"] as const;
 
 export const GAME_CONFIGS: Record<string, GameConfig> = {
@@ -15,7 +16,7 @@ export const GAME_CONFIGS: Record<string, GameConfig> = {
     maxRewardMiles: 12,
     maxRewardStable: 0,
     durationSeconds: 20,
-    dailyPlayCap: SHARED_DAILY_PLAY_CAP,
+    dailyPlayCap: PER_GAME_DAILY_PLAY_CAP,
     cooldownSeconds: 15,
     leaderboardSort: "score_desc",
     weeklyPrizeUsd: 10,
@@ -37,7 +38,7 @@ export const GAME_CONFIGS: Record<string, GameConfig> = {
     maxRewardMiles: 12,
     maxRewardStable: 0,
     durationSeconds: 60,
-    dailyPlayCap: SHARED_DAILY_PLAY_CAP,
+    dailyPlayCap: PER_GAME_DAILY_PLAY_CAP,
     cooldownSeconds: 20,
     leaderboardSort: "score_desc",
     weeklyPrizeUsd: 10,

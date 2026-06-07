@@ -12,7 +12,7 @@ import {
   recoverAddress,
 } from "ethers";
 import { supabase } from "../supabaseClient";
-import { GAME_TYPE_ID, SHARED_DAILY_PLAY_CAP, isGameType } from "./config";
+import { GAME_TYPE_ID, PER_GAME_DAILY_PLAY_CAP, isGameType } from "./config";
 import { akibaSkillGamesAbi, SETTLEMENT_TYPEHASH_PREIMAGE, START_INTENT_TYPEHASH_PREIMAGE } from "./contracts";
 import { seedCommitment, validateMemoryFlipReplay, validateRuleTapReplay } from "./replayValidation";
 import type { GameReplay, GameType, MemoryFlipReplay, RuleTapReplay } from "./types";
@@ -117,11 +117,12 @@ function onchainDayStart(): string {
   return new Date(Math.floor(nowSec / 86400) * 86400 * 1000).toISOString();
 }
 
-async function countSharedPlaysToday(walletAddress: string) {
+async function countGamePlaysToday(walletAddress: string, gameType: GameType) {
   const { count, error } = await supabase
     .from("skill_game_sessions")
     .select("*", { count: "exact", head: true })
     .eq("wallet_address", walletAddress.toLowerCase())
+    .eq("game_type", gameType)
     .gte("created_at", onchainDayStart());
   if (error) throw error;
   return count ?? 0;
@@ -159,7 +160,8 @@ router.get("/status", async (req, res) => {
     res.json({
       credits: Number(status[0]),
       playsToday: Number(status[1]),
-      playsRemaining: Math.min(Number(status[2]), SHARED_DAILY_PLAY_CAP),
+      playsRemaining: Math.min(Number(status[2]), PER_GAME_DAILY_PLAY_CAP),
+      dailyCap: PER_GAME_DAILY_PLAY_CAP,
       nonce: Number(nonce),
       contractAvailable: true,
     });
@@ -185,8 +187,8 @@ router.post("/start-intent", async (req, res) => {
       res.status(400).json({ error: "intent-expired" });
       return;
     }
-    if ((await countSharedPlaysToday(walletAddress)) >= SHARED_DAILY_PLAY_CAP) {
-      res.status(429).json({ error: "shared-daily-cap-reached" });
+    if ((await countGamePlaysToday(walletAddress, gameType)) >= PER_GAME_DAILY_PLAY_CAP) {
+      res.status(429).json({ error: "game-daily-cap-reached" });
       return;
     }
 
@@ -258,7 +260,7 @@ router.post("/verify", async (req, res) => {
       return;
     }
 
-    if ((await countSharedPlaysToday(walletAddress)) > SHARED_DAILY_PLAY_CAP) {
+    if ((await countGamePlaysToday(walletAddress, gameType)) > PER_GAME_DAILY_PLAY_CAP) {
       res.json({
         accepted: false,
         antiAbuseFlags: ["daily_cap_exceeded"],

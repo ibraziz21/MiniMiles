@@ -42,9 +42,9 @@ export function GameIntroSheet({
 
         {/* Entry cost banner */}
         <div className="mx-5 mt-4 rounded-xl bg-[#F0FDFF] border border-[#238D9D22] px-4 py-3">
-          <p className="text-sm font-semibold text-[#238D9D]">1 ticket entry</p>
+          <p className="text-sm font-semibold text-[#238D9D]">1 {config.shortName} ticket entry</p>
           <p className="text-xs text-[#525252] font-poppins mt-0.5 flex items-center gap-1 flex-wrap">
-            Win up to <MilesAmount value={config.maxRewardMiles} size={12} /> · daily limit {config.dailyPlayCap} rounds
+            Win up to <MilesAmount value={config.maxRewardMiles} size={12} /> · daily limit {config.dailyPlayCap} {config.shortName} rounds
           </p>
         </div>
 
