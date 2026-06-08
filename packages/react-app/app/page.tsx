@@ -46,7 +46,6 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";import { ProsperityPassCard } from "@/components/prosperity-claim";
 import { BadgesSection } from "@/components/BadgesSection";
 import { ActiveStreaksSheet } from "@/components/active-streaks-sheet";
-import { CrackPotHomeWidget } from "@/components/crackpot/CrackPotHomeWidget";
 import {
   BadgeClaimLoadingSheet,
   BadgeClaimSuccessSheet,
@@ -723,9 +722,6 @@ const badgeButtonLabel =
           </div>
         </Link>
       </div>
-
-      {/* CrackPot live pot widget */}
-      <CrackPotHomeWidget />
 
       {address && (
         <MigrateV2Banner

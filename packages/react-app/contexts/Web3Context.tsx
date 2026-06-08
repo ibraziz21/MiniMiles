@@ -510,70 +510,6 @@ function useWeb3Logic() {
   }, [address, publicClient]);
 
   /** Approve USDT spending for the Dice contract. Call before joinDice on USD tiers. */
-  /** Approve USDT spending for CrackPot Version B. Spender is the relayer (pulls via transferFrom). */
-  const approveUsdtForCrackPot = useCallback(async (amountUsd: number) => {
-    if (isMiniPayProvider()) throw new Error("USDT CrackPot is not available in MiniPay.");
-    if (!walletClient || !address) throw new Error("Wallet not connected");
-    const chainId = await walletClient.getChainId();
-    if (chainId !== celo.id) throw new Error("Wrong network");
-
-    const RELAYER_ADDRESS = (process.env.NEXT_PUBLIC_CRACKPOT_RELAYER_ADDRESS ?? "") as `0x${string}`;
-    if (!RELAYER_ADDRESS) throw new Error("Relayer address not configured");
-
-    // Approve exact amount (6 decimals)
-    const amount = BigInt(Math.round(amountUsd * 1_000_000));
-    const hash = await walletClient.writeContract({
-      chain: walletClient.chain,
-      address: USDT_ADDRESS,
-      abi: [{ name: "approve", type: "function", stateMutability: "nonpayable", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }] }],
-      functionName: "approve",
-      account: address as `0x${string}`,
-      args: [RELAYER_ADDRESS, amount],
-    });
-    try {
-      await publicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 120_000 });
-    } catch (err: any) {
-      const m = String(err?.message || "");
-      if (/(block.*out of range|header not found|query timeout)/i.test(m)) {
-        console.warn("Ignoring provider range error while waiting for CrackPot approve receipt:", err);
-      } else {
-        throw err;
-      }
-    }
-    return hash;
-  }, [walletClient, address, publicClient]);
-
-  /** Player calls enterGame on the CrackPot contract — burns Miles (version=0) or pulls USDT (version=1). */
-  const enterCrackPotGame = useCallback(async (version: 0 | 1) => {
-    if (!walletClient || !address) throw new Error("Wallet not connected");
-    const chainId = await walletClient.getChainId();
-    if (chainId !== celo.id) throw new Error("Wrong network");
-
-    const CRACKPOT = (process.env.NEXT_PUBLIC_CRACKPOT_ADDRESS ?? "") as `0x${string}`;
-    if (!CRACKPOT) throw new Error("CrackPot contract address not configured");
-
-    const hash = await walletClient.writeContract({
-      chain: walletClient.chain,
-      address: CRACKPOT,
-      abi: [{ name: "enterGame", type: "function", stateMutability: "nonpayable", inputs: [{ name: "version", type: "uint8" }], outputs: [] }],
-      functionName: "enterGame",
-      account: address as `0x${string}`,
-      args: [version],
-    });
-
-    try {
-      await publicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 90_000 });
-    } catch (err: any) {
-      const m = String(err?.message || "");
-      if (/(block.*out of range|header not found|query timeout)/i.test(m)) {
-        console.warn("Ignoring provider range error after CrackPot enterGame:", err);
-      } else {
-        throw err;
-      }
-    }
-    return hash;
-  }, [walletClient, address, publicClient]);
-
   const approveUsdtForDice = useCallback(async (amount: bigint) => {
     if (isMiniPayProvider()) throw new Error("USDT Dice is not available in MiniPay.");
     if (!walletClient || !address) throw new Error("Wallet not connected");
@@ -761,8 +697,6 @@ function useWeb3Logic() {
     approveClawUsdt,
     startClawGame,
     burnClawVoucherReward,
-    enterCrackPotGame,
-    approveUsdtForCrackPot,
     approveUsdtForDice,
     getStablecoinBalance,
     getUSDTBalance,
