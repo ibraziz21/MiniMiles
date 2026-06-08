@@ -7,16 +7,47 @@ import EarnPartnerQuestSheet from "@/components/earn-partner-quest-sheet";
 import SuccessModal from "@/components/success-modal";
 import VerifiedInsights from "@/components/verified-insights";
 import PollSheet from "@/components/poll-sheet";
+import { BadgesSection } from "@/components/BadgesSection";
+import {
+  BadgeClaimLoadingSheet,
+  BadgeClaimSuccessSheet,
+} from "@/components/BadgeClaimSuccessSheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Sheet, SheetClose, SheetContent, SheetFooter } from "@/components/ui/sheet";
 import { useWeb3 } from "@/contexts/useWeb3";
-import { usdtSymbol } from "@/lib/svg";
+import { usdtSymbol, RefreshSvg } from "@/lib/svg";
 import { ArrowDown, ArrowUp, Gift, Question } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import { useIsMiniPay } from "@/hooks/useIsMiniPay";
+import { fetchSuperAccountForOwner } from "@/lib/prosperity-pass";
+import {
+  BADGES,
+  type BadgeProgress,
+  type BadgeKey,
+  EMPTY_BADGE_PROGRESS,
+} from "@/lib/prosperityBadges";
+
+type PassportState =
+  | { status: "idle" | "loading" | "none" }
+  | { status: "has"; safe: `0x${string}` };
+
+type BackendBadge = {
+  badgeId: string;
+  badgeTiers: any[];
+  tier: number;
+  claimableTier: number | null;
+  claimable: boolean;
+};
+
+const BADGE_ID_BY_KEY: Record<BadgeKey, number | null> = {
+  "cel2-transactions": 18,
+  "s1-transactions": 22,
+  "lam-lifetime-akiba": 27,
+  "amg-akiba-games": 30,
+};
 
 export default function EarnPage() {
   const web3 = useWeb3() as any;
@@ -33,6 +64,17 @@ export default function EarnPage() {
   const showVault = isMiniPay === false;
 
   const router = useRouter();
+
+  // Pass Badges state
+  const [passport, setPassport] = useState<PassportState>({ status: "idle" });
+  const [badgeProgress, setBadgeProgress] = useState<BadgeProgress>(EMPTY_BADGE_PROGRESS);
+  const [hasClaimableBadges, setHasClaimableBadges] = useState(false);
+  const [badgeAction, setBadgeAction] = useState<"idle" | "claiming">("idle");
+  const [badgeClaimLoadingOpen, setBadgeClaimLoadingOpen] = useState(false);
+  const [badgeSheetOpen, setBadgeSheetOpen] = useState(false);
+  const [unlockedBadges, setUnlockedBadges] = useState<string[]>([]);
+  const badgeBusy = badgeAction !== "idle";
+  const claimDisabled = badgeBusy || !hasClaimableBadges;
 
   // Verified Insights state
   const [activePollId, setActivePollId] = useState<string | null>(null);
@@ -95,6 +137,62 @@ export default function EarnPage() {
 
     fetchVaultBalance();
   }, [address, getUserVaultBalance, showVault]);
+
+  // passport + badge fetch
+  useEffect(() => {
+    if (!address) { setPassport({ status: "none" }); return; }
+    let cancelled = false;
+    setPassport({ status: "loading" });
+    (async () => {
+      try {
+        const result: any = await fetchSuperAccountForOwner(address);
+        if (cancelled) return;
+        const safe = result?.hasPassport && result?.account?.smartAccount
+          ? (result.account.smartAccount as `0x${string}`) : null;
+        if (!safe) { setPassport({ status: "none" }); return; }
+        setPassport({ status: "has", safe });
+
+        const base = process.env.NEXT_PUBLIC_BADGES_API_BASE ?? "";
+        const res = await fetch(`${base}/api/user/${safe}`, { cache: "no-store" });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const backendBadges: BackendBadge[] = data.currentBadges ?? [];
+        const trackedIds = new Set(Object.values(BADGE_ID_BY_KEY).filter((id): id is number => id != null));
+        setHasClaimableBadges(backendBadges.some(b =>
+          trackedIds.has(Number(b.badgeId)) && b.claimable && (b.claimableTier ?? 0) > (b.tier ?? 0)
+        ));
+      } catch { if (!cancelled) setPassport({ status: "none" }); }
+    })();
+    return () => { cancelled = true; };
+  }, [address]);
+
+  async function claimBadges(safe: `0x${string}`) {
+    setBadgeAction("claiming");
+    setBadgeClaimLoadingOpen(true);
+    try {
+      const base = process.env.NEXT_PUBLIC_BADGES_API_BASE ?? "";
+      const res = await fetch(`${base}/api/user/${safe}`, {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({}),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const updates: any[] = Array.isArray(data?.badgeUpdates) ? data.badgeUpdates : [];
+      const newlyUnlocked: string[] = [];
+      updates.forEach((u) => {
+        const key = (Object.keys(BADGE_ID_BY_KEY) as BadgeKey[]).find(k => BADGE_ID_BY_KEY[k] === Number(u.badgeId));
+        const def = key ? BADGES.find(b => b.key === key) : null;
+        if (!def) return;
+        for (let lvl = Number(u.previousLevel ?? 0) + 1; lvl <= Number(u.level ?? 0) && lvl <= def.tiers.length; lvl++) {
+          newlyUnlocked.push(`${def.title} • ${def.tiers[lvl - 1].label}`);
+        }
+      });
+      setUnlockedBadges(newlyUnlocked);
+      if (newlyUnlocked.length > 0) setBadgeSheetOpen(true);
+    } catch {} finally {
+      setBadgeClaimLoadingOpen(false);
+      setBadgeAction("idle");
+    }
+  }
 
   const openQuest = (q: any) => { setQuest(q); setSheetOpen(true); };
   const goDeposit = () => router.push("/vaults");
@@ -258,6 +356,40 @@ export default function EarnPage() {
             onOpenPoll={handleOpenPoll}
             refreshKey={pollRefreshKey}
           />
+
+          {/* ── Pass Badges ──────────────────────────── */}
+          <div className="mt-6">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-lg font-medium">Pass Badges</h3>
+              {passport.status === "has" && (
+                <button
+                  type="button"
+                  className="flex items-center"
+                  disabled={claimDisabled}
+                  onClick={() => passport.status === "has" && claimBadges(passport.safe)}
+                >
+                  <span className={["text-sm font-medium", claimDisabled ? "text-gray-400 cursor-not-allowed" : "text-[#238D9D] hover:underline"].join(" ")}>
+                    {badgeAction === "claiming" ? "Claiming…" : "Claim Badges"}
+                  </span>
+                  {!claimDisabled && (
+                    <span className={`ml-1 inline-flex ${badgeBusy ? "animate-spin" : ""}`}>
+                      <Image src={RefreshSvg} alt="" width={24} height={24} className="w-6 h-6" />
+                    </span>
+                  )}
+                </button>
+              )}
+            </div>
+            {passport.status === "loading" && (
+              <div className="space-y-3 animate-pulse">
+                <div className="h-10 rounded-lg bg-gray-100" />
+                <div className="h-10 rounded-lg bg-gray-100" />
+              </div>
+            )}
+            {passport.status === "none" && (
+              <p className="text-sm text-gray-500">Get Prosperity Pass to unlock badges.</p>
+            )}
+            {passport.status === "has" && <BadgesSection progress={badgeProgress} />}
+          </div>
         </TabsContent>
 
         <TabsContent value="completed">
@@ -280,6 +412,8 @@ export default function EarnPage() {
         onSuccess={handlePollSuccess}
       />
       <SuccessModal openSuccess={success} setOpenSuccess={setSuccess} />
+      <BadgeClaimLoadingSheet open={badgeClaimLoadingOpen} onOpenChange={setBadgeClaimLoadingOpen} />
+      <BadgeClaimSuccessSheet open={badgeSheetOpen} onOpenChange={setBadgeSheetOpen} unlocked={unlockedBadges} />
     </main>
   );
 }

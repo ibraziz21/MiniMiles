@@ -280,24 +280,35 @@ export default function CrackPotPage() {
   // ── Upsell ──────────────────────────────────────────────────────
 
   async function handleUpsell() {
-    if (!address) return;
+    if (!address || !cycle) return;
     const costLabel = isUsdt ? `$${UPSELL_COST_USDT.toFixed(2)} USDT` : `${UPSELL_COST_MILES} Miles`;
     const potLabel = isUsdt
-      ? `$${(cycle?.potBalanceUsdt ?? 0).toFixed(2)}`
-      : `${cycle?.potBalance.toLocaleString()}`;
+      ? `$${(cycle.potBalanceUsdt ?? 0).toFixed(2)}`
+      : `${cycle.potBalance.toLocaleString()}`;
     const confirmed = confirm(`Unlock 3 more attempts for ${costLabel}?\nPot is currently at ${potLabel}.`);
     if (!confirmed) return;
 
-    if (isUsdt) {
+    // Upsell uses the same on-chain enterGame path as a regular entry so that
+    // USDT always flows through the contract (not the relayer).
+    if (isUsdt && !isApproved) {
       await handleApprove(UPSELL_COST_USDT);
-      if (!isApproved) return;
+      return;
     }
 
     try {
+      const contractVersion = isUsdt ? 1 : 0;
+      let txHash: string;
+      try {
+        txHash = await enterCrackPotGame(contractVersion as 0 | 1);
+      } catch (e: any) {
+        alert(e?.shortMessage ?? e?.message ?? "Transaction rejected");
+        return;
+      }
+
       const res = await fetch("/api/crackpot/attempt/upsell", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address, version }),
+        body: JSON.stringify({ address, version, txHash }),
       });
       const data = await res.json();
       if (!res.ok) { alert(data.error ?? "Upsell failed"); return; }

@@ -61,11 +61,13 @@ const LayoutContent: FC<Props> = ({ children }) => {
       isClaim,
     });
 
-    if (!isMember && !isOnboarding && !isClaim) {
+    // Don't redirect if the membership check itself errored (e.g. Supabase timeout).
+    // A DB failure is not proof the user isn't a member.
+    if (!isMember && !isError && !isOnboarding && !isClaim) {
       console.log('[Layout] redirecting non-member in MiniPay -> /onboarding');
       router.replace('/onboarding');
     }
-  }, [isPromoCapture, isMiniPay, isFetched, isMember, isOnboarding, isClaim, router]);
+  }, [isPromoCapture, isMiniPay, isFetched, isMember, isError, isOnboarding, isClaim, router]);
 
   /* while still detecting MiniPay, avoid flicker */
   if (!isPromoCapture && isMiniPay === null) {

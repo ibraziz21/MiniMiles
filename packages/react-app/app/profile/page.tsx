@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useWeb3 } from '@/contexts/useWeb3';
+import { MigrateV2Banner } from '@/components/migrate-v2-banner';
 import { Check, PencilSimple, X, Gift } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
@@ -469,6 +470,10 @@ export default function ProfilePage() {
         <h1 className="text-2xl font-medium">Profile</h1>
         <h3 className="font-extralight">Build your identity on AkibaMiles.</h3>
       </div>
+
+      {address && (
+        <MigrateV2Banner address={address} onMigrated={() => {}} />
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-20">

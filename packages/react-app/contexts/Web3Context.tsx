@@ -510,17 +510,17 @@ function useWeb3Logic() {
   }, [address, publicClient]);
 
   /** Approve USDT spending for the Dice contract. Call before joinDice on USD tiers. */
-  /** Approve USDT spending for CrackPot Version B. Spender is the relayer (pulls via transferFrom). */
+  /** Approve USDT spending for CrackPot Version B. Spender is the CrackPot contract (enterGame pulls via safeTransferFrom). */
   const approveUsdtForCrackPot = useCallback(async (amountUsd: number) => {
     if (isMiniPayProvider()) throw new Error("USDT CrackPot is not available in MiniPay.");
     if (!walletClient || !address) throw new Error("Wallet not connected");
     const chainId = await walletClient.getChainId();
     if (chainId !== celo.id) throw new Error("Wrong network");
 
-    const RELAYER_ADDRESS = (process.env.NEXT_PUBLIC_CRACKPOT_RELAYER_ADDRESS ?? "") as `0x${string}`;
-    if (!RELAYER_ADDRESS) throw new Error("Relayer address not configured");
+    const CRACKPOT_CONTRACT = (process.env.NEXT_PUBLIC_CRACKPOT_ADDRESS ?? "") as `0x${string}`;
+    if (!CRACKPOT_CONTRACT) throw new Error("CrackPot contract address not configured");
 
-    // Approve exact amount (6 decimals)
+    // Approve enough for current entry + potential upsell in same session (6 decimals)
     const amount = BigInt(Math.round(amountUsd * 1_000_000));
     const hash = await walletClient.writeContract({
       chain: walletClient.chain,
@@ -528,7 +528,7 @@ function useWeb3Logic() {
       abi: [{ name: "approve", type: "function", stateMutability: "nonpayable", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }] }],
       functionName: "approve",
       account: address as `0x${string}`,
-      args: [RELAYER_ADDRESS, amount],
+      args: [CRACKPOT_CONTRACT, amount],
     });
     try {
       await publicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 120_000 });
@@ -567,6 +567,56 @@ function useWeb3Logic() {
       const m = String(err?.message || "");
       if (/(block.*out of range|header not found|query timeout)/i.test(m)) {
         console.warn("Ignoring provider range error after CrackPot enterGame:", err);
+      } else {
+        throw err;
+      }
+    }
+    return hash;
+  }, [walletClient, address, publicClient]);
+
+  /** User submits a backend-signed EIP-712 voucher to claim their daily quest reward on-chain. */
+  const claimDailyQuestOnchain = useCallback(async (voucher: {
+    amount: string;
+    dayNonce: string;
+    deadline: string;
+    signature: `0x${string}`;
+    contractAddress: `0x${string}`;
+  }) => {
+    if (!walletClient || !address) throw new Error("Wallet not connected");
+    const chainId = await walletClient.getChainId();
+    if (chainId !== celo.id) throw new Error("Wrong network");
+
+    const hash = await walletClient.writeContract({
+      chain: walletClient.chain,
+      address: voucher.contractAddress,
+      abi: [{
+        name: "claim",
+        type: "function",
+        stateMutability: "nonpayable",
+        inputs: [
+          { name: "amount",   type: "uint256" },
+          { name: "dayNonce", type: "uint256" },
+          { name: "deadline", type: "uint256" },
+          { name: "signature", type: "bytes" },
+        ],
+        outputs: [],
+      }],
+      functionName: "claim",
+      account: address as `0x${string}`,
+      args: [
+        BigInt(voucher.amount),
+        BigInt(voucher.dayNonce),
+        BigInt(voucher.deadline),
+        voucher.signature,
+      ],
+    });
+
+    try {
+      await publicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 90_000 });
+    } catch (err: any) {
+      const m = String(err?.message || "");
+      if (/(block.*out of range|header not found|query timeout)/i.test(m)) {
+        console.warn("Ignoring provider range error after daily quest claim:", err);
       } else {
         throw err;
       }
@@ -761,6 +811,7 @@ function useWeb3Logic() {
     approveClawUsdt,
     startClawGame,
     burnClawVoucherReward,
+    claimDailyQuestOnchain,
     enterCrackPotGame,
     approveUsdtForCrackPot,
     approveUsdtForDice,

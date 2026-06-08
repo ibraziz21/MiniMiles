@@ -10,13 +10,15 @@ export function useMembership() {
     queryKey: ["isMember", normalized],
     enabled: !!normalized,
     staleTime: 5 * 60_000,
+    retry: 2,
     queryFn: async () => {
       if (!normalized) return false;
 
       const res = await fetch(`/api/users/${normalized}`);
       if (!res.ok) {
-        console.error("[useMembership] /api/users error:", res.status);
-        return false;
+        // Throw so React Query marks this as an error, not as "confirmed non-member".
+        // Layout guards on isError to avoid redirecting to onboarding on DB failures.
+        throw new Error(`[useMembership] /api/users ${res.status}`);
       }
       const { isMember } = await res.json();
       return !!isMember;

@@ -117,10 +117,29 @@ export async function POST(req: Request) {
 
     const freeUsed = allAttempts.filter((a) => !a.is_paid).length;
     if (freeUsed >= FREE_ATTEMPTS_PER_CYCLE) {
-      return NextResponse.json(
-        { error: "Free attempts exhausted. Use /attempt/upsell to unlock more." },
-        { status: 402 },
-      );
+      // Check for a pre-purchased queued paid attempt (from upsell)
+      const queued = allAttempts.find((a) => a.is_paid && a.status === "queued");
+      if (!queued) {
+        return NextResponse.json(
+          { error: "Free attempts exhausted. Use /attempt/upsell to unlock more." },
+          { status: 402 },
+        );
+      }
+      // Activate the queued attempt in-place
+      const now = new Date();
+      const expiresAt = buildAttemptExpiresAt(now);
+      await supabase
+        .from("crackpot_attempts")
+        .update({ status: "active", started_at: now.toISOString(), expires_at: expiresAt.toISOString() })
+        .eq("id", queued.id);
+      return NextResponse.json({
+        attemptId:       queued.id,
+        attemptNumber:   queued.attempt_number,
+        expiresAt:       expiresAt.toISOString(),
+        secondsRemaining: secondsUntil(expiresAt.toISOString()),
+        freeAttemptsUsed: freeUsed,
+        paid: true,
+      });
     }
 
     // ── Sync pot balance from tx event ────────────────────────────

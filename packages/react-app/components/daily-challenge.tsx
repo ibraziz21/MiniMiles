@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { createClient } from "@supabase/supabase-js";
 import { StreakInfoSheet } from "@/components/StreakDetailModal";
@@ -16,7 +16,7 @@ import {
   claimBalanceStreak30,
   claimBalanceStreak100,
 } from "@/helpers/claimBalanceStreak";
-import { claimDailyQuest } from "@/helpers/claimDaily";
+import { claimDailyQuest, type DailyClaimStep } from "@/helpers/claimDaily";
 import { claimFiveTransfers } from "@/helpers/claimFiveTransfers";
 import { claimKilnHold } from "@/helpers/claimKilnHold";
 import { claimTenTransfers } from "@/helpers/claimTenTransfers";
@@ -95,74 +95,72 @@ type QuestHandler = {
   img: any;
 };
 
-const ACTION_BY_ID: Record<string, QuestHandler> = {
-  /* A. Daily login / check-in */
-  "a9c68150-7db8-4555-b87f-5e9117b43a08": {
-    action: claimDailyQuest,
-    img: Door,
-  },
+// buildActionMap closes over claimDailyOnchain so the daily check-in entry
+// can trigger the on-chain flow when the contract is configured.
+function buildActionMap(
+  claimDailyOnchain?: Parameters<typeof claimDailyQuest>[1]
+): Record<string, QuestHandler> {
+  const map: Record<string, QuestHandler> = {
+    /* A. Daily login / check-in */
+    "a9c68150-7db8-4555-b87f-5e9117b43a08": {
+      action: (addr: string) => claimDailyQuest(addr, claimDailyOnchain),
+      img: Door,
+    },
 
-  /* B. Daily send ≥ $1 */
-  "383eaa90-75aa-4592-a783-ad9126e8f04d": {
-    action: claimSendDollar,
-    img: Cash,
-  },
+    /* B. Daily send ≥ $1 */
+    "383eaa90-75aa-4592-a783-ad9126e8f04d": {
+      action: claimSendDollar,
+      img: Cash,
+    },
 
-  /* C. Daily receive ≥ $1 */
-  "c6b14ae1-66e9-4777-9c9f-65e57b091b16": {
-    action: claimReceiveDollar,
-    img: Cash,
-  },
+    /* C. Daily receive ≥ $1 */
+    "c6b14ae1-66e9-4777-9c9f-65e57b091b16": {
+      action: claimReceiveDollar,
+      img: Cash,
+    },
 
-  // /* G. Weekly $5 top-up streak */
-  // "96009afb-0762-4399-adb3-ced421d73072": {
-  //   action: claimTopupStreak,
-  //   img: Cash,
-  // },
+    /* H. 7-day daily-quest streak */
+    "6ddc811a-1a4d-4e57-871d-836f07486531": {
+      action: claimSevenDayStreak,
+      img: Cash,
+    },
 
-  /* H. 7-day daily-quest streak */
-  "6ddc811a-1a4d-4e57-871d-836f07486531": {
-    action: claimSevenDayStreak,
-    img: Cash,
-  },
+    /* I. Wallet balance streak ≥ $10 */
+    "feb6e5ef-7d9c-4ca6-a042-e2b692a6b00f": {
+      action: claimBalanceStreak10,
+      img: Cash,
+    },
 
-  /* I. Wallet balance streak ≥ $10 */
-  "feb6e5ef-7d9c-4ca6-a042-e2b692a6b00f": {
-    action: claimBalanceStreak10,
-    img: Cash,
-  },
+    /* J. Wallet balance streak ≥ $30 */
+    "a1ac5914-20d4-4436-bf02-29563938fe9d": {
+      action: claimBalanceStreak30,
+      img: Cash,
+    },
 
-  /* J. Wallet balance streak ≥ $30 */
-  "a1ac5914-20d4-4436-bf02-29563938fe9d": {
-    action: claimBalanceStreak30,
-    img: Cash,
-  },
+    /* K. Wallet balance streak ≥ $100 */
+    "b5c7e1d2-6f8a-4b0c-9d2e-3a1f7c5b8e4d": {
+      action: claimBalanceStreak100,
+      img: Cash,
+    },
 
-  /* K. Wallet balance streak ≥ $100 */
-  "b5c7e1d2-6f8a-4b0c-9d2e-3a1f7c5b8e4d": {
-    action: claimBalanceStreak100,
-    img: Cash,
-  },
+    /* D. Send 5 transfers */
+    "f6d027d2-bf52-4768-a87f-2be00a5b03a0": {
+      action: claimFiveTransfers,
+      img: Cash,
+    },
 
-  /* D. Send 5 transfers */
-  "f6d027d2-bf52-4768-a87f-2be00a5b03a0": {
-    action: claimFiveTransfers,
-    img: Cash,
-  },
-
-  /* E. Send 10 transfers */
-  "ea001296-2405-451b-a590-941af22a8df1": {
-    action: claimTenTransfers,
-    img: Cash,
-  },
-
-};
-
-if (KILN_DAILY_HOLD_QUEST_ID) {
-  ACTION_BY_ID[KILN_DAILY_HOLD_QUEST_ID] = {
-    action: claimKilnHold,
-    img: Cash,
+    /* E. Send 10 transfers */
+    "ea001296-2405-451b-a590-941af22a8df1": {
+      action: claimTenTransfers,
+      img: Cash,
+    },
   };
+
+  if (KILN_DAILY_HOLD_QUEST_ID) {
+    map[KILN_DAILY_HOLD_QUEST_ID] = { action: claimKilnHold, img: Cash };
+  }
+
+  return map;
 }
 
 /**
@@ -235,7 +233,11 @@ export default function DailyChallenges({
 }: {
   showCompleted?: boolean;
 }) {
-  const { address, getUserAddress, waitForAuth } = useWeb3();
+  const { address, getUserAddress, waitForAuth, claimDailyQuestOnchain } = useWeb3() as any;
+  const ACTION_BY_ID = useMemo(
+    () => buildActionMap(claimDailyQuestOnchain ?? undefined),
+    [claimDailyQuestOnchain],
+  );
 
   const [active, setActive] = useState<QuestRow[]>([]);
   const [completed, setCompleted] = useState<QuestRow[]>([]);
@@ -256,6 +258,7 @@ export default function DailyChallenges({
   // loading + result sheets
   const [claimBusy, setClaimBusy] = useState(false);
   const [claimLoadingOpen, setClaimLoadingOpen] = useState(false);
+  const [claimStep, setClaimStep] = useState<DailyClaimStep | null>(null);
 
   const [resultOpen, setResultOpen] = useState(false);
   const [resultVariant, setResultVariant] = useState<"success" | "already" | "error">(
@@ -437,6 +440,8 @@ export default function DailyChallenges({
 
   const quests = showCompleted ? completed : active;
 
+  const DAILY_CHECKIN_ID = "a9c68150-7db8-4555-b87f-5e9117b43a08";
+
   async function runQuest(q: QuestRow) {
     if (showCompleted) return;
     if (!address) return;
@@ -448,10 +453,15 @@ export default function DailyChallenges({
 
     setClaimBusy(true);
     setLastQuestTitle(q.title);
+    setClaimStep(null);
     setClaimLoadingOpen(true);
 
     try {
-      const res: any = await map.action(address);
+      // Daily check-in uses the on-chain path when the contract is configured;
+      // it needs an onStep callback to drive the loading message.
+      const res: any = (q.id === DAILY_CHECKIN_ID && claimDailyQuestOnchain)
+        ? await claimDailyQuest(address, claimDailyQuestOnchain, (step) => setClaimStep(step))
+        : await map.action(address);
 
       if (res?.success) {
         if (res.queued) {
@@ -521,6 +531,7 @@ export default function DailyChallenges({
       setResultMessage("Network or contract error");
     } finally {
       setClaimLoadingOpen(false);
+      setClaimStep(null);
       setResultOpen(true);
       setClaimBusy(false);
     }
@@ -610,9 +621,13 @@ export default function DailyChallenges({
         onOpenChange={setClaimLoadingOpen}
         title="Claiming reward"
         message={
-          lastQuestTitle
-            ? `Claiming “${lastQuestTitle}”… This usually takes a few seconds.`
-            : "Processing your claim… This usually takes a few seconds."
+          claimStep === "wallet"
+            ? "Check your wallet to confirm the transaction."
+            : claimStep === "confirming"
+            ? "Transaction submitted, waiting for confirmation..."
+            : lastQuestTitle
+            ? "Claiming " + lastQuestTitle + "... This usually takes a few seconds."
+            : "Processing your claim... This usually takes a few seconds."
         }
       />
 
