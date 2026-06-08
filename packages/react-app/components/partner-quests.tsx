@@ -40,6 +40,7 @@ const FOLLOW_ID    = '99da9e3d-5332-419e-aa40-5cb9d6e3a7ab';
 const TELEGRAM_ID  = '2679ab21-f8cf-446f-8efb-36b549f73fa0';
 const YOUTUBE_ID   = '5405c0bb-03de-4b7a-80e1-c28982dcfbc2';
 const TIKTOK_ID    = 'c3d24b83-de1e-465f-b703-f52895f73a03';
+export const PRETIUM_PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=app.pretium.finance&hl=en_US';
 
 /* ─── Partner groups ─────────────────────────────────────── */
 
@@ -129,7 +130,7 @@ const PARTNER_GROUPS: PartnerGroup[] = [
         description: 'Download Pretium & sign up using referral code AKIBA1. Miles awarded after Pretium verifies your account.',
         reward: '50 akibaMiles',
         color: '#EEF6FF',
-        actionLink: 'https://play.google.com/store/apps/details?id=app.pretium.finance',
+        actionLink: PRETIUM_PLAY_STORE_URL,
         instructions: [
           { title: 'Download Pretium', text: 'Tap the button below to get the Pretium app on the Play Store.' },
           { title: 'Use code AKIBA1', text: 'You MUST enter referral code AKIBA1 during sign-up — accounts registered without it cannot be verified.' },
@@ -144,7 +145,7 @@ const PARTNER_GROUPS: PartnerGroup[] = [
         description: 'Make any transaction on Pretium. Miles awarded after Pretium verifies the activity.',
         reward: '50 akibaMiles',
         color: '#EEF6FF',
-        actionLink: 'https://play.google.com/store/apps/details?id=app.pretium.finance',
+        actionLink: PRETIUM_PLAY_STORE_URL,
         instructions: [
           { title: 'Open Pretium', text: 'Log in to the Pretium app (must have signed up with code AKIBA1).' },
           { title: 'Transact', text: 'Send, receive, or convert — any on-platform transaction counts.' },

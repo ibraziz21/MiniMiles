@@ -364,11 +364,7 @@ const EarnPartnerQuestSheet = ({
                 className="w-full rounded-xl py-6 text-white bg-[#238D9D] mb-0"
                 title="Get Pretium on Play Store"
                 onClick={() => {
-                  const isAndroid = /android/i.test(navigator.userAgent);
-                  const url = isAndroid
-                    ? 'market://details?id=app.pretium.finance'
-                    : quest.actionLink;
-                  window.location.href = url;
+                  window.location.href = quest.actionLink;
                 }}
               >
                 Get Pretium on Play Store
