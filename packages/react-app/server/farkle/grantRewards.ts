@@ -9,6 +9,7 @@ import { createClient } from "@supabase/supabase-js";
 import { safeMintMiniPoints } from "@/lib/minipoints";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
+type HexAddress = `0x${string}`;
 
 export interface FarkleRewardParams {
   matchId:       string;
@@ -21,6 +22,10 @@ export interface FarkleRewardParams {
   losMiles:      number;
   winCreditCents: number;
   endReason:     "score" | "forfeit" | "timeout";
+}
+
+function asHexAddress(value: string): HexAddress | null {
+  return /^0x[a-fA-F0-9]{40}$/.test(value) ? (value as HexAddress) : null;
 }
 
 export async function grantFarkleRewards(p: FarkleRewardParams): Promise<void> {
@@ -76,10 +81,17 @@ export async function grantFarkleRewards(p: FarkleRewardParams): Promise<void> {
   // Both winner and loser receive AkibaMiles. A failed mint is logged for
   // manual retry; the ledger entry is the source of truth for accounting.
   const mintBoth = async () => {
+    const winnerHex = asHexAddress(winnerAddress);
+    const loserHex = asHexAddress(loserAddress);
+    if (!winnerHex || !loserHex) {
+      console.error("[grantFarkleRewards] invalid reward address", { matchId, winnerAddress, loserAddress });
+      return;
+    }
+
     await Promise.allSettled([
-      safeMintMiniPoints({ to: winnerAddress, points: winMiles, reason: `farkle-win-${matchId}` })
+      safeMintMiniPoints({ to: winnerHex, points: winMiles, reason: `farkle-win-${matchId}` })
         .catch((e) => console.error("[grantFarkleRewards] winner mint failed:", e?.message)),
-      safeMintMiniPoints({ to: loserAddress, points: losMiles, reason: `farkle-loss-${matchId}` })
+      safeMintMiniPoints({ to: loserHex, points: losMiles, reason: `farkle-loss-${matchId}` })
         .catch((e) => console.error("[grantFarkleRewards] loser mint failed:", e?.message)),
     ]);
   };

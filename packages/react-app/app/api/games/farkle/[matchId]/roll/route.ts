@@ -76,6 +76,8 @@ export async function POST(req: Request, { params }: Ctx) {
     const scored = scoreSelected(prevDice as DiceValue[], holdIndices);
     if (scored.score === 0)
       return NextResponse.json({ error: "selected dice score 0" }, { status: 400 });
+    if (scored.scoringIndices.length !== holdIndices.length)
+      return NextResponse.json({ error: "selected dice include non-scoring dice" }, { status: 400 });
 
     newTurnPoints += scored.score;
     lockedSoFar = [...new Set([...lockedSoFar, ...holdIndices])];

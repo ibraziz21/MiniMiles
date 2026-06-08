@@ -3,7 +3,7 @@ import { Lock, Trophy } from "@phosphor-icons/react";
 import Image, { StaticImageData } from "next/image";
 
 export type RaffleCardProps = {
-  image: StaticImageData;
+  image: StaticImageData | string;
   title: string;
   endsIn: string;
   ticketCost: string;

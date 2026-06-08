@@ -31,8 +31,26 @@ export async function POST(req: Request) {
   if (!address || !modeKey) return NextResponse.json({ error: "missing fields" }, { status: 400 });
   if (!MODE_TARGET[modeKey]) return NextResponse.json({ error: "invalid modeKey" }, { status: 400 });
 
-  // TODO: re-enable entry check before launch
-  // if (modeKey === "FARKLE_QUICK_1500_AKIBA") { ... }
+  // Entry balance check — player must hold at least 1 ticket (Quick) or 1 credit (Reward)
+  if (modeKey === "FARKLE_QUICK_1500_AKIBA") {
+    const { data: ticketRow } = await supabase
+      .from("farkle_ticket_balances")
+      .select("balance")
+      .eq("wallet_address", address)
+      .maybeSingle();
+    if ((ticketRow?.balance ?? 0) < 1) {
+      return NextResponse.json({ error: "insufficient-tickets", message: "You need at least 1 ticket to enter." }, { status: 402 });
+    }
+  } else if (modeKey === "FARKLE_REWARD_3000_USDT") {
+    const { data: creditRow } = await supabase
+      .from("farkle_credit_balances")
+      .select("purchased_credits")
+      .eq("wallet_address", address)
+      .maybeSingle();
+    if ((creditRow?.purchased_credits ?? 0) < 1) {
+      return NextResponse.json({ error: "insufficient-credits", message: "You need at least 1 game credit to enter." }, { status: 402 });
+    }
+  }
 
   await expireWaitingQueue(supabase);
 
@@ -142,9 +160,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "failed to create match players" }, { status: 500 });
     }
 
-    // TODO: re-enable entry debit before launch
-    // await debitEntry(modeKey, waiter.wallet_address);
-    // await debitEntry(modeKey, address);
+    await debitEntry(modeKey, claimedWaiter.wallet_address);
+    await debitEntry(modeKey, address);
 
     await supabase.from("game_match_players")
       .update({ entry_debited: true }).eq("match_id", matchId);

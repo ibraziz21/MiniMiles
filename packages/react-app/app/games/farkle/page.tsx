@@ -177,7 +177,7 @@ function Die3D({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function FarklePage() {
-  const { address } = useWeb3() as any;
+  const { address, waitForAuth } = useWeb3() as any;
   const router      = useRouter();
 
   const [screen,   setScreen]   = useState<Screen>("mode-select");
@@ -312,6 +312,7 @@ export default function FarklePage() {
           matchId={matchId}
           myAddress={address.toLowerCase()}
           mode={mode}
+          waitForAuth={waitForAuth}
           onMatchEnd={(res) => { leaveGame(); setResult(res); setScreen("result"); }}
         />
       )}
@@ -572,10 +573,11 @@ interface RollState {
   isHotDice:     boolean;
 }
 
-function GameBoard({ matchId, myAddress, mode, onMatchEnd }: {
+function GameBoard({ matchId, myAddress, mode, waitForAuth, onMatchEnd }: {
   matchId:    string;
   myAddress:  string;
   mode:       FarkleMode;
+  waitForAuth?: (timeoutMs?: number) => Promise<void>;
   onMatchEnd: (r: { winnerId: string; yourScore: number; oppScore: number }) => void;
 }) {
   const [myScore,    setMyScore]    = useState(0);
@@ -690,6 +692,7 @@ function GameBoard({ matchId, myAddress, mode, onMatchEnd }: {
     if (claiming) return;
     setClaiming(true);
     try {
+      await waitForAuth?.();
       const r = await fetch(`/api/games/farkle/${matchId}/timeout`, {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ address: myAddress }),
@@ -712,6 +715,7 @@ function GameBoard({ matchId, myAddress, mode, onMatchEnd }: {
 
     let data: any = null;
     try {
+      await waitForAuth?.();
       const r = await fetch(`/api/games/farkle/${matchId}/roll`, {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ address: myAddress, holdIndices }),
@@ -767,6 +771,7 @@ function GameBoard({ matchId, myAddress, mode, onMatchEnd }: {
     setBusy(true); busyRef.current = true;
     let data: any = null;
     try {
+      await waitForAuth?.();
       const r = await fetch(`/api/games/farkle/${matchId}/bank`, {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ address: myAddress, holdIndices: finalHold }),
@@ -809,18 +814,26 @@ function GameBoard({ matchId, myAddress, mode, onMatchEnd }: {
       // Deselect: remove this die (and any same-face group members that no longer score alone)
       if (prev.includes(i)) {
         const next = prev.filter((x) => x !== i);
-        setCombo(next.length ? scoreDice(next.map((idx) => dice[idx])).combos.join(" + ") : null);
+        const sc = scoreDice(next.map((idx) => dice[idx]));
+        if (next.length > 0 && (sc.score === 0 || sc.scoringIndices.length !== next.length)) {
+          setCombo(null);
+          return [];
+        }
+        setCombo(next.length ? sc.combos.join(" + ") : null);
         return next;
       }
 
       // Select: try just this die; if it doesn't score alone (e.g. a "2"), grab its whole face group
       let additions = [i];
       if (scoreDice([dice[i]]).score === 0) {
-        additions = rollState.scoringHints.filter((idx) => dice[idx] === dice[i] && !prev.includes(idx));
+        const sameFace = rollState.scoringHints.filter((idx) => dice[idx] === dice[i] && !prev.includes(idx));
+        additions = scoreDice(sameFace.map((idx) => dice[idx])).score > 0
+          ? sameFace
+          : rollState.scoringHints.filter((idx) => !prev.includes(idx));
       }
       const next = [...new Set([...prev, ...additions])];
       const sc = scoreDice(next.map((idx) => dice[idx]));
-      if (sc.score === 0) return prev; // still invalid — ignore
+      if (sc.score === 0 || sc.scoringIndices.length !== next.length) return prev; // still invalid — ignore
       setCombo(sc.combos.join(" + ") || null);
       return next;
     });
@@ -1109,6 +1122,7 @@ function GameBoard({ matchId, myAddress, mode, onMatchEnd }: {
           <button type="button"
             onClick={async () => {
               if (!confirm("Forfeit? You will lose.")) return;
+              await waitForAuth?.();
               await fetch(`/api/games/farkle/${matchId}/forfeit`, {
                 method: "POST", headers: { "content-type": "application/json" },
                 body: JSON.stringify({ address: myAddress }),

@@ -210,7 +210,7 @@ async function main() {
     GAME_ID_FARKLE,
     "Farkle Reward Duel",
     2,           // playerCount
-    3000,        // targetScore
+    2500,        // targetScore
     2,           // EntryCurrency.GAME_CREDIT
     1,           // entryAmount (1 credit)
     3,           // RewardType.MIXED (miles + reward credit)

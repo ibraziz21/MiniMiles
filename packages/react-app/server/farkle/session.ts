@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { grantFarkleRewards } from "@/server/farkle/grantRewards";
 
 export const FARKLE_TURN_TIMEOUT_SECONDS = 60;
 export const FARKLE_MATCH_STALE_SECONDS = 5 * 60;
@@ -16,7 +17,14 @@ interface MatchRow {
   started_at?: string | null;
   created_at?: string | null;
   metadata?: Record<string, unknown> | null;
-  game_modes?: { mode_key?: string | null } | { mode_key?: string | null }[] | null;
+  game_modes?: ModeRow | ModeRow[] | null;
+}
+
+interface ModeRow {
+  mode_key?: string | null;
+  winner_miles_reward?: number | null;
+  loser_miles_reward?: number | null;
+  winner_reward_credit?: number | null;
 }
 
 interface PlayerRow {
@@ -36,8 +44,12 @@ function matchActivityIso(match: MatchRow) {
 }
 
 function getModeKey(match: MatchRow) {
+  return getMode(match)?.mode_key ?? null;
+}
+
+function getMode(match: MatchRow) {
   const relation = match.game_modes;
-  return (Array.isArray(relation) ? relation[0]?.mode_key : relation?.mode_key) ?? null;
+  return Array.isArray(relation) ? relation[0] : relation;
 }
 
 function isFarkleMatch(match: MatchRow) {
@@ -84,7 +96,7 @@ async function completeTimeout(
   loser: PlayerRow,
   nowIso: string,
 ) {
-  const { error: matchError } = await supabase
+  const { data: completedMatch, error: matchError } = await supabase
     .from("game_matches")
     .update({
       status: "completed",
@@ -96,11 +108,14 @@ async function completeTimeout(
       metadata: { ...(match.metadata ?? {}), endReason: "timeout_auto" },
     })
     .eq("id", match.id)
-    .eq("status", "in_progress");
+    .eq("status", "in_progress")
+    .select("id")
+    .maybeSingle();
   if (matchError) {
     console.error("[farkle/session] failed to auto-timeout match", matchError);
     return;
   }
+  if (!completedMatch) return;
 
   const { error: winnerError } = await supabase
     .from("game_match_players")
@@ -115,6 +130,20 @@ async function completeTimeout(
   if (winnerError || loserError) {
     console.error("[farkle/session] failed to record timeout players", winnerError ?? loserError);
   }
+
+  const mode = getMode(match);
+  await grantFarkleRewards({
+    matchId: match.id,
+    modeKey: mode?.mode_key ?? "",
+    winnerAddress: winner.wallet_address,
+    loserAddress: loser.wallet_address,
+    winnerScore: winner.banked_score ?? 0,
+    loserScore: loser.banked_score ?? 0,
+    winMiles: Number(mode?.winner_miles_reward ?? 10),
+    losMiles: Number(mode?.loser_miles_reward ?? 5),
+    winCreditCents: Number(mode?.winner_reward_credit ?? 0),
+    endReason: "timeout",
+  });
 }
 
 export async function reconcilePlayerFarkleSessions(supabase: SupabaseClient, address: string) {
@@ -137,7 +166,7 @@ export async function reconcilePlayerFarkleSessions(supabase: SupabaseClient, ad
     await Promise.all([
       supabase
         .from("game_matches")
-        .select("id, status, current_turn_address, turn_started_at, last_action_at, started_at, created_at, metadata, game_modes(mode_key)")
+        .select("id, status, current_turn_address, turn_started_at, last_action_at, started_at, created_at, metadata, game_modes(mode_key, winner_miles_reward, loser_miles_reward, winner_reward_credit)")
         .in("id", matchIds)
         .in("status", ACTIVE_MATCH_STATUSES),
       supabase
