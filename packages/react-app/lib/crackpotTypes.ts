@@ -222,6 +222,7 @@ export type CrackPotGuess = {
   symbols: [number, number, number, number]; // 0–5 indices into theme symbol array
   // Noisy feedback stored as returned (not ground truth)
   feedback: GuessFeedback;
+  locked_count: number;
   is_correct: boolean;
   created_at: string;
 };

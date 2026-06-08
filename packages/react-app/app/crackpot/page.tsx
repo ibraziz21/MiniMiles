@@ -76,7 +76,7 @@ export default function CrackPotPage() {
   const [communityBestLocked, setCommunityBestLocked] = useState<number | null>(null);
   const [cycleTotalAttempts, setCycleTotalAttempts] = useState(0);
 
-  const cooldownRef = useRef<NodeJS.Timeout | null>(null);
+  const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const symbolOrder = useMemo(
     () => (address ? shuffleSymbols(address) : [0, 1, 2, 3, 4, 5]),

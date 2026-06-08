@@ -27,6 +27,9 @@ export default function EarnPage() {
   const [currentDeposit, setCurrentDeposit] = useState<number>(0);
   const [quest, setQuest] = useState<any>(null);
   const [success, setSuccess] = useState(false);
+  const [localPendingPretiumIds, setLocalPendingPretiumIds] = useState<string[]>([]);
+  const handlePretiumSubmit = (questId: string) =>
+    setLocalPendingPretiumIds((prev) => (prev.includes(questId) ? prev : [...prev, questId]));
   const [vaultMilesEarned, setVaultMilesEarned] = useState<string | null>(null);
   const [vaultMilesLoading, setVaultMilesLoading] = useState(false);
   const isMiniPay = useIsMiniPay();
@@ -251,7 +254,7 @@ export default function EarnPage() {
             <p className="text-gray-500">Completed a challenge? Click & claim Miles</p>
           </div>
           <DailyChallenges showCompleted={false} />
-          <PartnerQuests openPopup={openQuest} />
+          <PartnerQuests openPopup={openQuest} localPendingIds={localPendingPretiumIds} />
 
           {/* ── Verified Insights ───────────────────── */}
           <VerifiedInsights
@@ -272,6 +275,7 @@ export default function EarnPage() {
         onOpenChange={setSheetOpen}
         quest={quest}
         setOpenSuccess={setSuccess}
+        onPretiumSubmit={handlePretiumSubmit}
       />
       <PollSheet
         pollId={activePollId}

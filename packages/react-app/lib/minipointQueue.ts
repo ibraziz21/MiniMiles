@@ -373,6 +373,40 @@ export async function claimQueuedPollReward(opts: {
   return { ok: true as const, queued: true, txHash: undefined, points };
 }
 
+/**
+ * Enqueue miles for a partner quest that requires external verification
+ * (e.g. Pretium). Caller is responsible for idempotency key uniqueness and
+ * for ensuring this is only called once per user+quest after confirmation.
+ */
+export async function enqueuePartnerVerifiedReward(opts: {
+  userAddress: string;
+  questId: string;
+  points: number;
+  idempotencyKey: string;
+}) {
+  const { userAddress, questId, points, idempotencyKey } = opts;
+  const userLc = userAddress.toLowerCase();
+  const reward = await computeQuestReward(userLc, points);
+
+  await ensureMintJob({
+    idempotencyKey,
+    userAddress: userLc,
+    points: reward.awardedPoints,
+    reason: `partner-verified:${questId}`,
+    payload: {
+      kind: "partner_engagement",
+      userAddress: userLc,
+      questId,
+      claimedAt: new Date().toISOString(),
+      pointsAwarded: reward.awardedPoints,
+      basePoints: reward.basePoints,
+      vaultBoost: reward.vaultBoost,
+    },
+  });
+
+  return { ok: true as const, awardedPoints: reward.awardedPoints };
+}
+
 export async function enqueueVaultDailyReward(opts: {
   userAddress: string;
   snapshotDate: string;   // YYYY-MM-DD

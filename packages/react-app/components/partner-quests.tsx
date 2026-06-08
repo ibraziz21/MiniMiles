@@ -9,6 +9,7 @@ import {
 import celopg from '@/public/img/celopg.png';
 import girasolonchain from '@/public/img/girasolonchain.png';
 import predictionfrontier from '@/public/img/predictionF.jpg';
+import pretiumLogo from '@/public/img/pretium.jpg';
 import Image from 'next/image';
 import cn from 'clsx';
 import { createClient } from '@supabase/supabase-js';
@@ -29,6 +30,8 @@ export interface Quest {
   instructions: { title: string; text: string }[];
   actionLink: string;
   isLocked: boolean;
+  /** Set for quests that require external verification before miles are minted */
+  questType?: 'pretium_signup' | 'pretium_transact';
 }
 
 /* ─── Quest IDs ──────────────────────────────────────────── */
@@ -107,6 +110,45 @@ const PARTNER_GROUPS: PartnerGroup[] = [
         instructions: [
           { title: 'Open Instagram', text: 'Go to the Prediction Frontier Instagram profile.' },
           { title: 'Follow', text: 'Hit the Follow button and confirm.' },
+        ],
+      },
+    ],
+  },
+    {
+    id: 'pretium',
+    img: pretiumLogo,
+    title: 'Pretium',
+    description: 'Sign up with code AKIBA1 & earn miles',
+    color: '#EEF6FF',
+    quests: [
+      {
+        id: 'pretium_signup',
+        questType: 'pretium_signup',
+        isLocked: false,
+        title: 'Sign Up to Pretium',
+        description: 'Download Pretium & sign up using referral code AKIBA1. Miles awarded after Pretium verifies your account.',
+        reward: '50 akibaMiles',
+        color: '#EEF6FF',
+        actionLink: 'https://play.google.com/store/apps/details?id=app.pretium.finance',
+        instructions: [
+          { title: 'Download Pretium', text: 'Tap the button below to get the Pretium app on the Play Store.' },
+          { title: 'Use code AKIBA1', text: 'You MUST enter referral code AKIBA1 during sign-up — accounts registered without it cannot be verified.' },
+          { title: 'Submit here', text: 'Come back and tap Submit. Pretium verifies accounts daily — miles arrive within 24 hours of confirmation.' },
+        ],
+      },
+      {
+        id: 'pretium_transact',
+        questType: 'pretium_transact',
+        isLocked: false,
+        title: 'Transact on Pretium',
+        description: 'Make any transaction on Pretium. Miles awarded after Pretium verifies the activity.',
+        reward: '50 akibaMiles',
+        color: '#EEF6FF',
+        actionLink: 'https://play.google.com/store/apps/details?id=app.pretium.finance',
+        instructions: [
+          { title: 'Open Pretium', text: 'Log in to the Pretium app (must have signed up with code AKIBA1).' },
+          { title: 'Transact', text: 'Send, receive, or convert — any on-platform transaction counts.' },
+          { title: 'Submit here', text: 'Come back and tap Submit. Pretium verifies activity daily — miles arrive within 24 hours of confirmation.' },
         ],
       },
     ],
@@ -215,9 +257,7 @@ const PARTNER_GROUPS: PartnerGroup[] = [
         ],
       },
     ],
-  },
-
-  
+  }
 ];
 
 /* ─── Supabase hook ──────────────────────────────────────── */
@@ -227,17 +267,34 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 );
 
-function useClaimedQuestIds(address?: string) {
-  return useQuery<string[]>({
+type ClaimStatus = { claimed: string[]; pending: string[] };
+
+function useQuestClaimStatus(address?: string) {
+  return useQuery<ClaimStatus>({
     enabled: !!address,
     queryKey: ['partner-claimed', address],
+    refetchOnMount: 'always',
     queryFn: async () => {
-      if (!address) return [];
-      const { data } = await supabase
-        .from('partner_engagements')
-        .select('partner_quest_id')
-        .eq('user_address', address.toLowerCase());
-      return data?.map((d) => d.partner_quest_id) ?? [];
+      if (!address) return { claimed: [], pending: [] };
+      const addrLc = address.toLowerCase();
+
+      const [{ data: engagements }, pretiumRes] = await Promise.all([
+        supabase.from('partner_engagements').select('partner_quest_id').eq('user_address', addrLc),
+        fetch('/api/partner-quests/pretium/status').then((r) => r.ok ? r.json() as Promise<Record<string, string | null>> : Promise.resolve({} as Record<string, string | null>)),
+      ]);
+
+      const claimed = engagements?.map((d) => d.partner_quest_id) ?? [];
+      const pending: string[] = [];
+
+      for (const questType of ['signup', 'transact'] as const) {
+        const status = pretiumRes?.[questType];
+        if (status) {
+          claimed.push(`pretium_${questType}`);
+          if (status !== 'confirmed') pending.push(`pretium_${questType}`);
+        }
+      }
+
+      return { claimed, pending };
     },
   });
 }
@@ -247,10 +304,12 @@ function useClaimedQuestIds(address?: string) {
 function PartnerCard({
   group,
   claimedSet,
+  pendingSet,
   onClick,
 }: {
   group: PartnerGroup;
   claimedSet: Set<string>;
+  pendingSet: Set<string>;
   onClick: () => void;
 }) {
   const allLocked = group.quests.every((q) => q.isLocked);
@@ -258,7 +317,8 @@ function PartnerCard({
   const completedSteps = group.quests.filter(
     (q) => !q.isLocked && claimedSet.has(q.id),
   ).length;
-  const isCompleted = !allLocked && completedSteps >= totalSteps && totalSteps > 0;
+  const hasPending = group.quests.some((q) => pendingSet.has(q.id));
+  const isCompleted = !allLocked && completedSteps >= totalSteps && totalSteps > 0 && !hasPending;
   const isEmpty = completedSteps === 0;
 
   return (
@@ -297,6 +357,10 @@ function PartnerCard({
             </span>
             <span className="text-[12px] font-medium text-[#065F46]">Completed</span>
           </div>
+        ) : hasPending ? (
+          <div className="flex items-center gap-1.5 rounded-full bg-[#FEF3C7] px-3 py-1">
+            <span className="text-[12px] font-medium text-[#92400E]">Pending Verification</span>
+          </div>
         ) : (
           <div className="flex h-[6px] w-full items-center justify-between gap-[6px]">
             {Array.from({ length: totalSteps }).map((_, idx) => {
@@ -334,19 +398,21 @@ function PartnerDetailSheet({
   onOpenChange,
   group,
   claimedSet,
+  pendingSet,
   onQuestClick,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   group: PartnerGroup | null;
   claimedSet: Set<string>;
+  pendingSet: Set<string>;
   onQuestClick: (q: Quest) => void;
 }) {
   if (!group) return null;
 
-  const allCompleted = group.quests.every(
-    (q) => q.isLocked || claimedSet.has(q.id),
-  );
+  const allCompleted =
+    group.quests.every((q) => q.isLocked || claimedSet.has(q.id)) &&
+    !group.quests.some((q) => pendingSet.has(q.id));
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -406,8 +472,31 @@ function PartnerDetailSheet({
           <div className="mt-4 flex w-full flex-col gap-2">
             {group.quests.map((quest) => {
               const claimed = claimedSet.has(quest.id);
+              const pending = pendingSet.has(quest.id);
               const locked = quest.isLocked;
               const claimable = !locked && !claimed;
+
+              const borderColor = pending
+                ? 'border-[#FCD34D]'
+                : claimed
+                ? 'border-[#A7F3D0]'
+                : 'border-[#E5E7EB]';
+
+              const iconBg = pending
+                ? 'bg-[#FEF3C7]'
+                : claimed
+                ? 'bg-[#CFF2E5]'
+                : 'bg-[#8080801A]';
+
+              const statusLabel = locked
+                ? 'Coming Soon'
+                : pending
+                ? 'Pending Verification'
+                : claimed
+                ? 'Completed'
+                : 'Tap to claim';
+
+              const statusColor = pending ? 'text-[#92400E]' : 'text-[#9CA3AF]';
 
               return (
                 <div
@@ -415,7 +504,7 @@ function PartnerDetailSheet({
                   onClick={() => claimable && onQuestClick(quest)}
                   className={cn(
                     'flex min-h-[88px] w-full items-stretch rounded-[16px] border overflow-hidden bg-white',
-                    claimed ? 'border-[#A7F3D0]' : 'border-[#E5E7EB]',
+                    borderColor,
                     claimable ? 'cursor-pointer active:opacity-80' : 'cursor-default',
                   )}
                 >
@@ -423,12 +512,12 @@ function PartnerDetailSheet({
                   <div
                     className={cn(
                       'flex self-stretch w-[48px] flex-shrink-0 items-center justify-center',
-                      claimed ? 'bg-[#CFF2E5]' : 'bg-[#8080801A]',
+                      iconBg,
                     )}
                   >
                     <Image
-                      src={claimed ? checkIcon : lockIcon}
-                      alt={claimed ? 'Completed' : locked ? 'Locked' : 'Available'}
+                      src={claimed && !pending ? checkIcon : lockIcon}
+                      alt={statusLabel}
                       width={18}
                       height={18}
                       className="h-[18px] w-[18px]"
@@ -437,8 +526,8 @@ function PartnerDetailSheet({
 
                   {/* RIGHT: quest info */}
                   <div className="flex flex-1 flex-col justify-center bg-white px-3 py-3">
-                    <p className="text-[12px] leading-[16px] font-medium text-[#9CA3AF]">
-                      {locked ? 'Coming Soon' : claimed ? 'Completed' : 'Tap to claim'}
+                    <p className={cn('text-[12px] leading-[16px] font-medium', statusColor)}>
+                      {statusLabel}
                     </p>
                     <p className="mt-1 text-[15px] leading-[22px] font-medium text-[#111827]">
                       {quest.title}
@@ -468,12 +557,23 @@ function PartnerDetailSheet({
 
 export default function PartnerQuests({
   openPopup,
+  localPendingIds = [],
 }: {
   openPopup: (q: Quest) => void;
+  localPendingIds?: string[];
 }) {
   const { address } = useWeb3();
-  const { data: claimedIds = [] } = useClaimedQuestIds(address!);
-  const claimedSet = useMemo(() => new Set(claimedIds), [claimedIds]);
+  const { data: claimStatus = { claimed: [], pending: [] } } = useQuestClaimStatus(address!);
+  const claimedSet = useMemo(() => {
+    const s = new Set(claimStatus.claimed);
+    localPendingIds.forEach((id) => s.add(id));
+    return s;
+  }, [claimStatus.claimed, localPendingIds]);
+  const pendingSet = useMemo(() => {
+    const s = new Set(claimStatus.pending);
+    localPendingIds.forEach((id) => s.add(id));
+    return s;
+  }, [claimStatus.pending, localPendingIds]);
 
   const [selectedGroup, setSelectedGroup] = useState<PartnerGroup | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -493,6 +593,7 @@ export default function PartnerQuests({
             key={group.id}
             group={group}
             claimedSet={claimedSet}
+            pendingSet={pendingSet}
             onClick={() => {
               setSelectedGroup(group);
               setDetailOpen(true);
@@ -506,6 +607,7 @@ export default function PartnerQuests({
         onOpenChange={setDetailOpen}
         group={selectedGroup}
         claimedSet={claimedSet}
+        pendingSet={pendingSet}
         onQuestClick={handleQuestClick}
       />
     </div>
