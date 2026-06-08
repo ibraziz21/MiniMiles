@@ -70,6 +70,11 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, code: string): P
   });
 }
 
+function isInsufficientFundsError(err: any) {
+  const msg = `${err?.code ?? ""} ${err?.shortMessage ?? ""} ${err?.message ?? ""}`;
+  return /insufficient funds|intrinsic transaction cost|INSUFFICIENT_FUNDS/i.test(msg);
+}
+
 function buildSettlementDigest(params: {
   sessionId: bigint;
   player: string;
@@ -300,6 +305,12 @@ router.post("/start-intent", async (req, res) => {
     if (err?.code === "start-confirmation-timeout") {
       console.error("[games/start-intent] confirmation timeout", submittedTxHash);
       res.status(504).json({ error: "start-confirmation-timeout", txHash: submittedTxHash });
+      return;
+    }
+    if (isInsufficientFundsError(err)) {
+      console.error("[games/start-intent] verifier wallet has insufficient gas for sponsored start");
+      void checkVerifierBalance();
+      res.status(503).json({ error: "sponsor-out-of-gas" });
       return;
     }
     console.error("[games/start-intent]", err);

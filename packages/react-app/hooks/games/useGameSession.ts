@@ -44,6 +44,9 @@ function startIntentMessage(status: number, code?: string) {
   if (code === "start-confirmation-timeout") {
     return "The start transaction is still confirming. Wait a moment, then refresh your tickets before trying again.";
   }
+  if (code === "sponsor-out-of-gas") {
+    return "Gas-free game starts are temporarily unavailable. Please try again after the sponsor wallet is topped up.";
+  }
   if (code === "backend-unavailable" || code === "proxy-timeout") {
     return "The game backend did not respond in time. Please try again in a moment.";
   }
@@ -90,6 +93,14 @@ async function recoverSponsoredStart(params: {
   }
 
   throw new Error(startIntentMessage(504, "start-confirmation-timeout"));
+}
+
+function normalizeStartError(err: any) {
+  const raw = err?.shortMessage ?? err?.message ?? "Could not start game session";
+  if (/insufficient funds|intrinsic transaction cost/i.test(raw)) {
+    return "This wallet does not have enough CELO for a direct game start. Use gas-free tickets, or add a small CELO balance and try again.";
+  }
+  return raw;
 }
 
 export function useGameSession(gameType: GameType) {
@@ -192,7 +203,10 @@ export function useGameSession(gameType: GameType) {
               return next;
             }
             const errorBody = await resp.json().catch(() => null);
-            if (resp.status === 503 && errorBody?.error === "backend-not-configured") {
+            if (
+              resp.status === 503 &&
+              (errorBody?.error === "backend-not-configured" || errorBody?.error === "sponsor-out-of-gas")
+            ) {
               console.warn("[useGameSession] sponsored start unavailable, falling back to self-start");
             } else if (
               resp.status === 504 &&
@@ -258,7 +272,7 @@ export function useGameSession(gameType: GameType) {
       setSession(next);
       return next;
     } catch (err: any) {
-      setError(err?.shortMessage ?? err?.message ?? "Could not start game session");
+      setError(normalizeStartError(err));
       throw err;
     } finally {
       setIsStarting(false);
