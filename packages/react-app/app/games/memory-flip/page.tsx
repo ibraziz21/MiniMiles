@@ -36,12 +36,18 @@ export default function MemoryFlipPage() {
   async function startRound() {
     settlement.reset();
     setLocalResult(null);
-    const session = await sessionFlow.startSession(creditStatus);
-    await refreshCredits();
-    setIntroOpen(false);
-    setResultOpen(false);
     game.reset();
-    setTimeout(() => { if (session) game.begin(); }, 50);
+    try {
+      const session = await sessionFlow.startSession(creditStatus);
+      setIntroOpen(false);
+      setResultOpen(false);
+      setTimeout(() => { if (session) game.begin(); }, 50);
+      void refreshCredits();
+    } catch (err) {
+      console.error("[memory-flip] start failed", err);
+      setIntroOpen(true);
+      setResultOpen(false);
+    }
   }
 
   useEffect(() => {
