@@ -23,6 +23,18 @@ const EMPTY: CreditStatus = {
   nonce: 0, isDailyCapped: false, hasCredits: false, contractAvailable: false,
 };
 
+const CREDIT_STATUS_TIMEOUT_MS = 10_000;
+
+async function fetchWithTimeout(url: string, timeoutMs = CREDIT_STATUS_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 export const PLAY_BUNDLES = [
   { count: 5,  label: "5 tickets",  badge: "" },
   { count: 10, label: "10 tickets", badge: "most popular" },
@@ -42,7 +54,7 @@ export function useCredits(gameType: GameType, walletAddress: string | null | un
     if (!walletAddress) { setStatus(EMPTY); return; }
     setLoading(true);
     try {
-      const res = await fetch(
+      const res = await fetchWithTimeout(
         `/api/games/status?wallet=${walletAddress}&gameType=${gameType}`
       );
       if (!res.ok) throw new Error(await res.text());

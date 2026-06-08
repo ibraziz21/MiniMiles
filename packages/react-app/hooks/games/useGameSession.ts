@@ -11,6 +11,87 @@ import { createPublicClient, createWalletClient, custom, http, decodeEventLog } 
 import { seedCommitment as computeSeedCommitment } from "@/lib/games/replay-validation";
 import type { CreditStatus } from "./useCredits";
 
+const START_INTENT_TIMEOUT_MS = 35_000;
+const START_STATUS_ATTEMPTS = 12;
+const START_STATUS_INTERVAL_MS = 2_500;
+
+function localSessionId(gameType: GameType, walletAddress: string) {
+  return `${gameType}-${Date.now().toString(36)}-${walletAddress.slice(-6).toLowerCase()}`;
+}
+
+function seedFor(sessionId: string, walletAddress: string) {
+  return `akiba-v1:${sessionId}:${walletAddress.toLowerCase()}`;
+}
+
+function createPendingSession(gameType: GameType, walletAddress: string): GameSession {
+  const now = Date.now();
+  const sessionId = localSessionId(gameType, walletAddress);
+  const seed = seedFor(sessionId, walletAddress);
+  const config = GAME_CONFIGS[gameType];
+  return {
+    sessionId,
+    gameType,
+    walletAddress,
+    seed,
+    seedCommitment: computeSeedCommitment(seed, walletAddress, gameType),
+    createdAt: new Date(now).toISOString(),
+    expiresAt: new Date(now + config.durationSeconds * 1000 + 10 * 60_000).toISOString(),
+    status: "created",
+  };
+}
+
+function startIntentMessage(status: number, code?: string) {
+  if (code === "start-confirmation-timeout") {
+    return "The start transaction is still confirming. Wait a moment, then refresh your tickets before trying again.";
+  }
+  if (code === "backend-unavailable" || code === "proxy-timeout") {
+    return "The game backend did not respond in time. Please try again in a moment.";
+  }
+  if (status === 429 || code === "shared-daily-cap-reached" || code === "game-daily-cap-reached") {
+    return "Daily play limit reached";
+  }
+  return code ? `Could not start game session: ${code}` : "Could not start game session";
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function recoverSponsoredStart(params: {
+  txHash: string;
+  walletAddress: string;
+  gameType: GameType;
+  seedCommitment: `0x${string}`;
+}) {
+  const qs = new URLSearchParams({
+    txHash: params.txHash,
+    walletAddress: params.walletAddress,
+    gameType: params.gameType,
+    seedCommitment: params.seedCommitment,
+  });
+
+  for (let attempt = 0; attempt < START_STATUS_ATTEMPTS; attempt++) {
+    if (attempt > 0) await sleep(START_STATUS_INTERVAL_MS);
+
+    const resp = await fetch(`/api/games/start-intent-status?${qs.toString()}`);
+    const body = await resp.json().catch(() => null);
+    if (resp.ok && body?.sessionId) {
+      return {
+        sessionId: String(body.sessionId),
+        txHash: String(body.txHash ?? params.txHash),
+      };
+    }
+
+    if (body?.pending || resp.status === 404 || resp.status === 502 || resp.status === 504) {
+      continue;
+    }
+
+    throw new Error(startIntentMessage(resp.status, body?.error));
+  }
+
+  throw new Error(startIntentMessage(504, "start-confirmation-timeout"));
+}
+
 export function useGameSession(gameType: GameType) {
   const { address, getUserAddress } = useWeb3();
   const [session,    setSession]    = useState<GameSession | null>(null);
@@ -37,17 +118,26 @@ export function useGameSession(gameType: GameType) {
     setError(null);
     setIsStarting(true);
     try {
-      await getUserAddress?.();
-      const wallet = address ?? MOCK_WALLET;
-      const next   = await mockVerifier.createGameSession(gameType, wallet);
-
       if (creditStatus?.isDailyCapped) {
         throw new Error("Daily play limit reached");
       }
 
-      if (AKIBA_SKILL_GAMES_ADDRESS && typeof window !== "undefined" && window.ethereum && address) {
+      const resolvedAddress = address ?? (await getUserAddress?.()) ?? null;
+      const wallet = resolvedAddress ?? MOCK_WALLET;
+      const skillGamesAddress = AKIBA_SKILL_GAMES_ADDRESS;
+      const canUseChain = Boolean(
+        skillGamesAddress &&
+        typeof window !== "undefined" &&
+        window.ethereum &&
+        resolvedAddress
+      );
+      const next = canUseChain
+        ? createPendingSession(gameType, wallet)
+        : await mockVerifier.createGameSession(gameType, wallet);
+
+      if (canUseChain && resolvedAddress && skillGamesAddress) {
         // Derive on-chain commitment from the session seed so server validation matches.
-        const onchainCommitment = computeSeedCommitment(next.seed, address, gameType) as `0x${string}`;
+        const onchainCommitment = computeSeedCommitment(next.seed, resolvedAddress, gameType) as `0x${string}`;
 
         // ── Path 1: Sponsored start (backend pays gas, player has credits) ──
         if (creditStatus?.hasCredits && !creditStatus.isDailyCapped) {
@@ -66,17 +156,31 @@ export function useGameSession(gameType: GameType) {
             const digest = kec(
               encodeAbiParameters(
                 parseAbiParameters("bytes32,address,uint8,bytes32,uint256,uint256,address,uint256"),
-                [INTENT_TYPEHASH, address as `0x${string}`, chainGameType, onchainCommitment, BigInt(nonce), BigInt(expiry), AKIBA_SKILL_GAMES_ADDRESS, BigInt(celo.id)]
+                [INTENT_TYPEHASH, resolvedAddress as `0x${string}`, chainGameType, onchainCommitment, BigInt(nonce), BigInt(expiry), skillGamesAddress, BigInt(celo.id)]
               )
             );
             const walletClient = createWalletClient({ chain: celo, transport: custom(window.ethereum) });
-            const playerSig    = await walletClient.signMessage({ account: address as `0x${string}`, message: { raw: digest } });
+            const playerSig    = await walletClient.signMessage({ account: resolvedAddress as `0x${string}`, message: { raw: digest } });
 
-            const resp = await fetch("/api/games/start-intent", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ gameType, walletAddress: address, seedCommitment: onchainCommitment, nonce, expiry, playerSignature: playerSig }),
-            });
+            const controller = new AbortController();
+            const timeoutId = window.setTimeout(() => controller.abort(), START_INTENT_TIMEOUT_MS);
+
+            let resp: Response;
+            try {
+              resp = await fetch("/api/games/start-intent", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ gameType, walletAddress: resolvedAddress, seedCommitment: onchainCommitment, nonce, expiry, playerSignature: playerSig }),
+                signal: controller.signal,
+              });
+            } catch (err: any) {
+              if (err?.name === "AbortError") {
+                throw new Error(startIntentMessage(504, "proxy-timeout"));
+              }
+              throw err;
+            } finally {
+              window.clearTimeout(timeoutId);
+            }
 
             if (resp.ok) {
               const { sessionId, txHash } = await resp.json();
@@ -88,20 +192,33 @@ export function useGameSession(gameType: GameType) {
               return next;
             }
             const errorBody = await resp.json().catch(() => null);
-            if (
-              resp.status === 429 ||
-              errorBody?.error === "shared-daily-cap-reached" ||
-              errorBody?.error === "game-daily-cap-reached"
+            if (resp.status === 503 && errorBody?.error === "backend-not-configured") {
+              console.warn("[useGameSession] sponsored start unavailable, falling back to self-start");
+            } else if (
+              resp.status === 504 &&
+              errorBody?.error === "start-confirmation-timeout" &&
+              errorBody?.txHash
             ) {
-              throw new Error("Daily play limit reached");
+              const recovered = await recoverSponsoredStart({
+                txHash: String(errorBody.txHash),
+                walletAddress: resolvedAddress,
+                gameType,
+                seedCommitment: onchainCommitment,
+              });
+              next.sessionId = recovered.sessionId;
+              next.onchainTxHash = recovered.txHash;
+              next.status = "playing";
+              setSession(next);
+              setStartMode("sponsored");
+              return next;
+            } else {
+              throw new Error(startIntentMessage(resp.status, errorBody?.error));
             }
-            // Sponsored start failed — fall through to self-start
-            console.warn("[useGameSession] sponsored start failed, falling back to self-start");
           } catch (sponsoredErr) {
             if ((sponsoredErr as Error)?.message === "Daily play limit reached") {
               throw sponsoredErr;
             }
-            console.warn("[useGameSession] sponsored start error, falling back:", sponsoredErr);
+            throw sponsoredErr;
           }
         }
 
@@ -111,14 +228,14 @@ export function useGameSession(gameType: GameType) {
 
         const hash = await walletClient.writeContract({
           chain: celo,
-          account: address as `0x${string}`,
-          address: AKIBA_SKILL_GAMES_ADDRESS,
+          account: resolvedAddress as `0x${string}`,
+          address: skillGamesAddress,
           abi: akibaSkillGamesAbi,
           functionName: "startGame",
           args: [GAME_CONFIGS[gameType].chainGameType, onchainCommitment],
         });
 
-        const receipt = await publicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 120_000 });
+        const receipt = await publicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 75_000 });
 
         for (const log of receipt.logs) {
           try {
@@ -131,7 +248,7 @@ export function useGameSession(gameType: GameType) {
         }
 
         next.onchainTxHash = hash;
-        setStartMode(creditStatus?.hasCredits ? "self" : "self");
+        setStartMode("self");
       } else {
         // ── Path 4: Mock ─────────────────────────────────────────────────────
         setStartMode("mock");

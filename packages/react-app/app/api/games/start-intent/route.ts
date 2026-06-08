@@ -6,20 +6,23 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { fetchUpstreamJson, isAbortError } from "../_proxy";
 
 const BACKEND = process.env.GAMES_BACKEND_URL ?? "https://backend-production-aa7f.up.railway.app";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.text();
-    const upstream = await fetch(`${BACKEND}/games/start-intent`, {
+    const { data, status } = await fetchUpstreamJson(`${BACKEND}/games/start-intent`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body,
     });
-    const data = await upstream.json();
-    return NextResponse.json(data, { status: upstream.status });
+    return NextResponse.json(data, { status });
   } catch (err: any) {
+    if (isAbortError(err)) {
+      return NextResponse.json({ error: "proxy-timeout" }, { status: 504 });
+    }
     console.error("[proxy/games/start-intent]", err?.message ?? err);
     return NextResponse.json({ error: "backend-unavailable" }, { status: 502 });
   }

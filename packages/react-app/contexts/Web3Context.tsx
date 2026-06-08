@@ -158,7 +158,7 @@ function useWeb3Logic() {
       .catch(console.error);
   }, []);
 
-  const getUserAddress = async () => {
+  const getUserAddress = useCallback(async () => {
     if (typeof window !== "undefined" && window.ethereum) {
       const client = createWalletClient({
         transport: custom(window.ethereum),
@@ -167,8 +167,10 @@ function useWeb3Logic() {
       const [addr] = await client.getAddresses();
       setAddress(addr);
       posthog.identify(addr);
+      return addr;
     }
-  };
+    return null;
+  }, []);
 
   const publicClient = useMemo(
     () =>

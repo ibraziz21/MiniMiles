@@ -37,12 +37,18 @@ export default function RuleTapPage() {
   async function startRound() {
     settlement.reset();
     setLocalResult(null);
-    const session = await sessionFlow.startSession(creditStatus);
-    await refreshCredits();
-    setIntroOpen(false);
-    setResultOpen(false);
-    game.reset();
-    setTimeout(() => { if (session) game.begin(); }, 50);
+    try {
+      const session = await sessionFlow.startSession(creditStatus);
+      setIntroOpen(false);
+      setResultOpen(false);
+      game.reset();
+      setTimeout(() => { if (session) game.begin(); }, 50);
+      void refreshCredits();
+    } catch (err) {
+      console.error("[rule-tap] start failed", err);
+      setIntroOpen(true);
+      setResultOpen(false);
+    }
   }
 
   useEffect(() => {
@@ -207,6 +213,7 @@ export default function RuleTapPage() {
         onPlay={startRound}
         disabled={isDailyCapped}
         disabledReason={isDailyCapped ? `${MAX_DAILY}/${MAX_DAILY} played today · Come back tomorrow` : undefined}
+        error={sessionFlow.error}
         rules={[
           "A rule appears above the grid for the full 20-second round.",
           "Tap only tiles matching the rule. Wrong taps reduce your score.",

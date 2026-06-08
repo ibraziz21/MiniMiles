@@ -21,6 +21,7 @@ export function GameIntroSheet({
   loading,
   disabled,
   disabledReason,
+  error,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -30,6 +31,7 @@ export function GameIntroSheet({
   loading?: boolean;
   disabled?: boolean;
   disabledReason?: string;
+  error?: string | null;
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -92,6 +94,11 @@ export function GameIntroSheet({
         </div>
 
         <div className="mx-5 mt-5">
+          {error && (
+            <p className="mb-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+              {error}
+            </p>
+          )}
           {disabled ? (
             <div className="w-full rounded-xl bg-[#F0F0F0] py-4 text-sm font-semibold text-[#888] text-center">
               {disabledReason ?? "Unavailable"}

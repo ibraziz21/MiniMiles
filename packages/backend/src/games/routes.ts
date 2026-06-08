@@ -27,6 +27,7 @@ const SETTLEMENT_EXPIRY_SECONDS = Number(process.env.SKILL_GAMES_SETTLEMENT_EXPI
 const SETTLE_RETRY_INTERVAL_MS = Number(process.env.SKILL_GAMES_SETTLE_RETRY_INTERVAL_SECONDS ?? "30") * 1000;
 const MAX_SETTLE_ATTEMPTS = Number(process.env.SKILL_GAMES_MAX_SETTLE_ATTEMPTS ?? "12");
 const MAX_SETTLE_ATTEMPTS_PER_RUN = 3;
+const START_CONFIRM_TIMEOUT_MS = Number(process.env.SKILL_GAMES_START_CONFIRM_TIMEOUT_MS ?? "25000") || 25_000;
 
 const BLOCKING_FLAGS = [
   "impossible_completion_time",
@@ -46,6 +47,27 @@ function toMilesUnits(miles: number): bigint {
 
 function toStableUnits(usd: number): bigint {
   return BigInt(Math.round(usd * 1_000_000));
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, code: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      const err = new Error(code) as Error & { code?: string };
+      err.code = code;
+      reject(err);
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timeoutId);
+        reject(err);
+      },
+    );
+  });
 }
 
 function buildSettlementDigest(params: {
@@ -144,6 +166,41 @@ async function persistStartedSession(input: {
   if (error) throw error;
 }
 
+async function persistStartedSessionFromReceipt(input: {
+  receipt: any;
+  walletAddress: string;
+  gameType: GameType;
+  seedCommitment: string;
+}) {
+  const iface = new Interface(akibaSkillGamesAbi);
+  for (const log of input.receipt.logs ?? []) {
+    try {
+      const decoded = iface.parseLog(log);
+      if (decoded?.name !== "GameStarted") continue;
+
+      const sessionId = decoded.args.sessionId.toString();
+      const player = String(decoded.args.player).toLowerCase();
+      const chainGameType = Number(decoded.args.gameType);
+      const seedCommitment = String(decoded.args.seedCommitment).toLowerCase();
+
+      if (player !== input.walletAddress.toLowerCase()) continue;
+      if (chainGameType !== GAME_TYPE_ID[input.gameType]) continue;
+      if (seedCommitment !== input.seedCommitment.toLowerCase()) continue;
+
+      await persistStartedSession({
+        sessionId,
+        walletAddress: input.walletAddress,
+        gameType: input.gameType,
+        seedCommitment: input.seedCommitment,
+      });
+      return sessionId;
+    } catch {
+      // not our event
+    }
+  }
+  return null;
+}
+
 router.get("/status", async (req, res) => {
   try {
     const wallet = String(req.query.wallet ?? "");
@@ -172,6 +229,7 @@ router.get("/status", async (req, res) => {
 });
 
 router.post("/start-intent", async (req, res) => {
+  let submittedTxHash: string | undefined;
   try {
     if (!verifierPk || !skillGamesAddress) {
       res.status(503).json({ error: "backend-not-configured" });
@@ -221,29 +279,71 @@ router.post("/start-intent", async (req, res) => {
       BigInt(expiry),
       playerSignature
     );
-    const receipt = await tx.wait(1);
-    const iface = new Interface(akibaSkillGamesAbi);
-    let sessionId: string | null = null;
-    for (const log of receipt.logs ?? []) {
-      try {
-        const decoded = iface.parseLog(log);
-        if (decoded?.name === "GameStarted") {
-          sessionId = decoded.args.sessionId.toString();
-          break;
-        }
-      } catch {
-        // not our event
-      }
+    submittedTxHash = tx.hash;
+    const receipt = await withTimeout(tx.wait(1), START_CONFIRM_TIMEOUT_MS, "start-confirmation-timeout");
+    if (!receipt) {
+      res.status(504).json({ error: "start-confirmation-timeout", txHash: submittedTxHash });
+      return;
     }
+    const sessionId = await persistStartedSessionFromReceipt({
+      receipt,
+      walletAddress,
+      gameType,
+      seedCommitment: commitment,
+    });
     if (!sessionId) {
       res.status(500).json({ error: "session-id-not-found-in-receipt" });
       return;
     }
-    await persistStartedSession({ sessionId, walletAddress, gameType, seedCommitment: commitment });
     res.json({ sessionId, txHash: tx.hash });
   } catch (err: any) {
+    if (err?.code === "start-confirmation-timeout") {
+      console.error("[games/start-intent] confirmation timeout", submittedTxHash);
+      res.status(504).json({ error: "start-confirmation-timeout", txHash: submittedTxHash });
+      return;
+    }
     console.error("[games/start-intent]", err);
     res.status(500).json({ error: err?.shortMessage ?? err?.message ?? "contract-error" });
+  }
+});
+
+router.get("/start-intent-status", async (req, res) => {
+  try {
+    const txHash = String(req.query.txHash ?? "");
+    const walletAddress = String(req.query.walletAddress ?? req.query.wallet ?? "");
+    const gameType = req.query.gameType;
+    const seedCommitment = String(req.query.seedCommitment ?? "");
+
+    if (!txHash || !walletAddress || !isGameType(gameType) || !seedCommitment) {
+      res.status(400).json({ error: "txHash, walletAddress, gameType and seedCommitment required" });
+      return;
+    }
+
+    const receipt = await provider.getTransactionReceipt(txHash);
+    if (!receipt) {
+      res.json({ pending: true, txHash });
+      return;
+    }
+    if (receipt.status === 0) {
+      res.status(500).json({ pending: false, error: "start-transaction-reverted", txHash });
+      return;
+    }
+
+    const sessionId = await persistStartedSessionFromReceipt({
+      receipt,
+      walletAddress,
+      gameType,
+      seedCommitment,
+    });
+    if (!sessionId) {
+      res.status(404).json({ pending: false, error: "session-id-not-found-in-receipt", txHash });
+      return;
+    }
+
+    res.json({ pending: false, sessionId, txHash });
+  } catch (err: any) {
+    console.error("[games/start-intent-status]", err);
+    res.status(500).json({ error: err?.message ?? "server-error" });
   }
 });
 
