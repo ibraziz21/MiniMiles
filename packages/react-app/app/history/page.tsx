@@ -13,7 +13,7 @@ import { fetchActiveRaffles, type TokenRaffle } from '@/helpers/raffledisplay';
 import { fetchTotalCompletedChallenges } from '@/helpers/fetchTotalCompleteChallenges';
 
 import { akibaMilesSymbol } from '@/lib/svg';
-import { RaffleImg1, RaffleImg2, RaffleImg3, RaffleImg5 } from '@/lib/img';
+import { RaffleImg1, RaffleImg2, RaffleImg3, RaffleImg5, usdtround } from '@/lib/img';
 import { StaticImageData } from 'next/image';
 import dayjs from 'dayjs';
 
@@ -26,7 +26,7 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
 
 export default function HistoryPage() {
   /* -------------------------------------------------- web3 / address */
-  const { address, getakibaMilesBalance } = useWeb3();
+  const { address, getakibaMilesBalance, getUserRaffleTickets } = useWeb3();
 
   /* -------------------------------------------------- aggregated history bundle */
   const {
@@ -39,6 +39,9 @@ export default function HistoryPage() {
   const [raffles, setRaffles] = useState<TokenRaffle[]>([]);
   const [rafflesLoading, setRafflesLoading] = useState(true);
 
+  // roundId → number of tickets the current user holds (on-chain ticketsOf)
+  const [myTickets, setMyTickets] = useState<Record<number, number>>({});
+
   const [akibaMilesBalance, setAkibaMilesBalance] = useState('0'); // if you display later
   const [totalChallenges, setTotalChallenges] = useState<number>(0);
 
@@ -49,6 +52,23 @@ export default function HistoryPage() {
       .catch(console.error)
       .finally(() => setRafflesLoading(false));
   }, []);
+
+  /* -------------------------------------------------- on-chain tickets for active raffles */
+  useEffect(() => {
+    if (!address || raffles.length === 0) {
+      setMyTickets({});
+      return;
+    }
+    let cancelled = false;
+    getUserRaffleTickets(raffles.map((r) => Number(r.id)))
+      .then((tickets) => {
+        if (!cancelled) setMyTickets(tickets);
+      })
+      .catch(() => {
+        if (!cancelled) setMyTickets({});
+      });
+    return () => { cancelled = true; };
+  }, [address, raffles, getUserRaffleTickets]);
 
   /* -------------------------------------------------- load wallet balance */
   useEffect(() => {
@@ -85,10 +105,6 @@ export default function HistoryPage() {
 
   // You are using OG challenges from client fetch, not from bundle:
   const totalChallengesLabel = totalChallenges.toString();
-
-  const participatingRafflesSet = new Set<number>(
-    (bundle?.participatingRaffles ?? []).map(Number)
-  );
 
   const overallLoading = bundleLoading || rafflesLoading;
 
@@ -182,9 +198,8 @@ export default function HistoryPage() {
         )}
 
         {!overallLoading && (() => {
-          const participated = raffles.filter(r =>
-            participatingRafflesSet.has(Number(r.id))
-          );
+          // Only currently-running raffles in which the user holds tickets on-chain.
+          const participated = raffles.filter(r => (myTickets[Number(r.id)] ?? 0) > 0);
 
           if (participated.length === 0) {
             return (
@@ -197,14 +212,15 @@ export default function HistoryPage() {
             return (
               <div className="flex gap-3 overflow-x-auto">
                 {participated.map(r => {
-                  const img = TOKEN_IMAGES[r.token.symbol] ?? TOKEN_IMAGES.default;
+                  const img = usdtround;
+                  const tickets = myTickets[Number(r.id)] ?? 0;
                   return (
                     <RaffleCard
                       key={r.id}
                       image={img}
                       title={`${r.rewardPool} ${r.token.symbol} weekly`}
                       endsIn={formatEndsIn(r.ends)}
-                      ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
+                      ticketCost={`${tickets} ticket${tickets === 1 ? '' : 's'}`}
                       locked={false}
                       icon={akibaMilesSymbol}
                     />

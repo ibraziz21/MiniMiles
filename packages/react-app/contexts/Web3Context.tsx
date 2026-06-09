@@ -13,6 +13,7 @@ import {
   formatUnits,
   parseUnits,
   erc20Abi,
+  type Abi,
 } from "viem";
 import { celo } from "viem/chains";
 import StableTokenABI from "@/contexts/cusd-abi.json";
@@ -284,6 +285,39 @@ function useWeb3Logic() {
 
     return hash;
   }, [walletClient, publicClient, address, isAuthenticated]);
+
+  /**
+   * Reads how many tickets the current user holds in each of the given raffle
+   * rounds via on-chain `ticketsOf(roundId, user)`. Returns a map of
+   * roundId → ticket count (only rounds with > 0 tickets are included).
+   */
+  const getUserRaffleTickets = useCallback(
+    async (roundIds: number[]): Promise<Record<number, number>> => {
+      const out: Record<number, number> = {};
+      if (!address || roundIds.length === 0) return out;
+
+      const results = await publicClient.multicall({
+        allowFailure: true,
+        contracts: roundIds.map((roundId) => ({
+          address: '0xD75dfa972C6136f1c594Fec1945302f885E1ab29' as `0x${string}`,
+          abi: raffleAbi.abi as Abi,
+          functionName: 'ticketsOf',
+          args: [BigInt(roundId), address as `0x${string}`],
+        })),
+      });
+
+      roundIds.forEach((roundId, i) => {
+        const r = results[i];
+        if (r.status === 'success') {
+          const count = Number(r.result as bigint);
+          if (count > 0) out[roundId] = count;
+        }
+      });
+
+      return out;
+    },
+    [address, publicClient],
+  );
 
   function getDiceReadContract() {
     return getContract({ abi: diceAbi.abi, address: DICE_ADDRESS, client: publicClient });
@@ -694,6 +728,7 @@ function useWeb3Logic() {
     getUserAddress,
     sendCUSD,
     joinRaffle,
+    getUserRaffleTickets,
     fetchDiceRound,
     joinDice,
     approveClawUsdt,
