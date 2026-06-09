@@ -4,7 +4,7 @@
 // with signup and transact status for each. Send this to Pretium daily
 // for them to verify actual completion.
 //
-// Auth: Bearer <ADMIN_QUEUE_SECRET>  or  ?secret=<ADMIN_QUEUE_SECRET>
+// Auth: Bearer <PRETIUM_EXPORT_SECRET> or Bearer <ADMIN_QUEUE_SECRET>
 //
 // CSV columns:
 //   email, wallet_address,
@@ -20,13 +20,16 @@ const supabase = createClient(
 );
 
 const ADMIN_SECRET = process.env.ADMIN_QUEUE_SECRET ?? "";
+const PRETIUM_EXPORT_SECRET = process.env.PRETIUM_EXPORT_SECRET ?? "";
 
 function isAuthorized(req: Request): boolean {
-  if (!ADMIN_SECRET) return false;
   const bearer = req.headers.get("authorization");
-  if (bearer === `Bearer ${ADMIN_SECRET}`) return true;
+  if (PRETIUM_EXPORT_SECRET && bearer === `Bearer ${PRETIUM_EXPORT_SECRET}`) return true;
+  if (ADMIN_SECRET && bearer === `Bearer ${ADMIN_SECRET}`) return true;
+
+  // Backward-compatible internal access. Do not give query-string secrets to partners.
   const url = new URL(req.url);
-  return url.searchParams.get("secret") === ADMIN_SECRET;
+  return Boolean(ADMIN_SECRET && url.searchParams.get("secret") === ADMIN_SECRET);
 }
 
 function toCsv(rows: Record<string, string>[]): string {
