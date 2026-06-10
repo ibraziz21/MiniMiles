@@ -6,15 +6,34 @@ import {
   JsonRpcProvider,
   Wallet,
   getBytes,
-  hashMessage,
   id,
   keccak256,
-  recoverAddress,
 } from "ethers";
 import { supabase } from "../supabaseClient";
 import { GAME_TYPE_ID, PER_GAME_DAILY_PLAY_CAP, isGameType } from "./config";
-import { akibaSkillGamesAbi, SETTLEMENT_TYPEHASH_PREIMAGE, START_INTENT_TYPEHASH_PREIMAGE } from "./contracts";
+import { akibaSkillGamesAbi, SETTLEMENT_TYPEHASH_PREIMAGE } from "./contracts";
 import { seedCommitment, validateMemoryFlipReplay, validateRuleTapReplay } from "./replayValidation";
+import {
+  applyFlip,
+  buildMemoryDeck,
+  finalizeMemoryFlip,
+  MEMORY_FLIP_CARD_COUNT,
+  MEMORY_FLIP_DURATION_MS,
+  newServerSeed,
+  serverSeedHash,
+  type MemoryServerState,
+} from "./memoryFlipServer";
+import {
+  applyTap,
+  buildRuleTapSession,
+  finalizeRuleTap,
+  revealedTiles,
+  RULE_TAP_DURATION_MS,
+  RULE_TAP_GRID_SIZE,
+  RULE_TAP_REVEAL_LEAD_MS,
+  RULE_TAP_TICK_MS,
+  type RuleTapState,
+} from "./ruleTapServer";
 import type { GameReplay, GameType, MemoryFlipReplay, RuleTapReplay } from "./types";
 
 const router = Router();
@@ -25,11 +44,32 @@ const skillGamesAddress = process.env.SKILL_GAMES_CONTRACT_ADDRESS ?? process.en
 const verifierPk = process.env.SKILL_GAMES_VERIFIER_PK;
 const SETTLEMENT_EXPIRY_SECONDS = Number(process.env.SKILL_GAMES_SETTLEMENT_EXPIRY_SECONDS ?? "3600");
 const SETTLE_RETRY_INTERVAL_MS = Number(process.env.SKILL_GAMES_SETTLE_RETRY_INTERVAL_SECONDS ?? "30") * 1000;
+const SETTLE_RECEIPT_TIMEOUT_MS = Number(process.env.SKILL_GAMES_SETTLE_RECEIPT_TIMEOUT_SECONDS ?? "45") * 1000;
 const MAX_SETTLE_ATTEMPTS = Number(process.env.SKILL_GAMES_MAX_SETTLE_ATTEMPTS ?? "12");
 const MAX_SETTLE_ATTEMPTS_PER_RUN = 3;
-const START_CONFIRM_TIMEOUT_MS = Number(process.env.SKILL_GAMES_START_CONFIRM_TIMEOUT_MS ?? "25000") || 25_000;
+// How long a worker's settlement claim is honoured before another instance may
+// re-claim a stranded row (e.g. the claiming process crashed mid-flight).
+const SETTLE_CLAIM_LEASE_MS = Number(process.env.SKILL_GAMES_SETTLE_CLAIM_LEASE_SECONDS ?? "90") * 1000;
+// A replay can only be legitimate if at least its claimed duration of wall-clock
+// time has elapsed since the session was created on-chain. Tolerance absorbs
+// block-timestamp vs. confirmation skew and network latency.
+const REPLAY_WALL_CLOCK_TOLERANCE_MS = Number(process.env.SKILL_GAMES_REPLAY_WALL_CLOCK_TOLERANCE_MS ?? "3000");
+// Memory Flip and Rule Tap are now server-authoritative (/games/session/*). The
+// legacy replay path lets a client submit a precomputed board, so it is rejected
+// by default. Set these to "true" only during a rollout window where an old
+// client still posts replays; remove once the new client is fully deployed.
+const ALLOW_LEGACY_MEMORY_VERIFY = process.env.SKILL_GAMES_ALLOW_LEGACY_MEMORY_VERIFY === "true";
+const ALLOW_LEGACY_RULE_TAP_VERIFY = process.env.SKILL_GAMES_ALLOW_LEGACY_RULE_TAP_VERIFY === "true";
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 const BLOCKING_FLAGS = [
+  "invalid_replay_seed",
+  "invalid_started_at",
+  "replay_duration_out_of_bounds",
+  "invalid_action_log",
+  "too_many_actions",
+  "invalid_action_shape",
+  "action_offset_out_of_bounds",
   "impossible_completion_time",
   "non_monotonic_action_log",
   "input_during_pair_evaluation_lock",
@@ -49,14 +89,9 @@ function toStableUnits(usd: number): bigint {
   return BigInt(Math.round(usd * 1_000_000));
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, code: string): Promise<T> {
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {
   return new Promise((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      const err = new Error(code) as Error & { code?: string };
-      err.code = code;
-      reject(err);
-    }, timeoutMs);
-
+    const timeoutId = setTimeout(() => resolve(null), timeoutMs);
     promise.then(
       (value) => {
         clearTimeout(timeoutId);
@@ -68,11 +103,6 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, code: string): P
       },
     );
   });
-}
-
-function isInsufficientFundsError(err: any) {
-  const msg = `${err?.code ?? ""} ${err?.shortMessage ?? ""} ${err?.message ?? ""}`;
-  return /insufficient funds|intrinsic transaction cost|INSUFFICIENT_FUNDS/i.test(msg);
 }
 
 function buildSettlementDigest(params: {
@@ -139,20 +169,100 @@ function enqueueSettlement<T>(work: () => Promise<T>): Promise<T> {
   return run;
 }
 
-function onchainDayStart(): string {
-  const nowSec = Math.floor(Date.now() / 1000);
-  return new Date(Math.floor(nowSec / 86400) * 86400 * 1000).toISOString();
+type OnchainSession = {
+  sessionId: string;
+  player: string;
+  gameType: number;
+  createdAt: number;
+  seedCommitment: string;
+  settled: boolean;
+};
+
+type SkillGameSessionRow = {
+  session_id: string;
+  wallet_address: string;
+  game_type: GameType;
+  score: number | string | null;
+  reward_miles: number | string | null;
+  reward_stable: number | string | null;
+  accepted: boolean | null;
+  anti_abuse_flags: string[] | null;
+  seed_commitment: string | null;
+  settle_tx_hash: string | null;
+  settle_attempts: number | null;
+  settled_at: string | null;
+  settlement_sig: string | null;
+  settlement_expiry: number | string | null;
+};
+
+function getResultFromRow(row: SkillGameSessionRow, fallback: {
+  sessionId: string;
+  gameType: GameType;
+  elapsedMs?: number;
+}) {
+  return {
+    sessionId: fallback.sessionId,
+    gameType: fallback.gameType,
+    score: Number(row.score ?? 0),
+    mistakes: 0,
+    completed: Number(row.score ?? 0) > 0,
+    elapsedMs: fallback.elapsedMs ?? 0,
+    rewardMiles: Number(row.reward_miles ?? 0),
+    rewardStable: Number(row.reward_stable ?? 0),
+  };
 }
 
-async function countGamePlaysToday(walletAddress: string, gameType: GameType) {
-  const { count, error } = await supabase
-    .from("skill_game_sessions")
-    .select("*", { count: "exact", head: true })
-    .eq("wallet_address", walletAddress.toLowerCase())
-    .eq("game_type", gameType)
-    .gte("created_at", onchainDayStart());
-  if (error) throw error;
-  return count ?? 0;
+function parseSessionId(sessionId: string | bigint) {
+  if (typeof sessionId === "bigint") return sessionId;
+  if (!/^\d+$/.test(sessionId)) {
+    const err = new Error("invalid-session-id") as Error & { status?: number };
+    err.status = 400;
+    throw err;
+  }
+  return BigInt(sessionId);
+}
+
+async function readOnchainSession(sessionId: string | bigint): Promise<OnchainSession | null> {
+  const numericSessionId = parseSessionId(sessionId);
+  const session = await getSkillGames(true).sessions(numericSessionId);
+  const storedSessionId = BigInt(session.sessionId ?? session[0]);
+  const player = String(session.player ?? session[1]).toLowerCase();
+
+  if (storedSessionId === 0n || player === ZERO_ADDRESS) return null;
+
+  return {
+    sessionId: storedSessionId.toString(),
+    player,
+    gameType: Number(session.gameType ?? session[2]),
+    createdAt: Number(session.createdAt ?? session[4]),
+    seedCommitment: String(session.seedCommitment ?? session[5]).toLowerCase(),
+    settled: Boolean(session.settled ?? session[6]),
+  };
+}
+
+function assertOnchainSessionMatches(input: {
+  onchain: OnchainSession | null;
+  sessionId: string;
+  walletAddress: string;
+  gameType: GameType;
+  seedCommitment: string;
+}) {
+  if (!input.onchain) {
+    return "session-not-found-on-chain";
+  }
+  if (input.onchain.sessionId !== input.sessionId) {
+    return "session-id-mismatch";
+  }
+  if (input.onchain.player !== input.walletAddress.toLowerCase()) {
+    return "session-player-mismatch";
+  }
+  if (input.onchain.gameType !== GAME_TYPE_ID[input.gameType]) {
+    return "session-game-type-mismatch";
+  }
+  if (input.onchain.seedCommitment !== input.seedCommitment.toLowerCase()) {
+    return "seed-commitment-mismatch";
+  }
+  return null;
 }
 
 async function persistStartedSession(input: {
@@ -160,15 +270,42 @@ async function persistStartedSession(input: {
   walletAddress: string;
   gameType: GameType;
   seedCommitment: string;
+  createdAt?: string;
 }) {
   const { error } = await supabase.from("skill_game_sessions").upsert({
     session_id: input.sessionId,
     wallet_address: input.walletAddress.toLowerCase(),
     game_type: input.gameType,
     seed_commitment: input.seedCommitment,
-    created_at: new Date().toISOString(),
+    created_at: input.createdAt ?? new Date().toISOString(),
   });
   if (error) throw error;
+}
+
+async function persistVerifiedStartedSession(input: {
+  sessionId: string;
+  walletAddress: string;
+  gameType: GameType;
+  seedCommitment: string;
+}) {
+  const onchain = await readOnchainSession(input.sessionId);
+  const mismatch = assertOnchainSessionMatches({ ...input, onchain });
+  if (mismatch) {
+    const err = new Error(mismatch) as Error & { status?: number };
+    err.status = mismatch === "session-not-found-on-chain" ? 404 : 400;
+    throw err;
+  }
+  if (!onchain) {
+    const err = new Error("session-not-found-on-chain") as Error & { status?: number };
+    err.status = 404;
+    throw err;
+  }
+
+  await persistStartedSession({
+    ...input,
+    createdAt: new Date(onchain.createdAt * 1000).toISOString(),
+  });
+  return onchain;
 }
 
 async function persistStartedSessionFromReceipt(input: {
@@ -233,89 +370,68 @@ router.get("/status", async (req, res) => {
   }
 });
 
-router.post("/start-intent", async (req, res) => {
-  let submittedTxHash: string | undefined;
+router.get("/register-start", async (req, res) => {
   try {
-    if (!verifierPk || !skillGamesAddress) {
-      res.status(503).json({ error: "backend-not-configured" });
+    const sessionId = String(req.query.sessionId ?? "");
+    const walletAddress = String(req.query.walletAddress ?? req.query.wallet ?? "");
+    const gameType = req.query.gameType;
+    const seedCommitment = String(req.query.seedCommitment ?? "");
+
+    if (!sessionId || !walletAddress || !isGameType(gameType) || !seedCommitment) {
+      res.status(400).json({ error: "sessionId, walletAddress, gameType and seedCommitment required" });
       return;
     }
 
-    const { gameType, walletAddress, seedCommitment: commitment, nonce, expiry, playerSignature } = req.body ?? {};
-    if (!isGameType(gameType) || !walletAddress || !commitment || nonce == null || !expiry || !playerSignature) {
-      res.status(400).json({ error: "missing-fields" });
-      return;
-    }
-    if (Date.now() / 1000 > Number(expiry)) {
-      res.status(400).json({ error: "intent-expired" });
-      return;
-    }
-    if ((await countGamePlaysToday(walletAddress, gameType)) >= PER_GAME_DAILY_PLAY_CAP) {
-      res.status(429).json({ error: "game-daily-cap-reached" });
-      return;
-    }
-
-    // Recover signer from the player's intent signature before spending gas.
-    try {
-      const INTENT_TYPEHASH = id(START_INTENT_TYPEHASH_PREIMAGE);
-      const CELO_CHAIN_ID_N = 42220n;
-      const digest = keccak256(
-        AbiCoder.defaultAbiCoder().encode(
-          ["bytes32", "address", "uint8", "bytes32", "uint256", "uint256", "address", "uint256"],
-          [INTENT_TYPEHASH, walletAddress, GAME_TYPE_ID[gameType], commitment, BigInt(nonce), BigInt(expiry), skillGamesAddress, CELO_CHAIN_ID_N]
-        )
-      );
-      const recovered = recoverAddress(hashMessage(getBytes(digest)), playerSignature);
-      if (recovered.toLowerCase() !== walletAddress.toLowerCase()) {
-        res.status(400).json({ error: "invalid-player-signature" });
-        return;
-      }
-    } catch {
-      res.status(400).json({ error: "invalid-player-signature" });
-      return;
-    }
-
-    const contract = getSkillGames(false);
-    const tx = await contract.startGameFor(
-      walletAddress,
-      GAME_TYPE_ID[gameType],
-      commitment,
-      BigInt(nonce),
-      BigInt(expiry),
-      playerSignature
-    );
-    submittedTxHash = tx.hash;
-    const receipt = await withTimeout(tx.wait(1), START_CONFIRM_TIMEOUT_MS, "start-confirmation-timeout");
-    if (!receipt) {
-      res.status(504).json({ error: "start-confirmation-timeout", txHash: submittedTxHash });
-      return;
-    }
-    const sessionId = await persistStartedSessionFromReceipt({
-      receipt,
+    const onchain = await persistVerifiedStartedSession({
+      sessionId,
       walletAddress,
       gameType,
-      seedCommitment: commitment,
+      seedCommitment,
     });
-    if (!sessionId) {
-      res.status(500).json({ error: "session-id-not-found-in-receipt" });
-      return;
-    }
-    res.json({ sessionId, txHash: tx.hash });
+
+    res.json({
+      registered: true,
+      sessionId: onchain.sessionId,
+      walletAddress: onchain.player,
+      gameType,
+      seedCommitment: onchain.seedCommitment,
+    });
   } catch (err: any) {
-    if (err?.code === "start-confirmation-timeout") {
-      console.error("[games/start-intent] confirmation timeout", submittedTxHash);
-      res.status(504).json({ error: "start-confirmation-timeout", txHash: submittedTxHash });
-      return;
-    }
-    if (isInsufficientFundsError(err)) {
-      console.error("[games/start-intent] verifier wallet has insufficient gas for sponsored start");
-      void checkVerifierBalance();
-      res.status(503).json({ error: "sponsor-out-of-gas" });
-      return;
-    }
-    console.error("[games/start-intent]", err);
-    res.status(500).json({ error: err?.shortMessage ?? err?.message ?? "contract-error" });
+    console.error("[games/register-start]", err);
+    res.status(err?.status ?? 500).json({ error: err?.message ?? "server-error" });
   }
+});
+
+router.post("/register-start", async (req, res) => {
+  try {
+    const { sessionId, walletAddress, gameType, seedCommitment: commitment } = req.body ?? {};
+    if (!sessionId || !walletAddress || !isGameType(gameType) || !commitment) {
+      res.status(400).json({ error: "sessionId, walletAddress, gameType and seedCommitment required" });
+      return;
+    }
+
+    const onchain = await persistVerifiedStartedSession({
+      sessionId: String(sessionId),
+      walletAddress: String(walletAddress),
+      gameType,
+      seedCommitment: String(commitment),
+    });
+
+    res.json({
+      registered: true,
+      sessionId: onchain.sessionId,
+      walletAddress: onchain.player,
+      gameType,
+      seedCommitment: onchain.seedCommitment,
+    });
+  } catch (err: any) {
+    console.error("[games/register-start]", err);
+    res.status(err?.status ?? 500).json({ error: err?.message ?? "server-error" });
+  }
+});
+
+router.post("/start-intent", async (_req, res) => {
+  res.status(410).json({ error: "sponsored-start-disabled" });
 });
 
 router.get("/start-intent-status", async (req, res) => {
@@ -371,13 +487,13 @@ router.post("/verify", async (req, res) => {
       return;
     }
 
-    if ((await countGamePlaysToday(walletAddress, gameType)) > PER_GAME_DAILY_PLAY_CAP) {
-      res.json({
-        accepted: false,
-        antiAbuseFlags: ["daily_cap_exceeded"],
-        result: { sessionId, gameType, score: 0, mistakes: 0, completed: false, elapsedMs: 0, rewardMiles: 0, rewardStable: 0 },
-        settled: false,
-      });
+    // These no longer trust client replays — they run server-authoritative.
+    if (gameType === "memory_flip" && !ALLOW_LEGACY_MEMORY_VERIFY) {
+      res.status(410).json({ accepted: false, error: "memory-flip-uses-server-authoritative-flow" });
+      return;
+    }
+    if (gameType === "rule_tap" && !ALLOW_LEGACY_RULE_TAP_VERIFY) {
+      res.status(410).json({ accepted: false, error: "rule-tap-uses-server-authoritative-flow" });
       return;
     }
 
@@ -386,24 +502,81 @@ router.post("/verify", async (req, res) => {
       res.status(400).json({ accepted: false, error: "missing-seed" });
       return;
     }
-    const { data: sessionRow } = await supabase
-      .from("skill_game_sessions")
-      .select("seed_commitment, accepted")
-      .eq("session_id", sessionId)
-      .maybeSingle();
 
-    if (sessionRow?.accepted === true) {
-      res.status(409).json({ accepted: false, error: "session-already-settled" });
+    const actualCommitment = seedCommitment(replaySeed, walletAddress, gameType).toLowerCase();
+    const onchain = await readOnchainSession(sessionId);
+    const mismatch = assertOnchainSessionMatches({
+      onchain,
+      sessionId,
+      walletAddress,
+      gameType,
+      seedCommitment: actualCommitment,
+    });
+    if (mismatch) {
+      res.status(mismatch === "session-not-found-on-chain" ? 404 : 400).json({ accepted: false, error: mismatch });
+      return;
+    }
+    if (!onchain) {
+      res.status(404).json({ accepted: false, error: "session-not-found-on-chain" });
       return;
     }
 
-    const expectedCommitment = sessionRow?.seed_commitment as string | undefined;
-    if (expectedCommitment) {
-      const actualCommitment = seedCommitment(replaySeed, walletAddress, gameType);
-      if (actualCommitment.toLowerCase() !== expectedCommitment.toLowerCase()) {
-        res.status(400).json({ accepted: false, error: "seed-commitment-mismatch" });
-        return;
-      }
+    // Wall-clock binding: you cannot have finished an N-second game if fewer than
+    // N seconds of real time have elapsed since the start tx was mined on-chain.
+    // This kills the "start session → precompute board → submit a flawless replay
+    // 200ms later" attack without depending on any timing heuristic.
+    const claimedDurationMs = typeof (replay as any).durationMs === "number" && Number.isFinite((replay as any).durationMs)
+      ? (replay as any).durationMs
+      : 0;
+    const elapsedSinceStartMs = Date.now() - onchain.createdAt * 1000;
+    if (claimedDurationMs > 0 && elapsedSinceStartMs + REPLAY_WALL_CLOCK_TOLERANCE_MS < claimedDurationMs) {
+      res.status(400).json({ accepted: false, error: "replay-submitted-too-soon" });
+      return;
+    }
+
+    const { data: sessionRow, error: sessionError } = await supabase
+      .from("skill_game_sessions")
+      .select("session_id, wallet_address, game_type, score, reward_miles, reward_stable, accepted, anti_abuse_flags, seed_commitment, settle_tx_hash, settle_attempts, settled_at, settlement_sig, settlement_expiry")
+      .eq("session_id", sessionId)
+      .maybeSingle();
+    if (sessionError) throw sessionError;
+
+    const expectedCommitment = (sessionRow?.seed_commitment as string | undefined)?.toLowerCase();
+    if (expectedCommitment && actualCommitment !== expectedCommitment) {
+      res.status(400).json({ accepted: false, error: "seed-commitment-mismatch" });
+      return;
+    }
+    if (onchain.settled && sessionRow?.accepted !== true) {
+      res.status(409).json({ accepted: false, error: "session-already-settled-on-chain" });
+      return;
+    }
+
+    if (!expectedCommitment) {
+      await persistStartedSession({
+        sessionId,
+        walletAddress,
+        gameType,
+        seedCommitment: onchain.seedCommitment,
+        createdAt: new Date(onchain.createdAt * 1000).toISOString(),
+      });
+    }
+
+    if (sessionRow?.accepted === true) {
+      const settlement = await queueSettlementForAcceptedRow(sessionRow as SkillGameSessionRow, {
+        sessionId,
+        walletAddress,
+        gameType,
+        elapsedMs: (replay as any).durationMs,
+      });
+      res.json({
+        accepted: true,
+        antiAbuseFlags: sessionRow.anti_abuse_flags ?? [],
+        result: settlement.result,
+        queued: settlement.queued,
+        settled: settlement.settled,
+        settleTxHash: settlement.settleTxHash,
+      });
+      return;
     }
 
     const validation =
@@ -459,8 +632,12 @@ router.post("/verify", async (req, res) => {
     }).eq("session_id", sessionId);
 
     // Fire settlement in the background — don't block the HTTP response.
-    // retryPendingSettlements() will catch any failures automatically.
-    void attemptSettle(sessionId, numericSessionId, score, rewardMiles, rewardStable, expiry, signature);
+    // Claim the lease first so a concurrent retry sweep on another instance does
+    // not also broadcast for this session. retryPendingSettlements() will pick it
+    // up if we fail to claim or the broadcast fails.
+    if (await tryClaimSettlement(sessionId)) {
+      void attemptSettle(sessionId, numericSessionId, score, rewardMiles, rewardStable, expiry, signature);
+    }
 
     res.json({
       accepted: true,
@@ -536,6 +713,178 @@ async function checkVerifierBalance() {
   } catch { /* non-fatal */ }
 }
 
+async function markSettledIfOnchain(sessionId: string, numericSessionId: bigint, attempts: number) {
+  try {
+    const onchain = await readOnchainSession(numericSessionId);
+    if (!onchain?.settled) return false;
+
+    await supabase.from("skill_game_sessions").update({
+      settled_at: new Date().toISOString(),
+      settle_attempts: attempts,
+    }).eq("session_id", sessionId);
+    console.warn(`[games/settle] session ${sessionId} was already settled on-chain; marked settled locally`);
+    return true;
+  } catch (err: any) {
+    console.error(`[games/settle] could not check on-chain settled state for ${sessionId}:`, err?.message ?? err);
+    return false;
+  }
+}
+
+async function reconcileExistingSettlementTx(row: SkillGameSessionRow) {
+  if (!row.settle_tx_hash) return { pending: false, settled: false, failed: false };
+
+  try {
+    const receipt = await provider.getTransactionReceipt(row.settle_tx_hash);
+    if (!receipt) {
+      return { pending: true, settled: false, failed: false, txHash: row.settle_tx_hash };
+    }
+
+    if (receipt.status === 1) {
+      await supabase.from("skill_game_sessions").update({
+        settled_at: new Date().toISOString(),
+      }).eq("session_id", row.session_id);
+      return { pending: false, settled: true, failed: false, txHash: row.settle_tx_hash };
+    }
+
+    await supabase.from("skill_game_sessions").update({
+      settle_tx_hash: null,
+    }).eq("session_id", row.session_id);
+    row.settle_tx_hash = null;
+    return { pending: false, settled: false, failed: true };
+  } catch (err: any) {
+    console.error(`[games/settle] could not reconcile tx ${row.settle_tx_hash} for session ${row.session_id}:`, err?.message ?? err);
+    return { pending: true, settled: false, failed: false, txHash: row.settle_tx_hash };
+  }
+}
+
+// Atomically claim the right to settle a session across processes/instances.
+// Returns true only if this caller acquired the lease. The conditional UPDATE is
+// resolved under Postgres row locking, so concurrent claimers serialize and only
+// one sees a matching (unsettled, unclaimed-or-stale) row.
+//
+// Requires a `settle_claimed_at timestamptz` column on skill_game_sessions:
+//   alter table skill_game_sessions add column if not exists settle_claimed_at timestamptz;
+// Until that migration runs we fail OPEN (claim succeeds) so settlement keeps
+// working — the lease only starts protecting once the column exists.
+async function tryClaimSettlement(sessionId: string): Promise<boolean> {
+  const leaseCutoff = new Date(Date.now() - SETTLE_CLAIM_LEASE_MS).toISOString();
+  const { data, error } = await supabase
+    .from("skill_game_sessions")
+    .update({ settle_claimed_at: new Date().toISOString() })
+    .eq("session_id", sessionId)
+    .is("settled_at", null)
+    .or(`settle_claimed_at.is.null,settle_claimed_at.lt."${leaseCutoff}"`)
+    .select("session_id");
+
+  if (error) {
+    // Fail OPEN on any error (missing column pre-migration, transient DB issue,
+    // etc). The cross-instance lock is an optimization; the contract's one-shot
+    // `settled` flag is the real guard against double-pay. Stranding every
+    // reward because the lease query errored is far worse than a rare duplicate
+    // tx that simply reverts. 42703 = column not yet migrated.
+    if ((error as any).code === "42703") {
+      console.warn("[games/settle] settle_claimed_at column missing — settling without cross-instance lock");
+    } else {
+      console.error(`[games/settle] claim errored, proceeding without lock for ${sessionId}:`, error.message ?? error);
+    }
+    return true;
+  }
+  return (data?.length ?? 0) > 0;
+}
+
+async function queueSettlementForAcceptedRow(row: SkillGameSessionRow, fallback: {
+  sessionId: string;
+  walletAddress: string;
+  gameType: GameType;
+  elapsedMs?: number;
+}) {
+  const result = getResultFromRow(row, fallback);
+  if (row.settled_at) {
+    return {
+      result,
+      queued: false,
+      settled: true,
+      settleTxHash: row.settle_tx_hash ?? undefined,
+    };
+  }
+
+  if (!verifierPk || !skillGamesAddress) {
+    return { result, queued: false, settled: false };
+  }
+
+  const priorAttempts = Number(row.settle_attempts ?? 0);
+  const numericSessionId = parseSessionId(fallback.sessionId);
+
+  const existingTx = await reconcileExistingSettlementTx(row);
+  if (existingTx.settled) {
+    return {
+      result,
+      queued: false,
+      settled: true,
+      settleTxHash: existingTx.txHash,
+    };
+  }
+  if (existingTx.pending) {
+    return {
+      result,
+      queued: true,
+      settled: false,
+      settleTxHash: existingTx.txHash,
+    };
+  }
+
+  if (await markSettledIfOnchain(fallback.sessionId, numericSessionId, priorAttempts)) {
+    return { result, queued: false, settled: true };
+  }
+
+  if (priorAttempts >= MAX_SETTLE_ATTEMPTS) {
+    return { result, queued: false, settled: false };
+  }
+
+  // Acquire the cross-instance lease before signing/broadcasting. If another
+  // worker holds it, treat as queued — they (or the retry sweep) will finish it.
+  if (!(await tryClaimSettlement(fallback.sessionId))) {
+    return { result, queued: true, settled: false };
+  }
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  const score = BigInt(Math.round(Number(row.score ?? 0)));
+  const rewardMiles = toMilesUnits(Number(row.reward_miles ?? 0));
+  const rewardStable = toStableUnits(Number(row.reward_stable ?? 0));
+  let expiry = BigInt(row.settlement_expiry ?? 0);
+  let signature = row.settlement_sig;
+
+  if (!signature || Number(expiry) <= nowSec + 60) {
+    const signed = await signSettlementPayload({
+      sessionId: numericSessionId,
+      player: fallback.walletAddress,
+      gameType: GAME_TYPE_ID[fallback.gameType],
+      score,
+      rewardMiles,
+      rewardStable,
+    });
+    expiry = signed.expiry;
+    signature = signed.signature;
+    await supabase.from("skill_game_sessions").update({
+      settlement_sig: signature,
+      settlement_expiry: Number(expiry),
+    }).eq("session_id", fallback.sessionId);
+  }
+
+  void attemptSettle(
+    fallback.sessionId,
+    numericSessionId,
+    score,
+    rewardMiles,
+    rewardStable,
+    expiry,
+    signature,
+    priorAttempts
+  );
+
+  return { result, queued: true, settled: false };
+}
+
 async function attemptSettle(
   sessionId: string,
   numericSessionId: bigint,
@@ -578,10 +927,25 @@ async function attemptSettleLocked(
 
   for (let attempt = 1; attempt <= attemptsThisRun; attempt++) {
     const totalAttempts = priorAttempts + attempt;
+    let submittedTxHash: string | null = null;
     try {
       const contract = getSkillGames(false);
       const tx = await contract.settleGame(numericSessionId, score, rewardMiles, rewardStable, expiry, signature);
-      await tx.wait(1);
+      submittedTxHash = tx.hash;
+      await supabase.from("skill_game_sessions").update({
+        settle_tx_hash: tx.hash,
+        settle_attempts: totalAttempts,
+      }).eq("session_id", sessionId);
+
+      const receipt: any = await withTimeout(tx.wait(1), SETTLE_RECEIPT_TIMEOUT_MS);
+      if (!receipt) {
+        console.warn(`[games/settle] session ${sessionId} tx=${tx.hash} still pending after ${SETTLE_RECEIPT_TIMEOUT_MS}ms`);
+        return false;
+      }
+      if (receipt.status === 0) {
+        throw new Error("settlement-tx-reverted");
+      }
+
       await supabase.from("skill_game_sessions").update({
         settle_tx_hash: tx.hash,
         settled_at: new Date().toISOString(),
@@ -592,18 +956,22 @@ async function attemptSettleLocked(
     } catch (err: any) {
       const msg = err?.shortMessage ?? err?.message ?? String(err);
       console.error(`[games/settle] attempt ${totalAttempts} for session ${sessionId} failed:`, msg);
+      if (submittedTxHash) {
+        try {
+          await supabase.from("skill_game_sessions")
+            .update({ settle_tx_hash: submittedTxHash })
+            .eq("session_id", sessionId);
+        } catch { /* best effort */ }
+      }
+      if (await markSettledIfOnchain(sessionId, numericSessionId, totalAttempts)) {
+        return "already-settled";
+      }
+
       // Increment total attempt count so the retry cron can bound retries correctly
       await supabase.from("skill_game_sessions")
         .update({ settle_attempts: totalAttempts })
         .eq("session_id", sessionId);
-      if (msg.includes("AlreadySettled") || msg.includes("already settled")) {
-        await supabase.from("skill_game_sessions").update({
-          settled_at: new Date().toISOString(),
-          settle_attempts: totalAttempts,
-        }).eq("session_id", sessionId);
-        console.warn(`[games/settle] session ${sessionId} was already settled on-chain; marked settled locally`);
-        return "already-settled";
-      }
+
       // Insufficient funds — stop immediately and alert; retrying won't help
       if (msg.includes("insufficient funds")) {
         console.error(`[games/settle] ❌ VERIFIER OUT OF GAS — halting settle for session ${sessionId}`);
@@ -627,10 +995,9 @@ async function retryPendingSettlements() {
   if (retryPendingSettlementsRunning) return;
   retryPendingSettlementsRunning = true;
   try {
-    const nowSec = Math.floor(Date.now() / 1000);
     const { data, error } = await supabase
       .from("skill_game_sessions")
-      .select("session_id, wallet_address, game_type, score, reward_miles, reward_stable, settlement_sig, settlement_expiry, settle_attempts")
+      .select("session_id, wallet_address, game_type, score, reward_miles, reward_stable, accepted, anti_abuse_flags, seed_commitment, settle_tx_hash, settle_attempts, settled_at, settlement_sig, settlement_expiry")
       .eq("accepted", true)
       .is("settled_at", null)
       .lt("settle_attempts", MAX_SETTLE_ATTEMPTS)
@@ -647,42 +1014,11 @@ async function retryPendingSettlements() {
         continue;
       }
 
-      const numericSessionId = BigInt(row.session_id);
-      const score = BigInt(row.score);
-      const rewardMiles = toMilesUnits(Number(row.reward_miles));
-      const rewardStable = toStableUnits(Number(row.reward_stable));
-      const priorAttempts = Number(row.settle_attempts ?? 0);
-      let expiry = BigInt(row.settlement_expiry ?? 0);
-      let signature = row.settlement_sig as string | null;
-
-      if (!signature || Number(expiry) <= nowSec + 60) {
-        const signed = await signSettlementPayload({
-          sessionId: numericSessionId,
-          player: row.wallet_address,
-          gameType: GAME_TYPE_ID[row.game_type],
-          score,
-          rewardMiles,
-          rewardStable,
-        });
-        expiry = signed.expiry;
-        signature = signed.signature;
-        await supabase.from("skill_game_sessions").update({
-          settlement_sig: signature,
-          settlement_expiry: Number(expiry),
-        }).eq("session_id", row.session_id);
-        console.log(`[games/settle-retry] refreshed expired settlement signature session=${row.session_id}`);
-      }
-
-      await attemptSettle(
-        row.session_id,
-        numericSessionId,
-        score,
-        rewardMiles,
-        rewardStable,
-        expiry,
-        signature,
-        priorAttempts
-      );
+      await queueSettlementForAcceptedRow(row as SkillGameSessionRow, {
+        sessionId: row.session_id,
+        walletAddress: row.wallet_address,
+        gameType: row.game_type,
+      });
     }
   } finally {
     retryPendingSettlementsRunning = false;
@@ -691,5 +1027,523 @@ async function retryPendingSettlements() {
 
 setTimeout(() => { void retryPendingSettlements(); }, 5000);
 setInterval(() => { void retryPendingSettlements(); }, SETTLE_RETRY_INTERVAL_MS);
+
+// ---------------------------------------------------------------------------
+// Server-authoritative Memory Flip
+//
+// The shuffled deck lives only in skill_game_server_sessions and is never sent
+// to the client unflipped. The client flips one index at a time; the server
+// reveals just that card's value and tracks all state + timing on its own clock.
+// Because the board is never disclosed up front, knowing the seed/commitment
+// gives a cheater nothing — memory is the only way to clear the board.
+// ---------------------------------------------------------------------------
+
+const SETTLE_ROW_COLUMNS =
+  "session_id, wallet_address, game_type, score, reward_miles, reward_stable, accepted, anti_abuse_flags, seed_commitment, settle_tx_hash, settle_attempts, settled_at, settlement_sig, settlement_expiry";
+
+// Per-session in-process serialization so concurrent flips on the same session
+// don't interleave. Cross-instance safety comes from the optimistic `version`
+// guard on each write (a stale write loses and the client retries).
+const serverSessionLocks = new Map<string, Promise<unknown>>();
+function withServerSessionLock<T>(sessionId: string, fn: () => Promise<T>): Promise<T> {
+  const prev = serverSessionLocks.get(sessionId) ?? Promise.resolve();
+  const run = prev.catch(() => undefined).then(fn);
+  serverSessionLocks.set(sessionId, run);
+  void run.catch(() => undefined).finally(() => {
+    if (serverSessionLocks.get(sessionId) === run) serverSessionLocks.delete(sessionId);
+  });
+  return run;
+}
+
+type ServerSessionRow = {
+  session_id: string;
+  wallet_address: string;
+  game_type: string;
+  server_seed: string;
+  server_seed_hash: string;
+  deck: string[];
+  revealed: number[] | null;
+  matched: number[] | null;
+  selected: number[] | null;
+  action_offsets: number[] | null;
+  moves: number | null;
+  matches: number | null;
+  mistakes: number | null;
+  lock_until_ms: number | null;
+  started_at_ms: number | string;
+  completed: boolean | null;
+  finalized: boolean | null;
+  version: number;
+  // rule_tap-specific
+  rule: RuleTapState["rule"] | null;
+  timeline: RuleTapState["timeline"] | null;
+  counted_targets: string[] | null;
+  correct: number | null;
+  taps: number | null;
+};
+
+function stateFromRow(row: ServerSessionRow): MemoryServerState {
+  return {
+    deck: row.deck,
+    revealed: row.revealed ?? [],
+    matched: row.matched ?? [],
+    selected: row.selected ?? [],
+    moves: row.moves ?? 0,
+    matches: row.matches ?? 0,
+    mistakes: row.mistakes ?? 0,
+    lockUntilMs: row.lock_until_ms ?? 0,
+    startedAtMs: Number(row.started_at_ms),
+    actionOffsets: row.action_offsets ?? [],
+    completed: row.completed ?? false,
+  };
+}
+
+// Optimistic-concurrency write: only succeeds if `version` is unchanged.
+async function saveServerState(sessionId: string, state: MemoryServerState, expectedVersion: number): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("skill_game_server_sessions")
+    .update({
+      revealed: state.revealed,
+      matched: state.matched,
+      selected: state.selected,
+      action_offsets: state.actionOffsets,
+      moves: state.moves,
+      matches: state.matches,
+      mistakes: state.mistakes,
+      lock_until_ms: state.lockUntilMs,
+      completed: state.completed,
+      version: expectedVersion + 1,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("session_id", sessionId)
+    .eq("version", expectedVersion)
+    .select("session_id");
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
+function ruleStateFromRow(row: ServerSessionRow): RuleTapState {
+  return {
+    rule: row.rule as RuleTapState["rule"],
+    timeline: (row.timeline ?? []) as RuleTapState["timeline"],
+    correct: row.correct ?? 0,
+    mistakes: row.mistakes ?? 0,
+    taps: row.taps ?? 0,
+    countedTargets: row.counted_targets ?? [],
+    actionOffsets: row.action_offsets ?? [],
+    startedAtMs: Number(row.started_at_ms),
+  };
+}
+
+// Optimistic-concurrency write for rule_tap live taps.
+async function saveRuleTapState(sessionId: string, state: RuleTapState, expectedVersion: number): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("skill_game_server_sessions")
+    .update({
+      correct: state.correct,
+      mistakes: state.mistakes,
+      taps: state.taps,
+      counted_targets: state.countedTargets,
+      action_offsets: state.actionOffsets,
+      version: expectedVersion + 1,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("session_id", sessionId)
+    .eq("version", expectedVersion)
+    .select("session_id");
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
+async function assertActiveOnchainSession(input: {
+  sessionId: string;
+  walletAddress: string;
+  gameType: GameType;
+}): Promise<OnchainSession> {
+  const onchain = await readOnchainSession(input.sessionId);
+  if (!onchain) {
+    const err = new Error("session-not-found-on-chain") as Error & { status?: number };
+    err.status = 404;
+    throw err;
+  }
+  if (onchain.player !== input.walletAddress.toLowerCase()) {
+    const err = new Error("session-player-mismatch") as Error & { status?: number };
+    err.status = 400;
+    throw err;
+  }
+  if (onchain.gameType !== GAME_TYPE_ID[input.gameType]) {
+    const err = new Error("session-game-type-mismatch") as Error & { status?: number };
+    err.status = 400;
+    throw err;
+  }
+  return onchain;
+}
+
+router.post("/session/init", async (req, res) => {
+  try {
+    const { sessionId, walletAddress, gameType } = req.body ?? {};
+    if (!sessionId || !walletAddress || !isGameType(gameType)) {
+      res.status(400).json({ error: "sessionId, walletAddress and a valid gameType required" });
+      return;
+    }
+    const sid = String(sessionId);
+    const wallet = String(walletAddress);
+
+    const result = await withServerSessionLock(sid, async () => {
+      const onchain = await assertActiveOnchainSession({ sessionId: sid, walletAddress: wallet, gameType });
+      if (onchain.settled) {
+        const err = new Error("session-already-settled-on-chain") as Error & { status?: number };
+        err.status = 409;
+        throw err;
+      }
+
+      const { data: existing, error: readErr } = await supabase
+        .from("skill_game_server_sessions")
+        .select("game_type, server_seed_hash, started_at_ms, completed, finalized, revealed, matched, selected, moves, matches, mistakes, rule, correct")
+        .eq("session_id", sid)
+        .maybeSingle();
+      if (readErr) throw readErr;
+
+      if (existing) {
+        // Idempotent resume — never returns the secret board (deck/timeline).
+        if (existing.game_type === "rule_tap") {
+          return {
+            gameType: "rule_tap" as const,
+            serverSeedHash: existing.server_seed_hash,
+            rule: existing.rule,
+            durationMs: RULE_TAP_DURATION_MS,
+            tickIntervalMs: RULE_TAP_TICK_MS,
+            gridSize: RULE_TAP_GRID_SIZE,
+            revealLeadMs: RULE_TAP_REVEAL_LEAD_MS,
+            startedAtMs: Number(existing.started_at_ms),
+            resumed: true,
+            finalized: Boolean(existing.finalized),
+            state: { correct: existing.correct ?? 0, mistakes: existing.mistakes ?? 0 },
+          };
+        }
+        return {
+          gameType: "memory_flip" as const,
+          serverSeedHash: existing.server_seed_hash,
+          cardCount: MEMORY_FLIP_CARD_COUNT,
+          durationMs: MEMORY_FLIP_DURATION_MS,
+          startedAtMs: Number(existing.started_at_ms),
+          resumed: true,
+          finalized: Boolean(existing.finalized),
+          state: {
+            revealed: existing.revealed ?? [],
+            matched: existing.matched ?? [],
+            selected: existing.selected ?? [],
+            moves: existing.moves ?? 0,
+            matches: existing.matches ?? 0,
+            mistakes: existing.mistakes ?? 0,
+            completed: Boolean(existing.completed),
+          },
+        };
+      }
+
+      const seed = newServerSeed();
+      const startedAtMs = Date.now();
+
+      if (gameType === "rule_tap") {
+        const { rule, timeline } = buildRuleTapSession(seed);
+        const { error: insErr } = await supabase.from("skill_game_server_sessions").insert({
+          session_id: sid,
+          wallet_address: wallet.toLowerCase(),
+          game_type: gameType,
+          server_seed: seed,
+          server_seed_hash: serverSeedHash(seed),
+          deck: [],
+          rule,
+          timeline, // secret — only ever revealed just-in-time via /session/tick
+          started_at_ms: startedAtMs,
+        });
+        if (insErr) throw insErr;
+
+        return {
+          gameType: "rule_tap" as const,
+          serverSeedHash: serverSeedHash(seed),
+          rule, // safe to send: without the timeline it grants no precompute
+          durationMs: RULE_TAP_DURATION_MS,
+          tickIntervalMs: RULE_TAP_TICK_MS,
+          gridSize: RULE_TAP_GRID_SIZE,
+          revealLeadMs: RULE_TAP_REVEAL_LEAD_MS,
+          startedAtMs,
+          resumed: false,
+        };
+      }
+
+      const deck = buildMemoryDeck(seed);
+      const { error: insErr } = await supabase.from("skill_game_server_sessions").insert({
+        session_id: sid,
+        wallet_address: wallet.toLowerCase(),
+        game_type: gameType,
+        server_seed: seed,
+        server_seed_hash: serverSeedHash(seed),
+        deck,
+        started_at_ms: startedAtMs,
+      });
+      if (insErr) throw insErr;
+
+      return {
+        gameType: "memory_flip" as const,
+        serverSeedHash: serverSeedHash(seed),
+        cardCount: MEMORY_FLIP_CARD_COUNT,
+        durationMs: MEMORY_FLIP_DURATION_MS,
+        startedAtMs,
+        resumed: false,
+      };
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    console.error("[games/session/init]", err);
+    res.status(err?.status ?? 500).json({ error: err?.message ?? "server-error" });
+  }
+});
+
+router.post("/session/flip", async (req, res) => {
+  try {
+    const { sessionId, walletAddress, cardIndex } = req.body ?? {};
+    if (!sessionId || !walletAddress || !Number.isInteger(cardIndex)) {
+      res.status(400).json({ error: "sessionId, walletAddress and integer cardIndex required" });
+      return;
+    }
+    const sid = String(sessionId);
+    const wallet = String(walletAddress).toLowerCase();
+
+    const out = await withServerSessionLock(sid, async () => {
+      const { data: row, error } = await supabase
+        .from("skill_game_server_sessions")
+        .select("*")
+        .eq("session_id", sid)
+        .maybeSingle();
+      if (error) throw error;
+      if (!row) return { status: 404, body: { error: "session-not-found" } };
+      if (row.wallet_address !== wallet) return { status: 403, body: { error: "wallet-mismatch" } };
+      if (row.finalized) return { status: 409, body: { error: "session-finalized" } };
+
+      const state = stateFromRow(row as ServerSessionRow);
+      const result = applyFlip(state, cardIndex, Date.now());
+      if (!result.ok) return { status: 400, body: { error: result.reason } };
+
+      const saved = await saveServerState(sid, state, (row as ServerSessionRow).version);
+      if (!saved) return { status: 409, body: { error: "concurrent-modification" } };
+
+      return {
+        status: 200,
+        body: {
+          value: result.value,
+          pair: result.pair ?? null,
+          state: result.state,
+          completed: result.state.completed,
+        },
+      };
+    });
+
+    res.status(out.status).json(out.body);
+  } catch (err: any) {
+    console.error("[games/session/flip]", err);
+    res.status(500).json({ error: err?.message ?? "server-error" });
+  }
+});
+
+// Rule Tap just-in-time reveal. Returns only tiles whose activation time has
+// arrived (plus a tiny render lead). Future tiles are never disclosed, so the
+// client cannot read the timeline ahead and script a perfect offline run.
+router.post("/session/tick", async (req, res) => {
+  try {
+    const { sessionId, walletAddress } = req.body ?? {};
+    if (!sessionId || !walletAddress) {
+      res.status(400).json({ error: "sessionId and walletAddress required" });
+      return;
+    }
+    const sid = String(sessionId);
+    const wallet = String(walletAddress).toLowerCase();
+
+    const { data: row, error } = await supabase
+      .from("skill_game_server_sessions")
+      .select("wallet_address, game_type, timeline, started_at_ms, finalized")
+      .eq("session_id", sid)
+      .maybeSingle();
+    if (error) throw error;
+    if (!row) {
+      res.status(404).json({ error: "session-not-found" });
+      return;
+    }
+    if (row.wallet_address !== wallet) {
+      res.status(403).json({ error: "wallet-mismatch" });
+      return;
+    }
+    if (row.game_type !== "rule_tap") {
+      res.status(400).json({ error: "wrong-game-type" });
+      return;
+    }
+
+    const elapsedMs = Date.now() - Number(row.started_at_ms);
+    const tiles = revealedTiles(
+      (row.timeline ?? []) as RuleTapState["timeline"],
+      elapsedMs + RULE_TAP_REVEAL_LEAD_MS
+    );
+    res.json({ elapsedMs, durationMs: RULE_TAP_DURATION_MS, tiles, finalized: Boolean(row.finalized) });
+  } catch (err: any) {
+    console.error("[games/session/tick]", err);
+    res.status(500).json({ error: err?.message ?? "server-error" });
+  }
+});
+
+// Rule Tap live tap. The server stamps arrival on its own clock and scores the
+// tap against the secret timeline + rule, so all scoring/timing is trustworthy.
+router.post("/session/tap", async (req, res) => {
+  try {
+    const { sessionId, walletAddress, tileIndex } = req.body ?? {};
+    if (!sessionId || !walletAddress || !Number.isInteger(tileIndex)) {
+      res.status(400).json({ error: "sessionId, walletAddress and integer tileIndex required" });
+      return;
+    }
+    const sid = String(sessionId);
+    const wallet = String(walletAddress).toLowerCase();
+
+    const out = await withServerSessionLock(sid, async () => {
+      const { data: row, error } = await supabase
+        .from("skill_game_server_sessions")
+        .select("*")
+        .eq("session_id", sid)
+        .maybeSingle();
+      if (error) throw error;
+      if (!row) return { status: 404, body: { error: "session-not-found" } };
+      if (row.wallet_address !== wallet) return { status: 403, body: { error: "wallet-mismatch" } };
+      if (row.game_type !== "rule_tap") return { status: 400, body: { error: "wrong-game-type" } };
+      if (row.finalized) return { status: 409, body: { error: "session-finalized" } };
+
+      const state = ruleStateFromRow(row as ServerSessionRow);
+      const result = applyTap(state, tileIndex, Date.now());
+      if (!result.ok) return { status: 400, body: { error: result.reason } };
+
+      const saved = await saveRuleTapState(sid, state, (row as ServerSessionRow).version);
+      if (!saved) return { status: 409, body: { error: "concurrent-modification" } };
+
+      return {
+        status: 200,
+        body: {
+          hit: result.hit,
+          duplicate: result.duplicate,
+          correct: result.correct,
+          mistakes: result.mistakes,
+        },
+      };
+    });
+
+    res.status(out.status).json(out.body);
+  } catch (err: any) {
+    console.error("[games/session/tap]", err);
+    res.status(500).json({ error: err?.message ?? "server-error" });
+  }
+});
+
+router.post("/session/finish", async (req, res) => {
+  try {
+    const { sessionId, walletAddress } = req.body ?? {};
+    if (!sessionId || !walletAddress) {
+      res.status(400).json({ error: "sessionId and walletAddress required" });
+      return;
+    }
+    const sid = String(sessionId);
+    const wallet = String(walletAddress);
+
+    const out = await withServerSessionLock(sid, async () => {
+      const { data: row, error } = await supabase
+        .from("skill_game_server_sessions")
+        .select("*")
+        .eq("session_id", sid)
+        .maybeSingle();
+      if (error) throw error;
+      if (!row) return { status: 404, body: { error: "session-not-found" } };
+      if (row.wallet_address !== wallet.toLowerCase()) return { status: 403, body: { error: "wallet-mismatch" } };
+
+      const gameType: GameType = row.game_type === "rule_tap" ? "rule_tap" : "memory_flip";
+
+      // Compute the authoritative result from server-held state, and the
+      // game-specific extras for the response body.
+      let final: { accepted: boolean; score: number; rewardMiles: number; rewardStable: number; completed: boolean; elapsedMs: number; flags: string[] };
+      let extra: Record<string, number>;
+      if (gameType === "rule_tap") {
+        const f = finalizeRuleTap(ruleStateFromRow(row as ServerSessionRow), Date.now());
+        final = f;
+        extra = { correct: f.correct, mistakes: f.mistakes };
+      } else {
+        const f = finalizeMemoryFlip(stateFromRow(row as ServerSessionRow), Date.now());
+        final = f;
+        extra = { matches: f.matches, moves: f.moves, mistakes: f.mistakes };
+      }
+
+      if (!row.finalized) {
+        await supabase.from("skill_game_server_sessions").update({
+          finalized: true,
+          completed: final.completed,
+          score: final.score,
+          updated_at: new Date().toISOString(),
+        }).eq("session_id", sid);
+      }
+
+      let settlement = { queued: false, settled: false, settleTxHash: undefined as string | undefined };
+      const onchain = await readOnchainSession(sid);
+      const hasReward = final.rewardMiles > 0 || final.rewardStable > 0;
+
+      // Record the result in the settlement-bearing table for history + leaderboard.
+      await supabase.from("skill_game_sessions").upsert({
+        session_id: sid,
+        wallet_address: wallet.toLowerCase(),
+        game_type: gameType,
+        score: final.score,
+        reward_miles: final.accepted ? final.rewardMiles : 0,
+        reward_stable: final.accepted ? final.rewardStable : 0,
+        accepted: final.accepted,
+        anti_abuse_flags: final.flags,
+        seed_commitment: onchain?.seedCommitment ?? null,
+      });
+
+      // Only settle on-chain when there's something to mint and the session is live.
+      if (final.accepted && hasReward && onchain && !onchain.settled && verifierPk && skillGamesAddress) {
+        const { data: settleRow, error: selErr } = await supabase
+          .from("skill_game_sessions")
+          .select(SETTLE_ROW_COLUMNS)
+          .eq("session_id", sid)
+          .maybeSingle();
+        if (selErr) throw selErr;
+        if (settleRow) {
+          const s = await queueSettlementForAcceptedRow(settleRow as SkillGameSessionRow, {
+            sessionId: sid,
+            walletAddress: wallet,
+            gameType,
+          });
+          settlement = { queued: s.queued, settled: s.settled, settleTxHash: s.settleTxHash ?? undefined };
+        }
+      }
+
+      return {
+        status: 200,
+        body: {
+          accepted: final.accepted,
+          score: final.score,
+          rewardMiles: final.accepted ? final.rewardMiles : 0,
+          rewardStable: final.accepted ? final.rewardStable : 0,
+          completed: final.completed,
+          elapsedMs: final.elapsedMs,
+          antiAbuseFlags: final.flags,
+          ...extra,
+          // Provable fairness: client can rebuild the board from the revealed seed.
+          serverSeed: row.server_seed,
+          serverSeedHash: row.server_seed_hash,
+          ...settlement,
+        },
+      };
+    });
+
+    res.status(out.status).json(out.body);
+  } catch (err: any) {
+    console.error("[games/session/finish]", err);
+    res.status(err?.status ?? 500).json({ error: err?.message ?? "server-error" });
+  }
+});
 
 export default router;

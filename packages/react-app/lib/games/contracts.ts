@@ -18,20 +18,6 @@ export const akibaSkillGamesAbi = [
   },
   {
     type: "function",
-    name: "startGameFor",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "player",          type: "address" },
-      { name: "gameType",        type: "uint8"   },
-      { name: "seedCommitment",  type: "bytes32" },
-      { name: "nonce",           type: "uint256" },
-      { name: "expiry",          type: "uint256" },
-      { name: "playerSignature", type: "bytes"   },
-    ],
-    outputs: [{ name: "sessionId", type: "uint256" }],
-  },
-  {
-    type: "function",
     name: "buyCredits",
     stateMutability: "nonpayable",
     inputs: [
@@ -180,11 +166,6 @@ export const akibaSkillGamesAbi = [
     ],
   },
 ] as const satisfies Abi;
-
-// ── intent signing helpers ──────────────────────────────────────────────────
-
-export const START_INTENT_TYPEHASH_PREIMAGE =
-  "AkibaStartIntent(address player,uint8 gameType,bytes32 seedCommitment,uint256 nonce,uint256 expiry,address verifyingContract,uint256 chainId)";
 
 export const SETTLEMENT_TYPEHASH_PREIMAGE =
   "AkibaSkillGameSettlement(uint256 sessionId,address player,uint8 gameType,uint256 score,uint256 rewardMiles,uint256 rewardStable,uint256 expiry,address verifyingContract,uint256 chainId)";

@@ -26,7 +26,7 @@ export default function MemoryFlipPage() {
 
   const sessionFlow = useGameSession("memory_flip");
   const settlement  = useSettlement("memory_flip");
-  const game        = useMemoryFlipGame(sessionFlow.session?.seed, sessionFlow.session?.sessionId);
+  const game        = useMemoryFlipGame(sessionFlow.session?.sessionId, sessionFlow.address, sessionFlow.session?.seed);
   const { status: creditStatus, buying, buyError, refresh: refreshCredits, buyCredits } = useCredits("memory_flip", sessionFlow.address);
   const weeklyLb    = useWeeklyLeaderboard("memory_flip");
 
@@ -51,29 +51,41 @@ export default function MemoryFlipPage() {
   }
 
   useEffect(() => {
-    if (game.phase !== "submitting" || !game.replay || settlement.status === "submitting") return;
+    if (game.phase !== "submitting" || settlement.status === "submitting") return;
+    const sessionId = sessionFlow.session?.sessionId;
+    const wallet = sessionFlow.address;
+    // Provisional result shown immediately; the authoritative result (server-auth
+    // mode) replaces it once /session/finish responds.
     const { rewardMiles, rewardStable } = rewardForScore("memory_flip", game.score);
     setLocalResult({
-      sessionId:   game.replay.sessionId,
+      sessionId:   sessionId ?? "",
       gameType:    "memory_flip",
       score:       game.score,
       mistakes:    game.mistakes,
       moves:       game.moves,
       matches:     game.matches,
       completed:   game.matches === 8,
-      elapsedMs:   game.replay.durationMs,
+      elapsedMs:   game.elapsedMs,
       rewardMiles,
       rewardStable,
     });
     game.setPhase("settled");
     setResultOpen(true);
-    settlement.submitReplay(game.replay.sessionId, game.replay).then(() => {
+
+    const onSettled = () => {
       refreshCredits();
       weeklyLb.refresh();
-    }).catch((err) => {
-      console.error("[memory-flip] settlement failed", err);
-    });
-  }, [game, settlement, refreshCredits, weeklyLb]);
+    };
+    if (game.serverMode && sessionId && wallet) {
+      settlement.submitFinish(sessionId, wallet).then(onSettled).catch((err) => {
+        console.error("[memory-flip] finish failed", err);
+      });
+    } else if (game.replay) {
+      settlement.submitReplay(game.replay.sessionId, game.replay).then(onSettled).catch((err) => {
+        console.error("[memory-flip] settlement failed", err);
+      });
+    }
+  }, [game, settlement, refreshCredits, weeklyLb, sessionFlow]);
 
   const result     = settlement.response?.result ?? localResult;
   const isPlaying  = game.phase === "playing" || game.phase === "countdown";

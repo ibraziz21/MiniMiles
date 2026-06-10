@@ -113,58 +113,6 @@ export function useCredits(gameType: GameType, walletAddress: string | null | un
     }
   }, [walletAddress, gameType, refresh]);
 
-  /**
-   * Sign a start intent for the sponsored-start flow.
-   * Returns the signature + metadata needed by POST /api/games/start-intent.
-   */
-  const signStartIntent = useCallback(async (seedCommitment: `0x${string}`) => {
-    if (!walletAddress || !AKIBA_SKILL_GAMES_ADDRESS || typeof window === "undefined" || !window.ethereum) {
-      throw new Error("Wallet not connected");
-    }
-
-    const chainGameType = GAME_CONFIGS[gameType].chainGameType;
-    const nonce  = status.nonce;
-    const expiry = Math.floor(Date.now() / 1000) + 5 * 60; // 5 min
-
-    // Replicate the contract's intent digest off-chain
-    const { keccak256, encodeAbiParameters, parseAbiParameters, toHex } = await import("viem");
-    const INTENT_TYPEHASH = keccak256(
-      toHex(
-        "AkibaStartIntent(address player,uint8 gameType,bytes32 seedCommitment,uint256 nonce,uint256 expiry,address verifyingContract,uint256 chainId)"
-      )
-    );
-    const digest = keccak256(
-      encodeAbiParameters(
-        parseAbiParameters("bytes32,address,uint8,bytes32,uint256,uint256,address,uint256"),
-        [
-          INTENT_TYPEHASH,
-          walletAddress as `0x${string}`,
-          chainGameType,
-          seedCommitment,
-          BigInt(nonce),
-          BigInt(expiry),
-          AKIBA_SKILL_GAMES_ADDRESS,
-          BigInt(celo.id),
-        ]
-      )
-    );
-
-    const walletClient = createWalletClient({ chain: celo, transport: custom(window.ethereum) });
-    const signature    = await walletClient.signMessage({
-      account: walletAddress as `0x${string}`,
-      message: { raw: digest },
-    });
-
-    return {
-      walletAddress,
-      gameType,
-      seedCommitment,
-      nonce,
-      expiry,
-      playerSignature: signature,
-    };
-  }, [walletAddress, gameType, status.nonce]);
-
   return {
     status,
     loading,
@@ -172,6 +120,5 @@ export function useCredits(gameType: GameType, walletAddress: string | null | un
     buyError,
     refresh,
     buyCredits,
-    signStartIntent,
   };
 }

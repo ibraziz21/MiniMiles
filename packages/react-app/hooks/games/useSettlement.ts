@@ -112,6 +112,71 @@ export function useSettlement(gameType: GameType) {
     [address, gameType, pollSettlementStatus]
   );
 
+  /**
+   * Server-authoritative finish (Memory Flip). The backend already holds the
+   * authoritative score/state — we just trigger scoring + settlement and adopt
+   * the result it returns, then poll settlement-status like the replay path.
+   */
+  const submitFinish = useCallback(
+    async (sessionId: string, wallet: string) => {
+      setStatus("submitting");
+      setError(null);
+      const pollToken = ++pollTokenRef.current;
+      try {
+        const res = await fetch("/api/games/session/finish", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId, walletAddress: wallet }),
+        });
+        const body = await res.json();
+        if (!res.ok) {
+          throw new Error(`Finish returned ${res.status}: ${body.error ?? JSON.stringify(body)}`);
+        }
+
+        const verifierResponse: VerifierResponse = {
+          accepted: Boolean(body.accepted),
+          antiAbuseFlags: body.antiAbuseFlags ?? [],
+          queued: Boolean(body.queued),
+          settled: Boolean(body.settled),
+          settleTxHash: body.settleTxHash,
+          result: {
+            sessionId,
+            gameType,
+            score: Number(body.score ?? 0),
+            mistakes: Number(body.mistakes ?? 0),
+            moves: Number(body.moves ?? 0),
+            matches: Number(body.matches ?? 0),
+            completed: Boolean(body.completed),
+            elapsedMs: Number(body.elapsedMs ?? 0),
+            rewardMiles: Number(body.rewardMiles ?? 0),
+            rewardStable: Number(body.rewardStable ?? 0),
+          },
+        };
+
+        setResponse(verifierResponse);
+        if (!verifierResponse.accepted) {
+          setStatus("rejected");
+        } else if (verifierResponse.settled || verifierResponse.settleTxHash) {
+          setStatus("settled");
+        } else if (verifierResponse.queued) {
+          setStatus("queued");
+          void pollSettlementStatus(sessionId, wallet, pollToken).catch((err) => {
+            console.error("[games/settlement-status]", err);
+          });
+        } else {
+          // Accepted but nothing to settle (e.g. score below reward threshold).
+          setStatus("settled");
+        }
+        return verifierResponse;
+      } catch (err: any) {
+        setStatus("error");
+        setError(err?.message ?? "Settlement failed");
+        throw err;
+      }
+    },
+    [gameType, pollSettlementStatus]
+  );
+
   const reset = useCallback(() => {
     pollTokenRef.current++;
     setStatus("idle");
@@ -119,5 +184,5 @@ export function useSettlement(gameType: GameType) {
     setError(null);
   }, []);
 
-  return { status, response, error, submitReplay, reset };
+  return { status, response, error, submitReplay, submitFinish, reset };
 }

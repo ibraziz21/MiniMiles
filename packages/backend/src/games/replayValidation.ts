@@ -21,6 +21,13 @@ type RuleTapTile = {
   activeToMs: number;
 };
 
+const RULE_TAP_DURATION_MS = 20_000;
+const RULE_TAP_MIN_COMPLETION_MS = 18_000;
+const RULE_TAP_MAX_ACTIONS = 120;
+const MEMORY_FLIP_DURATION_MS = 60_000;
+const MEMORY_FLIP_MAX_ACTIONS = 200;
+const ACTION_OFFSET_TOLERANCE_MS = 250;
+
 function hashSeed(input: string) {
   let h = 2166136261;
   for (let i = 0; i < input.length; i++) {
@@ -98,16 +105,17 @@ function generateMemoryDeck(seed: string) {
 
 const TILE_WINDOW_TOLERANCE_MS = 120;
 
-function activeTileAt(seed: string, offsetMs: number, tileIndex: number) {
-  const { timeline } = generateRuleTapSession(seed);
-  return timeline
-    .flat()
-    .find(
-      (tile) =>
-        tile.index === tileIndex &&
-        offsetMs >= tile.activeFromMs &&
-        offsetMs <= tile.activeToMs + TILE_WINDOW_TOLERANCE_MS
-    );
+function activeTileAt(flatTimeline: RuleTapTile[], offsetMs: number, tileIndex: number) {
+  return flatTimeline.find(
+    (tile) =>
+      tile.index === tileIndex &&
+      offsetMs >= tile.activeFromMs &&
+      offsetMs <= tile.activeToMs + TILE_WINDOW_TOLERANCE_MS
+  );
+}
+
+function tileActivationKey(tile: RuleTapTile) {
+  return `${tile.activeFromMs}:${tile.activeToMs}:${tile.index}:${tile.color}:${tile.kind}`;
 }
 
 function matchesRule(tile: RuleTapTile | undefined, rule: RuleTapRule) {
@@ -115,15 +123,71 @@ function matchesRule(tile: RuleTapTile | undefined, rule: RuleTapRule) {
   return rule.targets.some((target) => target.color === tile.color && target.kind === tile.kind);
 }
 
-export function validateRuleTapReplay(replay: RuleTapReplay): { result: GameResult; flags: string[] } {
+function isFiniteInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && Number.isInteger(value);
+}
+
+function validateReplayHeader(input: {
+  seed: unknown;
+  startedAt: unknown;
+  durationMs: unknown;
+  actions: unknown;
+  maxDurationMs: number;
+  maxActions: number;
+}) {
   const flags: string[] = [];
-  const { rule } = generateRuleTapSession(replay.seed);
+  const durationMs = isFiniteInteger(input.durationMs) ? input.durationMs : null;
+
+  if (typeof input.seed !== "string" || input.seed.length < 8 || input.seed.length > 256) {
+    flags.push("invalid_replay_seed");
+  }
+  if (typeof input.startedAt !== "string" || Number.isNaN(Date.parse(input.startedAt))) {
+    flags.push("invalid_started_at");
+  }
+  if (durationMs == null || durationMs < 0 || durationMs > input.maxDurationMs + 1_500) {
+    flags.push("replay_duration_out_of_bounds");
+  }
+  if (!Array.isArray(input.actions)) {
+    flags.push("invalid_action_log");
+  } else if (input.actions.length > input.maxActions) {
+    flags.push("too_many_actions");
+  }
+
+  return flags;
+}
+
+export function validateRuleTapReplay(replay: RuleTapReplay): { result: GameResult; flags: string[] } {
+  const replaySeed = typeof replay.seed === "string" ? replay.seed : "";
+  const replayDurationMs = isFiniteInteger(replay.durationMs) ? replay.durationMs : 0;
+  const flags: string[] = validateReplayHeader({
+    seed: replay.seed,
+    startedAt: replay.startedAt,
+    durationMs: replay.durationMs,
+    actions: replay.actions,
+    maxDurationMs: RULE_TAP_DURATION_MS,
+    maxActions: RULE_TAP_MAX_ACTIONS,
+  });
+  const { rule, timeline } = generateRuleTapSession(replaySeed);
+  const flatTimeline = timeline.flat();
   let correct = 0;
   let mistakes = 0;
   let previousOffset = -1;
   const intervals: number[] = [];
+  const countedTargets = new Set<string>();
 
-  for (const action of replay.actions) {
+  for (const action of Array.isArray(replay.actions) ? replay.actions : []) {
+    if (!action || action.type !== "tap") {
+      flags.push("invalid_action_shape");
+      continue;
+    }
+    if (!isFiniteInteger(action.offsetMs) || action.offsetMs < 0 || action.offsetMs > replayDurationMs + ACTION_OFFSET_TOLERANCE_MS) {
+      flags.push("action_offset_out_of_bounds");
+      continue;
+    }
+    if (!isFiniteInteger(action.tileIndex)) {
+      flags.push("invalid_tile_index");
+      continue;
+    }
     if (action.offsetMs < 120) flags.push("reaction_time_below_120ms");
     if (action.offsetMs < previousOffset) flags.push("non_monotonic_action_log");
     if (previousOffset >= 0) intervals.push(action.offsetMs - previousOffset);
@@ -133,9 +197,18 @@ export function validateRuleTapReplay(replay: RuleTapReplay): { result: GameResu
       flags.push("invalid_tile_index");
       continue;
     }
-    const tile = activeTileAt(replay.seed, action.offsetMs, action.tileIndex);
-    if (matchesRule(tile, rule)) correct++;
-    else mistakes++;
+    const tile = activeTileAt(flatTimeline, action.offsetMs, action.tileIndex);
+    if (matchesRule(tile, rule)) {
+      const activationKey = tileActivationKey(tile!);
+      if (countedTargets.has(activationKey)) {
+        flags.push("duplicate_tile_activation");
+        continue;
+      }
+      countedTargets.add(activationKey);
+      correct++;
+    } else {
+      mistakes++;
+    }
   }
 
   if (intervals.length >= 6 && new Set(intervals.slice(-8)).size <= 2) {
@@ -151,8 +224,8 @@ export function validateRuleTapReplay(replay: RuleTapReplay): { result: GameResu
       gameType: "rule_tap",
       score,
       mistakes,
-      completed: replay.durationMs >= 18_000,
-      elapsedMs: replay.durationMs,
+      completed: replayDurationMs >= RULE_TAP_MIN_COMPLETION_MS,
+      elapsedMs: replayDurationMs,
       rewardMiles: reward.rewardMiles,
       rewardStable: reward.rewardStable,
       reason: correct ? undefined : "No valid targets tapped",
@@ -161,8 +234,17 @@ export function validateRuleTapReplay(replay: RuleTapReplay): { result: GameResu
 }
 
 export function validateMemoryFlipReplay(replay: MemoryFlipReplay): { result: GameResult; flags: string[] } {
-  const deck = generateMemoryDeck(replay.seed);
-  const flags: string[] = [];
+  const replaySeed = typeof replay.seed === "string" ? replay.seed : "";
+  const replayDurationMs = isFiniteInteger(replay.durationMs) ? replay.durationMs : 0;
+  const deck = generateMemoryDeck(replaySeed);
+  const flags: string[] = validateReplayHeader({
+    seed: replay.seed,
+    startedAt: replay.startedAt,
+    durationMs: replay.durationMs,
+    actions: replay.actions,
+    maxDurationMs: MEMORY_FLIP_DURATION_MS,
+    maxActions: MEMORY_FLIP_MAX_ACTIONS,
+  });
   const revealed = new Set<number>();
   let selected: number[] = [];
   let moves = 0;
@@ -172,7 +254,19 @@ export function validateMemoryFlipReplay(replay: MemoryFlipReplay): { result: Ga
   let previousOffset = -1;
   const intervals: number[] = [];
 
-  for (const action of replay.actions) {
+  for (const action of Array.isArray(replay.actions) ? replay.actions : []) {
+    if (!action || action.type !== "flip") {
+      flags.push("invalid_action_shape");
+      continue;
+    }
+    if (!isFiniteInteger(action.offsetMs) || action.offsetMs < 0 || action.offsetMs > replayDurationMs + ACTION_OFFSET_TOLERANCE_MS) {
+      flags.push("action_offset_out_of_bounds");
+      continue;
+    }
+    if (!isFiniteInteger(action.cardIndex)) {
+      flags.push("invalid_card_index");
+      continue;
+    }
     if (action.offsetMs < previousOffset) flags.push("non_monotonic_action_log");
     if (previousOffset >= 0) intervals.push(action.offsetMs - previousOffset);
     previousOffset = action.offsetMs;
@@ -204,12 +298,12 @@ export function validateMemoryFlipReplay(replay: MemoryFlipReplay): { result: Ga
     }
   }
 
-  if (matches === 8 && replay.durationMs < 7_500) flags.push("impossible_completion_time");
+  if (matches === 8 && replayDurationMs < 7_500) flags.push("impossible_completion_time");
   if (intervals.length >= 8 && intervals.every((interval) => interval < 170)) flags.push("sustained_machine_speed_inputs");
   if (intervals.length >= 10 && new Set(intervals.slice(-10)).size <= 2) flags.push("repeated_exact_timing_pattern");
 
   const completed = matches === 8;
-  const score = scoreMemoryFlip({ completed, matches, moves, mistakes, elapsedMs: replay.durationMs, durationMs: 60_000 });
+  const score = scoreMemoryFlip({ completed, matches, moves, mistakes, elapsedMs: replayDurationMs, durationMs: 60_000 });
   const reward = rewardForScore("memory_flip", score);
   return {
     flags: [...new Set(flags)],
@@ -221,7 +315,7 @@ export function validateMemoryFlipReplay(replay: MemoryFlipReplay): { result: Ga
       moves,
       matches,
       completed,
-      elapsedMs: replay.durationMs,
+      elapsedMs: replayDurationMs,
       rewardMiles: reward.rewardMiles,
       rewardStable: reward.rewardStable,
     },

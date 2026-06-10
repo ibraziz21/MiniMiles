@@ -27,7 +27,7 @@ export default function RuleTapPage() {
 
   const sessionFlow = useGameSession("rule_tap");
   const settlement  = useSettlement("rule_tap");
-  const game        = useRuleTapGame(sessionFlow.session?.seed, sessionFlow.session?.sessionId);
+  const game        = useRuleTapGame(sessionFlow.session?.sessionId, sessionFlow.address, sessionFlow.session?.seed);
   const { status: creditStatus, buying, buyError, refresh: refreshCredits, buyCredits } = useCredits("rule_tap", sessionFlow.address);
   const weeklyLb    = useWeeklyLeaderboard("rule_tap");
 
@@ -52,27 +52,37 @@ export default function RuleTapPage() {
   }
 
   useEffect(() => {
-    if (game.phase !== "submitting" || !game.replay || settlement.status === "submitting") return;
+    if (game.phase !== "submitting" || settlement.status === "submitting") return;
+    const sessionId = sessionFlow.session?.sessionId;
+    const wallet = sessionFlow.address;
     const { rewardMiles, rewardStable } = rewardForScore("rule_tap", game.score);
     setLocalResult({
-      sessionId:   game.replay.sessionId,
+      sessionId:   sessionId ?? "",
       gameType:    "rule_tap",
       score:       game.score,
       mistakes:    game.mistakes,
-      completed:   game.replay.durationMs >= 18_000,
-      elapsedMs:   game.replay.durationMs,
+      completed:   game.elapsedMs >= 18_000,
+      elapsedMs:   game.elapsedMs,
       rewardMiles,
       rewardStable,
     });
     game.setPhase("settled");
     setResultOpen(true);
-    settlement.submitReplay(game.replay.sessionId, game.replay).then(() => {
+
+    const onSettled = () => {
       refreshCredits();
       weeklyLb.refresh();
-    }).catch((err) => {
-      console.error("[rule-tap] settlement failed", err);
-    });
-  }, [game, settlement, refreshCredits, weeklyLb]);
+    };
+    if (game.serverMode && sessionId && wallet) {
+      settlement.submitFinish(sessionId, wallet).then(onSettled).catch((err) => {
+        console.error("[rule-tap] finish failed", err);
+      });
+    } else if (game.replay) {
+      settlement.submitReplay(game.replay.sessionId, game.replay).then(onSettled).catch((err) => {
+        console.error("[rule-tap] settlement failed", err);
+      });
+    }
+  }, [game, settlement, refreshCredits, weeklyLb, sessionFlow]);
 
   const result       = settlement.response?.result ?? localResult;
   const isPlaying    = game.phase === "playing" || game.phase === "countdown";
