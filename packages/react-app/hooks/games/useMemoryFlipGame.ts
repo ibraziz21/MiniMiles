@@ -10,7 +10,12 @@ const EVAL_LOCK_MS = 560;
 // Server-authoritative play is used whenever a real contract is configured.
 // Without it (local dev) we fall back to a client-side deck so the game is
 // still playable, but that path carries no anti-cheat guarantees.
-const SERVER_AUTH = !!process.env.NEXT_PUBLIC_AKIBA_SKILL_GAMES_ADDRESS;
+// Server-authoritative play is used when a contract is configured. Set
+// NEXT_PUBLIC_SKILL_GAMES_SERVER_AUTH="false" to fall back to the legacy
+// client-side flow (kill-switch if the /session/* backend has issues).
+const SERVER_AUTH =
+  !!process.env.NEXT_PUBLIC_AKIBA_SKILL_GAMES_ADDRESS &&
+  process.env.NEXT_PUBLIC_SKILL_GAMES_SERVER_AUTH !== "false";
 
 type Card = { id: string; value: string };
 

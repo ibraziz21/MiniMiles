@@ -6,7 +6,12 @@ import { generateRuleTapSession } from "@/lib/games/replay-validation";
 import { scoreRuleTap } from "@/lib/games/score";
 import type { GamePhase, RuleTapAction, RuleTapReplay, RuleTapRule, RuleTapTile } from "@/lib/games/types";
 
-const SERVER_AUTH = !!process.env.NEXT_PUBLIC_AKIBA_SKILL_GAMES_ADDRESS;
+// Server-authoritative play is used when a contract is configured. Set
+// NEXT_PUBLIC_SKILL_GAMES_SERVER_AUTH="false" to fall back to the legacy
+// client-side flow (kill-switch if the /session/* backend has issues).
+const SERVER_AUTH =
+  !!process.env.NEXT_PUBLIC_AKIBA_SKILL_GAMES_ADDRESS &&
+  process.env.NEXT_PUBLIC_SKILL_GAMES_SERVER_AUTH !== "false";
 const TICK_POLL_MS = 250;
 
 type ServerRule = { target: { color: string; kind: string }; avoid: { color: string; kind: string } };

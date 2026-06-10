@@ -1,16 +1,16 @@
 /**
- * POST /api/games/session/:action  (action ∈ init | flip | finish)
+ * POST /api/games/session/:action  (action ∈ init | flip | tick | tap | finish)
  *
- * Proxy for the server-authoritative Memory Flip flow. The deck lives only on
- * the backend; the client flips one card at a time and the server reveals just
- * that card's value. No game secret ever transits through here unflipped.
+ * Proxy for the server-authoritative skill-game flows. Memory Flip uses
+ * init/flip/finish; Rule Tap uses init/tick/tap/finish. No game secret (deck or
+ * full timeline) ever transits through here — only the just-revealed value.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { fetchUpstreamJson, isAbortError } from "../../_proxy";
 
 const BACKEND = process.env.GAMES_BACKEND_URL ?? "https://backend-production-aa7f.up.railway.app";
-const ALLOWED = new Set(["init", "flip", "finish"]);
+const ALLOWED = new Set(["init", "flip", "tick", "tap", "finish"]);
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ action: string }> }) {
   const { action } = await params;

@@ -222,7 +222,7 @@ function parseSessionId(sessionId: string | bigint) {
   return BigInt(sessionId);
 }
 
-async function readOnchainSession(sessionId: string | bigint): Promise<OnchainSession | null> {
+async function readOnchainSessionOnce(sessionId: string | bigint): Promise<OnchainSession | null> {
   const numericSessionId = parseSessionId(sessionId);
   const session = await getSkillGames(true).sessions(numericSessionId);
   const storedSessionId = BigInt(session.sessionId ?? session[0]);
@@ -238,6 +238,28 @@ async function readOnchainSession(sessionId: string | bigint): Promise<OnchainSe
     seedCommitment: String(session.seedCommitment ?? session[5]).toLowerCase(),
     settled: Boolean(session.settled ?? session[6]),
   };
+}
+
+// A session created by a just-confirmed startGame tx can be momentarily invisible
+// on a lagging RPC node. Retry a few times before declaring it missing so that
+// register-start / session-init don't 404 on a propagation race.
+const ONCHAIN_READ_RETRIES = Number(process.env.SKILL_GAMES_ONCHAIN_READ_RETRIES ?? "4");
+const ONCHAIN_READ_RETRY_DELAY_MS = Number(process.env.SKILL_GAMES_ONCHAIN_READ_RETRY_DELAY_MS ?? "1000");
+
+async function readOnchainSession(
+  sessionId: string | bigint,
+  opts: { retryOnMissing?: boolean } = {},
+): Promise<OnchainSession | null> {
+  const attempts = opts.retryOnMissing ? Math.max(1, ONCHAIN_READ_RETRIES) : 1;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const found = await readOnchainSessionOnce(sessionId);
+    if (found) return found;
+    if (attempt < attempts) {
+      console.warn(`[games/onchain-read] session ${sessionId} not visible yet (attempt ${attempt}/${attempts}) — retrying`);
+      await new Promise((r) => setTimeout(r, ONCHAIN_READ_RETRY_DELAY_MS));
+    }
+  }
+  return null;
 }
 
 function assertOnchainSessionMatches(input: {
@@ -288,7 +310,7 @@ async function persistVerifiedStartedSession(input: {
   gameType: GameType;
   seedCommitment: string;
 }) {
-  const onchain = await readOnchainSession(input.sessionId);
+  const onchain = await readOnchainSession(input.sessionId, { retryOnMissing: true });
   const mismatch = assertOnchainSessionMatches({ ...input, onchain });
   if (mismatch) {
     const err = new Error(mismatch) as Error & { status?: number };
@@ -1160,7 +1182,7 @@ async function assertActiveOnchainSession(input: {
   walletAddress: string;
   gameType: GameType;
 }): Promise<OnchainSession> {
-  const onchain = await readOnchainSession(input.sessionId);
+  const onchain = await readOnchainSession(input.sessionId, { retryOnMissing: true });
   if (!onchain) {
     const err = new Error("session-not-found-on-chain") as Error & { status?: number };
     err.status = 404;
@@ -1188,6 +1210,7 @@ router.post("/session/init", async (req, res) => {
     }
     const sid = String(sessionId);
     const wallet = String(walletAddress);
+    console.log(`[games/session/init] hit sid=${sid} wallet=${wallet} gameType=${gameType}`);
 
     const result = await withServerSessionLock(sid, async () => {
       const onchain = await assertActiveOnchainSession({ sessionId: sid, walletAddress: wallet, gameType });
@@ -1205,6 +1228,7 @@ router.post("/session/init", async (req, res) => {
       if (readErr) throw readErr;
 
       if (existing) {
+        console.log(`[games/session/init] resume existing sid=${sid} gameType=${existing.game_type} finalized=${existing.finalized}`);
         // Idempotent resume — never returns the secret board (deck/timeline).
         if (existing.game_type === "rule_tap") {
           return {
@@ -1258,6 +1282,7 @@ router.post("/session/init", async (req, res) => {
           started_at_ms: startedAtMs,
         });
         if (insErr) throw insErr;
+        console.log(`[games/session/init] created rule_tap session sid=${sid} ticks=${timeline.length}`);
 
         return {
           gameType: "rule_tap" as const,
@@ -1283,6 +1308,7 @@ router.post("/session/init", async (req, res) => {
         started_at_ms: startedAtMs,
       });
       if (insErr) throw insErr;
+      console.log(`[games/session/init] created memory_flip session sid=${sid} cards=${deck.length}`);
 
       return {
         gameType: "memory_flip" as const,
@@ -1296,7 +1322,7 @@ router.post("/session/init", async (req, res) => {
 
     res.json(result);
   } catch (err: any) {
-    console.error("[games/session/init]", err);
+    console.error("[games/session/init] ERROR", { message: err?.message, code: err?.code, details: err?.details, hint: err?.hint, status: err?.status });
     res.status(err?.status ?? 500).json({ error: err?.message ?? "server-error" });
   }
 });
@@ -1310,6 +1336,7 @@ router.post("/session/flip", async (req, res) => {
     }
     const sid = String(sessionId);
     const wallet = String(walletAddress).toLowerCase();
+    console.log(`[games/session/flip] hit sid=${sid} wallet=${wallet} cardIndex=${cardIndex}`);
 
     const out = await withServerSessionLock(sid, async () => {
       const { data: row, error } = await supabase
@@ -1318,13 +1345,22 @@ router.post("/session/flip", async (req, res) => {
         .eq("session_id", sid)
         .maybeSingle();
       if (error) throw error;
-      if (!row) return { status: 404, body: { error: "session-not-found" } };
-      if (row.wallet_address !== wallet) return { status: 403, body: { error: "wallet-mismatch" } };
+      if (!row) {
+        console.warn(`[games/session/flip] session-not-found in skill_game_server_sessions for sid=${sid} — was /session/init persisted for this id?`);
+        return { status: 404, body: { error: "session-not-found" } };
+      }
+      if (row.wallet_address !== wallet) {
+        console.warn(`[games/session/flip] wallet-mismatch sid=${sid} rowWallet=${row.wallet_address} reqWallet=${wallet}`);
+        return { status: 403, body: { error: "wallet-mismatch" } };
+      }
       if (row.finalized) return { status: 409, body: { error: "session-finalized" } };
 
       const state = stateFromRow(row as ServerSessionRow);
       const result = applyFlip(state, cardIndex, Date.now());
-      if (!result.ok) return { status: 400, body: { error: result.reason } };
+      if (!result.ok) {
+        console.warn(`[games/session/flip] rejected sid=${sid} reason=${result.reason}`);
+        return { status: 400, body: { error: result.reason } };
+      }
 
       const saved = await saveServerState(sid, state, (row as ServerSessionRow).version);
       if (!saved) return { status: 409, body: { error: "concurrent-modification" } };
@@ -1340,9 +1376,12 @@ router.post("/session/flip", async (req, res) => {
       };
     });
 
+    if (out.status !== 200) {
+      console.warn(`[games/session/flip] -> ${out.status}`, out.body);
+    }
     res.status(out.status).json(out.body);
   } catch (err: any) {
-    console.error("[games/session/flip]", err);
+    console.error("[games/session/flip] ERROR", { message: err?.message, code: err?.code, details: err?.details, hint: err?.hint });
     res.status(500).json({ error: err?.message ?? "server-error" });
   }
 });
@@ -1367,6 +1406,7 @@ router.post("/session/tick", async (req, res) => {
       .maybeSingle();
     if (error) throw error;
     if (!row) {
+      console.warn(`[games/session/tick] session-not-found sid=${sid}`);
       res.status(404).json({ error: "session-not-found" });
       return;
     }
@@ -1386,7 +1426,7 @@ router.post("/session/tick", async (req, res) => {
     );
     res.json({ elapsedMs, durationMs: RULE_TAP_DURATION_MS, tiles, finalized: Boolean(row.finalized) });
   } catch (err: any) {
-    console.error("[games/session/tick]", err);
+    console.error("[games/session/tick] ERROR", { message: err?.message, code: err?.code, details: err?.details, hint: err?.hint });
     res.status(500).json({ error: err?.message ?? "server-error" });
   }
 });
@@ -1403,6 +1443,7 @@ router.post("/session/tap", async (req, res) => {
     const sid = String(sessionId);
     const wallet = String(walletAddress).toLowerCase();
 
+    console.log(`[games/session/tap] hit sid=${sid} wallet=${wallet} tileIndex=${tileIndex}`);
     const out = await withServerSessionLock(sid, async () => {
       const { data: row, error } = await supabase
         .from("skill_game_server_sessions")
@@ -1410,7 +1451,10 @@ router.post("/session/tap", async (req, res) => {
         .eq("session_id", sid)
         .maybeSingle();
       if (error) throw error;
-      if (!row) return { status: 404, body: { error: "session-not-found" } };
+      if (!row) {
+        console.warn(`[games/session/tap] session-not-found sid=${sid}`);
+        return { status: 404, body: { error: "session-not-found" } };
+      }
       if (row.wallet_address !== wallet) return { status: 403, body: { error: "wallet-mismatch" } };
       if (row.game_type !== "rule_tap") return { status: 400, body: { error: "wrong-game-type" } };
       if (row.finalized) return { status: 409, body: { error: "session-finalized" } };
@@ -1433,9 +1477,12 @@ router.post("/session/tap", async (req, res) => {
       };
     });
 
+    if (out.status !== 200) {
+      console.warn(`[games/session/tap] -> ${out.status}`, out.body);
+    }
     res.status(out.status).json(out.body);
   } catch (err: any) {
-    console.error("[games/session/tap]", err);
+    console.error("[games/session/tap] ERROR", { message: err?.message, code: err?.code, details: err?.details, hint: err?.hint });
     res.status(500).json({ error: err?.message ?? "server-error" });
   }
 });
@@ -1449,6 +1496,7 @@ router.post("/session/finish", async (req, res) => {
     }
     const sid = String(sessionId);
     const wallet = String(walletAddress);
+    console.log(`[games/session/finish] hit sid=${sid} wallet=${wallet}`);
 
     const out = await withServerSessionLock(sid, async () => {
       const { data: row, error } = await supabase
@@ -1457,7 +1505,10 @@ router.post("/session/finish", async (req, res) => {
         .eq("session_id", sid)
         .maybeSingle();
       if (error) throw error;
-      if (!row) return { status: 404, body: { error: "session-not-found" } };
+      if (!row) {
+        console.warn(`[games/session/finish] session-not-found sid=${sid}`);
+        return { status: 404, body: { error: "session-not-found" } };
+      }
       if (row.wallet_address !== wallet.toLowerCase()) return { status: 403, body: { error: "wallet-mismatch" } };
 
       const gameType: GameType = row.game_type === "rule_tap" ? "rule_tap" : "memory_flip";
@@ -1541,7 +1592,7 @@ router.post("/session/finish", async (req, res) => {
 
     res.status(out.status).json(out.body);
   } catch (err: any) {
-    console.error("[games/session/finish]", err);
+    console.error("[games/session/finish] ERROR", { message: err?.message, code: err?.code, details: err?.details, hint: err?.hint });
     res.status(err?.status ?? 500).json({ error: err?.message ?? "server-error" });
   }
 });
