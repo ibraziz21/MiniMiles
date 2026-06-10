@@ -41,7 +41,11 @@ export default function MemoryFlipPage() {
       setIntroOpen(false);
       setResultOpen(false);
       game.reset();
-      setTimeout(() => { if (session) game.begin(); }, 50);
+      // Pass the freshly created session in so init() uses THIS round's id/wallet,
+      // not a stale closure from before startSession() resolved.
+      setTimeout(() => {
+        if (session) game.begin({ sessionId: session.sessionId, walletAddress: session.walletAddress });
+      }, 50);
       void refreshCredits();
     } catch (err) {
       console.error("[memory-flip] start failed", err);
@@ -53,7 +57,8 @@ export default function MemoryFlipPage() {
   useEffect(() => {
     if (game.phase !== "submitting" || settlement.status === "submitting") return;
     const sessionId = sessionFlow.session?.sessionId;
-    const wallet = sessionFlow.address;
+    // Use the session's own wallet so finish matches the wallet init persisted.
+    const wallet = sessionFlow.session?.walletAddress ?? sessionFlow.address;
     // Provisional result shown immediately; the authoritative result (server-auth
     // mode) replaces it once /session/finish responds.
     const { rewardMiles, rewardStable } = rewardForScore("memory_flip", game.score);

@@ -64,6 +64,9 @@ export function useRuleTapGame(sessionId?: string, walletAddress?: string, seed?
   const serverSyncRef = useRef<{ serverElapsedMs: number; atLocal: number }>({ serverElapsedMs: 0, atLocal: 0 });
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Captured at begin() so init/tick/tap in a round all use the SAME id/wallet,
+  // immune to stale closures from the page's deferred begin() call.
+  const activeRef = useRef<{ sessionId?: string; walletAddress?: string; serverMode: boolean }>({ serverMode: false });
 
   // Mock-mode timeline (client-side).
   const generated = useMemo(() => generateRuleTapSession(seed ?? "idle"), [seed]);
@@ -109,7 +112,10 @@ export function useRuleTapGame(sessionId?: string, walletAddress?: string, seed?
       const res = await fetch("/api/games/session/tick", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, walletAddress }),
+        body: JSON.stringify({
+          sessionId: activeRef.current.sessionId ?? sessionId,
+          walletAddress: activeRef.current.walletAddress ?? walletAddress,
+        }),
       });
       const data = await res.json();
       if (!res.ok) return;
@@ -125,7 +131,14 @@ export function useRuleTapGame(sessionId?: string, walletAddress?: string, seed?
     setPhase("playing");
   }, []);
 
-  const begin = useCallback(() => {
+  const begin = useCallback((override?: { sessionId?: string; walletAddress?: string }) => {
+    // Resolve the round's id/wallet at call time (the page passes the freshly
+    // created session in) and pin it for the round.
+    const sid = override?.sessionId ?? sessionId;
+    const w = override?.walletAddress ?? walletAddress;
+    const sm = SERVER_AUTH && !!sid && !!w;
+    activeRef.current = { sessionId: sid, walletAddress: w, serverMode: sm };
+
     reset();
     setPhase("countdown");
     let next = 3;
@@ -135,7 +148,7 @@ export function useRuleTapGame(sessionId?: string, walletAddress?: string, seed?
       if (next > 0) return;
       clearInterval(countdownTimer);
 
-      if (!serverMode) {
+      if (!sm) {
         beginPlaying();
         return;
       }
@@ -145,7 +158,7 @@ export function useRuleTapGame(sessionId?: string, walletAddress?: string, seed?
           const res = await fetch("/api/games/session/init", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sessionId, walletAddress, gameType: "rule_tap" }),
+            body: JSON.stringify({ sessionId: sid, walletAddress: w, gameType: "rule_tap" }),
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data?.error ?? `init-${res.status}`);
@@ -160,7 +173,7 @@ export function useRuleTapGame(sessionId?: string, walletAddress?: string, seed?
         }
       })();
     }, 650);
-  }, [beginPlaying, pollTick, reset, serverMode, sessionId, walletAddress]);
+  }, [beginPlaying, pollTick, reset, sessionId, walletAddress]);
 
   // Render loop — advance the clock (server-aligned in server mode).
   useEffect(() => {
@@ -207,7 +220,11 @@ export function useRuleTapGame(sessionId?: string, walletAddress?: string, seed?
         const res = await fetch("/api/games/session/tap", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId, walletAddress, tileIndex: index }),
+          body: JSON.stringify({
+            sessionId: activeRef.current.sessionId ?? sessionId,
+            walletAddress: activeRef.current.walletAddress ?? walletAddress,
+            tileIndex: index,
+          }),
         });
         const data = await res.json();
         if (!res.ok) return;

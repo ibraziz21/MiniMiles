@@ -68,6 +68,9 @@ export function useMemoryFlipGame(sessionId?: string, walletAddress?: string, se
   const [initError, setInitError] = useState<string | null>(null);
   const startedAtRef = useRef<number>(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Captured at begin() so every server call in a round uses the SAME id/wallet,
+  // immune to stale closures from the page's deferred begin() call.
+  const activeRef = useRef<{ sessionId?: string; walletAddress?: string; serverMode: boolean }>({ serverMode: false });
 
   const reset = useCallback(() => {
     setPhase("idle");
@@ -94,7 +97,14 @@ export function useMemoryFlipGame(sessionId?: string, walletAddress?: string, se
     setPhase("playing");
   }, []);
 
-  const begin = useCallback(() => {
+  const begin = useCallback((override?: { sessionId?: string; walletAddress?: string }) => {
+    // Resolve the round's id/wallet at call time (the page passes the freshly
+    // created session in, avoiding a stale closure) and pin it for the round.
+    const sid = override?.sessionId ?? sessionId;
+    const w = override?.walletAddress ?? walletAddress;
+    const sm = SERVER_AUTH && !!sid && !!w;
+    activeRef.current = { sessionId: sid, walletAddress: w, serverMode: sm };
+
     reset();
     setPhase("countdown");
     let next = 3;
@@ -104,7 +114,7 @@ export function useMemoryFlipGame(sessionId?: string, walletAddress?: string, se
       if (next > 0) return;
       clearInterval(countdownTimer);
 
-      if (!serverMode) {
+      if (!sm) {
         beginPlaying();
         return;
       }
@@ -116,7 +126,7 @@ export function useMemoryFlipGame(sessionId?: string, walletAddress?: string, se
           const res = await fetch("/api/games/session/init", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sessionId, walletAddress, gameType: "memory_flip" }),
+            body: JSON.stringify({ sessionId: sid, walletAddress: w, gameType: "memory_flip" }),
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data?.error ?? `init-${res.status}`);
@@ -130,7 +140,7 @@ export function useMemoryFlipGame(sessionId?: string, walletAddress?: string, se
         }
       })();
     }, 650);
-  }, [beginPlaying, reset, serverMode, sessionId, walletAddress]);
+  }, [beginPlaying, reset, sessionId, walletAddress]);
 
   // Countdown timer drives remainingMs and the time-out transition.
   useEffect(() => {
@@ -164,7 +174,11 @@ export function useMemoryFlipGame(sessionId?: string, walletAddress?: string, se
         const res = await fetch("/api/games/session/flip", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId, walletAddress, cardIndex: index }),
+          body: JSON.stringify({
+            sessionId: activeRef.current.sessionId ?? sessionId,
+            walletAddress: activeRef.current.walletAddress ?? walletAddress,
+            cardIndex: index,
+          }),
         });
         const data: FlipResponse & { error?: string } = await res.json();
         if (!res.ok) {
