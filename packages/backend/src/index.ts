@@ -3,6 +3,7 @@ import express from "express";
 import * as dotenv from "dotenv";
 import questRouter from "./questRoutes";
 import gamesRouter from "./games/routes";
+import farkleRouter from "./farkle/routes";
 import { startMintWorker, runDrain, releaseCurrentLock } from "./mintWorker";
 import { startBurnBlacklistWatcher } from "./burnBlacklistWatcher";
 import { startProsperityPassWorker, releaseCurrentPassLock } from "./prosperityPassWorker";
@@ -18,6 +19,7 @@ app.use(express.json());
 // Mount the quest routes at /claim
 app.use("/claim", questRouter);
 app.use("/games", gamesRouter);
+app.use("/games/farkle", farkleRouter);
 
 app.get("/", (req, res) => {
   res.send("Welcome to the Minimiles Daily Quests Backend!");
