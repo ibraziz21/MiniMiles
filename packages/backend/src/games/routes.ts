@@ -1222,7 +1222,7 @@ router.post("/session/init", async (req, res) => {
 
       const { data: existing, error: readErr } = await supabase
         .from("skill_game_server_sessions")
-        .select("game_type, server_seed_hash, started_at_ms, completed, finalized, revealed, matched, selected, moves, matches, mistakes, rule, correct")
+        .select("game_type, server_seed_hash, started_at_ms, completed, finalized, revealed, matched, selected, moves, matches, mistakes, rule, correct, deck")
         .eq("session_id", sid)
         .maybeSingle();
       if (readErr) throw readErr;
@@ -1251,6 +1251,7 @@ router.post("/session/init", async (req, res) => {
           cardCount: MEMORY_FLIP_CARD_COUNT,
           durationMs: MEMORY_FLIP_DURATION_MS,
           startedAtMs: Number(existing.started_at_ms),
+          deck: existing.deck,
           resumed: true,
           finalized: Boolean(existing.finalized),
           state: {
@@ -1316,6 +1317,9 @@ router.post("/session/init", async (req, res) => {
         cardCount: MEMORY_FLIP_CARD_COUNT,
         durationMs: MEMORY_FLIP_DURATION_MS,
         startedAtMs,
+        // Hybrid: client renders/matches locally for zero-latency play; the server
+        // still scores the mirrored flips authoritatively.
+        deck,
         resumed: false,
       };
     });
@@ -1329,13 +1333,14 @@ router.post("/session/init", async (req, res) => {
 
 router.post("/session/flip", async (req, res) => {
   try {
-    const { sessionId, walletAddress, cardIndex } = req.body ?? {};
+    const { sessionId, walletAddress, cardIndex, offsetMs } = req.body ?? {};
     if (!sessionId || !walletAddress || !Number.isInteger(cardIndex)) {
       res.status(400).json({ error: "sessionId, walletAddress and integer cardIndex required" });
       return;
     }
     const sid = String(sessionId);
     const wallet = String(walletAddress).toLowerCase();
+    const clientOffsetMs = typeof offsetMs === "number" && Number.isFinite(offsetMs) ? offsetMs : undefined;
     console.log(`[games/session/flip] hit sid=${sid} wallet=${wallet} cardIndex=${cardIndex}`);
 
     const out = await withServerSessionLock(sid, async () => {
@@ -1356,7 +1361,7 @@ router.post("/session/flip", async (req, res) => {
       if (row.finalized) return { status: 409, body: { error: "session-finalized" } };
 
       const state = stateFromRow(row as ServerSessionRow);
-      const result = applyFlip(state, cardIndex, Date.now());
+      const result = applyFlip(state, cardIndex, Date.now(), clientOffsetMs);
       if (!result.ok) {
         console.warn(`[games/session/flip] rejected sid=${sid} reason=${result.reason}`);
         return { status: 400, body: { error: result.reason } };
@@ -1435,11 +1440,12 @@ router.post("/session/tick", async (req, res) => {
 // tap against the secret timeline + rule, so all scoring/timing is trustworthy.
 router.post("/session/tap", async (req, res) => {
   try {
-    const { sessionId, walletAddress, tileIndex } = req.body ?? {};
+    const { sessionId, walletAddress, tileIndex, offsetMs } = req.body ?? {};
     if (!sessionId || !walletAddress || !Number.isInteger(tileIndex)) {
       res.status(400).json({ error: "sessionId, walletAddress and integer tileIndex required" });
       return;
     }
+    const clientOffsetMs = typeof offsetMs === "number" && Number.isFinite(offsetMs) ? offsetMs : undefined;
     const sid = String(sessionId);
     const wallet = String(walletAddress).toLowerCase();
 
@@ -1460,7 +1466,7 @@ router.post("/session/tap", async (req, res) => {
       if (row.finalized) return { status: 409, body: { error: "session-finalized" } };
 
       const state = ruleStateFromRow(row as ServerSessionRow);
-      const result = applyTap(state, tileIndex, Date.now());
+      const result = applyTap(state, tileIndex, Date.now(), clientOffsetMs);
       if (!result.ok) return { status: 400, body: { error: result.reason } };
 
       const saved = await saveRuleTapState(sid, state, (row as ServerSessionRow).version);

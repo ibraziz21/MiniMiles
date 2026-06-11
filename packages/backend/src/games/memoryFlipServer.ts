@@ -120,10 +120,17 @@ export function publicState(state: MemoryServerState): MemoryPublicState {
  * Mutates and returns the state-affecting result. Rejections are returned, not
  * thrown, so callers can map them to HTTP status without losing state.
  */
-export function applyFlip(state: MemoryServerState, cardIndex: number, nowMs: number): FlipResult {
+export function applyFlip(state: MemoryServerState, cardIndex: number, nowMs: number, clientOffsetMs?: number): FlipResult {
   if (state.completed) return { ok: false, reason: "session-completed" };
 
-  const offsetMs = nowMs - state.startedAtMs;
+  // In hybrid mode the client renders locally and mirrors flips here; prefer its
+  // tap time (clamped) so the round-trip doesn't desync the eval-lock from the
+  // client's actual play. Clamped so it can't claim a time it couldn't have reached.
+  const serverOffsetMs = nowMs - state.startedAtMs;
+  let offsetMs = serverOffsetMs;
+  if (typeof clientOffsetMs === "number" && Number.isFinite(clientOffsetMs)) {
+    offsetMs = Math.max(0, Math.min(clientOffsetMs, serverOffsetMs + MEMORY_FLIP_ACTION_TOLERANCE_MS));
+  }
   if (offsetMs > MEMORY_FLIP_DURATION_MS + MEMORY_FLIP_ACTION_TOLERANCE_MS) {
     return { ok: false, reason: "session-expired" };
   }

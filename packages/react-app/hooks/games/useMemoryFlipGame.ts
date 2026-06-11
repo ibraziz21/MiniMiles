@@ -19,28 +19,13 @@ const SERVER_AUTH =
 
 type Card = { id: string; value: string };
 
-type FlipResponse = {
-  value: string;
-  pair: null | { a: number; b: number; matched: boolean; aValue: string; bValue: string };
-  state: {
-    revealed: number[];
-    matched: number[];
-    selected: number[];
-    moves: number;
-    matches: number;
-    mistakes: number;
-    completed: boolean;
-  };
-  completed: boolean;
-};
-
 /**
  * Memory Flip play hook.
  *
- * Server-auth mode (production): the deck lives on the backend. `begin()` calls
- * /session/init, each `flip()` calls /session/flip and renders only the value
- * the server returns. The hook never knows unflipped cards, so a modified client
- * cannot precompute the board. Scoring/settlement happen at /session/finish.
+ * Server-auth mode (production), hybrid: `begin()` calls /session/init which
+ * reveals the deck, so the client renders and matches locally with zero latency.
+ * Each flip is mirrored to /session/flip (fire-and-forget) so the SERVER scores
+ * the real moves; /session/finish returns the authoritative score + settlement.
  *
  * Mock mode (no contract / dev): a local deck is generated from the seed and
  * play is resolved client-side, producing a `replay` for the legacy verifier.
@@ -71,6 +56,8 @@ export function useMemoryFlipGame(sessionId?: string, walletAddress?: string, se
   // Captured at begin() so every server call in a round uses the SAME id/wallet,
   // immune to stale closures from the page's deferred begin() call.
   const activeRef = useRef<{ sessionId?: string; walletAddress?: string; serverMode: boolean }>({ serverMode: false });
+  // Serializes mirrored flips so the server applies them in order.
+  const serverFlipQueue = useRef<Promise<unknown>>(Promise.resolve());
 
   const reset = useCallback(() => {
     setPhase("idle");
@@ -130,8 +117,15 @@ export function useMemoryFlipGame(sessionId?: string, walletAddress?: string, se
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data?.error ?? `init-${res.status}`);
-          const count: number = data.cardCount ?? 16;
-          setDeck(Array.from({ length: count }, (_, i) => ({ id: `card-${i}`, value: "" })));
+          // Hybrid: server reveals the deck so the client renders/matches locally
+          // with zero latency; flips are mirrored to the server for scoring.
+          const serverDeck: string[] = Array.isArray(data.deck) ? data.deck : [];
+          const count: number = data.cardCount ?? serverDeck.length ?? 16;
+          setDeck(
+            serverDeck.length
+              ? serverDeck.map((value, i) => ({ id: `card-${i}`, value }))
+              : Array.from({ length: count }, (_, i) => ({ id: `card-${i}`, value: "" })),
+          );
           beginPlaying();
         } catch (err: any) {
           console.error("[memory-flip] init failed", err);
@@ -162,90 +156,39 @@ export function useMemoryFlipGame(sessionId?: string, walletAddress?: string, se
     }
   }, [deck.length, matched.size, phase]);
 
-  const flipServer = useCallback(
-    async (index: number) => {
-      const offsetMs = Date.now() - startedAtRef.current;
-      // Optimistic flip: show the card face-up (value arrives from the server).
-      setActions((prev) => [...prev, { type: "flip", offsetMs, cardIndex: index }]);
-      setSelected((prev) => [...prev, index]);
-      setRevealed((prev) => new Set(prev).add(index));
-
+  // Mirror a flip to the server for authoritative scoring. Fire-and-forget and
+  // serialized so the server processes flips in order; local play never waits.
+  const fireServerFlip = useCallback((index: number, offsetMs: number) => {
+    const sid = activeRef.current.sessionId;
+    const w = activeRef.current.walletAddress;
+    if (!sid || !w) return;
+    serverFlipQueue.current = serverFlipQueue.current.then(async () => {
       try {
-        const res = await fetch("/api/games/session/flip", {
+        await fetch("/api/games/session/flip", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sessionId: activeRef.current.sessionId ?? sessionId,
-            walletAddress: activeRef.current.walletAddress ?? walletAddress,
-            cardIndex: index,
-          }),
+          body: JSON.stringify({ sessionId: sid, walletAddress: w, cardIndex: index, offsetMs }),
         });
-        const data: FlipResponse & { error?: string } = await res.json();
-        if (!res.ok) {
-          // Roll back the optimistic flip on rejection.
-          setSelected((prev) => prev.filter((i) => i !== index));
-          setRevealed((prev) => {
-            const copy = new Set(prev);
-            copy.delete(index);
-            return copy;
-          });
-          return;
-        }
-
-        // Learn the flipped card's value.
-        setDeck((prev) => {
-          const copy = [...prev];
-          if (copy[index]) copy[index] = { ...copy[index], value: data.value };
-          if (data.pair) {
-            const { a, b, aValue, bValue } = data.pair;
-            if (copy[a]) copy[a] = { ...copy[a], value: aValue };
-            if (copy[b]) copy[b] = { ...copy[b], value: bValue };
-          }
-          return copy;
-        });
-
-        if (!data.pair) {
-          // First pick of a move — sync from authoritative state.
-          setSelected(data.state.selected);
-          setRevealed(new Set(data.state.revealed));
-          return;
-        }
-
-        setMoves(data.state.moves);
-        setMatches(data.state.matches);
-        setMistakes(data.state.mistakes);
-
-        if (data.pair.matched) {
-          setMatched(new Set(data.state.matched));
-          setRevealed(new Set(data.state.revealed));
-          setSelected([]);
-          return;
-        }
-
-        // Mismatch: keep both cards visible for the flash, then hide per server state.
-        setPhase("evaluating");
-        setTimeout(() => {
-          setRevealed(new Set(data.state.revealed));
-          setSelected([]);
-          setPhase((p) => (p === "evaluating" ? "playing" : p));
-        }, EVAL_LOCK_MS);
-      } catch (err) {
-        console.error("[memory-flip] flip failed", err);
-        setSelected((prev) => prev.filter((i) => i !== index));
-        setRevealed((prev) => {
-          const copy = new Set(prev);
-          copy.delete(index);
-          return copy;
-        });
+      } catch {
+        /* server scoring is best-effort; local rendering is unaffected */
       }
-    },
-    [sessionId, walletAddress]
-  );
+    });
+  }, []);
 
-  const flipMock = useCallback(
+  // Resolve once every mirrored flip has been delivered (call before finish).
+  const flushServerFlips = useCallback(() => serverFlipQueue.current, []);
+
+  const flip = useCallback(
     (index: number) => {
+      if (phase !== "playing") return;
+      if (revealed.has(index) || matched.has(index) || selected.includes(index)) return;
+      if (selected.length >= 2) return;
+
       const offsetMs = Date.now() - startedAtRef.current;
       setActions((prev) => [...prev, { type: "flip", offsetMs, cardIndex: index }]);
+      // Mirror to the server for scoring (server mode only); does not block play.
+      if (activeRef.current.serverMode) fireServerFlip(index, offsetMs);
+
       const nextSelected = [...selected, index];
       setRevealed((prev) => new Set(prev).add(index));
       setSelected(nextSelected);
@@ -270,18 +213,7 @@ export function useMemoryFlipGame(sessionId?: string, walletAddress?: string, se
         setPhase("playing");
       }, EVAL_LOCK_MS);
     },
-    [deck, selected]
-  );
-
-  const flip = useCallback(
-    (index: number) => {
-      if (phase !== "playing") return;
-      if (revealed.has(index) || matched.has(index) || selected.includes(index)) return;
-      if (selected.length >= 2) return;
-      if (serverMode) void flipServer(index);
-      else flipMock(index);
-    },
-    [phase, revealed, matched, selected, serverMode, flipServer, flipMock]
+    [phase, revealed, matched, selected, deck, fireServerFlip]
   );
 
   const elapsedMs = durationMs - remainingMs;
@@ -329,5 +261,6 @@ export function useMemoryFlipGame(sessionId?: string, walletAddress?: string, se
     replay,
     serverMode,
     initError,
+    flushServerFlips,
   };
 }

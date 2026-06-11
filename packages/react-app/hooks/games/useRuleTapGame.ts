@@ -224,6 +224,10 @@ export function useRuleTapGame(sessionId?: string, walletAddress?: string, seed?
             sessionId: activeRef.current.sessionId ?? sessionId,
             walletAddress: activeRef.current.walletAddress ?? walletAddress,
             tileIndex: index,
+            // The moment we tapped (server-aligned). The server judges against
+            // this, not the POST arrival time, so the round-trip doesn't make a
+            // valid tap land after the tile's window.
+            offsetMs: Math.round(effectiveElapsed()),
           }),
         });
         const data = await res.json();

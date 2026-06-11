@@ -35,6 +35,10 @@ const TILE_WINDOW_TOLERANCE_MS = 120;
 // Slack for a live tap's server-arrival time vs. the tile's active window.
 const TAP_ARRIVAL_TOLERANCE_MS = 250;
 const MIN_INTER_TAP_MS = 90;
+// How far before the server's own elapsed time a client may claim it tapped.
+// This absorbs the network round-trip (so legit taps aren't judged late) while
+// still preventing a client from claiming a tile that hasn't been revealed yet.
+const CLIENT_OFFSET_TOLERANCE_MS = 500;
 
 export type RuleTapTile = {
   id: string;
@@ -153,9 +157,19 @@ export type TapResult =
   | { ok: false; reason: string }
   | { ok: true; hit: boolean; duplicate: boolean; correct: number; mistakes: number };
 
-/** Apply a live tap at server time `nowMs`. Mutates and returns the outcome. */
-export function applyTap(state: RuleTapState, tileIndex: number, nowMs: number): TapResult {
-  const offsetMs = nowMs - state.startedAtMs;
+/**
+ * Apply a live tap at server time `nowMs`. `clientOffsetMs` is the elapsed time
+ * the client believes it tapped at; we prefer it (clamped) so the network
+ * round-trip doesn't push the evaluation past the tile's ~850ms window. The
+ * clamp to `serverOffset + tolerance` means a client still can't claim a tile
+ * that hasn't been revealed to it yet. Mutates and returns the outcome.
+ */
+export function applyTap(state: RuleTapState, tileIndex: number, nowMs: number, clientOffsetMs?: number): TapResult {
+  const serverOffsetMs = nowMs - state.startedAtMs;
+  let offsetMs = serverOffsetMs;
+  if (typeof clientOffsetMs === "number" && Number.isFinite(clientOffsetMs)) {
+    offsetMs = Math.max(0, Math.min(clientOffsetMs, serverOffsetMs + CLIENT_OFFSET_TOLERANCE_MS));
+  }
   if (offsetMs < 0 || offsetMs > RULE_TAP_DURATION_MS + TAP_ARRIVAL_TOLERANCE_MS) {
     return { ok: false, reason: "session-expired" };
   }

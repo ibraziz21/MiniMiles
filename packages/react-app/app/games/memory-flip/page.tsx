@@ -82,7 +82,12 @@ export default function MemoryFlipPage() {
       weeklyLb.refresh();
     };
     if (game.serverMode && sessionId && wallet) {
-      settlement.submitFinish(sessionId, wallet).then(onSettled).catch((err) => {
+      // Make sure every mirrored flip has reached the server before it scores.
+      (async () => {
+        await game.flushServerFlips?.();
+        await settlement.submitFinish(sessionId, wallet);
+        onSettled();
+      })().catch((err) => {
         console.error("[memory-flip] finish failed", err);
       });
     } else if (game.replay) {
