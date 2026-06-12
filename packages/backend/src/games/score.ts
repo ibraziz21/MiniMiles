@@ -10,6 +10,28 @@ export function rewardForScore(gameType: GameType, score: number) {
   };
 }
 
+export function rewardForPenaltyGoals(goals: number): { rewardMiles: number; rewardStable: number } {
+  if (goals >= 5) return { rewardMiles: 12, rewardStable: 0 };
+  if (goals >= 4) return { rewardMiles: 9,  rewardStable: 0 };
+  if (goals >= 3) return { rewardMiles: 6,  rewardStable: 0 };
+  if (goals >= 2) return { rewardMiles: 5,  rewardStable: 0 };
+  return { rewardMiles: 0, rewardStable: 0 };
+}
+
+export function scorePenaltyShot(params: {
+  isTopCorner: boolean;
+  isSide: boolean;
+  normalisedPower: number;
+  streak: number;        // consecutive goals BEFORE this shot (0 = first in run)
+}): number {
+  let pts = 100;
+  if (params.isTopCorner) pts += 30;
+  else if (params.isSide) pts += 20;
+  if (params.normalisedPower >= 0.8) pts += 50;
+  pts += params.streak * 15;
+  return pts;
+}
+
 export function scoreRuleTap(correct: number, mistakes: number) {
   return Math.max(0, correct - mistakes * 2);
 }
