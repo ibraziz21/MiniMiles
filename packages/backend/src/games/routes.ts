@@ -1218,6 +1218,62 @@ async function savePenaltyState(
   return (data?.length ?? 0) > 0;
 }
 
+async function createPenaltyServerSessionFromChain(input: {
+  sessionId: string;
+  walletAddress: string;
+}): Promise<ServerSessionRow> {
+  const onchain = await assertActiveOnchainSession({
+    sessionId: input.sessionId,
+    walletAddress: input.walletAddress,
+    gameType: "penalty_pressure",
+  });
+  if (onchain.settled) {
+    const err = new Error("session-already-settled-on-chain") as Error & { status?: number };
+    err.status = 409;
+    throw err;
+  }
+
+  const seed = newServerSeed();
+  const startedAtMs = Date.now();
+  const initState = newPenaltyState(startedAtMs);
+
+  const insert = {
+    session_id: input.sessionId,
+    wallet_address: input.walletAddress.toLowerCase(),
+    game_type: "penalty_pressure",
+    server_seed: seed,
+    server_seed_hash: serverSeedHash(seed),
+    deck: [],
+    started_at_ms: startedAtMs,
+    shots_taken: initState.shotsTaken,
+    goals_scored: initState.goalsScored,
+    pp_streak: initState.streak,
+    total_score: initState.totalScore,
+    column_history: initState.columnHistory,
+    shot_results: initState.shotResults,
+  };
+
+  const { error: insErr } = await supabase
+    .from("skill_game_server_sessions")
+    .insert(insert);
+  if (insErr && insErr.code !== "23505") throw insErr;
+
+  const { data: row, error: readErr } = await supabase
+    .from("skill_game_server_sessions")
+    .select("*")
+    .eq("session_id", input.sessionId)
+    .maybeSingle();
+  if (readErr) throw readErr;
+  if (!row) {
+    const err = new Error("server-session-create-failed") as Error & { status?: number };
+    err.status = 500;
+    throw err;
+  }
+
+  console.log(`[games/session/shot] lazily created penalty_pressure session sid=${input.sessionId}`);
+  return row as ServerSessionRow;
+}
+
 async function assertActiveOnchainSession(input: {
   sessionId: string;
   walletAddress: string;
@@ -1594,12 +1650,16 @@ router.post("/session/shot", async (req, res) => {
     console.log(`[games/session/shot] hit sid=${sid} wallet=${wallet} zone=${zone} power=${normalisedPower}`);
 
     const out = await withServerSessionLock(sid, async () => {
-      const { data: row, error } = await supabase
+      const { data: existingRow, error } = await supabase
         .from("skill_game_server_sessions")
         .select("*")
         .eq("session_id", sid)
         .maybeSingle();
       if (error) throw error;
+      const row = existingRow ?? await createPenaltyServerSessionFromChain({
+        sessionId: sid,
+        walletAddress: wallet,
+      });
       if (!row) {
         console.warn(`[games/session/shot] session-not-found sid=${sid}`);
         return { status: 404, body: { error: "session-not-found" } };
