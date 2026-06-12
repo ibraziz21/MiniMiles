@@ -70,18 +70,9 @@ export type PenaltyFinalResult = {
   accepted: boolean;
 };
 
-function keeperDiveCol(columnHistory: number[], shotIndex: number): number {
-  // Adaptive from shot 3 (index ≥ 2). Before that, random dive.
-  if (shotIndex < 2 || columnHistory.length < 2) {
-    return Math.floor(Math.random() * 3);
-  }
-  const counts = [0, 0, 0];
-  for (const col of columnHistory) counts[col]++;
-  const mostFreq = counts.indexOf(Math.max(...counts));
-  // 65% probability keeper dives toward most-used column.
-  if (Math.random() < 0.65) return mostFreq;
-  const others = [0, 1, 2].filter((c) => c !== mostFreq);
-  return others[Math.floor(Math.random() * 2)];
+function keeperDiveCol(): number {
+  // Equal chance of dive left, hold centre, or dive right.
+  return Math.floor(Math.random() * 3);
 }
 
 export function applyShot(
@@ -105,17 +96,24 @@ export function applyShot(
   const isSide      = col !== 1;                // any non-centre column
   const offsetMs    = nowMs - state.startedAtMs;
 
-  const diveCol        = keeperDiveCol(state.columnHistory, state.shotsTaken);
+  const diveCol        = keeperDiveCol();
   const keeperGuessed  = diveCol === col;
+  const powerQuality    = Math.max(0, Math.min(1, (power - 0.18) / 0.72));
+  const rowRiskPenalty  = row === 0 ? 0.08 : 0;
+  const centrePenalty   = col === 1 ? 0.06 : 0;
 
-  // Keeper guessed right: top corners retain 28% save-beat chance; all others ~5%.
-  // Keeper guessed wrong: 92% chance of goal (accounts for poor power / off-target).
-  let goal: boolean;
+  // Power now matters:
+  // - weak shots are easier to save and can miss high zones;
+  // - corners are higher reward but carry a small accuracy tax;
+  // - if the keeper reads the column correctly, only strong well-placed shots beat him.
+  let goalChance: number;
   if (keeperGuessed) {
-    goal = Math.random() < (isTopCorner ? 0.28 : 0.05);
+    goalChance = (isTopCorner ? 0.14 : 0.03) + powerQuality * (isTopCorner ? 0.18 : 0.09);
   } else {
-    goal = Math.random() < 0.92;
+    goalChance = 0.48 + powerQuality * 0.28 - rowRiskPenalty - centrePenalty;
   }
+  if (power > 0.94 && row === 0) goalChance -= 0.07; // blasted high shots can miss.
+  const goal = Math.random() < Math.max(0.03, Math.min(0.96, goalChance));
 
   const pts = goal
     ? scorePenaltyShot({ isTopCorner, isSide, normalisedPower: power, streak: state.streak })
