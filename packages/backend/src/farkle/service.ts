@@ -13,6 +13,7 @@ const isHexAddress = (value: string | null | undefined): value is HexAddress =>
 
 interface MatchRow {
   id: string;
+  chain_id: number | null;
   winner_address: string | null;
   loser_address: string | null;
   winner_score: number | null;
@@ -59,7 +60,7 @@ async function getCompletedMatch(matchId: string): Promise<MatchRow> {
   const { data, error } = await supabase
     .from("game_matches")
     .select(
-      "id,winner_address,loser_address,winner_score,loser_score,replay_hash,result_hash," +
+      "id,chain_id,winner_address,loser_address,winner_score,loser_score,replay_hash,result_hash," +
         "game_modes(mode_key,winner_miles_reward,loser_miles_reward,winner_reward_credit)",
     )
     .eq("id", matchId)
@@ -71,9 +72,9 @@ async function getCompletedMatch(matchId: string): Promise<MatchRow> {
   return data as unknown as MatchRow;
 }
 
-async function syncRewardMirror(winnerAddress: HexAddress, expectedCreditCents: number) {
+async function syncRewardMirror(winnerAddress: HexAddress, expectedCreditCents: number, chainId?: number) {
   if (expectedCreditCents <= 0) return null;
-  const rewardCreditsCents = await readFarkleRewardCreditCents(winnerAddress);
+  const rewardCreditsCents = await readFarkleRewardCreditCents(winnerAddress, chainId);
   await supabase.from("farkle_credit_balances").upsert(
     {
       wallet_address: winnerAddress.toLowerCase(),
@@ -119,13 +120,14 @@ async function writeRewardLedger(match: MatchRow, params: FarkleSettlementParams
 }
 
 export async function settleCompletedFarkleMatch(matchId: string): Promise<FarkleSettleResult> {
-  const match = await getCompletedMatch(matchId);
-  const params = toSettlementParams(match);
+  const match   = await getCompletedMatch(matchId);
+  const params  = toSettlementParams(match);
+  const chainId = match.chain_id ?? undefined;
 
-  const alreadySettled = await isFarkleMatchSettledOnChain(matchId);
-  const txHash = alreadySettled ? null : await settleFarkleOnChain(params);
+  const alreadySettled = await isFarkleMatchSettledOnChain(matchId, chainId);
+  const txHash = alreadySettled ? null : await settleFarkleOnChain(params, chainId);
 
-  const rewardCreditsCents = await syncRewardMirror(params.winnerAddress, params.winCreditCents);
+  const rewardCreditsCents = await syncRewardMirror(params.winnerAddress, params.winCreditCents, chainId);
   await writeRewardLedger(match, params, txHash);
 
   return { matchId, alreadySettled, txHash, rewardCreditsCents };
@@ -148,7 +150,7 @@ export async function reconcileFarkleSettlements(opts: { sinceDays?: number; lim
   const { data, error } = await supabase
     .from("game_matches")
     .select(
-      "id,winner_address,loser_address,winner_score,loser_score,replay_hash,result_hash," +
+      "id,chain_id,winner_address,loser_address,winner_score,loser_score,replay_hash,result_hash," +
         "game_modes(mode_key,winner_miles_reward,loser_miles_reward,winner_reward_credit)",
     )
     .eq("status", "completed")
@@ -162,15 +164,16 @@ export async function reconcileFarkleSettlements(opts: { sinceDays?: number; lim
     result.checked++;
 
     try {
-      const params = toSettlementParams(match);
-      if (await isFarkleMatchSettledOnChain(match.id)) {
+      const params  = toSettlementParams(match);
+      const chainId = match.chain_id ?? undefined;
+      if (await isFarkleMatchSettledOnChain(match.id, chainId)) {
         result.alreadySettled++;
-        await syncRewardMirror(params.winnerAddress, params.winCreditCents);
+        await syncRewardMirror(params.winnerAddress, params.winCreditCents, chainId);
         await writeRewardLedger(match, params, null);
         continue;
       }
 
-      const sim = await simulateFarkleSettlement(params);
+      const sim = await simulateFarkleSettlement(params, chainId);
       if (!sim.ok) {
         result.reverted.push({ matchId: match.id, error: sim.error });
         continue;

@@ -5,8 +5,8 @@
 //   2. Seed a new cycle for any version that has no active cycle
 //   3. Expire lingering active attempts in dead/cracked cycles
 //
-// This is the production backstop — the Next.js routes handle in-flow seeding,
-// but this guarantees continuity if no player is on the page at cycle boundary.
+// Supports both Celo (miles, usdt) and Base (base_miles, base_usdc).
+// Enable Base by setting CRACKPOT_BASE_ENABLED=true in the environment.
 
 import * as dotenv from "dotenv";
 dotenv.config();
@@ -16,21 +16,29 @@ import * as crypto from "crypto";
 import * as https from "https";
 import { supabase } from "./supabaseClient";
 
-const VERSIONS = ["miles", "usdt"] as const;
-type Version = (typeof VERSIONS)[number];
+const CELO_VERSIONS = ["miles", "usdt"] as const;
+const BASE_VERSIONS = ["base_miles", "base_usdc"] as const;
+
+type CeloVersion = (typeof CELO_VERSIONS)[number];
+type BaseVersion = (typeof BASE_VERSIONS)[number];
+type Version = CeloVersion | BaseVersion;
+
+const BASE_ENABLED = process.env.CRACKPOT_BASE_ENABLED === "true";
 
 // ── Cycle timing ─────────────────────────────────────────────────────────────
 
 function getExpiresAt(version: Version): Date {
   const now = new Date();
-  if (version === "miles") {
+
+  if (version === "miles" || version === "base_miles") {
     // Top of next UTC hour
     const next = new Date(now);
     next.setUTCMinutes(0, 0, 0);
     next.setUTCHours(next.getUTCHours() + 1);
     return next;
   }
-  // USDT: 12-hour cycles at 00:00 / 12:00 EAT (UTC+3)
+
+  // usdt / base_usdc: 12-hour cycles at 00:00 / 12:00 EAT (UTC+3)
   const EAT = 3 * 3_600_000;
   const eatNow = new Date(now.getTime() + EAT);
   const eatHour = eatNow.getUTCHours();
@@ -64,14 +72,21 @@ function fetchUrl(url: string): Promise<string> {
   });
 }
 
+function seedParams(version: Version): { seed: number; cap: number } {
+  switch (version) {
+    case "miles":      return { seed: 200, cap: 10000 };
+    case "usdt":       return { seed: 200, cap: 5000  };
+    case "base_miles": return { seed: 200, cap: 10000 };
+    case "base_usdc":  return { seed: 200, cap: 5000  };
+  }
+}
+
 // ── Core sweep ────────────────────────────────────────────────────────────────
 
-export async function runCrackPotSweep(): Promise<string[]> {
+async function sweepVersions(versions: readonly Version[], entropy: string): Promise<string[]> {
   const log: string[] = [];
 
-  const entropy = await fetchUrl("https://blockchain.info/q/latesthash").catch(() => "") || `fallback-${Date.now()}`;
-
-  for (const version of VERSIONS) {
+  for (const version of versions) {
     // 1. Expire overdue active cycles
     const { data: overdue } = await supabase
       .from("crackpot_cycles")
@@ -89,7 +104,6 @@ export async function runCrackPotSweep(): Promise<string[]> {
 
       if (!error) {
         log.push(`expired ${version} cycle ${c.id}`);
-        // Expire lingering attempts
         await supabase
           .from("crackpot_attempts")
           .update({ status: "expired" })
@@ -98,7 +112,7 @@ export async function runCrackPotSweep(): Promise<string[]> {
       }
     }
 
-    // 2. Also expire lingering attempts in cracked cycles
+    // 2. Expire lingering attempts in cracked cycles
     const { data: crackedCycles } = await supabase
       .from("crackpot_cycles")
       .select("id")
@@ -125,8 +139,7 @@ export async function runCrackPotSweep(): Promise<string[]> {
 
     if (!active) {
       const now = new Date();
-      const seed = version === "miles" ? 200 : 200;
-      const cap  = version === "miles" ? 10000 : 5000;
+      const { seed, cap } = seedParams(version);
 
       const { data: inserted, error } = await supabase
         .from("crackpot_cycles")
@@ -157,17 +170,27 @@ export async function runCrackPotSweep(): Promise<string[]> {
   return log;
 }
 
+export async function runCrackPotSweep(): Promise<string[]> {
+  const entropy =
+    (await fetchUrl("https://blockchain.info/q/latesthash").catch(() => "")) ||
+    `fallback-${Date.now()}`;
+
+  const celoLog = await sweepVersions(CELO_VERSIONS, entropy);
+  const baseLog = BASE_ENABLED ? await sweepVersions(BASE_VERSIONS, entropy) : [];
+
+  return [...celoLog, ...baseLog];
+}
+
 // ── Scheduler ─────────────────────────────────────────────────────────────────
 
 export function startCrackPotSweeper(): void {
-  console.log("[CrackPotSweeper] starting — runs every minute");
+  const chains = BASE_ENABLED ? "celo + base" : "celo";
+  console.log(`[CrackPotSweeper] starting (${chains}) — runs every minute`);
 
-  // Run immediately on startup
   runCrackPotSweep()
     .then((log) => { if (log.length) console.log("[CrackPotSweeper]", log.join(" | ")); })
     .catch((e) => console.error("[CrackPotSweeper] startup sweep error:", e));
 
-  // Then every minute
   cron.schedule("* * * * *", () => {
     runCrackPotSweep()
       .then((log) => { if (log.length) console.log("[CrackPotSweeper]", log.join(" | ")); })

@@ -14,8 +14,11 @@ function authorized(req: any) {
 
 router.get("/health", async (_req, res) => {
   try {
-    const resolver = await getFarkleResolverStatus();
-    res.json({ ok: true, resolver });
+    const [celo, base] = await Promise.all([
+      getFarkleResolverStatus(42220),
+      getFarkleResolverStatus(8453),
+    ]);
+    res.json({ ok: true, resolver: { celo, base } });
   } catch (e: any) {
     res.status(500).json({ ok: false, error: e?.message ?? "health check failed" });
   }

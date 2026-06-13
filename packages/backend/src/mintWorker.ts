@@ -11,6 +11,10 @@ import { supabase } from "./supabaseClient";
 const CONTRACT_ADDRESS =
   process.env.MINIPOINTS_V2_ADDRESS ?? "0xab93400000751fc17918940C202A66066885d628";
 
+const BASE_MILES_ADDRESS =
+  process.env.BASE_MILES_TOKEN ?? "0xA13e9aC89da47B2c526dA265edF9A781C754dB75";
+const BASE_RPC_URL = process.env.BASE_RPC_URL ?? "https://mainnet.base.org";
+
 // Jobs claimed per wallet per round. Total claimed = BATCH_SIZE × wallet count.
 const BATCH_SIZE = 400;
 const LOCK_NAME = "default";
@@ -75,6 +79,17 @@ function makeWallets() {
     `[mintWorker] ${wallets.length} wallet(s): ${wallets.map((w) => w.wallet.address).join(", ")}`
   );
   return wallets;
+}
+
+// ── Base wallet (created lazily — only if BASE_MILES_TOKEN is set) ────────────
+function makeBaseWallet() {
+  const pk = (process.env.MINTER_PK_1 ?? process.env.PRIVATE_KEY ?? "").trim();
+  if (!pk || !BASE_MILES_ADDRESS) return null;
+  const provider = new ethers.JsonRpcProvider(BASE_RPC_URL);
+  const wallet   = new ethers.Wallet(pk, provider);
+  const contract = new ethers.Contract(BASE_MILES_ADDRESS, BATCH_MINT_ABI, wallet);
+  console.log(`[mintWorker] Base minter: ${wallet.address} → ${BASE_MILES_ADDRESS}`);
+  return { wallet, contract };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -482,6 +497,7 @@ async function handleFailedJobs(failed: { job: any; msg: string; err: any }[]) {
 
 // ── Wallets (created once at module load) ─────────────────────────────────────
 const WALLETS = makeWallets();
+const BASE_WALLET = makeBaseWallet();
 
 // ── Lock state (exported for graceful shutdown) ───────────────────────────────
 let currentLockOwner: string | null = null;
@@ -610,11 +626,27 @@ export async function runDrain() {
           break;
         }
 
-        const mintJobs = allJobs.filter((j) => j.payload?.kind !== "v2_migration");
+        const baseMintJobs = allJobs.filter((j) => j.payload?.kind !== "v2_migration" && j.payload?.chain_id === 8453);
+        const mintJobs     = allJobs.filter((j) => j.payload?.kind !== "v2_migration" && j.payload?.chain_id !== 8453);
         const migrationJobs = allJobs.filter((j) => j.payload?.kind === "v2_migration");
 
         round++;
-        console.log(`[mintWorker] Round ${round}: ${mintJobs.length} mint across ${wallets.length} wallet(s), ${migrationJobs.length} migration`);
+        console.log(`[mintWorker] Round ${round}: ${mintJobs.length} celo-mint, ${baseMintJobs.length} base-mint, ${migrationJobs.length} migration`);
+
+        // ── Base mint jobs ────────────────────────────────────────────────────
+        if (baseMintJobs.length > 0) {
+          if (BASE_WALLET) {
+            setRunPhase(owner, `round-${round}-base-mint`);
+            try {
+              const txHash = await processMintBatch(baseMintJobs, BASE_WALLET.contract, "BASE");
+              await applyBatchPayloads(baseMintJobs, txHash);
+            } catch (err: any) {
+              console.error(`[mintWorker] Base batch failed: ${err?.shortMessage ?? err?.message}`);
+            }
+          } else {
+            console.warn(`[mintWorker] BASE_WALLET not configured — skipping ${baseMintJobs.length} Base mint jobs`);
+          }
+        }
 
         // ── Split mint jobs across wallets and fire in parallel ─────────────
         if (mintJobs.length > 0) {

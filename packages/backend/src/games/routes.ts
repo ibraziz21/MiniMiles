@@ -34,15 +34,6 @@ import {
   RULE_TAP_TICK_MS,
   type RuleTapState,
 } from "./ruleTapServer";
-import {
-  applyShot,
-  finalizePenaltyPressure,
-  newPenaltyState,
-  stateFromPenaltyRow,
-  PENALTY_SHOTS,
-  PENALTY_DURATION_MS,
-  type ShotRecord,
-} from "./penaltyPressureServer";
 import type { GameReplay, GameType, MemoryFlipReplay, RuleTapReplay } from "./types";
 
 const router = Router();
@@ -1111,13 +1102,6 @@ type ServerSessionRow = {
   counted_targets: string[] | null;
   correct: number | null;
   taps: number | null;
-  // penalty_pressure-specific
-  shots_taken: number | null;
-  goals_scored: number | null;
-  pp_streak: number | null;
-  total_score: number | null;
-  column_history: number[] | null;
-  shot_results: ShotRecord[] | null;
 };
 
 function stateFromRow(row: ServerSessionRow): MemoryServerState {
@@ -1193,87 +1177,6 @@ async function saveRuleTapState(sessionId: string, state: RuleTapState, expected
   return (data?.length ?? 0) > 0;
 }
 
-async function savePenaltyState(
-  sessionId: string,
-  state: ReturnType<typeof stateFromPenaltyRow>,
-  expectedVersion: number,
-): Promise<boolean> {
-  const { data, error } = await supabase
-    .from("skill_game_server_sessions")
-    .update({
-      shots_taken:    state.shotsTaken,
-      goals_scored:   state.goalsScored,
-      pp_streak:      state.streak,
-      total_score:    state.totalScore,
-      column_history: state.columnHistory,
-      shot_results:   state.shotResults,
-      completed:      state.shotsTaken >= PENALTY_SHOTS,
-      version:        expectedVersion + 1,
-      updated_at:     new Date().toISOString(),
-    })
-    .eq("session_id", sessionId)
-    .eq("version", expectedVersion)
-    .select("session_id");
-  if (error) throw error;
-  return (data?.length ?? 0) > 0;
-}
-
-async function createPenaltyServerSessionFromChain(input: {
-  sessionId: string;
-  walletAddress: string;
-}): Promise<ServerSessionRow> {
-  const onchain = await assertActiveOnchainSession({
-    sessionId: input.sessionId,
-    walletAddress: input.walletAddress,
-    gameType: "penalty_pressure",
-  });
-  if (onchain.settled) {
-    const err = new Error("session-already-settled-on-chain") as Error & { status?: number };
-    err.status = 409;
-    throw err;
-  }
-
-  const seed = newServerSeed();
-  const startedAtMs = Date.now();
-  const initState = newPenaltyState(startedAtMs);
-
-  const insert = {
-    session_id: input.sessionId,
-    wallet_address: input.walletAddress.toLowerCase(),
-    game_type: "penalty_pressure",
-    server_seed: seed,
-    server_seed_hash: serverSeedHash(seed),
-    deck: [],
-    started_at_ms: startedAtMs,
-    shots_taken: initState.shotsTaken,
-    goals_scored: initState.goalsScored,
-    pp_streak: initState.streak,
-    total_score: initState.totalScore,
-    column_history: initState.columnHistory,
-    shot_results: initState.shotResults,
-  };
-
-  const { error: insErr } = await supabase
-    .from("skill_game_server_sessions")
-    .insert(insert);
-  if (insErr && insErr.code !== "23505") throw insErr;
-
-  const { data: row, error: readErr } = await supabase
-    .from("skill_game_server_sessions")
-    .select("*")
-    .eq("session_id", input.sessionId)
-    .maybeSingle();
-  if (readErr) throw readErr;
-  if (!row) {
-    const err = new Error("server-session-create-failed") as Error & { status?: number };
-    err.status = 500;
-    throw err;
-  }
-
-  console.log(`[games/session/shot] lazily created penalty_pressure session sid=${input.sessionId}`);
-  return row as ServerSessionRow;
-}
-
 async function assertActiveOnchainSession(input: {
   sessionId: string;
   walletAddress: string;
@@ -1319,7 +1222,7 @@ router.post("/session/init", async (req, res) => {
 
       const { data: existing, error: readErr } = await supabase
         .from("skill_game_server_sessions")
-        .select("game_type, server_seed_hash, started_at_ms, completed, finalized, revealed, matched, selected, moves, matches, mistakes, rule, correct, deck, shots_taken, goals_scored, pp_streak, total_score, column_history, shot_results")
+        .select("game_type, server_seed_hash, started_at_ms, completed, finalized, revealed, matched, selected, moves, matches, mistakes, rule, correct, deck")
         .eq("session_id", sid)
         .maybeSingle();
       if (readErr) throw readErr;
@@ -1340,24 +1243,6 @@ router.post("/session/init", async (req, res) => {
             resumed: true,
             finalized: Boolean(existing.finalized),
             state: { correct: existing.correct ?? 0, mistakes: existing.mistakes ?? 0 },
-          };
-        }
-        if (existing.game_type === "penalty_pressure") {
-          return {
-            gameType: "penalty_pressure" as const,
-            serverSeedHash: existing.server_seed_hash,
-            shots: PENALTY_SHOTS,
-            durationMs: PENALTY_DURATION_MS,
-            startedAtMs: Number(existing.started_at_ms),
-            resumed: true,
-            finalized: Boolean(existing.finalized),
-            state: {
-              shotsTaken:  existing.shots_taken  ?? 0,
-              goalsScored: existing.goals_scored ?? 0,
-              totalScore:  existing.total_score  ?? 0,
-              completed:   Boolean(existing.completed),
-              shotResults: existing.shot_results ?? [],
-            },
           };
         }
         return {
@@ -1410,36 +1295,6 @@ router.post("/session/init", async (req, res) => {
           revealLeadMs: RULE_TAP_REVEAL_LEAD_MS,
           startedAtMs,
           resumed: false,
-        };
-      }
-
-      if (gameType === "penalty_pressure") {
-        const initState = newPenaltyState(startedAtMs);
-        const { error: insErr } = await supabase.from("skill_game_server_sessions").insert({
-          session_id:     sid,
-          wallet_address: wallet.toLowerCase(),
-          game_type:      gameType,
-          server_seed:    seed,
-          server_seed_hash: serverSeedHash(seed),
-          deck:           [],
-          started_at_ms:  startedAtMs,
-          shots_taken:    initState.shotsTaken,
-          goals_scored:   initState.goalsScored,
-          pp_streak:      initState.streak,
-          total_score:    initState.totalScore,
-          column_history: initState.columnHistory,
-          shot_results:   initState.shotResults,
-        });
-        if (insErr) throw insErr;
-        console.log(`[games/session/init] created penalty_pressure session sid=${sid}`);
-
-        return {
-          gameType:      "penalty_pressure" as const,
-          serverSeedHash: serverSeedHash(seed),
-          shots:         PENALTY_SHOTS,
-          durationMs:    PENALTY_DURATION_MS,
-          startedAtMs,
-          resumed:       false,
         };
       }
 
@@ -1638,71 +1493,6 @@ router.post("/session/tap", async (req, res) => {
   }
 });
 
-router.post("/session/shot", async (req, res) => {
-  try {
-    const { sessionId, walletAddress, zone, normalisedPower } = req.body ?? {};
-    if (!sessionId || !walletAddress || !Number.isInteger(zone) || typeof normalisedPower !== "number") {
-      res.status(400).json({ error: "sessionId, walletAddress, integer zone (0–5) and normalisedPower required" });
-      return;
-    }
-    const sid    = String(sessionId);
-    const wallet = String(walletAddress).toLowerCase();
-    console.log(`[games/session/shot] hit sid=${sid} wallet=${wallet} zone=${zone} power=${normalisedPower}`);
-
-    const out = await withServerSessionLock(sid, async () => {
-      const { data: existingRow, error } = await supabase
-        .from("skill_game_server_sessions")
-        .select("*")
-        .eq("session_id", sid)
-        .maybeSingle();
-      if (error) throw error;
-      const row = existingRow ?? await createPenaltyServerSessionFromChain({
-        sessionId: sid,
-        walletAddress: wallet,
-      });
-      if (!row) {
-        console.warn(`[games/session/shot] session-not-found sid=${sid}`);
-        return { status: 404, body: { error: "session-not-found" } };
-      }
-      if (row.wallet_address !== wallet) {
-        return { status: 403, body: { error: "wallet-mismatch" } };
-      }
-      if (row.game_type !== "penalty_pressure") {
-        return { status: 400, body: { error: "wrong-game-type" } };
-      }
-      if (row.finalized) return { status: 409, body: { error: "session-finalized" } };
-
-      const state  = stateFromPenaltyRow(row as ServerSessionRow);
-      const result = applyShot(state, zone, normalisedPower, Date.now());
-
-      if (!result.ok) {
-        console.warn(`[games/session/shot] rejected sid=${sid} reason=${result.reason}`);
-        return { status: 400, body: { error: result.reason } };
-      }
-
-      const saved = await savePenaltyState(sid, state, (row as ServerSessionRow).version);
-      if (!saved) return { status: 409, body: { error: "concurrent-modification" } };
-
-      return {
-        status: 200,
-        body: {
-          goal:         result.goal,
-          keeperDiveCol: result.keeperDiveCol,
-          points:       result.points,
-          state:        result.state,
-          completed:    result.completed,
-        },
-      };
-    });
-
-    if (out.status !== 200) console.warn(`[games/session/shot] -> ${out.status}`, out.body);
-    res.status(out.status).json(out.body);
-  } catch (err: any) {
-    console.error("[games/session/shot] ERROR", { message: err?.message, code: err?.code });
-    res.status(500).json({ error: err?.message ?? "server-error" });
-  }
-});
-
 router.post("/session/finish", async (req, res) => {
   try {
     const { sessionId, walletAddress } = req.body ?? {};
@@ -1727,10 +1517,7 @@ router.post("/session/finish", async (req, res) => {
       }
       if (row.wallet_address !== wallet.toLowerCase()) return { status: 403, body: { error: "wallet-mismatch" } };
 
-      const gameType: GameType =
-        row.game_type === "rule_tap"        ? "rule_tap"        :
-        row.game_type === "penalty_pressure" ? "penalty_pressure" :
-        "memory_flip";
+      const gameType: GameType = row.game_type === "rule_tap" ? "rule_tap" : "memory_flip";
 
       // Compute the authoritative result from server-held state, and the
       // game-specific extras for the response body.
@@ -1740,10 +1527,6 @@ router.post("/session/finish", async (req, res) => {
         const f = finalizeRuleTap(ruleStateFromRow(row as ServerSessionRow), Date.now());
         final = f;
         extra = { correct: f.correct, mistakes: f.mistakes };
-      } else if (gameType === "penalty_pressure") {
-        const f = finalizePenaltyPressure(stateFromPenaltyRow(row as ServerSessionRow), Date.now());
-        final = f;
-        extra = { goalsScored: f.goalsScored, shotsTaken: f.shotsTaken };
       } else {
         const f = finalizeMemoryFlip(stateFromRow(row as ServerSessionRow), Date.now());
         final = f;

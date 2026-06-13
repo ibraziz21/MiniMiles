@@ -1,4 +1,4 @@
-export type GameType = "rule_tap" | "memory_flip" | "penalty_pressure";
+export type GameType = "rule_tap" | "memory_flip";
 
 export type RewardThreshold = {
   label: string;
