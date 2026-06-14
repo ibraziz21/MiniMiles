@@ -37,6 +37,7 @@
     "@supabase/supabase-js": "^2.0.0",
     "dotenv": "^16.4.5",
     "ethers": "^6.16.0",
+    "solidity-bytes-utils": "^0.8.4",
     "witnet-solidity-bridge": "^2.0.18"
   },
   "scripts": {

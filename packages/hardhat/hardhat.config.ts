@@ -16,8 +16,11 @@ const config: HardhatUserConfig = {
       accounts: [process.env.PRIVATE_KEY ?? '0x0'],
       url: 'https://forno.celo.org',
     },
-
-    
+    base: {
+      accounts: [process.env.PRIVATE_KEY ?? '0x0'],
+      url: process.env.BASE_RPC_URL ?? 'https://mainnet.base.org',
+      chainId: 8453,
+    },
   },
   etherscan: {
     apiKey:  process.env.CELOSCAN_API_KEY ?? '',
@@ -54,6 +57,12 @@ const config: HardhatUserConfig = {
       },
     },
   },
+  paths: {
+    sources: './contracts',
+  },
+  // Exclude LayerZero-dependent claw bridge contracts from compilation
+  // (they require @layerzerolabs packages not needed for Base deployment)
+  mocha: {},
 };
 
 export default config;
