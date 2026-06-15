@@ -1,5 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MilesIcon } from "@/components/MilesIcon";
 import type { Campaign } from "@/data/campaigns";
 
 const statusConfig: Record<
@@ -25,12 +26,32 @@ const categoryAccent: Record<
   Campaign["category"],
   { border: string; highlight: string; label: string }
 > = {
-  "Wallet Rewards":      { border: "border-l-blue-400",   highlight: "bg-blue-50 text-blue-700",   label: "bg-blue-50 text-blue-600" },
-  "Partner Quests":      { border: "border-l-purple-400", highlight: "bg-purple-50 text-purple-700", label: "bg-purple-50 text-purple-600" },
-  Games:                 { border: "border-l-orange-400", highlight: "bg-orange-50 text-orange-700", label: "bg-orange-50 text-orange-600" },
-  "Merchants & Vouchers":{ border: "border-l-pink-400",   highlight: "bg-pink-50 text-pink-700",   label: "bg-pink-50 text-pink-600" },
-  Rewards:               { border: "border-l-akiba-teal", highlight: "bg-akiba-tint text-akiba-teal", label: "bg-akiba-tint text-akiba-teal" },
+  "Wallet Rewards":       { border: "border-l-blue-400",   highlight: "bg-blue-50 text-blue-700",    label: "bg-blue-50 text-blue-600" },
+  "Partner Quests":       { border: "border-l-purple-400", highlight: "bg-purple-50 text-purple-700", label: "bg-purple-50 text-purple-600" },
+  Games:                  { border: "border-l-orange-400", highlight: "bg-orange-50 text-orange-700", label: "bg-orange-50 text-orange-600" },
+  "Merchants & Vouchers": { border: "border-l-pink-400",   highlight: "bg-pink-50 text-pink-700",    label: "bg-pink-50 text-pink-600" },
+  Rewards:                { border: "border-l-akiba-teal", highlight: "bg-akiba-tint text-akiba-teal", label: "bg-akiba-tint text-akiba-teal" },
 };
+
+// Splits a string on "Miles" and injects the icon — e.g. "10 Miles" → <><icon/>10 Miles</>
+function WithMilesIcon({ text }: { text: string }) {
+  if (!text.includes("Miles")) return <>{text}</>;
+  const parts = text.split(/(Miles)/g);
+  return (
+    <>
+      {parts.map((part, i) =>
+        part === "Miles" ? (
+          <span key={i} className="inline-flex items-center gap-0.5">
+            <MilesIcon className="inline-block h-3 w-3 align-middle" />
+            <span>Miles</span>
+          </span>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </>
+  );
+}
 
 export function CampaignCard({ campaign }: { campaign: Campaign }) {
   const status = statusConfig[campaign.status];
@@ -65,8 +86,8 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
 
         {/* Reward highlight — top right */}
         <div className={cn("shrink-0 rounded-xl px-3 py-2 text-right", accent.highlight)}>
-          <p className="text-xl font-bold leading-none tracking-tight">
-            {campaign.rewardHighlight}
+          <p className="inline-flex items-center gap-1 text-xl font-bold leading-none tracking-tight">
+            <WithMilesIcon text={campaign.rewardHighlight} />
           </p>
           <p className="mt-0.5 text-xs font-medium opacity-70">{campaign.rewardLabel}</p>
         </div>
@@ -81,14 +102,18 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
           <p className="mt-0.5 text-xs font-semibold text-akiba-teal">{campaign.partner}</p>
         </div>
 
-        <p className="text-sm leading-6 text-akiba-muted">{campaign.description}</p>
+        <p className="text-sm leading-6 text-akiba-muted">
+          <WithMilesIcon text={campaign.description} />
+        </p>
 
         {campaign.details.length > 0 && (
           <dl className="rounded-md bg-akiba-paper px-3 py-3 text-xs">
             {campaign.details.map((d) => (
               <div key={d.label} className="flex items-baseline justify-between gap-2 py-0.5">
                 <dt className="shrink-0 text-akiba-muted/70">{d.label}</dt>
-                <dd className="text-right font-semibold text-akiba-ink">{d.value}</dd>
+                <dd className="text-right font-semibold text-akiba-ink">
+                  <WithMilesIcon text={d.value} />
+                </dd>
               </div>
             ))}
           </dl>

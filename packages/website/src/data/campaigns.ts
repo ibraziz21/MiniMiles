@@ -68,8 +68,8 @@ export const campaigns: Campaign[] = [
     description:
       "Complete three Pretium actions through Akiba and stack rewards. Sign up with code AKIBA1 (50 Miles), make your first transaction (50 Miles), and get entered into a $10 USDT daily draw running for one week. Miles are verified by Pretium and paid within 24 hours.",
     details: [
-      { label: "Sign up (code AKIBA1)", value: "50 AkibaMiles" },
-      { label: "First transaction", value: "50 AkibaMiles" },
+      { label: "Sign up (code AKIBA1)", value: "50 Miles" },
+      { label: "First transaction", value: "50 Miles" },
       { label: "Daily raffle", value: "$10 USDT · 1 winner/day for 1 week" },
       { label: "Raffle entry", value: "Complete the quests above" },
       { label: "Miles payout", value: "Within 24h of Pretium verification" },
@@ -79,6 +79,27 @@ export const campaigns: Campaign[] = [
   },
 
   // ─── Games ─────────────────────────────────────────────────────────────────
+  {
+    id: "pvp-farkle",
+    title: "PvP Farkle",
+    partner: "AkibaMiles Games",
+    category: "Games",
+    status: "live",
+    rewardHighlight: "$0.15",
+    rewardLabel: "USDT per duel win",
+    tagline: "Head-to-head dice duels — roll, bank, and outlast your opponent.",
+    description:
+      "PvP Farkle is a two-player dice duel. Players take turns rolling, scoring, and banking points. The first player to reach the target score wins. Play in Miles mode using Farkle tickets, or enter Reward Duels with USDT for real stakes.",
+    details: [
+      { label: "Miles entry", value: "25 Miles for 5 tickets · 1 ticket/match" },
+      { label: "Miles win reward", value: "10 Miles" },
+      { label: "Miles consolation", value: "5 Miles (loser)" },
+      { label: "USDT entry", value: "$0.50 USDT for 5 credits · 1 credit/Reward Duel" },
+      { label: "USDT win reward", value: "$0.15 USDT via GameCreditVault" },
+    ],
+    cta: "Play Farkle",
+    ctaHref: "https://app.akibamiles.com/rush",
+  },
   {
     id: "crackpot",
     title: "CrackPot — Jackpot Code Game",
@@ -116,7 +137,7 @@ export const campaigns: Campaign[] = [
     details: [
       { label: "Category", value: "Electronics — devices, accessories, services" },
       { label: "Payment", value: "cUSD or USDT on Celo" },
-      { label: "Miles per order", value: "200 AkibaMiles" },
+      { label: "Miles per order", value: "200 Miles" },
       { label: "Urban delivery", value: "$3.00 · 1–2 days (Nairobi, Mombasa)" },
       { label: "Other towns", value: "$5.00 · 3–5 days" },
       { label: "Vouchers", value: "Apply Miles-backed vouchers at checkout" },
