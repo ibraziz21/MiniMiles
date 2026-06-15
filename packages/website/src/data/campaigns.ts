@@ -84,7 +84,7 @@ export const campaigns: Campaign[] = [
     title: "PvP Farkle",
     partner: "AkibaMiles Games",
     category: "Games",
-    status: "live",
+    status: "coming-soon",
     rewardHighlight: "$0.15",
     rewardLabel: "USDT per duel win",
     tagline: "Head-to-head dice duels — roll, bank, and outlast your opponent.",
