@@ -25,3 +25,4 @@ PARTNER_LEAD_IP_HASH_SALT=
 ```
 
 `TURNSTILE_SECRET_KEY` is required in production for partner lead submissions.
+
