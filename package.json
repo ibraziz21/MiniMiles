@@ -18,7 +18,10 @@
     "admin:start": "pnpm --filter @minimiles/admin-dashboard start",
     "cto-dashboard:dev": "pnpm --filter @akiba/cto-dashboard dev",
     "cto-dashboard:build": "pnpm --filter @akiba/cto-dashboard build",
-    "cto-dashboard:start": "pnpm --filter @akiba/cto-dashboard start"
+    "cto-dashboard:start": "pnpm --filter @akiba/cto-dashboard start",
+    "hub:dev": "pnpm --filter @akibamiles/hub-page dev",
+    "hub:build": "pnpm --filter @akibamiles/hub-page build",
+    "hub:start": "pnpm --filter @akibamiles/hub-page start"
   },
   "repository": {
     "type": "git",

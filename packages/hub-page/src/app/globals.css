@@ -1,0 +1,52 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --background: #fcfcfc;
+  --foreground: #0d0e0c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
+::selection {
+  background: #238d9d;
+  color: white;
+}
+
+.surface-grid {
+  background-image:
+    linear-gradient(rgba(35, 141, 157, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(35, 141, 157, 0.07) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(35, 141, 157, 0.3); }
+  50% { box-shadow: 0 0 0 8px rgba(35, 141, 157, 0); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2.5s ease-in-out infinite;
+}

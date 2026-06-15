@@ -11,6 +11,7 @@ export const siteConfig = {
 };
 
 export const navLinks = [
+  { label: "Hub", href: "/hub" },
   { label: "Rewards", href: "/rewards" },
   { label: "Partners", href: "/partners" },
   { label: "Merchants", href: "/merchants" },
