@@ -33,24 +33,28 @@ const categoryAccent: Record<
   Rewards:                { border: "border-l-akiba-teal", highlight: "bg-akiba-tint text-akiba-teal", label: "bg-akiba-tint text-akiba-teal" },
 };
 
-// Splits a string on "Miles" and injects the icon — e.g. "10 Miles" → <><icon/>10 Miles</>
+// Replaces "NUMBER Miles" / "NUMBER AkibaMiles" with [icon]NUMBER — symbol acts as the currency prefix.
 function WithMilesIcon({ text }: { text: string }) {
-  if (!text.includes("Miles")) return <>{text}</>;
-  const parts = text.split(/(Miles)/g);
-  return (
-    <>
-      {parts.map((part, i) =>
-        part === "Miles" ? (
-          <span key={i} className="inline-flex items-center gap-0.5">
-            <MilesIcon className="inline-block h-3 w-3 align-middle" />
-            <span>Miles</span>
-          </span>
-        ) : (
-          <span key={i}>{part}</span>
-        ),
-      )}
-    </>
-  );
+  if (!text.match(/(?:Akiba)?Miles/)) return <>{text}</>;
+
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  const re = /(\d[\d,k]*(?:\.\d+)?)\s*(?:Akiba)?Miles/g;
+  let m: RegExpExecArray | null;
+
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) parts.push(text.slice(last, m.index));
+    parts.push(
+      <span key={m.index} className="inline-flex items-center gap-0.5">
+        <MilesIcon className="inline-block h-3 w-3 align-middle" />
+        <span>{m[1]}</span>
+      </span>,
+    );
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+
+  return <>{parts}</>;
 }
 
 export function CampaignCard({ campaign }: { campaign: Campaign }) {

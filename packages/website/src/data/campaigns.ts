@@ -106,8 +106,8 @@ export const campaigns: Campaign[] = [
     partner: "AkibaMiles",
     category: "Games",
     status: "coming-soon",
-    rewardHighlight: "10k",
-    rewardLabel: "Miles jackpot",
+    rewardHighlight: "up to $50",
+    rewardLabel: "max jackpot",
     tagline: "Crack a 4-symbol Mastermind code before anyone else. Take the pot.",
     description:
       "A Mastermind-style jackpot game. Every failed attempt feeds the pot. The first player to crack the code wins everything. Miles version runs every 24 hours with a 200 Miles seed pot. A USDT version ($0.10/attempt, $2 seed) is coming once licensing is in place.",
