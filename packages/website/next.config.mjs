@@ -1,4 +1,4 @@
-/** @type {import('next').NextConfig} */
+/** @type {import('next').NextConfig} */ // hub
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
