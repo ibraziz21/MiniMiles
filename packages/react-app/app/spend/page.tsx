@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWeb3 } from '@/contexts/useWeb3';
 import type { RaffleRequirementsResult } from "@/types/raffleRequirements"
 import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
-import { RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5, pods, phone, jbl,bag, sambuds, tv, soundbar, ps5, ebike, usdt, docking,camera,washmachine,chair} from '@/lib/img';
+import { RaffleImg1, RaffleImg2, RaffleImg3, airpods, laptop, bicycle, nft1, nft2, RaffleImg5, pods, phone, jbl,bag, sambuds, tv, soundbar, ps5, ebike, usdt, docking,camera,washmachine,chair, usdtround} from '@/lib/img';
 import { akibaMilesSymbol } from '@/lib/svg';
 import { Question, ShoppingBag, Spinner, Lightning, Brain, Ticket, Trophy, ArrowRight } from '@phosphor-icons/react';
 import { StaticImageData } from 'next/image';
@@ -97,7 +97,7 @@ const TOKEN_IMAGES: Record<string, StaticImageData> = {
   USDT: RaffleImg2,
   Miles: RaffleImg5,
   // default fallback:
-  default: RaffleImg3,
+  default: usdtround,
 }
 
 
