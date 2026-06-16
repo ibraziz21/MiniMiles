@@ -2,7 +2,6 @@ import { Router } from "express";
 import {
   AbiCoder,
   Contract,
-  FallbackProvider,
   Interface,
   JsonRpcProvider,
   Wallet,
@@ -41,35 +40,32 @@ const router = Router();
 const CELO_RPC = process.env.CELO_RPC_URL ?? "https://forno.celo.org";
 const CELO_CHAIN_ID = 42220n;
 
-// Use a FallbackProvider so a single flaky RPC node doesn't take down all
-// contract reads and settlement broadcasts. quorum=1 means the first healthy
-// provider wins; providers are tried in priority order.
-//
-// Pass the network explicitly to every sub-provider so they skip chain-ID
-// auto-detection — without this, ethers v6 FallbackProvider throws
-// NETWORK_ERROR("network changed: 1 => 42220") during the detection race.
+// ethers v6 FallbackProvider has a known bug where its internal network-consensus
+// check throws "network changed" on every call. Instead, we implement a simple
+// sequential retry: create a fresh JsonRpcProvider per attempt and try each URL
+// in order until one succeeds. staticNetwork skips the eth_chainId round-trip.
 const CELO_NETWORK = { chainId: 42220, name: "celo" };
-const CELO_RPC_FALLBACKS = [
+const CELO_RPCS = [...new Set([
+  CELO_RPC,
   "https://rpc.ankr.com/celo",
   "https://celo.drpc.org",
-].filter((url) => url !== CELO_RPC);
+])];
 
-const provider: FallbackProvider | JsonRpcProvider = (() => {
-  const primary = new JsonRpcProvider(CELO_RPC, CELO_NETWORK);
-  if (CELO_RPC_FALLBACKS.length === 0) return primary;
-  return new FallbackProvider(
-    [
-      { provider: primary, priority: 1, weight: 1, stallTimeout: 4000 },
-      ...CELO_RPC_FALLBACKS.map((url, i) => ({
-        provider: new JsonRpcProvider(url, CELO_NETWORK),
-        priority: i + 2,
-        weight: 1,
-        stallTimeout: 4000,
-      })),
-    ],
-    1, // quorum: accept the first successful response
-  );
-})();
+// Stable provider for write operations (signing, settlement broadcasts).
+const provider = new JsonRpcProvider(CELO_RPCS[0], CELO_NETWORK, { staticNetwork: true });
+
+// For read-only calls, try each RPC in order and return the first success.
+async function readWithFallback<T>(fn: (p: JsonRpcProvider) => Promise<T>): Promise<T> {
+  let lastErr: unknown;
+  for (const url of CELO_RPCS) {
+    try {
+      return await fn(new JsonRpcProvider(url, CELO_NETWORK, { staticNetwork: true }));
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr;
+}
 const skillGamesAddress = process.env.SKILL_GAMES_CONTRACT_ADDRESS ?? process.env.NEXT_PUBLIC_AKIBA_SKILL_GAMES_ADDRESS;
 const verifierPk = process.env.SKILL_GAMES_VERIFIER_PK;
 const SETTLEMENT_EXPIRY_SECONDS = Number(process.env.SKILL_GAMES_SETTLEMENT_EXPIRY_SECONDS ?? "3600");
@@ -254,7 +250,10 @@ function parseSessionId(sessionId: string | bigint) {
 
 async function readOnchainSessionOnce(sessionId: string | bigint): Promise<OnchainSession | null> {
   const numericSessionId = parseSessionId(sessionId);
-  const session = await getSkillGames(true).sessions(numericSessionId);
+  const session = await readWithFallback((p) => {
+    if (!skillGamesAddress) throw new Error("SKILL_GAMES_CONTRACT_ADDRESS not set");
+    return new Contract(skillGamesAddress, akibaSkillGamesAbi, p).sessions(numericSessionId);
+  });
   const storedSessionId = BigInt(session.sessionId ?? session[0]);
   const player = String(session.player ?? session[1]).toLowerCase();
 
@@ -403,11 +402,14 @@ router.get("/status", async (req, res) => {
       res.status(400).json({ error: "wallet and gameType required" });
       return;
     }
-    const contract = getSkillGames(true);
-    const [status, nonce] = await Promise.all([
-      contract.playerStatus(wallet, GAME_TYPE_ID[gameType]),
-      contract.startNonces(wallet),
-    ]);
+    const [status, nonce] = await readWithFallback((p) => {
+      if (!skillGamesAddress) throw new Error("SKILL_GAMES_CONTRACT_ADDRESS not set");
+      const contract = new Contract(skillGamesAddress, akibaSkillGamesAbi, p);
+      return Promise.all([
+        contract.playerStatus(wallet, GAME_TYPE_ID[gameType]),
+        contract.startNonces(wallet),
+      ]);
+    });
     res.json({
       credits: Number(status[0]),
       playsToday: Number(status[1]),
@@ -498,7 +500,7 @@ router.get("/start-intent-status", async (req, res) => {
       return;
     }
 
-    const receipt = await provider.getTransactionReceipt(txHash);
+    const receipt = await readWithFallback((p) => p.getTransactionReceipt(txHash));
     if (!receipt) {
       res.json({ pending: true, txHash });
       return;
@@ -757,7 +759,7 @@ async function checkVerifierBalance() {
   if (!verifierPk) return;
   try {
     const wallet = new Wallet(verifierPk, provider);
-    const bal = await provider.getBalance(wallet.address);
+    const bal = await readWithFallback((p) => p.getBalance(wallet.address));
     const celo = Number(bal) / 1e18;
     if (celo < VERIFIER_LOW_BALANCE_CELO) {
       console.error(`[games/settle] ⚠️  VERIFIER WALLET LOW ON GAS: ${celo.toFixed(4)} CELO — top up ${wallet.address}`);
@@ -786,7 +788,7 @@ async function reconcileExistingSettlementTx(row: SkillGameSessionRow) {
   if (!row.settle_tx_hash) return { pending: false, settled: false, failed: false };
 
   try {
-    const receipt = await provider.getTransactionReceipt(row.settle_tx_hash);
+    const receipt = await readWithFallback((p) => p.getTransactionReceipt(row.settle_tx_hash!));
     if (!receipt) {
       return { pending: true, settled: false, failed: false, txHash: row.settle_tx_hash };
     }
