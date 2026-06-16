@@ -112,14 +112,10 @@ export function useCredits(gameType: GameType, walletAddress: string | null | un
       await publicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 120_000 });
       // Optimistically update credits so the UI reflects the purchase immediately,
       // even if the backend RPC node hasn't caught up yet.
-      setStatus(prev => ({
-        ...prev,
-        credits:   prev.credits + count,
-        hasCredits: true,
-      }));
-      // Sync with backend in the background; if it succeeds it replaces the
-      // optimistic value with the authoritative on-chain count.
-      refresh().catch(() => {/* keep optimistic value on error */});
+      // Wait for the backend to reflect the confirmed tx before resolving.
+      // buying stays true during this, so the sheet keeps showing "Processing…"
+      // until we have the real on-chain credits to display.
+      await refresh();
     } catch (err: any) {
       const msg: string = err?.shortMessage ?? err?.message ?? "Transaction failed";
       setBuyError(msg);
