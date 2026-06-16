@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { celo } from "viem/chains";
-import { createPublicClient, createWalletClient, custom, http } from "viem";
+import { createPublicClient, createWalletClient, custom, fallback, http } from "viem";
 import { AKIBA_SKILL_GAMES_ADDRESS, akibaSkillGamesAbi } from "@/lib/games/contracts";
 import { GAME_CONFIGS, PER_GAME_DAILY_PLAY_CAP } from "@/lib/games/config";
 import type { GameType } from "@/lib/games/types";
@@ -91,7 +91,14 @@ export function useCredits(gameType: GameType, walletAddress: string | null | un
     try {
       const chainGameType = GAME_CONFIGS[gameType].chainGameType;
       const walletClient  = createWalletClient({ chain: celo, transport: custom(window.ethereum) });
-      const publicClient  = createPublicClient({ chain: celo, transport: http() });
+      const publicClient  = createPublicClient({
+        chain: celo,
+        transport: fallback([
+          http(),                                  // forno.celo.org (chain default)
+          http("https://rpc.ankr.com/celo"),
+          http("https://celo.drpc.org"),
+        ]),
+      });
 
       const hash = await walletClient.writeContract({
         chain: celo,
@@ -103,7 +110,16 @@ export function useCredits(gameType: GameType, walletAddress: string | null | un
       });
 
       await publicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 120_000 });
-      await refresh();
+      // Optimistically update credits so the UI reflects the purchase immediately,
+      // even if the backend RPC node hasn't caught up yet.
+      setStatus(prev => ({
+        ...prev,
+        credits:   prev.credits + count,
+        hasCredits: true,
+      }));
+      // Sync with backend in the background; if it succeeds it replaces the
+      // optimistic value with the authoritative on-chain count.
+      refresh().catch(() => {/* keep optimistic value on error */});
     } catch (err: any) {
       const msg: string = err?.shortMessage ?? err?.message ?? "Transaction failed";
       setBuyError(msg);

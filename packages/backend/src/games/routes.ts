@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   AbiCoder,
   Contract,
+  FallbackProvider,
   Interface,
   JsonRpcProvider,
   Wallet,
@@ -39,7 +40,31 @@ import type { GameReplay, GameType, MemoryFlipReplay, RuleTapReplay } from "./ty
 const router = Router();
 const CELO_RPC = process.env.CELO_RPC_URL ?? "https://forno.celo.org";
 const CELO_CHAIN_ID = 42220n;
-const provider = new JsonRpcProvider(CELO_RPC);
+
+// Use a FallbackProvider so a single flaky RPC node doesn't take down all
+// contract reads and settlement broadcasts. quorum=1 means the first healthy
+// provider wins; providers are tried in priority order.
+const CELO_RPC_FALLBACKS = [
+  "https://rpc.ankr.com/celo",
+  "https://celo.drpc.org",
+].filter((url) => url !== CELO_RPC);
+
+const provider: FallbackProvider | JsonRpcProvider = (() => {
+  const primary = new JsonRpcProvider(CELO_RPC);
+  if (CELO_RPC_FALLBACKS.length === 0) return primary;
+  return new FallbackProvider(
+    [
+      { provider: primary, priority: 1, weight: 1, stallTimeout: 4000 },
+      ...CELO_RPC_FALLBACKS.map((url, i) => ({
+        provider: new JsonRpcProvider(url),
+        priority: i + 2,
+        weight: 1,
+        stallTimeout: 4000,
+      })),
+    ],
+    1, // quorum: accept the first successful response
+  );
+})();
 const skillGamesAddress = process.env.SKILL_GAMES_CONTRACT_ADDRESS ?? process.env.NEXT_PUBLIC_AKIBA_SKILL_GAMES_ADDRESS;
 const verifierPk = process.env.SKILL_GAMES_VERIFIER_PK;
 const SETTLEMENT_EXPIRY_SECONDS = Number(process.env.SKILL_GAMES_SETTLEMENT_EXPIRY_SECONDS ?? "3600");
