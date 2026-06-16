@@ -44,19 +44,24 @@ const CELO_CHAIN_ID = 42220n;
 // Use a FallbackProvider so a single flaky RPC node doesn't take down all
 // contract reads and settlement broadcasts. quorum=1 means the first healthy
 // provider wins; providers are tried in priority order.
+//
+// Pass the network explicitly to every sub-provider so they skip chain-ID
+// auto-detection — without this, ethers v6 FallbackProvider throws
+// NETWORK_ERROR("network changed: 1 => 42220") during the detection race.
+const CELO_NETWORK = { chainId: 42220, name: "celo" };
 const CELO_RPC_FALLBACKS = [
   "https://rpc.ankr.com/celo",
   "https://celo.drpc.org",
 ].filter((url) => url !== CELO_RPC);
 
 const provider: FallbackProvider | JsonRpcProvider = (() => {
-  const primary = new JsonRpcProvider(CELO_RPC);
+  const primary = new JsonRpcProvider(CELO_RPC, CELO_NETWORK);
   if (CELO_RPC_FALLBACKS.length === 0) return primary;
   return new FallbackProvider(
     [
       { provider: primary, priority: 1, weight: 1, stallTimeout: 4000 },
       ...CELO_RPC_FALLBACKS.map((url, i) => ({
-        provider: new JsonRpcProvider(url),
+        provider: new JsonRpcProvider(url, CELO_NETWORK),
         priority: i + 2,
         weight: 1,
         stallTimeout: 4000,
