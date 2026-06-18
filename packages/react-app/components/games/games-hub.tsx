@@ -8,7 +8,6 @@ import Link from "next/link";
 import {
   Lightning,
   Brain,
-  DiceFive,
   DiceSix,
   Gift,
   LockKey,
@@ -25,12 +24,11 @@ type HubGame = {
   name: string;
   tagline: string;
   category: GameCategory;
-  /** Short stat pills shown on the card */
   stats: ReactNode[];
   route: string;
   status: "live" | "soon";
-  /** Tailwind gradient classes — each game gets its own colour identity */
-  gradient: string;
+  accent: string;
+  surface: string;
   icon: PhosphorIcon;
 };
 
@@ -41,12 +39,13 @@ const GAMES: HubGame[] = [
     tagline: "Read the rule, tap the right tiles fast.",
     category: "Skill",
     stats: [
-      <><MilesAmount value={5} size={11} variant="alt" /> / play</>,
-      <>Win up to <MilesAmount value={12} size={11} variant="alt" /></>,
+      <><MilesAmount value={5} size={11} /> / play</>,
+      <>Win up to <MilesAmount value={12} size={11} /></>,
     ],
     route: "/games/rule-tap",
     status: "live",
-    gradient: "from-[#0A6B7A] via-[#0D7A8A] to-[#1A9AAD]",
+    accent: "#238D9D",
+    surface: "#EAF7F8",
     icon: Lightning,
   },
   {
@@ -55,12 +54,13 @@ const GAMES: HubGame[] = [
     tagline: "Match all 8 pairs before time runs out.",
     category: "Skill",
     stats: [
-      <><MilesAmount value={5} size={11} variant="alt" /> / play</>,
-      <>Win up to <MilesAmount value={12} size={11} variant="alt" /></>,
+      <><MilesAmount value={5} size={11} /> / play</>,
+      <>Win up to <MilesAmount value={12} size={11} /></>,
     ],
     route: "/games/memory-flip",
     status: "live",
-    gradient: "from-[#3B1F6E] via-[#5035A0] to-[#7B4CC0]",
+    accent: "#176B76",
+    surface: "#E8F3F4",
     icon: Brain,
   },
   {
@@ -68,10 +68,11 @@ const GAMES: HubGame[] = [
     name: "Akiba Claw",
     tagline: "Grab the claw for real-world prizes.",
     category: "Prizes",
-    stats: ["USDT entry", "Win vouchers & prizes"],
+    stats: ["Miles entry", "Voucher prizes"],
     route: "/claw",
     status: "live",
-    gradient: "from-[#9E2A5B] via-[#C13B6E] to-[#E0588A]",
+    accent: "#2BA9B8",
+    surface: "#E7F8FA",
     icon: Gift,
   },
   {
@@ -80,12 +81,13 @@ const GAMES: HubGame[] = [
     tagline: "Push your luck — last to bank loses.",
     category: "PvP",
     stats: [
-      <><MilesAmount value={20} size={11} variant="alt" /> entry</>,
+      <><MilesAmount value={20} size={11} /> entry</>,
       "Beat the table",
     ],
     route: "/rush",
     status: "soon",
-    gradient: "from-[#8A2B1E] via-[#B5432F] to-[#E06A4A]",
+    accent: "#7B8794",
+    surface: "#F1F4F5",
     icon: DiceSix,
   },
   {
@@ -94,12 +96,13 @@ const GAMES: HubGame[] = [
     tagline: "Crack the secret code, take the jackpot.",
     category: "Jackpot",
     stats: [
-      <><MilesAmount value={10} size={11} variant="alt" /> / attempt</>,
+      <><MilesAmount value={10} size={11} /> / attempt</>,
       "Winner takes the pot",
     ],
     route: "/crackpot",
     status: "soon",
-    gradient: "from-[#2E2A6E] via-[#403AA0] to-[#5B52C0]",
+    accent: "#7B8794",
+    surface: "#F1F4F5",
     icon: LockKey,
   },
 ];
@@ -110,48 +113,62 @@ function HubGameCard({ game }: { game: HubGame }) {
 
   const card = (
     <div
-      className={`relative overflow-hidden rounded-2xl shadow-md bg-gradient-to-br ${game.gradient} ${
-        isLive ? "active:scale-[0.99] transition-transform" : "opacity-95"
+      className={`rounded-lg border bg-white shadow-sm ${
+        isLive ? "transition hover:border-[#238D9D]/30 hover:shadow-md active:scale-[0.995]" : "opacity-75"
       }`}
+      style={{ borderColor: isLive ? "#E3ECEE" : "#E7EAEC" }}
     >
-      {/* decorative blobs */}
-      <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/10" />
-      <div className="pointer-events-none absolute right-16 bottom-0 h-12 w-12 rounded-full bg-white/10" />
-
-      <div className="relative p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-              {game.category}
-            </span>
-            <h2 className="mt-2 text-xl font-bold text-white">{game.name}</h2>
-            <p className="mt-0.5 text-xs text-white/75 font-poppins">{game.tagline}</p>
+      <div className="p-4">
+        <div className="flex items-start gap-3">
+          <div
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border"
+            style={{ background: game.surface, borderColor: `${game.accent}24`, color: game.accent }}
+          >
+            <Icon size={22} weight="duotone" />
           </div>
-          <div className="flex-shrink-0 rounded-xl bg-white/15 p-2.5">
-            <Icon size={22} weight="fill" className="text-white" />
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase text-[#6E7C80]">
+                  {game.category}
+                </p>
+                <h2 className="mt-0.5 truncate text-base font-bold text-[#0D2B30]">
+                  {game.name}
+                </h2>
+              </div>
+              <span
+                className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                  isLive ? "bg-[#EAF7F8] text-[#238D9D]" : "bg-gray-100 text-gray-500"
+                }`}
+              >
+                {isLive ? "Live" : "Soon"}
+              </span>
+            </div>
+            <p className="mt-1 text-xs leading-5 text-[#667579] font-poppins">
+              {game.tagline}
+            </p>
           </div>
         </div>
 
-        {/* stat pills */}
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-1.5">
           {game.stats.map((s, i) => (
             <span
               key={i}
-              className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[11px] text-white/85"
+              className="inline-flex items-center gap-1 rounded-md border border-[#E5ECEE] bg-[#F8FBFB] px-2 py-1 text-[11px] font-medium text-[#405054]"
             >
               {s}
             </span>
           ))}
         </div>
 
-        {/* CTA */}
-        <div className="mt-3">
+        <div className="mt-3 flex items-center justify-end">
           {isLive ? (
-            <div className="flex items-center justify-center gap-1.5 rounded-xl bg-white py-2.5 text-sm font-bold text-[#0D2B30]">
+            <div className="inline-flex items-center gap-1.5 text-sm font-bold text-[#238D9D]">
               Play <ArrowRight size={15} weight="bold" />
             </div>
           ) : (
-            <div className="flex items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/20 py-2.5 text-sm font-bold text-white/90">
+            <div className="inline-flex items-center gap-1.5 text-sm font-bold text-gray-500">
               <Lock size={14} weight="fill" /> Coming soon
             </div>
           )}
@@ -173,20 +190,21 @@ export function GamesHub() {
   const soon = GAMES.filter((g) => g.status === "soon");
 
   return (
-    <main className="pb-28 font-sterling min-h-screen bg-[#F5FEFF]">
-      {/* Header */}
-      <div className="px-4 pt-5 pb-1">
-        <p className="text-xs font-semibold uppercase tracking-widest text-[#238D9D]/70">
-          Games
-        </p>
-        <h1 className="text-2xl font-bold text-[#0D2B30]">Play &amp; win</h1>
-        <p className="mt-0.5 text-sm text-gray-500 font-poppins">
-          Each game has its own tickets, prizes &amp; leaderboard.
+    <main className="min-h-screen bg-[#F7FAFA] pb-28 font-sterling">
+      <div className="px-4 pt-5 pb-2">
+        <h1 className="text-2xl font-bold text-[#0D2B30]">Games</h1>
+        <p className="mt-1 text-sm text-[#667579] font-poppins">
+          AkibaMiles challenges and reward games.
         </p>
       </div>
 
-      {/* Live games */}
-      <div className="mt-4 px-4 space-y-3">
+      <div className="mt-3 px-4">
+        <p className="mb-2 text-[11px] font-semibold uppercase text-[#6E7C80]">
+          Available
+        </p>
+      </div>
+
+      <div className="px-4 space-y-3">
         {live.map((g) => (
           <HubGameCard key={g.key} game={g} />
         ))}
@@ -195,8 +213,8 @@ export function GamesHub() {
       {/* Coming soon */}
       {soon.length > 0 && (
         <>
-          <div className="mt-7 mb-2 px-4">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-[#817E7E]">
+          <div className="mt-6 mb-2 px-4">
+            <p className="text-[11px] font-semibold uppercase text-[#6E7C80]">
               Coming soon
             </p>
           </div>
