@@ -32,8 +32,16 @@ export default function MemoryFlipPage() {
 
   const { isDailyCapped, playsToday, credits, hasCredits } = creditStatus;
   const MAX_DAILY = creditStatus.dailyCap;
+  // A ticket is required when the contract is live; force a purchase when out.
+  const mustBuy = creditStatus.contractAvailable && !hasCredits;
 
   async function startRound() {
+    // No ticket → cannot play. Send the player to buy tickets instead.
+    if (mustBuy) {
+      setIntroOpen(false);
+      setBuyPlaysOpen(true);
+      return;
+    }
     settlement.reset();
     setLocalResult(null);
     try {
@@ -172,7 +180,9 @@ export default function MemoryFlipPage() {
                 <Brain size={36} weight="fill" className="mx-auto mb-2 text-purple-200" />
                 <p className="text-white font-bold text-lg">Memory Flip</p>
                 <p className="text-white/70 text-sm font-poppins mt-0.5 flex items-center gap-1 justify-center flex-wrap">
-                  1 Memory ticket · Win up to <MilesAmount value={12} size={13} variant="alt" />
+                  {hasCredits
+                    ? <>1 ticket · Win up to <MilesAmount value={12} size={13} variant="alt" /></>
+                    : <>1 ticket per round · Win up to <MilesAmount value={12} size={13} variant="alt" /></>}
                 </p>
 
                 <div className="flex items-center justify-center gap-3 mt-2">
@@ -191,10 +201,14 @@ export default function MemoryFlipPage() {
                 ) : (
                   <button
                     type="button"
-                    onClick={() => setIntroOpen(true)}
-                    className="mt-4 w-full rounded-xl bg-white py-3 text-sm font-bold text-[#5B35A0]"
+                    onClick={() => (mustBuy ? setBuyPlaysOpen(true) : setIntroOpen(true))}
+                    className="mt-4 w-full rounded-xl bg-white py-3 text-sm font-bold text-[#5B35A0] flex items-center justify-center gap-1.5"
                   >
-                    {hasCredits ? `Play (${credits} Memory ${credits !== 1 ? "tickets" : "ticket"} left)` : "View Rules & Play"}
+                    {hasCredits
+                      ? `Play · ${credits} ${credits !== 1 ? "tickets" : "ticket"} left`
+                      : mustBuy
+                      ? "Buy tickets to play"
+                      : "View Rules & Play"}
                   </button>
                 )}
               </div>
@@ -224,6 +238,9 @@ export default function MemoryFlipPage() {
         config={sessionFlow.config}
         loading={sessionFlow.isStarting}
         onPlay={startRound}
+        credits={credits}
+        mustBuy={mustBuy}
+        onBuyTickets={() => { setIntroOpen(false); setBuyPlaysOpen(true); }}
         disabled={isDailyCapped}
         disabledReason={isDailyCapped ? `${MAX_DAILY}/${MAX_DAILY} played today · Come back tomorrow` : undefined}
         error={sessionFlow.error}

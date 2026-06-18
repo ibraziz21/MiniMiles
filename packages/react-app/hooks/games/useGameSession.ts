@@ -116,6 +116,12 @@ export function useGameSession(gameType: GameType) {
         throw new Error("Daily play limit reached");
       }
 
+      // A ticket is required to play. When the contract is live and the player
+      // has none, force a purchase rather than attempting a ticketless start.
+      if (creditStatus?.contractAvailable && !creditStatus?.hasCredits) {
+        throw new Error("You need a ticket to play. Buy tickets to continue.");
+      }
+
       const resolvedAddress = address ?? (await getUserAddress?.()) ?? null;
       const wallet = resolvedAddress ?? MOCK_WALLET;
       const skillGamesAddress = AKIBA_SKILL_GAMES_ADDRESS;

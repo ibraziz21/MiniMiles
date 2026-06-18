@@ -2,7 +2,7 @@
 
 import { Toaster } from '@/components/ui/sonner';
 import { useWeb3 } from '@/contexts/useWeb3';
-import { BookOpen } from '@phosphor-icons/react';
+import { BookOpen, Trophy, Question, CaretRight } from '@phosphor-icons/react';
 import {
   Chats,
   Copy,
@@ -11,13 +11,19 @@ import {
   GithubLogo,
   TwitterLogo,
 } from '@phosphor-icons/react/dist/ssr';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+
+const WinningModal = dynamic(() => import('@/components/winning-modal'), {
+  ssr: false,
+});
 import { toast } from 'sonner';
 import truncateEthAddress from 'truncate-eth-address';
 
 export default function SettingsPage() {
   const { address, getUserAddress } = useWeb3();
+  const [winnersOpen, setWinnersOpen] = useState(false);
 
   /* copy helper --------------------------------------------------------- */
   const handleCopy = (text: string) => {
@@ -83,6 +89,36 @@ export default function SettingsPage() {
         link="https://x.com/Akibamiles"
       />
 
+      {/* ───── More ───── */}
+      <h3 className="font-medium">More</h3>
+
+      <button
+        type="button"
+        onClick={() => setWinnersOpen(true)}
+        className="flex items-start shadow-lg rounded-xl p-4 my-2 bg-white w-full text-left"
+      >
+        <span className="mr-2">
+          <Trophy size={24} color="#238D9D" weight="duotone" />
+        </span>
+        <div className="flex justify-between items-center w-full">
+          <span className="font-medium text-black">Latest winners</span>
+          <CaretRight size={20} className="text-gray-400" />
+        </div>
+      </button>
+
+      <Link
+        href="/onboarding"
+        className="flex items-start shadow-lg rounded-xl p-4 my-2 bg-white w-full text-left"
+      >
+        <span className="mr-2">
+          <Question size={24} color="#238D9D" weight="duotone" />
+        </span>
+        <div className="flex justify-between items-center w-full">
+          <span className="font-medium text-black">How it works</span>
+          <CaretRight size={20} className="text-gray-400" />
+        </div>
+      </Link>
+
       {/* ───── Source code ───── */}
   
 
@@ -114,6 +150,11 @@ export default function SettingsPage() {
           Privacy Policy
         </FooterLink>
       </footer> */}
+
+      {/* Latest winners modal */}
+      {winnersOpen && (
+        <WinningModal open={winnersOpen} onOpenChange={setWinnersOpen} />
+      )}
 
       {/* toast portal */}
       <Toaster richColors />

@@ -1,4 +1,3 @@
-import { gql, request, ClientError } from "graphql-request";
 import {
   createPublicClient,
   http,
@@ -9,19 +8,13 @@ import { celo } from "viem/chains";
 
 /* ----------------------------------------------------------------- config */
 
-const URL_CUSD =
-  "https://api.studio.thegraph.com/query/114722/transfers-18-d/version/latest";
-const URL_USDT =
-  "https://api.studio.thegraph.com/query/1717663/usd-transfers/version/latest/";
-
 const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
 const USDT_ADDRESS = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e";
 const USDC_ADDRESS = "0xcebA9300f2b948710d2653dD7B07f33A8B32118C";
+const RPC_URL = process.env.CELO_RPC_URL ?? "https://forno.celo.org";
 
-if (!URL_CUSD || !URL_USDT || !CUSD_ADDRESS || !USDT_ADDRESS) {
-  throw new Error(
-    "[graphQuestTransfer] Missing subgraph URLs or token addresses."
-  );
+if (!CUSD_ADDRESS || !USDT_ADDRESS || !USDC_ADDRESS) {
+  throw new Error("[graphQuestTransfer] Missing token addresses.");
 }
 
 /** decimals lookup */
@@ -31,11 +24,11 @@ const DECIMALS: Record<string, number> = {
   [USDC_ADDRESS.toLowerCase()]: 6,
 };
 
-/* ----------------------------------------------------------------- RPC fallback */
+/* ----------------------------------------------------------------- RPC client */
 
 const publicClient = createPublicClient({
   chain: celo,
-  transport: http("https://forno.celo.org"),
+  transport: http(RPC_URL),
 });
 
 const ERC20_TRANSFER = parseAbiItem(
@@ -47,6 +40,112 @@ const ERC20_TRANSFER = parseAbiItem(
  * Increase if you want to be safer.
  */
 const DEFAULT_LOOKBACK_BLOCKS = 22_000n;
+const RPC_LOG_CHUNK_BLOCKS = 4_000n;
+
+type TransferDirection = "out" | "in";
+type TransferLog = { args?: { value?: bigint } };
+
+function isRangeTooWideError(err: unknown): boolean {
+  const parts = [
+    err instanceof Error ? err.message : String(err),
+    typeof err === "object" && err && "details" in err
+      ? String((err as { details?: unknown }).details)
+      : "",
+    typeof err === "object" && err && "shortMessage" in err
+      ? String((err as { shortMessage?: unknown }).shortMessage)
+      : "",
+  ];
+
+  return parts.join(" ").toLowerCase().includes("query exceeds range");
+}
+
+async function getTransferLogsForRange(params: {
+  direction: TransferDirection;
+  user: string;
+  token: string;
+  fromBlock: bigint;
+  toBlock: bigint;
+}): Promise<TransferLog[]> {
+  try {
+    const logs = await publicClient.getLogs({
+      address: params.token as Address,
+      event: ERC20_TRANSFER,
+      args:
+        params.direction === "out"
+          ? { from: params.user as Address }
+          : { to: params.user as Address },
+      fromBlock: params.fromBlock,
+      toBlock: params.toBlock,
+    });
+
+    return logs as TransferLog[];
+  } catch (err) {
+    if (!isRangeTooWideError(err) || params.fromBlock >= params.toBlock) {
+      throw err;
+    }
+
+    const midBlock = (params.fromBlock + params.toBlock) / 2n;
+    const first = await getTransferLogsForRange({
+      ...params,
+      toBlock: midBlock,
+    });
+    const second = await getTransferLogsForRange({
+      ...params,
+      fromBlock: midBlock + 1n,
+    });
+
+    return [...first, ...second];
+  }
+}
+
+async function scanTransferLogs(
+  params: {
+    direction: TransferDirection;
+    user: string;
+    token: string;
+    fromBlock: bigint;
+    toBlock: bigint;
+  },
+  onLogs: (logs: TransferLog[]) => boolean | void,
+  options: { newestFirst?: boolean } = {}
+): Promise<void> {
+  if (params.fromBlock > params.toBlock) return;
+
+  if (options.newestFirst) {
+    let toBlock = params.toBlock;
+    while (toBlock >= params.fromBlock) {
+      const chunkStart =
+        toBlock - RPC_LOG_CHUNK_BLOCKS + 1n > params.fromBlock
+          ? toBlock - RPC_LOG_CHUNK_BLOCKS + 1n
+          : params.fromBlock;
+      const logs = await getTransferLogsForRange({
+        ...params,
+        fromBlock: chunkStart,
+        toBlock,
+      });
+      if (onLogs(logs)) return;
+      if (chunkStart === params.fromBlock) return;
+      toBlock = chunkStart - 1n;
+    }
+    return;
+  }
+
+  let fromBlock = params.fromBlock;
+  while (fromBlock <= params.toBlock) {
+    const chunkEnd =
+      fromBlock + RPC_LOG_CHUNK_BLOCKS - 1n < params.toBlock
+        ? fromBlock + RPC_LOG_CHUNK_BLOCKS - 1n
+        : params.toBlock;
+    const logs = await getTransferLogsForRange({
+      ...params,
+      fromBlock,
+      toBlock: chunkEnd,
+    });
+    if (onLogs(logs)) return;
+    if (chunkEnd === params.toBlock) return;
+    fromBlock = chunkEnd + 1n;
+  }
+}
 
 /* ------------------------------------------------------------- caching */
 
@@ -56,7 +155,7 @@ const TTL_MS = 25_000;
 const CACHE = new Map<string, CacheEntry>();
 const INFLIGHT = new Map<string, Promise<boolean>>();
 
-function cacheKey(direction: "out" | "in", user: string, token: string) {
+function cacheKey(direction: TransferDirection, user: string, token: string) {
   return `${direction}:${user.toLowerCase()}:${token.toLowerCase()}`;
 }
 
@@ -74,98 +173,15 @@ function writeCache(key: string, value: boolean) {
   CACHE.set(key, { value, expires: Date.now() + TTL_MS });
 }
 
-/* ------------------------------------------------------------- GQL docs  */
-/**
- * Note: token is NOT used in the query because you are using
- * separate subgraphs per token (transfers-18-d vs transfers-6-d).
- * If your subgraph supports a token field, we can add it later.
- */
-
-const TRANSFER_COUNT_QUERY = gql`
-  query ($user: Bytes!, $since: BigInt!, $min: BigInt!, $limit: Int!) {
-    transfers(
-      first: $limit
-      where: { from: $user, blockTimestamp_gt: $since, value_gte: $min }
-    ) {
-      id
-    }
-    _meta {
-      block { timestamp }
-    }
-  }
-`;
-
-const TRANSFER_OUT_QUERY = gql`
-  query ($user: Bytes!, $since: BigInt!, $min: BigInt!) {
-    transfers(
-      first: 1
-      where: { from: $user, blockTimestamp_gt: $since, value_gte: $min }
-    ) {
-      id
-    }
-    _meta {
-      block { timestamp }
-    }
-  }
-`;
-
-const TRANSFER_IN_QUERY = gql`
-  query ($user: Bytes!, $since: BigInt!, $min: BigInt!) {
-    transfers(
-      first: 1
-      where: { to: $user, blockTimestamp_gt: $since, value_gte: $min }
-    ) {
-      id
-    }
-    _meta {
-      block { timestamp }
-    }
-  }
-`;
-
-/** If the subgraph's latest indexed block is older than this, treat it as stale */
-const SUBGRAPH_STALE_SECS = 2 * 3600; // 2 hours
-
 /* ---------------------------------------------------------------- helpers */
-
-function is429(err: unknown): boolean {
-  return err instanceof ClientError && err.response?.status === 429;
-}
 
 function oneDollarMin(token: string): bigint {
   const decimals = DECIMALS[token.toLowerCase()] ?? 18;
   return 10n ** BigInt(decimals);
 }
 
-async function hasRecentTransferViaSubgraph(params: {
-  direction: "out" | "in";
-  user: string;
-  url: string;
-  min: bigint;
-}): Promise<{ hasTransfer: boolean; subgraphTs: number }> {
-  const since24h = Math.floor(Date.now() / 1000) - 86_400;
-
-  const result = await request<{
-    transfers: { id: string }[];
-    _meta: { block: { timestamp: number } };
-  }>(
-    params.url,
-    params.direction === "out" ? TRANSFER_OUT_QUERY : TRANSFER_IN_QUERY,
-    {
-      user: params.user.toLowerCase(),
-      since: since24h.toString(),
-      min: params.min.toString(),
-    }
-  );
-
-  return {
-    hasTransfer: (result.transfers?.length ?? 0) > 0,
-    subgraphTs: result._meta?.block?.timestamp ?? 0,
-  };
-}
-
 async function hasRecentTransferViaRpc(params: {
-  direction: "out" | "in";
+  direction: TransferDirection;
   user: string;
   token: string;
   min: bigint;
@@ -176,22 +192,26 @@ async function hasRecentTransferViaRpc(params: {
   const latest = await publicClient.getBlockNumber();
   const fromBlock = latest > lookback ? latest - lookback : 0n;
 
-  const logs = await publicClient.getLogs({
-    address: params.token as Address,
-    event: ERC20_TRANSFER,
-    args:
-      params.direction === "out"
-        ? { from: params.user as Address }
-        : { to: params.user as Address },
-    fromBlock,
-    toBlock: "latest",
-  });
+  let found = false;
+  await scanTransferLogs(
+    {
+      direction: params.direction,
+      user: params.user,
+      token: params.token,
+      fromBlock,
+      toBlock: latest,
+    },
+    (logs) => {
+      found = logs.some((l) => {
+        const value = l.args?.value;
+        return typeof value === "bigint" && value >= params.min;
+      });
+      return found;
+    },
+    { newestFirst: true }
+  );
 
-  for (const l of logs) {
-    const value = (l.args as any)?.value as bigint | undefined;
-    if (typeof value === "bigint" && value >= params.min) return true;
-  }
-  return false;
+  return found;
 }
 
 async function countOutgoingViaRpc(
@@ -202,31 +222,36 @@ async function countOutgoingViaRpc(
 ): Promise<number> {
   const latest = await publicClient.getBlockNumber();
   const fromBlock = latest > lookbackBlocks ? latest - lookbackBlocks : 0n;
-  const logs = await publicClient.getLogs({
-    address: token as Address,
-    event: ERC20_TRANSFER,
-    args: { from: user as Address },
-    fromBlock,
-    toBlock: "latest",
-  });
-  return logs.filter((l) => {
-    const value = (l.args as any)?.value as bigint | undefined;
-    return typeof value === "bigint" && value >= min;
-  }).length;
+
+  let count = 0;
+  await scanTransferLogs(
+    {
+      direction: "out",
+      user,
+      token,
+      fromBlock,
+      toBlock: latest,
+    },
+    (logs) => {
+      count += logs.filter((l) => {
+        const value = l.args?.value;
+        return typeof value === "bigint" && value >= min;
+      }).length;
+    }
+  );
+
+  return count;
 }
 
 /**
- * Smart checker:
+ * Cached RPC checker:
  * - TTL cache + in-flight de-dupe
- * - subgraph primary
- * - if 429 => RPC fallback
  * - never throws (returns false on errors)
  */
-async function hasRecentTransferSmart(params: {
-  direction: "out" | "in";
+async function hasRecentTransferCached(params: {
+  direction: TransferDirection;
   user: string;
   token: string;
-  url: string;
 }): Promise<boolean> {
   const key = cacheKey(params.direction, params.user, params.token);
 
@@ -238,46 +263,20 @@ async function hasRecentTransferSmart(params: {
 
   const p = (async () => {
     const min = oneDollarMin(params.token);
-    const now = Math.floor(Date.now() / 1000);
-
-    const useRpcFallback = async (reason: string): Promise<boolean> => {
-      console.warn(`[graphQuestTransfer] ${reason} — falling back to RPC`);
-      try {
-        const ok = await hasRecentTransferViaRpc({
-          direction: params.direction,
-          user: params.user,
-          token: params.token,
-          min,
-        });
-        writeCache(key, ok);
-        return ok;
-      } catch (rpcErr) {
-        console.error("[graphQuestTransfer] RPC fallback failed:", rpcErr);
-        writeCache(key, false);
-        return false;
-      }
-    };
 
     try {
-      const { hasTransfer, subgraphTs } = await hasRecentTransferViaSubgraph({
+      const ok = await hasRecentTransferViaRpc({
         direction: params.direction,
         user: params.user,
-        url: params.url,
+        token: params.token,
         min,
       });
-
-      if (now - subgraphTs > SUBGRAPH_STALE_SECS) {
-        return useRpcFallback(
-          `Subgraph is ${((now - subgraphTs) / 3600).toFixed(1)}h behind`
-        );
-      }
-
-      writeCache(key, hasTransfer);
-      return hasTransfer;
+      writeCache(key, ok);
+      return ok;
     } catch (err) {
-      return useRpcFallback(
-        is429(err) ? "Rate limited (429)" : `Subgraph error: ${err}`
-      );
+      console.error("[graphQuestTransfer] RPC transfer scan failed:", err);
+      writeCache(key, false);
+      return false;
     } finally {
       INFLIGHT.delete(key);
     }
@@ -290,121 +289,80 @@ async function hasRecentTransferSmart(params: {
 /* ---------------------------------------------------------------- exports */
 
 /**
- * Count how many outgoing transfers the wallet made across cUSD + USDT in the
- * last 24 h.  Uses the subgraph when fresh; falls back to RPC getLogs when
- * the subgraph is stale (> 2 h behind).
+ * Count how many outgoing transfers the wallet made across cUSD + USDT + USDC
+ * in the last 24 h.
  */
 export async function countOutgoingTransfersIn24H(
   userAddress: string
 ): Promise<number> {
   const user = userAddress.toLowerCase();
-  const since = (Math.floor(Date.now() / 1_000) - 86_400).toString();
-  const now = Math.floor(Date.now() / 1_000);
-  const LIMIT = 1000;
 
-  const tokens = [
-    { url: URL_CUSD, token: CUSD_ADDRESS },
-    { url: URL_USDT, token: USDT_ADDRESS },
-    { url: null, token: USDC_ADDRESS },
-  ];
+  const tokens = [CUSD_ADDRESS, USDT_ADDRESS, USDC_ADDRESS];
 
   let total = 0;
 
-  for (const { url, token } of tokens) {
+  for (const token of tokens) {
     const min = oneDollarMin(token);
-    if (!url) {
-      // No subgraph for this token — go straight to RPC
-      total += await countOutgoingViaRpc(user, token, min);
-      continue;
-    }
-    try {
-      const result = await request<{
-        transfers: { id: string }[];
-        _meta: { block: { timestamp: number } };
-      }>(url, TRANSFER_COUNT_QUERY, { user, since, min: min.toString(), limit: LIMIT });
-
-      const subgraphTs = result._meta?.block?.timestamp ?? 0;
-
-      if (now - subgraphTs > SUBGRAPH_STALE_SECS) {
-        console.warn(
-          `[graphQuestTransfer] Count subgraph stale (${((now - subgraphTs) / 3600).toFixed(1)}h behind), using RPC for ${token}`
-        );
-        total += await countOutgoingViaRpc(user, token, min);
-      } else {
-        total += result.transfers?.length ?? 0;
-      }
-    } catch (err) {
-      console.warn(`[graphQuestTransfer] Count subgraph error, using RPC: ${err}`);
-      total += await countOutgoingViaRpc(user, token, min);
-    }
+    total += await countOutgoingViaRpc(user, token, min);
   }
 
   return total;
 }
 
-
-
 /**
- * Has the wallet **sent** ≥ $1 (cUSD or USDT) in the last 24 h?
+ * Has the wallet **sent** ≥ $1 (cUSD, USDT, or USDC) in the last 24 h?
  */
 export async function userSentAtLeast1DollarIn24Hrs(
   userAddress: string
 ): Promise<boolean> {
   const user = userAddress.toLowerCase();
 
-  // cUSD first (now safe due to 429 fallback); swap order if you prefer.
-  const cusd = await hasRecentTransferSmart({
+  const cusd = await hasRecentTransferCached({
     direction: "out",
     user,
     token: CUSD_ADDRESS,
-    url: URL_CUSD,
   });
   if (cusd) return true;
 
-  const usdt = await hasRecentTransferSmart({
+  const usdt = await hasRecentTransferCached({
     direction: "out",
     user,
     token: USDT_ADDRESS,
-    url: URL_USDT,
   });
   if (usdt) return true;
 
-  return hasRecentTransferViaRpc({
+  return hasRecentTransferCached({
     direction: "out",
     user,
     token: USDC_ADDRESS,
-    min: oneDollarMin(USDC_ADDRESS),
   });
 }
 
 /**
- * Has the wallet **received** ≥ $1 (cUSD or USDT) in the last 24 h?
+ * Has the wallet **received** ≥ $1 (cUSD, USDT, or USDC) in the last 24 h?
  */
 export async function userReceivedAtLeast1DollarIn24Hrs(
   userAddress: string
 ): Promise<boolean> {
   const user = userAddress.toLowerCase();
 
-  const cusd = await hasRecentTransferSmart({
+  const cusd = await hasRecentTransferCached({
     direction: "in",
     user,
     token: CUSD_ADDRESS,
-    url: URL_CUSD,
   });
   if (cusd) return true;
 
-  const usdt = await hasRecentTransferSmart({
+  const usdt = await hasRecentTransferCached({
     direction: "in",
     user,
     token: USDT_ADDRESS,
-    url: URL_USDT,
   });
   if (usdt) return true;
 
-  return hasRecentTransferViaRpc({
+  return hasRecentTransferCached({
     direction: "in",
     user,
     token: USDC_ADDRESS,
-    min: oneDollarMin(USDC_ADDRESS),
   });
 }

@@ -27,7 +27,7 @@ const nextConfig = {
     ],
   },
   devIndicators: false,
-  allowedDevOrigins: ['192.168.100.6', '192.168.100.186', '172.20.10.3'],
+  allowedDevOrigins: ['192.168.100.6', '192.168.100.186', '172.20.10.3', '192.168.*.*'],
 };
 
 module.exports = nextConfig;
