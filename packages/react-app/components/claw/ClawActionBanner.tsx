@@ -1,7 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import { Spinner } from "@phosphor-icons/react";
 import { GameSession, RewardClass, SessionStatus, REWARD_META } from "@/lib/clawTypes";
+import { akibaMilesSymbol } from "@/lib/svg";
 
 type Props = {
   session: GameSession | null;
@@ -33,6 +35,8 @@ export function ClawActionBanner({ session }: Props) {
           <span className="animate-spin text-cyan-500 inline-flex shrink-0">
             <Spinner size={15} />
           </span>
+        ) : rc === RewardClass.Common ? (
+          <Image src={akibaMilesSymbol} alt="AkibaMiles" width={16} height={16} className="shrink-0" />
         ) : (
           <span className="shrink-0 text-base leading-none">{reward.emoji}</span>
         )}

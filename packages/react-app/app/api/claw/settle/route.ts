@@ -6,13 +6,14 @@
 // written to Supabase — it lives exclusively in the server-only batch store.
 // Supabase only holds (session_id, batch_id, play_index, commit_status).
 //
-// Auth: caller must supply ownershipSig — an eth_sign of sessionId (as a string)
-// by the session player's wallet. We recover the signer and verify it matches
-// the on-chain session.player before spending any relayer gas.
+// Auth: caller can either supply ownershipSig for the session ID or rely on the
+// existing MiniMiles app session. In both cases the caller must match the
+// on-chain session.player before the relayer spends gas.
 
 import { NextResponse } from "next/server";
 import { verifyMessage } from "viem";
 import { getClients, settleSession, logSettle } from "@/lib/server/clawAssign";
+import { requireSession } from "@/lib/auth";
 import clawAbi from "@/contexts/akibaClawGame.json";
 
 const RELAYER_PK = process.env.CELO_RELAYER_PK ?? process.env.PRIVATE_KEY ?? "";
@@ -28,9 +29,6 @@ export async function POST(req: Request) {
 
     if (!sessionIdStr || sessionIdStr === "0") {
       return NextResponse.json({ error: "sessionId required" }, { status: 400 });
-    }
-    if (!ownershipSig) {
-      return NextResponse.json({ error: "ownershipSig required" }, { status: 400 });
     }
     if (!RELAYER_PK || RELAYER_PK.length < 10) {
       return NextResponse.json({ error: "Relayer not configured" }, { status: 500 });
@@ -48,14 +46,28 @@ export async function POST(req: Request) {
     }) as any;
 
     const onchainPlayer: string = session.player ?? session[1] ?? "";
-    const sigValid = await verifyMessage({
-      address: onchainPlayer as `0x${string}`,
-      message: sessionIdStr,
-      signature: ownershipSig as `0x${string}`,
-    });
+    let authorized = false;
 
-    if (!sigValid) {
-      await logSettle(sessionIdStr, "auth", "ownership sig mismatch", false);
+    if (ownershipSig) {
+      authorized = await verifyMessage({
+        address: onchainPlayer as `0x${string}`,
+        message: sessionIdStr,
+        signature: ownershipSig as `0x${string}`,
+      });
+    }
+
+    if (!authorized) {
+      const appSession = await requireSession();
+      if (!appSession) {
+        await logSettle(sessionIdStr, "auth", "missing app session", false);
+        return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      }
+      authorized =
+        appSession.walletAddress.toLowerCase() === onchainPlayer.toLowerCase();
+    }
+
+    if (!authorized) {
+      await logSettle(sessionIdStr, "auth", "wallet mismatch", false);
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 

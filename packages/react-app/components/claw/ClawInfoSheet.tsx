@@ -1,8 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import { X } from "@phosphor-icons/react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { AKIBA_TOKEN_SYMBOL, TIER_META } from "@/lib/clawTypes";
+import { akibaMilesSymbol } from "@/lib/svg";
 
 type Props = {
   open: boolean;
@@ -32,7 +34,7 @@ const REWARD_LEGEND = [
   {
     emoji: "⭐",
     title: "Legendary — Full Voucher",
-    desc: "Capped full-value voucher (100% off up to max). Burn for a USDT fallback.",
+    desc: "Capped full-value voucher (100% off up to max).",
     color: "#F59E0B",
   },
 ];
@@ -90,7 +92,13 @@ export function ClawInfoSheet({ open, onOpenChange }: Props) {
                   className="grid grid-cols-4 border-t border-gray-50 text-sm"
                 >
                   <div className="px-3 py-2.5 flex items-center gap-1.5 font-medium text-gray-700">
-                    <span>{row.emoji}</span>
+                    <span className="flex items-center">
+                      {row.emoji === "🪙" ? (
+                        <Image src={akibaMilesSymbol} alt="" width={14} height={14} />
+                      ) : (
+                        row.emoji
+                      )}
+                    </span>
                     <span className="text-xs">{row.label}</span>
                   </div>
                   <div className="px-2 py-2.5 text-center text-xs text-gray-500">{row.basic}</div>
@@ -111,7 +119,13 @@ export function ClawInfoSheet({ open, onOpenChange }: Props) {
                   className="flex items-start gap-3 rounded-xl p-3 border"
                   style={{ borderColor: `${r.color}33`, background: `${r.color}08` }}
                 >
-                  <span className="text-xl shrink-0">{r.emoji}</span>
+                  <span className="text-xl shrink-0 flex items-center">
+                    {r.emoji === "🪙" ? (
+                      <Image src={akibaMilesSymbol} alt="" width={20} height={20} />
+                    ) : (
+                      r.emoji
+                    )}
+                  </span>
                   <div>
                     <p className="text-sm font-semibold" style={{ color: r.color }}>
                       {r.title}

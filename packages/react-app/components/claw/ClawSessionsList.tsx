@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { X, QrCode, ArrowLeft } from "@phosphor-icons/react";
 import {
-  AKIBA_TOKEN_SYMBOL,
   GameSession,
   RewardClass,
   SessionStatus,
@@ -12,7 +11,17 @@ import {
   ClawVoucher,
 } from "@/lib/clawTypes";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { akibaMilesSymbol } from "@/lib/svg";
+import Image from "next/image";
 import { formatUnits } from "viem";
+
+// AkibaMiles wins render the brand symbol; everything else uses its emoji.
+function RewardGlyph({ rc, size = 18 }: { rc: RewardClass; size?: number }) {
+  if (rc === RewardClass.Common) {
+    return <Image src={akibaMilesSymbol} alt="AkibaMiles" width={size} height={size} className="inline-block" />;
+  }
+  return <span style={{ fontSize: size, lineHeight: 1 }}>{REWARD_META[rc].emoji}</span>;
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -42,11 +51,13 @@ function timeAgo(ts: bigint): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
+// Common returns the formatted amount only (the AkibaMiles symbol is rendered
+// alongside it as a leading glyph — never spelled out as "amount AkibaMiles").
 function rewardLabel(session: GameSession): string {
   const rc = session.rewardClass;
   if (rc === RewardClass.None || rc === RewardClass.Lose) return REWARD_META[rc].label;
   if (rc === RewardClass.Common)
-    return `${parseFloat(formatUnits(session.rewardAmount, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 })} ${AKIBA_TOKEN_SYMBOL}`;
+    return parseFloat(formatUnits(session.rewardAmount, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 });
   if (rc === RewardClass.Epic)
     return "Bonus reward";
   if (rc === RewardClass.Rare)     return "20% Voucher";
@@ -97,8 +108,7 @@ function SessionItem({
   urgent: boolean;
   onClick: () => void;
 }) {
-  const tierMeta   = TIER_META[session.tierId] ?? TIER_META[0];
-  const rewardMeta = REWARD_META[session.rewardClass];
+  const tierMeta = TIER_META[session.tierId] ?? TIER_META[0];
 
   return (
     <button
@@ -110,7 +120,7 @@ function SessionItem({
         className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-lg"
         style={{ background: `${tierMeta.accent}18` }}
       >
-        {rewardMeta.emoji}
+        <RewardGlyph rc={session.rewardClass} size={18} />
       </div>
 
       <div className="flex-1 min-w-0 text-left">
@@ -131,7 +141,12 @@ function SessionItem({
           {STATUS_LABEL[session.status]}
         </span>
         {session.rewardClass !== RewardClass.None && (
-          <span className="text-[10px] text-gray-400">{rewardLabel(session)}</span>
+          <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
+            {session.rewardClass === RewardClass.Common && (
+              <Image src={akibaMilesSymbol} alt="" width={10} height={10} />
+            )}
+            {rewardLabel(session)}
+          </span>
         )}
       </div>
 
@@ -189,21 +204,16 @@ function SessionDetail({
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">Reward</span>
             <span className="font-semibold text-gray-700 flex items-center gap-1">
-              {rewardMeta.emoji} {rewardLabel(session)}
+              <RewardGlyph rc={session.rewardClass} size={15} /> {rewardLabel(session)}
             </span>
           </div>
           {session.rewardClass === RewardClass.Rare && (
             <div className="flex justify-between text-sm">
               <span className="text-gray-400">Burn fallback</span>
-              <span className="font-semibold text-gray-700">
-                {parseFloat(formatUnits(session.rewardAmount, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 })} {AKIBA_TOKEN_SYMBOL}
+              <span className="font-semibold text-gray-700 flex items-center gap-1">
+                <Image src={akibaMilesSymbol} alt="" width={13} height={13} />
+                {parseFloat(formatUnits(session.rewardAmount, 18)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </span>
-            </div>
-          )}
-          {session.rewardClass === RewardClass.Legendary && (
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Burn fallback</span>
-              <span className="font-semibold text-gray-700">USDT</span>
             </div>
           )}
         </div>

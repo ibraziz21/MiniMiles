@@ -21,11 +21,11 @@ const CABINET_PANEL = "#0A353C";
 const LED_COLORS = ["#F59E0B", "#2BA9B8", "#238D9D", "#6ED6E3", "#176B76"];
 
 const STATE_MSG: Record<MachineState, string> = {
-  idle:     "Pick a tier and pull the claw!",
+  idle:     "Pull the claw to test your luck!",
   starting: "Submitting transaction…",
-  pending:  "Claw is moving… revealing prize",
+  pending:  "The claw is searching the pile…",
   ready:    "Reward ready!",
-  settling: "Lifting the prize…",
+  settling: "Locking in your prize…",
   settled:  "",
 };
 
@@ -115,6 +115,11 @@ function buildPrizePile(): PrizeItem[] {
 
 const PRIZE_POOL: PrizeItem[] = buildPrizePile();
 
+// Build a synthetic prize for the claw to hold once the reward is resolved.
+function makeHeldPrize(rc: RewardClass): PrizeItem {
+  return { emoji: REWARD_META[rc].emoji, rc, x: 50, y: 50, rotate: 0, scale: 1, zIndex: 0 };
+}
+
 // Color per reward class
 const RC_COLOR: Record<RewardClass, string> = {
   [RewardClass.None]:      "#9CA3AF",
@@ -151,15 +156,15 @@ export function ClawMachineDisplay({ machineState, rewardClass, showConfetti }: 
   const [clawY, setClawY]                 = useState(0);
   const [clawOpen, setClawOpen]           = useState(true);
   const [clawPhase, setClawPhase]         = useState<ClawPhase>("idle");
-  // Which prize the claw is holding (null = none)
-  const [heldPrize, setHeldPrize]         = useState<typeof PRIZE_POOL[0] | null>(null);
-  // Prizes still in the bin (remove one when grabbed)
-  const [prizes, setPrizes]               = useState(PRIZE_POOL);
-  // Whether to show the "prize in chute" glow
-  const [chutePrize, setChutePrize]       = useState<typeof PRIZE_POOL[0] | null>(null);
+  // Which prize the claw is holding (null = none). Only set once the reward resolves.
+  const [heldPrize, setHeldPrize]         = useState<PrizeItem | null>(null);
+  // Whether the resolved-prize reveal is on screen (set after the claw lifts).
+  const [revealVisible, setRevealVisible] = useState(false);
 
   const animRef  = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
   const ledRef   = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Latest claw position so a new animation resumes from where it actually is.
+  const posRef   = useRef({ x: 50, y: 0 });
 
   const reward    = REWARD_META[rewardClass];
   const glowColor = RC_COLOR[rewardClass] ?? BRAND_PRIMARY;
@@ -170,122 +175,115 @@ export function ClawMachineDisplay({ machineState, rewardClass, showConfetti }: 
     return () => { if (ledRef.current) clearInterval(ledRef.current); };
   }, []);
 
-  // ── Main claw animation triggered by machineState ──────────────────────
+  // ── Main claw animation, driven by machineState ────────────────────────
+  // idle/starting → parked at the top, open.
+  // pending/settling → claw drops INTO the pile and rummages, but never lifts
+  //   a prize (the outcome isn't known yet).
+  // settled → claw closes on the resolved prize, lifts it, then reveals it.
   useEffect(() => {
     if (animRef.current) cancelAnimationFrame(animRef.current);
+    let cancelled = false;
 
+    let x = posRef.current.x;
+    let y = posRef.current.y;
+    const commit = () => {
+      posRef.current = { x, y };
+      setClawX(x);
+      setClawY(y);
+    };
+    const cleanup = () => {
+      cancelled = true;
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+    };
+
+    // ── Parked at the top ───────────────────────────────────────────────
     if (machineState === "idle" || machineState === "starting") {
-      setClawPhase("idle");
-      setClawY(0);
+      x = 50; y = 0; commit();
       setClawOpen(true);
       setHeldPrize(null);
-      return;
+      setRevealVisible(false);
+      setClawPhase("idle");
+      return cleanup;
     }
 
+    // ── Searching: drop in and rummage, but never grab a prize ──────────
     if (machineState === "pending" || machineState === "settling") {
-      // Pick a random x within the reachable prize area (10–85 %)
-      const targetX   = 10 + Math.random() * 75;
-      const targetCol = 0; // kept for compat; not used for prize lookup anymore
+      setClawOpen(true);
+      setHeldPrize(null);
+      setRevealVisible(false);
+      setClawPhase("descend");
 
-      let phase: ClawPhase    = "idle";
-      let x                   = 50;
-      let y                   = 0;
-      let open                = true;
-      let grabbed             = false;
-      let targetPrize: typeof PRIZE_POOL[0] | null = null;
-
-      const SPEED = 0.8; // px per frame (smooth)
-      const FLOOR = 78;  // y% at which claw reaches prizes
+      const FLOOR = 62;
+      const SPEED = 0.9;
+      let t = 0;
+      let phase: "descend" | "hover" = y >= FLOOR ? "hover" : "descend";
 
       const tick = () => {
-        if (phase === "idle") {
-          phase = "descend";
+        if (cancelled) return;
+        if (phase === "descend") {
+          y = Math.min(y + SPEED, FLOOR);
+          x += (50 - x) * 0.08;
+          if (y >= FLOOR) phase = "hover";
+        } else {
+          t += 0.035;
+          x = 50 + Math.sin(t) * 24;          // sweep across the pile
+          y = FLOOR + Math.sin(t * 2.1) * 5;  // dip in and out of the items
         }
+        commit();
+        animRef.current = requestAnimationFrame(tick);
+      };
+      animRef.current = requestAnimationFrame(tick);
+      return cleanup;
+    }
+
+    // ── Settled: grab the resolved prize, lift it, then reveal ──────────
+    if (machineState === "settled") {
+      const isWin = rewardClass > RewardClass.Lose;
+      setRevealVisible(false);
+      setClawPhase("descend");
+
+      const GRAB_FLOOR = 60;
+      const SPEED = 1.5;
+      let phase: "descend" | "close" | "lift" = y < GRAB_FLOOR - 1 ? "descend" : "close";
+      let closed = false;
+      let closeStart = 0;
+      if (phase === "descend") setClawOpen(true);
+
+      const tick = (ts: number) => {
+        if (cancelled) return;
 
         if (phase === "descend") {
-          // Glide X toward target, simultaneously drop Y
-          const dx = targetX - x;
-          x += Math.sign(dx) * Math.min(Math.abs(dx), SPEED);
-          y = Math.min(y + SPEED * 0.7, FLOOR);
-
-          if (y >= FLOOR && Math.abs(dx) < 1) {
-            phase = "grab";
-            // Find the prize whose x position is closest to the claw's current x
-            const nearby = prizes.filter((p) => Math.abs(p.x - x) <= 20);
-            targetPrize = nearby[0] ?? prizes[0] ?? null;
+          y = Math.min(y + SPEED, GRAB_FLOOR);
+          x += (50 - x) * 0.15;
+          if (y >= GRAB_FLOOR) phase = "close";
+        } else if (phase === "close") {
+          if (!closed) {
+            closed = true;
+            closeStart = ts;
+            setClawOpen(false);
+            setClawPhase("grab");
+            if (isWin) setHeldPrize(makeHeldPrize(rewardClass));
           }
-        }
-
-        if (phase === "grab") {
-          open = false;
-          if (!grabbed) {
-            grabbed = true;
-            if (targetPrize) {
-              setHeldPrize(targetPrize);
-              setPrizes((prev) => prev.filter((p) => p !== targetPrize));
-            }
-            setTimeout(() => { phase = "ascend"; }, 300);
-          }
-        }
-
-        if (phase === "ascend") {
-          y = Math.max(y - SPEED * 1.2, 0);
-          if (y <= 0) {
-            phase = "deliver";
-          }
-        }
-
-        if (phase === "deliver") {
-          // Glide to chute (right side, ~85%)
-          const dx = 85 - x;
-          x += Math.sign(dx) * Math.min(Math.abs(dx), SPEED * 1.5);
-          if (Math.abs(dx) < 1) {
-            open = true;
-            if (targetPrize) {
-              setChutePrize(targetPrize);
-            }
+          if (ts - closeStart > 340) phase = "lift";
+        } else {
+          setClawPhase("ascend");
+          y = Math.max(y - SPEED * 1.1, 6);
+          if (y <= 6) {
+            commit();
             setHeldPrize(null);
-            // Loop back after a pause
-            setTimeout(() => {
-              if (machineState === "pending" || machineState === "settling") {
-                grabbed    = false;
-                phase      = "idle";
-                x          = 50;
-                y          = 0;
-                open       = true;
-                targetPrize = null;
-                setChutePrize(null);
-              }
-            }, 1200);
+            setRevealVisible(true);
+            return;
           }
         }
-
-        setClawX(x);
-        setClawY(y);
-        setClawOpen(open);
-        setClawPhase(phase);
-
-        if (machineState === "pending" || machineState === "settling") {
-          animRef.current = requestAnimationFrame(tick);
-        }
+        commit();
+        animRef.current = requestAnimationFrame(tick);
       };
-
       animRef.current = requestAnimationFrame(tick);
+      return cleanup;
     }
 
-    if (machineState === "settled") {
-      // Reset claw to top-center, show the actual reward
-      setClawPhase("idle");
-      setClawY(0);
-      setClawX(50);
-      setClawOpen(true);
-      setHeldPrize(null);
-      setChutePrize(null);
-    }
-
-    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [machineState]);
+    return cleanup;
+  }, [machineState, rewardClass]);
 
   // ── Wire length: from top rail to claw head ────────────────────────────
   const wireLength = 18 + (clawY / 100) * 120; // px
@@ -500,7 +498,7 @@ export function ClawMachineDisplay({ machineState, rewardClass, showConfetti }: 
             }}
           />
 
-          {prizes.map((p, i) => (
+          {PRIZE_POOL.map((p, i) => (
             <div
               key={i}
               className="absolute text-center pointer-events-none"
@@ -530,20 +528,24 @@ export function ClawMachineDisplay({ machineState, rewardClass, showConfetti }: 
             </div>
           ))}
 
-          {/* ── Settled: big prize reveal ──────────────────────── */}
-          {machineState === "settled" && rewardClass > RewardClass.Lose && (
+          {/* ── Settled: big prize reveal (only after the claw lifts) ─── */}
+          {revealVisible && rewardClass > RewardClass.Lose && (
             <div
               className="absolute inset-0 flex flex-col items-center justify-center"
               style={{ background: `radial-gradient(circle at 50% 50%, ${glowColor}22 0%, transparent 70%)` }}
             >
               <div
-                className="text-6xl mb-2"
+                className="mb-2 flex items-center justify-center"
                 style={{
                   filter: `drop-shadow(0 0 20px ${glowColor})`,
                   animation: "prize-pop 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards",
                 }}
               >
-                {reward.emoji}
+                {rewardClass === RewardClass.Common ? (
+                  <Image src={akibaMilesSymbolAlt} alt="AkibaMiles" width={72} height={72} style={{ display: "inline-block" }} />
+                ) : (
+                  <span className="text-6xl">{reward.emoji}</span>
+                )}
               </div>
               <span
                 className="font-black text-sm px-3 py-1 rounded-full"
@@ -559,27 +561,10 @@ export function ClawMachineDisplay({ machineState, rewardClass, showConfetti }: 
             </div>
           )}
 
-          {machineState === "settled" && rewardClass === RewardClass.Lose && (
+          {revealVisible && rewardClass === RewardClass.Lose && (
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <div className="text-5xl mb-2" style={{ animation: "prize-pop 0.5s forwards" }}>💨</div>
               <span className="text-gray-400 text-sm font-semibold">Better luck next time</span>
-            </div>
-          )}
-
-          {/* ── Chute glow (prize delivered) ──────────────────── */}
-          {chutePrize && (
-            <div
-              className="absolute right-2 bottom-6 text-2xl"
-              style={{
-                filter: `drop-shadow(0 0 10px ${RC_COLOR[chutePrize.rc]})`,
-                animation: "chute-drop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards",
-              }}
-            >
-              {chutePrize.rc === RewardClass.Common ? (
-                <Image src={akibaMilesSymbolAlt} alt="AkibaMiles" width={28} height={28} style={{ display: "inline-block" }} />
-              ) : (
-                chutePrize.emoji
-              )}
             </div>
           )}
         </div>
@@ -670,7 +655,7 @@ export function ClawMachineDisplay({ machineState, rewardClass, showConfetti }: 
 
       {/* ── State message ───────────────────────────────────────────── */}
       <div className="mt-3 min-h-[20px] text-center px-4">
-        {machineState === "settled" && rewardClass > RewardClass.Lose ? (
+        {revealVisible && rewardClass > RewardClass.Lose ? (
           <p className="text-sm font-semibold" style={{ color: glowColor, textShadow: `0 0 10px ${glowColor}88` }}>
             {reward.description}
           </p>
@@ -713,10 +698,6 @@ export function ClawMachineDisplay({ machineState, rewardClass, showConfetti }: 
           0%   { transform: scale(0.4) rotate(-15deg); opacity: 0; }
           60%  { transform: scale(1.25) rotate(5deg); opacity: 1; }
           100% { transform: scale(1) rotate(0deg); opacity: 1; }
-        }
-        @keyframes chute-drop {
-          0%   { transform: translateY(-20px); opacity: 0; }
-          100% { transform: translateY(0); opacity: 1; }
         }
         @keyframes confetti-fall {
           0%   { transform: translateY(0) rotate(0deg); opacity: 1; }

@@ -17,28 +17,38 @@ function milesCostLabel(tier: TierConfig): string {
   });
 }
 
-function usdtCostLabel(tier: TierConfig): string {
-  return `$${parseFloat(formatUnits(tier.playCost, 6)).toFixed(2)}`;
-}
-
 export function ClawTierSelector({ tiers, selectedTier, onSelect }: Props) {
+  // Only AkibaMiles-payable, active tiers are shown. The legacy USDT tier
+  // (payInMiles === false) is hidden entirely rather than greyed out.
+  const milesTierIds = [0, 1, 2].filter(
+    (tierId) => Boolean(tiers[tierId]?.active && tiers[tierId]?.payInMiles)
+  );
+
+  // Nothing selectable yet (still loading or no Miles tiers configured).
+  if (milesTierIds.length === 0) return null;
+
+  // A lone tier needs no selector UI — the cost already shows on the CTA.
+  if (milesTierIds.length === 1) return null;
+
   return (
     <div className="px-4">
       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
         Choose tier
       </p>
-      <div className="grid grid-cols-3 gap-2">
-        {[0, 1, 2].map((tierId) => {
-          const tier   = tiers[tierId];
+      <div
+        className="grid gap-2"
+        style={{ gridTemplateColumns: `repeat(${milesTierIds.length}, minmax(0, 1fr))` }}
+      >
+        {milesTierIds.map((tierId) => {
+          const tier   = tiers[tierId]!;
           const meta   = TIER_META[tierId];
           const active = selectedTier === tierId;
 
           return (
             <button
               key={tierId}
-              onClick={() => tier?.active && onSelect(tierId)}
-              disabled={!tier?.active}
-              className="rounded-2xl p-3 text-left transition-all border-2 disabled:opacity-40"
+              onClick={() => onSelect(tierId)}
+              className="rounded-2xl p-3 text-left transition-all border-2"
               style={{
                 borderColor: active ? meta.accent : "transparent",
                 background: active ? meta.bg : "white",
@@ -62,30 +72,15 @@ export function ClawTierSelector({ tiers, selectedTier, onSelect }: Props) {
                 {meta.name}
               </p>
               <p className="text-[10px] text-gray-400 leading-none">
-                {tier ? (tier.payInMiles ? "Pay in AkibaMiles" : "Pay in USDT") : "—"}
+                Pay in AkibaMiles
               </p>
-              {tier ? (
-                <div
-                  className="text-sm font-extrabold mt-1.5 leading-none flex items-center gap-1"
-                  style={{ color: meta.accent }}
-                >
-                  {tier.payInMiles ? (
-                    <>
-                      <Image src={akibaMilesSymbol} alt="" width={14} height={14} />
-                      <span>{milesCostLabel(tier)}</span>
-                    </>
-                  ) : (
-                    <span>{usdtCostLabel(tier)}</span>
-                  )}
-                </div>
-              ) : (
-                <p
-                  className="text-sm font-extrabold mt-1.5 leading-none"
-                  style={{ color: meta.accent }}
-                >
-                  —
-                </p>
-              )}
+              <div
+                className="text-sm font-extrabold mt-1.5 leading-none flex items-center gap-1"
+                style={{ color: meta.accent }}
+              >
+                <Image src={akibaMilesSymbol} alt="" width={14} height={14} />
+                <span>{milesCostLabel(tier)}</span>
+              </div>
             </button>
           );
         })}
