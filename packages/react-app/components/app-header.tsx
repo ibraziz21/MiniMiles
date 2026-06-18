@@ -6,7 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import truncateEthAddress from "truncate-eth-address";
-import { Fire } from "@phosphor-icons/react";
+import { ClockCounterClockwise, Fire } from "@phosphor-icons/react";
 import { useWeb3 } from "@/contexts/useWeb3";
 import { akibaMilesSymbol, GearSvg } from "@/lib/svg";
 import { ActiveStreaksSheet } from "@/components/active-streaks-sheet";
@@ -184,6 +184,19 @@ export default function AppHeader() {
               </span>
             )}
           </button>
+
+          <Link
+            href="/history"
+            aria-label="View history"
+            title="History"
+            className="inline-flex items-center justify-center rounded-lg p-1.5 hover:bg-black/5 active:scale-[0.98]"
+          >
+            <ClockCounterClockwise
+              size={24}
+              weight="duotone"
+              color="#238D9D"
+            />
+          </Link>
 
           <Link
             href="/settings"
