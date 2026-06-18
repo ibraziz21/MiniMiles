@@ -8,7 +8,7 @@ import { createClient } from "@supabase/supabase-js";
 import truncateEthAddress from "truncate-eth-address";
 import { Fire } from "@phosphor-icons/react";
 import { useWeb3 } from "@/contexts/useWeb3";
-import { akibaMilesSymbolAlt, GearSvg } from "@/lib/svg";
+import { akibaMilesSymbol, GearSvg } from "@/lib/svg";
 import { ActiveStreaksSheet } from "@/components/active-streaks-sheet";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -139,7 +139,7 @@ export default function AppHeader() {
             aria-label="Total AkibaMiles — view history"
             className="flex items-center gap-1.5 rounded-full bg-[#238D9D]/10 px-3 py-1.5 active:scale-[0.98]"
           >
-            <Image src={akibaMilesSymbolAlt} width={18} height={18} alt="" />
+            <Image src={akibaMilesSymbol} width={18} height={18} alt="" />
             <span className="text-sm font-bold text-[#238D9D] tabular-nums">
               {Number(balance).toLocaleString()}
             </span>

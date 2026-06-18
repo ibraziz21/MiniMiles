@@ -122,11 +122,6 @@ export default function EarnPage() {
   return (
     <main className="pb-24 font-sterling">
       <AppHeader />
-      <div className="px-4 flex flex-col justify-around gap-1 mb-4">
-        <h1 className="text-2xl font-medium">Earn</h1>
-        <p className="font-poppins">Complete challenges to earn AkibaMiles.</p>
-      </div>
-      <MiniPointsCard points={Number(balance)} />
 
       {showVault && (
       <div className="px-4">

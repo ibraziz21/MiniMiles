@@ -714,49 +714,6 @@ const badgeButtonLabel =
         </div>
       )}
 
-      {/* Skill games promo */}
-      <div className="mx-4 mt-4">
-        <Link href="/spend" className="block">
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#238D9D] via-[#1d7a89] to-[#155f6a] px-4 py-3.5 shadow-lg shadow-[#238D9D]/30 active:scale-[0.99] transition-transform">
-            {/* decorative circles */}
-            <div className="pointer-events-none absolute -top-6 -right-6 h-24 w-24 rounded-full bg-white/10" />
-            <div className="pointer-events-none absolute -bottom-4 -left-4 h-16 w-16 rounded-full bg-white/10" />
-
-            <div className="relative flex items-center justify-between gap-3">
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-white/70 flex items-center gap-1">
-                    Skill Games ·
-                    <Image src={akibaMilesSymbolAlt} alt="" width={11} height={11} className="inline" />
-                    Rule Tap + Memory
-                  </span>
-                </div>
-
-                <p className="text-[18px] font-extrabold text-white leading-tight">
-                  Play short rounds, win Miles
-                  <span className="ml-1 rounded-full bg-amber-400 px-1.5 py-0.5 text-[9px] font-bold text-black tracking-wide">NEW</span>
-                </p>
-                <p className="text-[11px] text-white/70 mt-0.5 flex items-center gap-1">
-                  Shared tickets · 30 total plays daily · up to
-                  <Image src={akibaMilesSymbolAlt} alt="" width={10} height={10} className="inline" />
-                  12 per round
-                </p>
-              </div>
-
-              <div className="flex-shrink-0 flex flex-col items-center gap-1">
-                <div className="rounded-full bg-white/20 border border-white/30 px-3 py-1.5">
-                  <span className="text-[12px] font-bold text-white">Play →</span>
-                </div>
-                <span className="text-[9px] text-white/60 flex items-center gap-0.5">
-                  <Image src={akibaMilesSymbolAlt} alt="" width={10} height={10} className="inline" />
-                  5 entry
-                </span>
-              </div>
-            </div>
-          </div>
-        </Link>
-      </div>
-
       {address && (
         <MigrateV2Banner
           address={address}
