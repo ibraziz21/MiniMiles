@@ -14,11 +14,14 @@ vi.mock("viem", () => ({
 
 const USER = "0x9889eef6885eae316c23bfb594e6e1e92c1abd82";
 const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
+const USDT_ADDRESS = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e";
+const USDC_ADDRESS = "0xcebA9300f2b948710d2653dD7B07f33A8B32118C";
 const ONE_CUSD = 10n ** 18n;
+const ONE_USDT = 1_000_000n;
 
 function getLogCall(index: number) {
   return getLogsMock.mock.calls[index]?.[0] as {
-    address: string;
+    address: string | readonly string[];
     fromBlock: bigint;
     toBlock: bigint;
   };
@@ -94,16 +97,13 @@ describe("graphQuestTransfer RPC checks", () => {
 
   it("counts outgoing transfers across RPC-scanned stablecoin logs", async () => {
     getBlockNumberMock.mockResolvedValue(3_000n);
-    getLogsMock
-      .mockResolvedValueOnce([
-        { args: { value: ONE_CUSD } },
-        { args: { value: ONE_CUSD - 1n } },
-      ])
-      .mockResolvedValueOnce([
-        { args: { value: 1_000_000n } },
-        { args: { value: 2_000_000n } },
-      ])
-      .mockResolvedValueOnce([]);
+    getLogsMock.mockResolvedValueOnce([
+      { address: CUSD_ADDRESS, args: { value: ONE_CUSD } },
+      { address: CUSD_ADDRESS, args: { value: ONE_CUSD - 1n } },
+      { address: USDT_ADDRESS, args: { value: ONE_USDT } },
+      { address: USDT_ADDRESS, args: { value: 2n * ONE_USDT } },
+      { address: USDC_ADDRESS, args: { value: ONE_USDT - 1n } },
+    ]);
 
     const { countOutgoingTransfersIn24H } = await import(
       "@/helpers/graphQuestTransfer"
@@ -111,6 +111,35 @@ describe("graphQuestTransfer RPC checks", () => {
 
     await expect(countOutgoingTransfersIn24H(USER)).resolves.toBe(3);
 
-    expect(getLogsMock).toHaveBeenCalledTimes(3);
+    expect(getLogsMock).toHaveBeenCalledTimes(1);
+    expect(getLogCall(0)).toMatchObject({
+      address: [CUSD_ADDRESS, USDT_ADDRESS, USDC_ADDRESS],
+      fromBlock: 0n,
+      toBlock: 3_000n,
+    });
+  });
+
+  it("stops counting once the requested transfer threshold is reached", async () => {
+    getBlockNumberMock.mockResolvedValue(10_000n);
+    getLogsMock.mockResolvedValueOnce([
+      { address: CUSD_ADDRESS, args: { value: ONE_CUSD } },
+      { address: CUSD_ADDRESS, args: { value: 2n * ONE_CUSD } },
+      { address: USDT_ADDRESS, args: { value: ONE_USDT } },
+      { address: USDT_ADDRESS, args: { value: 2n * ONE_USDT } },
+      { address: USDC_ADDRESS, args: { value: ONE_USDT } },
+    ]);
+
+    const { countOutgoingTransfersIn24H } = await import(
+      "@/helpers/graphQuestTransfer"
+    );
+
+    await expect(countOutgoingTransfersIn24H(USER, 5)).resolves.toBe(5);
+
+    expect(getLogsMock).toHaveBeenCalledTimes(1);
+    expect(getLogCall(0)).toMatchObject({
+      address: [CUSD_ADDRESS, USDT_ADDRESS, USDC_ADDRESS],
+      fromBlock: 6001n,
+      toBlock: 10_000n,
+    });
   });
 });

@@ -11,6 +11,11 @@ import { celo } from "viem/chains";
 const CUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
 const USDT_ADDRESS = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e";
 const USDC_ADDRESS = "0xcebA9300f2b948710d2653dD7B07f33A8B32118C";
+const STABLE_TOKEN_ADDRESSES = [
+  CUSD_ADDRESS,
+  USDT_ADDRESS,
+  USDC_ADDRESS,
+] as readonly [Address, Address, Address];
 const RPC_URL = process.env.CELO_RPC_URL ?? "https://forno.celo.org";
 
 if (!CUSD_ADDRESS || !USDT_ADDRESS || !USDC_ADDRESS) {
@@ -43,7 +48,7 @@ const DEFAULT_LOOKBACK_BLOCKS = 22_000n;
 const RPC_LOG_CHUNK_BLOCKS = 4_000n;
 
 type TransferDirection = "out" | "in";
-type TransferLog = { args?: { value?: bigint } };
+type TransferLog = { address?: string; args?: { value?: bigint } };
 
 function isRangeTooWideError(err: unknown): boolean {
   const parts = [
@@ -90,6 +95,40 @@ async function getTransferLogsForRange(params: {
       toBlock: midBlock,
     });
     const second = await getTransferLogsForRange({
+      ...params,
+      fromBlock: midBlock + 1n,
+    });
+
+    return [...first, ...second];
+  }
+}
+
+async function getOutgoingStableTransferLogsForRange(params: {
+  user: string;
+  fromBlock: bigint;
+  toBlock: bigint;
+}): Promise<TransferLog[]> {
+  try {
+    const logs = await publicClient.getLogs({
+      address: [...STABLE_TOKEN_ADDRESSES],
+      event: ERC20_TRANSFER,
+      args: { from: params.user as Address },
+      fromBlock: params.fromBlock,
+      toBlock: params.toBlock,
+    });
+
+    return logs as TransferLog[];
+  } catch (err) {
+    if (!isRangeTooWideError(err) || params.fromBlock >= params.toBlock) {
+      throw err;
+    }
+
+    const midBlock = (params.fromBlock + params.toBlock) / 2n;
+    const first = await getOutgoingStableTransferLogsForRange({
+      ...params,
+      toBlock: midBlock,
+    });
+    const second = await getOutgoingStableTransferLogsForRange({
       ...params,
       fromBlock: midBlock + 1n,
     });
@@ -147,13 +186,43 @@ async function scanTransferLogs(
   }
 }
 
+async function scanOutgoingStableTransferLogs(
+  params: {
+    user: string;
+    fromBlock: bigint;
+    toBlock: bigint;
+  },
+  onLogs: (logs: TransferLog[]) => boolean | void
+): Promise<void> {
+  if (params.fromBlock > params.toBlock) return;
+
+  let toBlock = params.toBlock;
+  while (toBlock >= params.fromBlock) {
+    const chunkStart =
+      toBlock - RPC_LOG_CHUNK_BLOCKS + 1n > params.fromBlock
+        ? toBlock - RPC_LOG_CHUNK_BLOCKS + 1n
+        : params.fromBlock;
+    const logs = await getOutgoingStableTransferLogsForRange({
+      ...params,
+      fromBlock: chunkStart,
+      toBlock,
+    });
+    if (onLogs(logs)) return;
+    if (chunkStart === params.fromBlock) return;
+    toBlock = chunkStart - 1n;
+  }
+}
+
 /* ------------------------------------------------------------- caching */
 
 type CacheEntry = { expires: number; value: boolean };
+type CountCacheEntry = { expires: number; count: number; complete: boolean };
 const TTL_MS = 25_000;
 
 const CACHE = new Map<string, CacheEntry>();
 const INFLIGHT = new Map<string, Promise<boolean>>();
+const COUNT_CACHE = new Map<string, CountCacheEntry>();
+const COUNT_INFLIGHT = new Map<string, Promise<CountCacheEntry>>();
 
 function cacheKey(direction: TransferDirection, user: string, token: string) {
   return `${direction}:${user.toLowerCase()}:${token.toLowerCase()}`;
@@ -173,11 +242,37 @@ function writeCache(key: string, value: boolean) {
   CACHE.set(key, { value, expires: Date.now() + TTL_MS });
 }
 
+function countCacheKey(user: string) {
+  return `out-count:${user.toLowerCase()}`;
+}
+
+function readCountCache(key: string, minRequired: number): number | null {
+  const hit = COUNT_CACHE.get(key);
+  if (!hit) return null;
+  if (hit.expires < Date.now()) {
+    COUNT_CACHE.delete(key);
+    return null;
+  }
+  if (hit.complete || hit.count >= minRequired) return hit.count;
+  return null;
+}
+
+function writeCountCache(key: string, entry: Omit<CountCacheEntry, "expires">) {
+  COUNT_CACHE.set(key, { ...entry, expires: Date.now() + TTL_MS });
+}
+
 /* ---------------------------------------------------------------- helpers */
 
 function oneDollarMin(token: string): bigint {
   const decimals = DECIMALS[token.toLowerCase()] ?? 18;
   return 10n ** BigInt(decimals);
+}
+
+function isAtLeastOneDollarStableTransfer(log: TransferLog): boolean {
+  const token = log.address?.toLowerCase();
+  const value = log.args?.value;
+  if (!token || typeof value !== "bigint") return false;
+  return value >= oneDollarMin(token);
 }
 
 async function hasRecentTransferViaRpc(params: {
@@ -212,35 +307,6 @@ async function hasRecentTransferViaRpc(params: {
   );
 
   return found;
-}
-
-async function countOutgoingViaRpc(
-  user: string,
-  token: string,
-  min: bigint,
-  lookbackBlocks = DEFAULT_LOOKBACK_BLOCKS
-): Promise<number> {
-  const latest = await publicClient.getBlockNumber();
-  const fromBlock = latest > lookbackBlocks ? latest - lookbackBlocks : 0n;
-
-  let count = 0;
-  await scanTransferLogs(
-    {
-      direction: "out",
-      user,
-      token,
-      fromBlock,
-      toBlock: latest,
-    },
-    (logs) => {
-      count += logs.filter((l) => {
-        const value = l.args?.value;
-        return typeof value === "bigint" && value >= min;
-      }).length;
-    }
-  );
-
-  return count;
 }
 
 /**
@@ -293,20 +359,51 @@ async function hasRecentTransferCached(params: {
  * in the last 24 h.
  */
 export async function countOutgoingTransfersIn24H(
-  userAddress: string
+  userAddress: string,
+  minRequired = Number.POSITIVE_INFINITY
 ): Promise<number> {
   const user = userAddress.toLowerCase();
+  const key = countCacheKey(user);
+  const cached = readCountCache(key, minRequired);
+  if (cached !== null) return cached;
 
-  const tokens = [CUSD_ADDRESS, USDT_ADDRESS, USDC_ADDRESS];
+  const inflightKey = `${key}:${minRequired}`;
+  const inflight = COUNT_INFLIGHT.get(inflightKey);
+  if (inflight) return (await inflight).count;
 
-  let total = 0;
+  const promise = (async (): Promise<CountCacheEntry> => {
+    const latest = await publicClient.getBlockNumber();
+    const fromBlock = latest > DEFAULT_LOOKBACK_BLOCKS
+      ? latest - DEFAULT_LOOKBACK_BLOCKS
+      : 0n;
 
-  for (const token of tokens) {
-    const min = oneDollarMin(token);
-    total += await countOutgoingViaRpc(user, token, min);
-  }
+    let count = 0;
+    let complete = true;
+    await scanOutgoingStableTransferLogs(
+      {
+        user,
+        fromBlock,
+        toBlock: latest,
+      },
+      (logs) => {
+        count += logs.filter(isAtLeastOneDollarStableTransfer).length;
+        if (count >= minRequired) {
+          complete = false;
+          return true;
+        }
+        return false;
+      }
+    );
 
-  return total;
+    const entry = { count, complete };
+    writeCountCache(key, entry);
+    return { ...entry, expires: Date.now() + TTL_MS };
+  })().finally(() => {
+    COUNT_INFLIGHT.delete(inflightKey);
+  });
+
+  COUNT_INFLIGHT.set(inflightKey, promise);
+  return (await promise).count;
 }
 
 /**

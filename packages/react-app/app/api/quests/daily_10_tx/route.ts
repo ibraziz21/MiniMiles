@@ -15,7 +15,16 @@ export async function POST(_req: Request) {
     const quest = getQuest("daily_10tx");
     const today = new Date().toISOString().slice(0, 10);
 
-    const txs = await countOutgoingTransfersIn24H(addr);
+    let txs: number;
+    try {
+      txs = await countOutgoingTransfersIn24H(addr, 10);
+    } catch (err) {
+      console.error("[daily_10tx] RPC transfer count failed:", err);
+      return NextResponse.json(
+        { success: false, message: "Could not verify recent transfer activity. Please try again." },
+        { status: 503 }
+      );
+    }
     if (txs < 10) return NextResponse.json({ success: false, message: `Only ${txs}/10 transfers in the last 24 h` });
 
     const result = await claimQueuedDailyReward({ userAddress: addr, questId: quest.questId, points: quest.points, scopeKey: today, reason: quest.reason });

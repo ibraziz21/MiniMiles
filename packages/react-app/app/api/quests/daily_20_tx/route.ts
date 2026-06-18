@@ -15,7 +15,16 @@ export async function POST(_req: Request) {
     const questId = process.env.QUEST_ID_DAILY_20TX ?? "daily_20tx";
     const today = new Date().toISOString().slice(0, 10);
 
-    const txs = await countOutgoingTransfersIn24H(userAddress);
+    let txs: number;
+    try {
+      txs = await countOutgoingTransfersIn24H(userAddress, 20);
+    } catch (err) {
+      console.error("[daily_20_tx] RPC transfer count failed:", err);
+      return NextResponse.json(
+        { success: false, message: "Could not verify recent transfer activity. Please try again." },
+        { status: 503 }
+      );
+    }
     if (txs < 20) {
       return NextResponse.json({ success: false, message: `Only ${txs}/20 transfers in the last 24 h` });
     }
