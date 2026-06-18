@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "react-app",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "./packages/react-app", "dev"],
+      "port": 3000
+    }
+  ]
+}

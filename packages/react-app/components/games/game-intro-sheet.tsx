@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { Trophy } from "@phosphor-icons/react";
+import { Trophy, ShoppingCart, Ticket } from "@phosphor-icons/react";
 import type { GameConfig } from "@/lib/games/types";
 import { MilesAmount } from "./miles-amount";
 
@@ -22,6 +22,9 @@ export function GameIntroSheet({
   disabled,
   disabledReason,
   error,
+  credits = 0,
+  mustBuy = false,
+  onBuyTickets,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -32,7 +35,14 @@ export function GameIntroSheet({
   disabled?: boolean;
   disabledReason?: string;
   error?: string | null;
+  /** Current tickets the player holds for this game */
+  credits?: number;
+  /** True when a ticket is required (live contract) but the player has none */
+  mustBuy?: boolean;
+  /** Open the buy-tickets sheet */
+  onBuyTickets?: () => void;
 }) {
+  const hasTicket = credits > 0;
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="rounded-t-2xl bg-white px-0 pb-8 max-h-[92vh] overflow-y-auto" aria-describedby={undefined}>
@@ -42,13 +52,40 @@ export function GameIntroSheet({
           <p className="text-sm text-[#525252] font-poppins mt-0.5">{config.description}</p>
         </div>
 
-        {/* Entry cost banner */}
-        <div className="mx-5 mt-4 rounded-xl bg-[#F0FDFF] border border-[#238D9D22] px-4 py-3">
-          <p className="text-sm font-semibold text-[#238D9D]">1 {config.shortName} ticket entry</p>
-          <p className="text-xs text-[#525252] font-poppins mt-0.5 flex items-center gap-1 flex-wrap">
-            Win up to <MilesAmount value={config.maxRewardMiles} size={12} /> · daily limit {config.dailyPlayCap} {config.shortName} rounds
-          </p>
-        </div>
+        {/* Entry banner — a ticket is required to play */}
+        {mustBuy ? (
+          <div className="mx-5 mt-4 rounded-xl bg-[#FFF8EC] border border-[#E0A23055] px-4 py-3">
+            <p className="text-sm font-semibold text-[#B7791F] flex items-center gap-1.5 flex-wrap">
+              <Ticket size={15} weight="fill" /> You need a ticket to play
+            </p>
+            <p className="text-xs text-[#8a6a22] font-poppins mt-0.5 flex items-center gap-1 flex-wrap">
+              1 {config.shortName} ticket per round · win up to <MilesAmount value={config.maxRewardMiles} size={12} />
+            </p>
+          </div>
+        ) : hasTicket ? (
+          <div className="mx-5 mt-4 rounded-xl bg-[#F0FDFF] border border-[#238D9D22] px-4 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-[#238D9D] flex items-center gap-1.5">
+                <Ticket size={15} weight="fill" /> Uses 1 {config.shortName} ticket
+              </p>
+              <span className="text-xs font-semibold text-[#238D9D] bg-[#238D9D14] rounded-full px-2 py-0.5">
+                {credits} left
+              </span>
+            </div>
+            <p className="text-xs text-[#525252] font-poppins mt-1 flex items-center gap-1 flex-wrap">
+              Win up to <MilesAmount value={config.maxRewardMiles} size={12} /> · daily limit {config.dailyPlayCap} {config.shortName} rounds
+            </p>
+          </div>
+        ) : (
+          <div className="mx-5 mt-4 rounded-xl bg-[#F0FDFF] border border-[#238D9D22] px-4 py-3">
+            <p className="text-sm font-semibold text-[#238D9D] flex items-center gap-1.5">
+              <Ticket size={15} weight="fill" /> 1 {config.shortName} ticket entry
+            </p>
+            <p className="text-xs text-[#525252] font-poppins mt-0.5 flex items-center gap-1 flex-wrap">
+              Win up to <MilesAmount value={config.maxRewardMiles} size={12} /> · daily limit {config.dailyPlayCap} {config.shortName} rounds
+            </p>
+          </div>
+        )}
 
         {/* Rules */}
         <div className="mx-5 mt-4">
@@ -103,9 +140,17 @@ export function GameIntroSheet({
             <div className="w-full rounded-xl bg-[#F0F0F0] py-4 text-sm font-semibold text-[#888] text-center">
               {disabledReason ?? "Unavailable"}
             </div>
+          ) : mustBuy ? (
+            <button
+              type="button"
+              onClick={onBuyTickets}
+              className="w-full rounded-xl bg-[#238D9D] py-4 text-base font-bold text-white hover:bg-[#1a7a8a] flex items-center justify-center gap-1.5 active:scale-[0.99]"
+            >
+              <ShoppingCart size={16} weight="fill" /> Buy {config.shortName} tickets
+            </button>
           ) : (
             <Button
-              title={loading ? "Starting round…" : "Play now →"}
+              title={loading ? "Starting round…" : hasTicket ? "Play now · 1 ticket →" : "Play now →"}
               loading={loading}
               widthFull
               className="rounded-xl bg-[#238D9D] py-5 text-base font-bold text-white hover:bg-[#1a7a8a]"

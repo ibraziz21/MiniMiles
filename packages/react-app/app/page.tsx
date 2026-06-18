@@ -4,10 +4,10 @@
 import { fetchBadgeProgress } from "@/helpers/fetchBadgeProgress";
 import ReferFab from "@/components/refer-fab";
 import DailyChallenges from "@/components/daily-challenge";
-import DashboardHeader from "@/components/dashboard-header";
+import AppHeader from "@/components/app-header";
 import ProfileCtaCard from "@/components/profile-cta-card";
 import { RaffleCard } from "@/components/raffle-card";
-import PointsCard from "@/components/points-card";
+import { CampaignHero } from "@/components/campaign-hero";
 import { MigrateV2Banner } from "@/components/migrate-v2-banner";
 import { SectionHeading } from "@/components/section-heading";
 import { useWeb3 } from "@/contexts/useWeb3";
@@ -40,12 +40,10 @@ import {
 import Link from "next/link";
 import type { StaticImageData } from "next/image";
 import dynamic from "next/dynamic";
-import truncateEthAddress from "truncate-eth-address";
 import type { PhysicalSpendRaffle } from "@/components/physical-raffle-sheet";
 import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";import { ProsperityPassCard } from "@/components/prosperity-claim";
+import { ProsperityPassCard } from "@/components/prosperity-claim";
 import { BadgesSection } from "@/components/BadgesSection";
-import { ActiveStreaksSheet } from "@/components/active-streaks-sheet";
 import {
   BadgeClaimLoadingSheet,
   BadgeClaimSuccessSheet,
@@ -62,12 +60,6 @@ import {
   EMPTY_BADGE_PROGRESS,
 } from "@/lib/prosperityBadges";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const SUPABASE_ANON_KEY =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
 const PhysicalRaffleSheet = dynamic(
   () => import("@/components/physical-raffle-sheet"),
   { ssr: false }
@@ -76,10 +68,6 @@ const SpendPartnerQuestSheet = dynamic(
   () => import("@/components/spend-partner-quest-sheet"),
   { ssr: false }
 );
-const WinningModal = dynamic(() => import("@/components/winning-modal"), {
-  ssr: false,
-});
-
 /** ───────────────── Token raffle image map ───────────────── */
 const TOKEN_IMAGES: Record<string, StaticImageData> = {
   cUSD: RaffleImg1,
@@ -272,9 +260,6 @@ export default function Home() {
   const { address, getUserAddress, getakibaMilesBalance } = web3;
 
   const [akibaMilesBalance, setakibaMilesBalance] = useState("0");
-  const [winnerOpen, setWinnerOpen] = useState(false);
-  const [streakSheetOpen, setStreakSheetOpen] = useState(false);
-  const [streakSummary, setStreakSummary] = useState({ activeCount: 0, claimableCount: 0, urgentCount: 0 });
 
   const [tokenRaffles, setTokenRaffles] = useState<TokenRaffleWithWinners[]>(
     []
@@ -290,7 +275,6 @@ export default function Home() {
   );
   const [hasMounted, setHasMounted] = useState(false);
 
-  const [displayName, setDisplayName] = useState<string>("");
   const [profileSummary, setProfileSummary] = useState<ProfileSummary | null>(
     null
   );
@@ -348,40 +332,6 @@ const refreshMilesBalanceSoon = useCallback(() => {
     return () => window.removeEventListener(BALANCE_REFRESH_EVENT, handler);
   }, [refreshMilesBalanceSoon]);
   
-
-  /** ───────── fetch username (if set) ───────── */
-  useEffect(() => {
-    if (!address) {
-      setDisplayName("");
-      return;
-    }
-    const loadUsername = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("users")
-          .select("username")
-          .eq("user_address", address.toLowerCase())
-          .maybeSingle();
-
-        if (error) {
-          console.error("[Home] fetch username error:", error);
-          setDisplayName(truncateEthAddress(address));
-          return;
-        }
-
-        if (data?.username) {
-          setDisplayName(data.username as string);
-        } else {
-          setDisplayName(truncateEthAddress(address));
-        }
-      } catch (e) {
-        console.error("[Home] username fetch exception:", e);
-        setDisplayName(truncateEthAddress(address));
-      }
-    };
-
-    void loadUsername();
-  }, [address]);
 
   useEffect(() => {
     if (!address) return;
@@ -620,7 +570,6 @@ const refreshMilesBalanceSoon = useCallback(() => {
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
   };
 
-  const headerName = displayName || (address ? truncateEthAddress(address) : "");
   const claimDisabled = badgeBusy || !hasClaimableBadges;
 
 const badgeButtonLabel =
@@ -655,34 +604,119 @@ const badgeButtonLabel =
     setActiveSheet("physical");
   };
 
+  // Shared token-raffle open flow — used by both the hero CTA and the carousel cards
+  const openTokenRaffle = (r: TokenRaffleWithWinners) => {
+    const cardImg =
+      (r as any).image ?? TOKEN_IMAGES[r.token.symbol] ?? TOKEN_IMAGES.default;
+
+    setPhysicalRaffle(null);
+    setSpendRaffle({
+      id: r.id,
+      title: r.cardTitle ?? r.prizeTitle ?? `${r.rewardPool} ${r.token.symbol}`,
+      reward: `${r.rewardPool} ${r.token.symbol}`,
+      prize: `${r.rewardPool} ${r.token.symbol}`,
+      endDate: formatEndsIn(r.ends),
+      ticketCost: `${r.ticketCost} AkibaMiles`,
+      image: cardImg,
+      balance: Number(akibaMilesBalance),
+      symbol: r.token.symbol,
+      maxTickets: r.maxTickets,
+      totalTickets: r.totalTickets,
+      winners: r.winners,
+      requirements: (r.requirements as RaffleRequirementsResult | null) ?? null,
+    });
+    setActiveSheet("token");
+  };
+
+  // Featured campaign = first active token raffle; the rest fill the carousel below.
+  const featuredRaffle = tokenRaffles[0];
+  const restRaffles = tokenRaffles.slice(1);
+  const featuredImage = featuredRaffle
+    ? ((featuredRaffle as any).image ??
+        TOKEN_IMAGES[featuredRaffle.token.symbol] ??
+        TOKEN_IMAGES.default)
+    : null;
+  const featuredTitle = featuredRaffle
+    ? (featuredRaffle.cardTitle ??
+        featuredRaffle.prizeTitle ??
+        `${featuredRaffle.rewardPool} ${featuredRaffle.token.symbol}`)
+    : "";
+
   return (
     <main className="pb-24 font-sterling">
-      {/* 🏆 Winner modal only mounts when user opens from the header icon */}
-      {winnerOpen && (
-        <WinningModal open={winnerOpen} onOpenChange={setWinnerOpen} />
+      <AppHeader />
+
+      {/* 🎟️ Active campaign — primary call-to-action */}
+      {featuredRaffle && (
+        <CampaignHero
+          title={featuredTitle}
+          image={featuredImage}
+          endsIn={formatEndsIn(featuredRaffle.ends)}
+          ticketCost={`${featuredRaffle.ticketCost}/ticket`}
+          winners={featuredRaffle.winners}
+          icon={akibaMilesSymbol}
+          onEnter={() => openTokenRaffle(featuredRaffle)}
+        />
       )}
 
-      <ActiveStreaksSheet
-        open={streakSheetOpen}
-        onOpenChange={setStreakSheetOpen}
-        onSummaryChange={setStreakSummary}
-        userAddress={address ?? undefined}
-      />
+      {/* Daily challenges — the daily check-in lives here, promoted near the top */}
+      <div className="mx-4 mt-6 gap-1">
+        <div className="flex justify-between items-center my-2">
+          <h3 className="text-lg font-medium">Daily challenges</h3>
+          <Link href="/earn">
+            <span className="text-sm text-[#238D9D] hover:underline font-medium">
+              See All ›
+            </span>
+          </Link>
+        </div>
+        <p className="text-gray-500">
+          Completed a challenge? Click & claim Miles
+        </p>
+        <div className="flex gap-3 overflow-x-auto">
+          <DailyChallenges />
+        </div>
+      </div>
 
-      <DashboardHeader
-        name={headerName}
-        onOpenWinners={() => setWinnerOpen(true)}
-        onOpenStreaks={() => setStreakSheetOpen(true)}
-        streakCount={streakSummary.activeCount}
-        claimableStreakCount={streakSummary.claimableCount}
-        urgentStreakCount={streakSummary.urgentCount}
-      />
+      {/* More rewards — remaining raffles (featured one is in the hero) */}
+      {restRaffles.length > 0 && (
+        <div className="mx-4 mt-6">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-medium">More rewards</h3>
+            <Link href="/spend">
+              <span className="text-sm text-[#238D9D] hover:underline">
+                View more ›
+              </span>
+            </Link>
+          </div>
 
-      <PointsCard points={Number(akibaMilesBalance)} />
+          <div className="flex gap-3 overflow-x-auto">
+            {restRaffles.map((r) => {
+              const cardImg =
+                (r as any).image ??
+                TOKEN_IMAGES[r.token.symbol] ??
+                TOKEN_IMAGES.default;
+
+              return (
+                <RaffleCard
+                  key={r.id}
+                  image={cardImg}
+                  title={`${r.rewardPool} ${r.token.symbol}`}
+                  endsIn={formatEndsIn(r.ends)}
+                  ticketCost={`${r.ticketCost}/ticket`}
+                  icon={akibaMilesSymbol}
+                  winners={r.winners}
+                  locked={false}
+                  onClick={() => openTokenRaffle(r)}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Skill games promo */}
       <div className="mx-4 mt-4">
-        <Link href="/games" className="block">
+        <Link href="/spend" className="block">
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#238D9D] via-[#1d7a89] to-[#155f6a] px-4 py-3.5 shadow-lg shadow-[#238D9D]/30 active:scale-[0.99] transition-transform">
             {/* decorative circles */}
             <div className="pointer-events-none absolute -top-6 -right-6 h-24 w-24 rounded-full bg-white/10" />
@@ -747,25 +781,8 @@ const badgeButtonLabel =
         <ProsperityPassCard onClaim={() => router.push("/prosperity-pass")} />
       )}
 
-      {/* Daily challenges */}
-      <div className="mx-4 mt-6 gap-1">
-        <div className="flex justify-between items-center my-2">
-          <h3 className="text-lg font-medium">Daily challenges</h3>
-          <Link href="/earn">
-            <span className="text-sm text-[#238D9D] hover:underline font-medium">
-              See All ›
-            </span>
-          </Link>
-        </div>
-        <p className="text-gray-500">
-          Completed a challenge? Click & claim Miles
-        </p>
-        <div className="flex gap-3 overflow-x-auto">
-          <DailyChallenges />
-        </div>
-      </div>
-
-      {/* Pass Badges (always render to avoid "no badges" impression) */}
+      {/* Pass Badges — only shown once the user has a Prosperity Pass */}
+      {(passport.status === "has" || passport.status === "loading") && (
       <div className="mx-4 mt-6">
         <div className="flex justify-between items-center my-2">
           <h3 className="text-lg font-medium">Pass Badges</h3>
@@ -845,140 +862,9 @@ const badgeButtonLabel =
           </div>
         )}
 
-        {passport.status === "none" && (
-          <div className="text-sm text-gray-500">
-            Get Prosperity Pass to unlock badges.
-          </div>
-        )}
-
         {passport.status === "has" && <BadgesSection progress={badgeProgress} />}
       </div>
-
-
-      {/* PHYSICAL — Top Prizes
-      <div className="mx-4 mt-6">
-        <div className="flex justify-between items-center">
-          <h3 className="text-lg font-extrabold mb-2">Top Prizes</h3>
-        </div>
-
-        <div className="flex gap-3 overflow-x-auto">
-          {topPrizes.map((r) => {
-            const cardImg = pickPhysicalImage(r);
-            const title = physicalTitle(r);
-
-            return (
-              <RaffleCard
-                key={r.id}
-                image={cardImg}
-                title={title}
-                endsIn={formatEndsIn(r.ends)}
-                ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
-                icon={akibaMilesSymbol}
-                locked={false}
-                onClick={() => openPhysical(r)}
-              />
-            );
-          })}
-
-          {topPrizes.length === 0 && (
-            <div className="text-sm opacity-70 px-2 py-4">
-              No top prizes live right now.
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* PHYSICAL — Advent Daily Prizes */}
-      {/* <div className="mx-4 mt-6">
-        <div className="flex justify-between items-center">
-          <h3 className="text-lg font-extrabold mb-2">Advent Daily Prizes</h3>
-        </div>
-
-        <div className="flex gap-3 overflow-x-auto">
-          {adventDaily.map((r) => {
-            const cardImg = pickPhysicalImage(r);
-            const title = physicalTitle(r);
-
-            return (
-              <RaffleCard
-                key={r.id}
-                image={cardImg}
-                title={title}
-                endsIn={formatEndsIn(r.ends)}
-                ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
-                icon={akibaMilesSymbol}
-                locked={false}
-                onClick={() => openPhysical(r)}
-              />
-            );
-          })}
-
-          {adventDaily.length === 0 && (
-            <div className="text-sm opacity-70 px-2 py-4">
-              No advent daily prizes live right now.
-            </div>
-          )}
-        </div>
-      </div>  */}
-
-      {/* TOKEN / Join Rewards */}
-      <div className="mx-4 mt-6">
-        <div className="flex justify-between items-center">
-          <h3 className="text-lg font-medium">MiniPay x AkibaMiles June Rewards</h3>
-          <Link href="/spend">
-            <span className="text-sm text-[#238D9D] hover:underline">
-              View more ›
-            </span>
-          </Link>
-        </div>
-
-
-        <div className="flex gap-3 overflow-x-auto">
-          {tokenRaffles.map((r) => {
-            const cardImg =
-              (r as any).image ??
-              TOKEN_IMAGES[r.token.symbol] ??
-              TOKEN_IMAGES.default;
-
-            return (
-              <RaffleCard
-                key={r.id}
-                image={cardImg}
-                title={`${r.rewardPool} ${r.token.symbol}`}
-                endsIn={formatEndsIn(r.ends)}
-                ticketCost={`${r.ticketCost} AkibaMiles for 1 ticket`}
-                icon={akibaMilesSymbol}
-                winners={r.winners}
-                locked={false}
-                onClick={() => {
-                  setSpendRaffle({
-                    id: r.id,
-                    title: r.cardTitle ?? r.prizeTitle ?? `${r.rewardPool} ${r.token.symbol}`,
-                    reward: `${r.rewardPool} ${r.token.symbol}`,
-                    prize: `${r.rewardPool} ${r.token.symbol}`,
-                    endDate: formatEndsIn(r.ends),
-                    ticketCost: `${r.ticketCost} AkibaMiles`,
-                    image: cardImg,
-                    balance: Number(akibaMilesBalance),
-                    symbol: r.token.symbol,
-                    maxTickets: r.maxTickets,
-                    totalTickets: r.totalTickets,
-                    winners: r.winners,
-                    requirements: r.requirements as RaffleRequirementsResult | null ?? null,
-                  });
-                  setActiveSheet("token");
-                }}
-              />
-            );
-          })}
-
-          {tokenRaffles.length === 0 && (
-            <div className="text-sm opacity-70 px-2 py-4">
-              No Rewards live right now.
-            </div>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* Sheets */}
       <BadgeClaimLoadingSheet
