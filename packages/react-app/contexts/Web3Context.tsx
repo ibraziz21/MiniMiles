@@ -7,6 +7,7 @@ import {
   createPublicClient,
   createWalletClient,
   custom,
+  decodeEventLog,
   getContract,
   http,
   parseEther,
@@ -46,20 +47,6 @@ const CLAW_GAME_ADDRESS = (
   process.env.NEXT_PUBLIC_CLAW_GAME_ADDRESS ??
   "0x32cd4449A49786f8e9C68A5466d46E4dbC5197B3"
 ) as `0x${string}`;
-const CLAW_USDT_ADDRESS = (
-  process.env.NEXT_PUBLIC_CLAW_USDT_ADDRESS ??
-  "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e"
-) as `0x${string}`;
-
-const USDT_ABI = [
-  {
-    inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }],
-    name: "approve",
-    outputs: [{ name: "", type: "bool" }],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-] as const;
 
 type Web3ContextValue = ReturnType<typeof useWeb3Logic>;
 
@@ -607,21 +594,6 @@ function useWeb3Logic() {
     [walletClient, address, publicClient]
   );
 
-  const approveClawUsdt = useCallback(async () => {
-    if (!walletClient || !address) throw new Error("Wallet not connected");
-    const MAX = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
-    const hash = await walletClient.writeContract({
-      chain: walletClient.chain,
-      address: CLAW_USDT_ADDRESS,
-      abi: USDT_ABI,
-      functionName: "approve",
-      account: address as `0x${string}`,
-      args: [CLAW_GAME_ADDRESS, MAX],
-    });
-    await writePublicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 60_000 });
-    return hash;
-  }, [walletClient, address, writePublicClient]);
-
   const startClawGame = useCallback(async (tierId: number) => {
     if (!walletClient || !address) throw new Error("Wallet not connected");
     const { request } = await writePublicClient.simulateContract({
@@ -633,8 +605,42 @@ function useWeb3Logic() {
       chain: celo,
     });
     const hash = await walletClient.writeContract(request);
-    await writePublicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 90_000 });
-    return hash;
+    const receipt = await writePublicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 90_000 });
+
+    let sessionId: string | null = null;
+    for (const log of receipt.logs) {
+      if (log.address.toLowerCase() !== CLAW_GAME_ADDRESS.toLowerCase()) continue;
+      try {
+        const decoded = decodeEventLog({
+          abi: clawAbi.abi,
+          eventName: "GameStarted",
+          data: log.data,
+          topics: log.topics,
+        }) as any;
+        const args = decoded.args as any;
+        if ((args.player as string | undefined)?.toLowerCase() !== address.toLowerCase()) continue;
+        sessionId = (args.sessionId as bigint).toString();
+        break;
+      } catch {
+        // Ignore unrelated logs emitted by the same transaction.
+      }
+    }
+
+    try {
+      const res = await fetch("/api/claw/sessions/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ txHash: hash, sessionId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        console.warn("[Web3Context] claw session registration failed:", data?.error ?? res.status);
+      }
+    } catch (e) {
+      console.warn("[Web3Context] claw session registration failed:", e);
+    }
+
+    return { hash, sessionId };
   }, [walletClient, address, writePublicClient]);
 
   const burnClawVoucherReward = useCallback(async (sessionId: bigint) => {
@@ -731,7 +737,6 @@ function useWeb3Logic() {
     getUserRaffleTickets,
     fetchDiceRound,
     joinDice,
-    approveClawUsdt,
     startClawGame,
     burnClawVoucherReward,
     approveUsdtForDice,

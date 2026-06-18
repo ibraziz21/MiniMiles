@@ -6,7 +6,6 @@
 // of assignment or proof-loading code.
 
 import { NextResponse } from "next/server";
-import { createPublicClient, http } from "viem";
 import { celo } from "viem/chains";
 import { supabase } from "@/lib/supabaseClient";
 import clawAbi from "@/contexts/akibaClawGame.json";
@@ -14,9 +13,9 @@ import batchRngAbi from "@/contexts/merkleBatchRng.json";
 import {
   getClients,
   settleSession,
-  assignBatchPlay,
   logSettle,
 } from "@/lib/server/clawAssign";
+import { upsertClawSession } from "@/lib/server/clawSessions";
 
 const CLAW_GAME = (process.env.NEXT_PUBLIC_CLAW_GAME_ADDRESS ??
   "0x32cd4449A49786f8e9C68A5466d46E4dbC5197B3") as `0x${string}`;
@@ -91,9 +90,9 @@ export async function POST(_req: Request) {
         toBlock: currentBlock,
       });
     } catch {
-      // RPC rejected the large range — retry in 2000-block chunks
+      // RPC rejected the large range — retry below Forno's 1000-block limit.
       try {
-        const CHUNK = 2000n;
+        const CHUNK = 900n;
         for (let start = fromBlock; start <= currentBlock; start += CHUNK) {
           const end = start + CHUNK - 1n < currentBlock ? start + CHUNK - 1n : currentBlock;
           const chunk = await pub.getLogs({
@@ -125,6 +124,16 @@ export async function POST(_req: Request) {
         })) as any;
 
         const status = Number(session.status);
+        const player = String(session.player ?? session[1] ?? (logEntry.args as any).player ?? "").toLowerCase();
+        const tierId = Number(session.tierId ?? session[2] ?? (logEntry.args as any).tierId ?? 0);
+        if (player) {
+          await upsertClawSession({
+            sessionId: sessionIdStr,
+            player,
+            tierId,
+            txHash: logEntry.transactionHash ?? null,
+          }).catch(() => {});
+        }
 
         // ── Pending: ensure assignment exists, then settle ─────────────
         if (status === SS.PENDING) {

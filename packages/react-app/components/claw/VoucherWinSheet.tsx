@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Gift, CurrencyDollar, Confetti } from "@phosphor-icons/react";
+import { X, Gift, Confetti } from "@phosphor-icons/react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { AKIBA_TOKEN_SYMBOL, GameSession, RewardClass, REWARD_META, TIER_META } from "@/lib/clawTypes";
 
@@ -109,7 +109,7 @@ export function VoucherWinSheet({ open, onOpenChange, session, onKeep, onBurn, b
           {/* Tagline */}
           <p className="text-sm text-gray-500 text-center leading-relaxed mb-6 max-w-xs">
             {isLegendary
-              ? "You've won a full-value voucher — use it at any partnered merchant, or burn it for a USDT fallback."
+              ? "You've won a full-value voucher — use it at any partnered merchant."
               : `Use this 20% voucher at any merchant, or burn it now for an ${AKIBA_TOKEN_SYMBOL} fallback.`}
           </p>
 
@@ -129,30 +129,22 @@ export function VoucherWinSheet({ open, onOpenChange, session, onKeep, onBurn, b
               Keep my voucher
             </button>
 
-            {/* Burn fallback */}
-            <button
-              onClick={onBurn}
-              disabled={burning}
-              className="w-full rounded-2xl text-sm font-semibold border flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] disabled:opacity-50 whitespace-nowrap"
-              style={{
-                height: 48,
-                borderColor: `${accent}44`,
-                color: accent,
-                background: "white",
-              }}
-            >
-              {isLegendary ? (
-                <>
-                  <CurrencyDollar size={15} weight="bold" className="shrink-0" />
-                  <span>Burn for USDT fallback</span>
-                </>
-              ) : (
-                <>
-                  <Gift size={15} weight="bold" className="shrink-0" />
-                  <span>Burn for {AKIBA_TOKEN_SYMBOL} fallback</span>
-                </>
-              )}
-            </button>
+            {!isLegendary && (
+              <button
+                onClick={onBurn}
+                disabled={burning}
+                className="w-full rounded-2xl text-sm font-semibold border flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] disabled:opacity-50 whitespace-nowrap"
+                style={{
+                  height: 48,
+                  borderColor: `${accent}44`,
+                  color: accent,
+                  background: "white",
+                }}
+              >
+                <Gift size={15} weight="bold" className="shrink-0" />
+                <span>Burn for {AKIBA_TOKEN_SYMBOL} fallback</span>
+              </button>
+            )}
           </div>
         </div>
       </SheetContent>

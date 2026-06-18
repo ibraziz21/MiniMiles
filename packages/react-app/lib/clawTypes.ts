@@ -18,11 +18,6 @@ export const VOUCHER_REGISTRY_ADDRESS = (
   "0xdBFF182cc08e946FF92C5bA575140E41Ea8e63bC"
 ) as `0x${string}`;
 
-export const CLAW_USDT_ADDRESS = (
-  process.env.NEXT_PUBLIC_CLAW_USDT_ADDRESS ??
-  "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e"
-) as `0x${string}`;
-
 export const MILES_ADDRESS = (
   process.env.NEXT_PUBLIC_MINIPOINTS_V2_ADDRESS ??
   "0xab93400000751fc17918940C202A66066885d628"
@@ -68,8 +63,6 @@ export type TierConfig = {
   legendaryWeight: number;
   commonMilesReward: bigint;
   rareBurnMiles: bigint;
-  epicUsdtReward: bigint;
-  legendaryBurnUsdt: bigint;
   rareVoucherBps: number;
   legendaryVoucherBps: number;
   legendaryVoucherCap: bigint;
@@ -134,5 +127,5 @@ export const REWARD_META: Record<
   [RewardClass.Common]:    { label: AKIBA_TOKEN_SYMBOL, color: "#22C55E", emoji: "🪙", description: "AkibaMiles credited to your wallet." },
   [RewardClass.Rare]:      { label: "Voucher",    color: "#06B6D4", emoji: "🎟️", description: "20% merchant voucher. Burn for AkibaMiles fallback." },
   [RewardClass.Epic]:      { label: "Bonus",      color: "#8B5CF6", emoji: "💎", description: "Bonus reward credited to your account." },
-  [RewardClass.Legendary]: { label: "Legendary",  color: "#F59E0B", emoji: "⭐", description: "Capped full-value voucher. Burn for 50% USDT fallback." },
+  [RewardClass.Legendary]: { label: "Legendary",  color: "#F59E0B", emoji: "⭐", description: "Capped full-value voucher." },
 };
