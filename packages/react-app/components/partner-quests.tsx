@@ -115,45 +115,7 @@ const PARTNER_GROUPS: PartnerGroup[] = [
       },
     ],
   },
-    {
-    id: 'pretium',
-    img: pretiumLogo,
-    title: 'Pretium',
-    description: 'Sign up with code AKIBA1 & earn miles',
-    color: '#EEF6FF',
-    quests: [
-      {
-        id: 'pretium_signup',
-        questType: 'pretium_signup',
-        isLocked: false,
-        title: 'Sign Up to Pretium',
-        description: 'Download Pretium & sign up using referral code AKIBA1. Miles awarded after Pretium verifies your account.',
-        reward: '50 akibaMiles',
-        color: '#EEF6FF',
-        actionLink: PRETIUM_PLAY_STORE_URL,
-        instructions: [
-          { title: 'Download Pretium', text: 'Tap the button below to get the Pretium app on the Play Store.' },
-          { title: 'Use code AKIBA1', text: 'You MUST enter referral code AKIBA1 during sign-up — accounts registered without it cannot be verified.' },
-          { title: 'Submit here', text: 'Come back and tap Submit. Pretium verifies accounts daily — miles arrive within 24 hours of confirmation.' },
-        ],
-      },
-      {
-        id: 'pretium_transact',
-        questType: 'pretium_transact',
-        isLocked: false,
-        title: 'Transact on Pretium',
-        description: 'Make any transaction on Pretium. Miles awarded after Pretium verifies the activity.',
-        reward: '50 akibaMiles',
-        color: '#EEF6FF',
-        actionLink: PRETIUM_PLAY_STORE_URL,
-        instructions: [
-          { title: 'Open Pretium', text: 'Log in to the Pretium app (must have signed up with code AKIBA1).' },
-          { title: 'Transact', text: 'Send, receive, or convert — any on-platform transaction counts.' },
-          { title: 'Submit here', text: 'Come back and tap Submit. Pretium verifies activity daily — miles arrive within 24 hours of confirmation.' },
-        ],
-      },
-    ],
-  },
+
   {
     id: 'girasolonchain',
     img: girasolonchain,
