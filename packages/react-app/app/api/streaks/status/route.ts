@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabaseClient";
 import { scopeKeyFor } from "@/helpers/streaks";
-
-const DAILY_SEND_QUEST_ID = "383eaa90-75aa-4592-a783-ad9126e8f04d";
-const SEVEN_DAY_STREAK_QUEST_ID = "6ddc811a-1a4d-4e57-871d-836f07486531";
+import {
+  addUtcDays,
+  buildSevenDaySendStreakStatus,
+  dailyBreaksAt,
+} from "@/lib/sevenDaySendStreak";
 
 const TRACKED_STREAKS = [
   {
@@ -37,35 +39,11 @@ const TRACKED_STREAKS = [
   },
 ] as const;
 
-function addUtcDays(date: Date, days: number) {
-  const copy = new Date(date);
-  copy.setUTCDate(copy.getUTCDate() + days);
-  return copy;
-}
-
 function utcDayEnd(date: Date) {
   const end = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
   end.setUTCDate(end.getUTCDate() + 1);
   end.setUTCMilliseconds(-1);
   return end;
-}
-
-function dateKey(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function parseDateKey(key: string) {
-  return new Date(`${key}T00:00:00.000Z`);
-}
-
-function dailyBreaksAt(lastScopeKey: string, todayKey: string): string | null {
-  const last = parseDateKey(lastScopeKey);
-  const today = parseDateKey(todayKey);
-  const daysSince = Math.floor((today.getTime() - last.getTime()) / 86_400_000);
-
-  if (daysSince === 0) return utcDayEnd(addUtcDays(today, 1)).toISOString();
-  if (daysSince === 1) return utcDayEnd(today).toISOString();
-  return null;
 }
 
 function isoWeekStart(year: number, week: number) {
@@ -90,65 +68,6 @@ function weeklyBreaksAt(lastScopeKey: string, currentWeekKey: string): string | 
   if (weeksSince === 0) return utcDayEnd(addUtcDays(current, 13)).toISOString();
   if (weeksSince === 1) return utcDayEnd(addUtcDays(current, 6)).toISOString();
   return null;
-}
-
-function runLengthEndingAt(claimed: Set<string>, newestAllowed: Date) {
-  let count = 0;
-  for (let i = 0; i < 14; i++) {
-    const key = dateKey(addUtcDays(newestAllowed, -i));
-    if (!claimed.has(key)) break;
-    count++;
-  }
-  return count;
-}
-
-async function buildSevenDayStatus(wallet: string, today: Date) {
-  const dates = Array.from({ length: 14 }, (_, i) => dateKey(addUtcDays(today, -i)));
-  const lastSeven = dates.slice(0, 7);
-
-  const [{ data: sendRows }, { data: claimRows }] = await Promise.all([
-    supabase
-      .from("daily_engagements")
-      .select("claimed_at")
-      .eq("user_address", wallet)
-      .eq("quest_id", DAILY_SEND_QUEST_ID)
-      .in("claimed_at", dates),
-    supabase
-      .from("daily_engagements")
-      .select("claimed_at")
-      .eq("user_address", wallet)
-      .eq("quest_id", SEVEN_DAY_STREAK_QUEST_ID)
-      .in("claimed_at", lastSeven),
-  ]);
-
-  const claimedDays = new Set((sendRows ?? []).map((r) => String(r.claimed_at).slice(0, 10)));
-  const completedLastSeven = lastSeven.filter((d) => claimedDays.has(d)).length;
-  const newestAllowed = claimedDays.has(lastSeven[0]) ? today : addUtcDays(today, -1);
-  const currentStreak = runLengthEndingAt(claimedDays, newestAllowed);
-  const lastClaimed = dates.find((d) => claimedDays.has(d)) ?? null;
-  const completedCurrentScope = claimedDays.has(lastSeven[0]);
-  const sevenRewardClaimed = (claimRows ?? []).length > 0;
-  const claimable = completedLastSeven === 7 && !sevenRewardClaimed;
-  const todayKey = dateKey(today);
-  const breaksAt = lastClaimed ? dailyBreaksAt(lastClaimed, todayKey) : null;
-
-  return {
-    id: "seven_day_send",
-    title: "7-day send streak",
-    description: "Claim the daily send quest 7 days in a row.",
-    cadence: "daily",
-    currentStreak,
-    longestStreak: currentStreak,
-    target: 7,
-    progress: Math.min(7, completedLastSeven),
-    daysLeft: Math.max(0, 7 - Math.min(7, completedLastSeven)),
-    claimable,
-    rewardClaimed: sevenRewardClaimed,
-    broken: currentStreak === 0,
-    breaksAt,
-    lastScopeKey: lastClaimed,
-    completedCurrentScope,
-  };
 }
 
 export async function GET() {
@@ -208,7 +127,14 @@ export async function GET() {
     };
   });
 
-  const sevenDay = await buildSevenDayStatus(wallet, today);
+  let sevenDay;
+  try {
+    sevenDay = await buildSevenDaySendStreakStatus(supabase, wallet, today);
+  } catch (error) {
+    console.error("[streaks/status] seven-day send", error);
+    return NextResponse.json({ error: "db-error" }, { status: 500 });
+  }
+
   const streaks = [sevenDay, ...tracked];
 
   return NextResponse.json({
