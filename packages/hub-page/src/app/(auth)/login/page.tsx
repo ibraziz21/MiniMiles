@@ -8,10 +8,21 @@ import { Logo } from "@/components/Logo";
 type Mode = "otp" | "password";
 type OtpStep = "email" | "verify";
 
+function safeNextPath(value: string | null): string {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/me";
+  return value;
+}
+
+function authCallbackUrl(next: string): string {
+  const configuredOrigin = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
+  const origin = configuredOrigin || window.location.origin;
+  return `${origin}/auth/callback?next=${encodeURIComponent(next)}`;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") ?? "/me";
+  const next = safeNextPath(searchParams.get("next"));
 
   const [mode, setMode] = useState<Mode>("otp");
   const [otpStep, setOtpStep] = useState<OtpStep>("email");
@@ -31,7 +42,10 @@ export default function LoginPage() {
     setError(null);
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { shouldCreateUser: true },
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: authCallbackUrl(next),
+      },
     });
     setLoading(false);
     if (error) return setError(error.message);
