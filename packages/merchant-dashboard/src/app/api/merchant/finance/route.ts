@@ -18,7 +18,7 @@ export async function GET() {
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString();
 
-  const [txRes, settingsRes, voucherTemplatesRes] = await Promise.all([
+  const [txRes, settingsRes, voucherTemplatesRes, settlementBalanceRes, settlementEntriesRes, settlementBatchesRes] = await Promise.all([
     supabase
       .from("merchant_transactions")
       .select("status, amount_cusd, created_at")
@@ -32,6 +32,22 @@ export async function GET() {
       .from("spend_voucher_templates")
       .select("id, active")
       .eq("partner_id", partnerId),
+    supabase
+      .from("v_partner_voucher_payable_balances")
+      .select("currency,pending_amount,batched_amount,paid_amount")
+      .eq("partner_id", partnerId),
+    supabase
+      .from("voucher_settlement_entries")
+      .select("id,issued_voucher_id,program_id,gross_amount_cusd,discount_amount_cusd,payable_amount,currency,created_at")
+      .eq("merchant_id", partnerId)
+      .order("created_at", { ascending: false })
+      .limit(100),
+    supabase
+      .from("v_partner_settlement_batches")
+      .select("id,state,item_count,total_payable_amount,currency,payment_reference,paid_at,created_at")
+      .eq("partner_id", partnerId)
+      .order("created_at", { ascending: false })
+      .limit(100),
   ]);
 
   const txs = txRes.data ?? [];
@@ -92,6 +108,8 @@ export async function GET() {
     }));
 
   const wallet_address = settingsRes.data?.wallet_address ?? null;
+  const balances = settlementBalanceRes.data ?? [];
+  const balance = balances.find((row) => row.currency === "cUSD") ?? balances[0];
 
   const result: FinanceStats = {
     total_revenue_cusd,
@@ -104,6 +122,23 @@ export async function GET() {
     estimated_receivable_cusd,
     monthly,
     wallet_address,
+    settlement: {
+      pending_amount: Number(balance?.pending_amount ?? 0),
+      batched_amount: Number(balance?.batched_amount ?? 0),
+      paid_amount: Number(balance?.paid_amount ?? 0),
+      currency: String(balance?.currency ?? "cUSD"),
+      redemptions: (settlementEntriesRes.data ?? []).map((row) => ({
+        ...row,
+        gross_amount_cusd: Number(row.gross_amount_cusd),
+        discount_amount_cusd: Number(row.discount_amount_cusd),
+        payable_amount: Number(row.payable_amount),
+      })),
+      batches: (settlementBatchesRes.data ?? []).map((row) => ({
+        ...row,
+        item_count: Number(row.item_count),
+        total_payable_amount: Number(row.total_payable_amount),
+      })),
+    },
   };
 
   return NextResponse.json(result);

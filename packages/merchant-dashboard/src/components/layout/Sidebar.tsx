@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, ShoppingBag, Package, Tag, BarChart2, Users, Settings, LogOut, Landmark, FileText } from "lucide-react";
+import { LayoutDashboard, ShoppingBag, Package, Tag, QrCode, BarChart2, Users, Settings, LogOut, Landmark, FileText } from "lucide-react";
 import { BrandMark } from "./BrandMark";
 
 interface SidebarProps {
@@ -16,6 +16,7 @@ const navItems = [
   { href: "/orders", label: "Orders", icon: ShoppingBag },
   { href: "/products", label: "Products", icon: Package },
   { href: "/vouchers", label: "Vouchers", icon: Tag },
+  { href: "/vouchers/redeem", label: "Scan voucher", icon: QrCode },
   { href: "/finance", label: "Finance", icon: Landmark },
   { href: "/billing", label: "Billing", icon: FileText },
   { href: "/analytics", label: "Analytics", icon: BarChart2 },
@@ -49,7 +50,13 @@ export function Sidebar({ partnerName, newOrdersCount = 0 }: SidebarProps) {
       {/* Nav */}
       <nav className="flex-1 space-y-1 p-3">
         {navItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(href + "/");
+          const active =
+            pathname === href ||
+            (pathname.startsWith(href + "/") &&
+              !navItems.some(
+                (item) => item.href !== href && item.href.startsWith(href + "/") &&
+                  (pathname === item.href || pathname.startsWith(item.href + "/"))
+              ));
           return (
             <Link
               key={href}

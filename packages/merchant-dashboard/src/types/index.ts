@@ -251,6 +251,32 @@ export interface FinanceStats {
   monthly: FinanceMonthly[];
   // Payment details
   wallet_address: string | null;
+  settlement: {
+    pending_amount: number;
+    batched_amount: number;
+    paid_amount: number;
+    currency: string;
+    redemptions: Array<{
+      id: string;
+      issued_voucher_id: string | null;
+      program_id: string | null;
+      gross_amount_cusd: number;
+      discount_amount_cusd: number;
+      payable_amount: number;
+      currency: string;
+      created_at: string;
+    }>;
+    batches: Array<{
+      id: string;
+      state: string;
+      item_count: number;
+      total_payable_amount: number;
+      currency: string;
+      payment_reference: string | null;
+      paid_at: string | null;
+      created_at: string;
+    }>;
+  };
 }
 
 // ── Payout invoices ───────────────────────────────────────────────────────────

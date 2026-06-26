@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { PayoutInvoiceActions } from "@/components/finance/PayoutInvoiceActions";
 import { ExternalLink } from "lucide-react";
+import Link from "next/link";
 
 type PayoutInvoiceRow = {
   id: string;
@@ -128,6 +129,11 @@ export default async function FinancePage() {
     <div>
       <TopBar title="Finance" subtitle="Merchant revenue, payout processing, and receipts" />
       <div className="space-y-6 p-6">
+        <div className="flex justify-end">
+          <Link href="/finance/settlements" className="rounded-md bg-[#238D9D] px-4 py-2 text-sm font-medium text-white">
+            Voucher settlements
+          </Link>
+        </div>
         <div className="grid gap-4 sm:grid-cols-4">
           <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Completed Revenue</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">${formatNumber(Math.round(revenue * 100) / 100)}</p></CardContent></Card>
           <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">In Flight</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">${formatNumber(Math.round(inFlight * 100) / 100)}</p></CardContent></Card>

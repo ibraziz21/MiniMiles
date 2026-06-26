@@ -15,8 +15,10 @@ import {
   Copy,
   Check,
   Wallet,
+  Download,
 } from "lucide-react";
 import type { FinanceStats } from "@/types";
+import { PayoutDestinations } from "@/components/finance/PayoutDestinations";
 
 function fmtUSD(val: number) {
   return `$${val.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -63,6 +65,9 @@ export default function FinancePage() {
   const [walletError, setWalletError] = useState<string | null>(null);
   const [walletSaved, setWalletSaved] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [settlementStatus, setSettlementStatus] = useState("all");
+  const [settlementFrom, setSettlementFrom] = useState("");
+  const [settlementTo, setSettlementTo] = useState("");
 
   useEffect(() => {
     Promise.all([
@@ -124,6 +129,19 @@ export default function FinancePage() {
   }
 
   const maxMonthRevenue = data.monthly.reduce((m, r) => Math.max(m, r.revenue_cusd), 1);
+  const inDateRange = (createdAt: string) => {
+    const ts = new Date(createdAt).getTime();
+    if (settlementFrom && ts < new Date(`${settlementFrom}T00:00:00`).getTime()) return false;
+    if (settlementTo && ts > new Date(`${settlementTo}T23:59:59`).getTime()) return false;
+    return true;
+  };
+  const filteredBatches = data.settlement.batches.filter(
+    (batch) => (settlementStatus === "all" || batch.state === settlementStatus) && inDateRange(batch.created_at),
+  );
+  const filteredRedemptions = data.settlement.redemptions.filter((entry) => inDateRange(entry.created_at));
+  const exportQuery = new URLSearchParams();
+  if (settlementFrom) exportQuery.set("from", new Date(`${settlementFrom}T00:00:00`).toISOString());
+  if (settlementTo) exportQuery.set("to", new Date(`${settlementTo}T23:59:59`).toISOString());
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -271,6 +289,95 @@ export default function FinancePage() {
           </Card>
         </div>
 
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle>Voucher Reimbursements</CardTitle>
+              <a
+                href={`/api/merchant/finance/settlements.csv?${exportQuery.toString()}`}
+                className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+              >
+                <Download className="h-4 w-4" /> Export CSV
+              </a>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg bg-amber-50 p-4">
+                <p className="text-xs text-amber-700">Pending reimbursement</p>
+                <p className="text-xl font-bold text-amber-900">{fmtUSD(data.settlement.pending_amount)}</p>
+              </div>
+              <div className="rounded-lg bg-blue-50 p-4">
+                <p className="text-xs text-blue-700">In settlement</p>
+                <p className="text-xl font-bold text-blue-900">{fmtUSD(data.settlement.batched_amount)}</p>
+              </div>
+              <div className="rounded-lg bg-emerald-50 p-4">
+                <p className="text-xs text-emerald-700">Paid</p>
+                <p className="text-xl font-bold text-emerald-900">{fmtUSD(data.settlement.paid_amount)}</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <select
+                value={settlementStatus}
+                onChange={(e) => setSettlementStatus(e.target.value)}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+              >
+                <option value="all">All batch statuses</option>
+                {["draft","approved","processing","paid","failed","cancelled"].map((state) => (
+                  <option key={state} value={state}>{state}</option>
+                ))}
+              </select>
+              <Input type="date" value={settlementFrom} onChange={(e) => setSettlementFrom(e.target.value)} className="w-auto" />
+              <Input type="date" value={settlementTo} onChange={(e) => setSettlementTo(e.target.value)} className="w-auto" />
+            </div>
+
+            <div>
+              <p className="mb-2 text-sm font-semibold text-gray-700">Batch history</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="border-b text-xs uppercase text-gray-400">
+                    <tr><th className="py-2">Created</th><th>Status</th><th>Items</th><th>Amount</th><th>Payment reference</th></tr>
+                  </thead>
+                  <tbody>
+                    {filteredBatches.map((batch) => (
+                      <tr key={batch.id} className="border-b border-gray-100">
+                        <td className="py-2">{new Date(batch.created_at).toLocaleDateString()}</td>
+                        <td className="capitalize">{batch.state}</td>
+                        <td>{batch.item_count}</td>
+                        <td>{fmtUSD(batch.total_payable_amount)}</td>
+                        <td className="font-mono text-xs">{batch.payment_reference ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-sm font-semibold text-gray-700">Redemption-level breakdown</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="border-b text-xs uppercase text-gray-400">
+                    <tr><th className="py-2">Date</th><th>Gross</th><th>Discount</th><th>Payable</th><th>Currency</th></tr>
+                  </thead>
+                  <tbody>
+                    {filteredRedemptions.map((entry) => (
+                      <tr key={entry.id} className="border-b border-gray-100">
+                        <td className="py-2">{new Date(entry.created_at).toLocaleString()}</td>
+                        <td>{fmtUSD(entry.gross_amount_cusd)}</td>
+                        <td>{fmtUSD(entry.discount_amount_cusd)}</td>
+                        <td className="font-medium">{fmtUSD(entry.payable_amount)}</td>
+                        <td>{entry.currency}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* ── Payment details ── */}
         <Card>
           <CardHeader>
@@ -393,6 +500,9 @@ export default function FinancePage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* ── Payout destinations (Phase 5) ── */}
+        <PayoutDestinations isOwner={isOwner} />
 
       </div>
     </div>
