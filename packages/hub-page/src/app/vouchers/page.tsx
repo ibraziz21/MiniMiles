@@ -41,6 +41,12 @@ async function getAllTemplates(): Promise<VoucherTemplate[]> {
   });
 }
 
+const HOW_IT_WORKS = [
+  { n: "1", short: "Choose",        long: "Choose a voucher below" },
+  { n: "2", short: "Redeem",        long: "Redeem instantly with AkibaMiles" },
+  { n: "3", short: "Show at checkout", long: "Show the QR or code at checkout" },
+];
+
 export default async function VouchersPage() {
   const [templates, { data: { user } }] = await Promise.all([
     getAllTemplates(),
@@ -48,36 +54,50 @@ export default async function VouchersPage() {
   ]);
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-      {/* Header */}
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="font-sterling text-3xl font-semibold text-akiba-ink">Vouchers</h1>
-          <p className="mt-2 text-akiba-muted">
-            Spend your AkibaMiles on discounts. Browse what&apos;s available and redeem in MiniPay.
-          </p>
-        </div>
+    <main className="mx-auto max-w-5xl px-4 py-5 sm:py-8 sm:px-6 lg:px-8">
 
+      {/* ── Page header ──────────────────────────────────────────────────── */}
+      <div className="mb-4 sm:mb-8">
+        <h1 className="font-sterling text-2xl font-semibold text-akiba-ink sm:text-3xl">
+          Vouchers
+        </h1>
+        <p className="mt-1 text-sm text-akiba-muted sm:mt-2 sm:text-base">
+          Spend your AkibaMiles on discounts — instantly, no wallet signature needed.
+        </p>
       </div>
 
-      {/* How it works strip */}
-      <div className="mb-8 grid gap-3 rounded-2xl border border-akiba-teal/20 bg-akiba-tint p-4 sm:grid-cols-3 sm:p-5">
-        {[
-          { icon: "1", label: "Choose a voucher below" },
-          { icon: "2", label: "Redeem instantly with AkibaMiles" },
-          { icon: "3", label: "Show the QR or code at checkout" },
-        ].map(({ icon, label }) => (
-          <div key={icon} className="flex items-center gap-3">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-akiba-teal text-xs font-bold text-white">
-              {icon}
+      {/* ── How it works ─────────────────────────────────────────────────── */}
+
+      {/* Mobile: compact pill row */}
+      <div className="mb-4 flex items-center gap-2 overflow-x-auto pb-0.5 sm:hidden">
+        {HOW_IT_WORKS.map(({ n, short }, i) => (
+          <div key={n} className="flex shrink-0 items-center gap-1.5">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-akiba-teal text-[10px] font-bold text-white">
+              {n}
             </span>
-            <p className="text-sm font-medium text-akiba-ink">{label}</p>
+            <span className="text-xs font-medium text-akiba-ink">{short}</span>
+            {i < HOW_IT_WORKS.length - 1 && (
+              <span className="ml-0.5 text-akiba-line">›</span>
+            )}
           </div>
         ))}
       </div>
 
-      {/* Tabs component (client-side for "My vouchers" tab) */}
+      {/* Desktop: full info strip */}
+      <div className="mb-8 hidden sm:grid sm:grid-cols-3 gap-3 rounded-2xl border border-akiba-teal/20 bg-akiba-tint p-5">
+        {HOW_IT_WORKS.map(({ n, long }) => (
+          <div key={n} className="flex items-center gap-3">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-akiba-teal text-xs font-bold text-white">
+              {n}
+            </span>
+            <p className="text-sm font-medium text-akiba-ink">{long}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Tabs + cards ─────────────────────────────────────────────────── */}
       <VoucherTabs templates={templates} isSignedIn={!!user} />
+
     </main>
   );
 }

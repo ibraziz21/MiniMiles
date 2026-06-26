@@ -1,88 +1,76 @@
-import { Zap, Clock, ExternalLink, CheckCircle2 } from "lucide-react";
+import { Zap, Clock } from "lucide-react";
 import { MilesAmount } from "@/components/MilesIcon";
+import { createClient } from "@/lib/supabase/server";
+import { QuestCard } from "./QuestCard";
+import type { Quest, ChainMeta } from "./QuestCard";
 
 export const metadata = { title: "Partner Quests — Akiba Hub" };
 
-async function getQuests() {
-  const AKIBA_API = process.env.AKIBA_API_URL ?? "http://localhost:3001";
+// ── Chain metadata ────────────────────────────────────────────────────────────
+//
+// logoSrc: path inside /public/chains/ — null means show emoji fallback.
+// Add a new entry here when a new chain SVG is copied to public/chains/.
+
+const CHAIN_META: Record<string, ChainMeta> = {
+  celo:    { label: "Celo",    emoji: "🌱", badgeCls: "bg-green-50 text-green-700",     iconBg: "bg-green-50",    logoSrc: "/chains/celo.svg"    },
+  minipay: { label: "MiniPay", emoji: "📱", badgeCls: "bg-akiba-tint text-akiba-teal",  iconBg: "bg-akiba-tint",  logoSrc: "/chains/minipay.svg" },
+};
+
+function getChainMeta(chain?: string): ChainMeta & { key: string } {
+  const key = (chain ?? "general").toLowerCase();
+  const fallback: ChainMeta = {
+    label:    chain ? chain.charAt(0).toUpperCase() + chain.slice(1) : "General",
+    emoji:    "⚡",
+    badgeCls: "bg-akiba-card text-akiba-muted",
+    iconBg:   "bg-akiba-card",
+    logoSrc:  null,
+  };
+  return { ...(CHAIN_META[key] ?? fallback), key };
+}
+
+// ── Data fetching ─────────────────────────────────────────────────────────────
+
+async function getQuests(): Promise<Quest[]> {
+  const api = process.env.AKIBA_API_URL ?? "http://localhost:3001";
   try {
-    const res = await fetch(`${AKIBA_API}/api/v1/hub/quests`, {
+    const res = await fetch(`${api}/api/v1/hub/quests`, {
       next: { revalidate: 120 },
     });
     if (!res.ok) return [];
-    const { quests } = await res.json();
+    const { quests } = (await res.json()) as { quests?: Quest[] };
     return quests ?? [];
   } catch {
     return [];
   }
 }
 
-type Quest = {
-  id: string;
-  title: string;
-  description: string;
-  miles_reward: number;
-  partner_name: string;
-  partner_slug: string;
-  partner_logo?: string;
-  chain?: string;
-  difficulty?: "easy" | "medium" | "hard";
-  ends_at?: string;
-  action_url?: string;
-  completed?: boolean;
-};
-
-const DIFFICULTY_BADGE: Record<string, string> = {
-  easy: "bg-green-50 text-green-700",
-  medium: "bg-amber-50 text-amber-700",
-  hard: "bg-red-50 text-red-700",
-};
-
-// Preview placeholders when no quests loaded
-const PREVIEW_PARTNERS = [
-  {
-    name: "MiniPay",
-    logo: "📱",
-    quests: [
-      { title: "Fund your MiniPay savings", desc: "Save $5 or more in MiniPay.", miles: 150 },
-      { title: "Refer a friend", desc: "Invite a friend who completes a transaction.", miles: 300 },
-    ],
-  },
-  {
-    name: "Base",
-    logo: "🔵",
-    quests: [
-      { title: "Deploy on Base", desc: "Deploy any smart contract on Base mainnet.", miles: 500 },
-      { title: "Bridge to Base", desc: "Bridge at least $10 to Base via the official bridge.", miles: 200 },
-    ],
-  },
-  {
-    name: "Celo",
-    logo: "🌱",
-    quests: [
-      { title: "Stake CELO", desc: "Lock CELO in a validator group for 7+ days.", miles: 250 },
-      { title: "Use a Celo dApp", desc: "Interact with any Celo ecosystem dApp.", miles: 100 },
-    ],
-  },
-];
+// ── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function QuestsPage() {
-  const quests: Quest[] = await getQuests();
+  const [quests, { data: { user } }] = await Promise.all([
+    getQuests(),
+    (await createClient()).auth.getUser(),
+  ]);
 
-  // Group by partner
-  const byPartner = quests.reduce<Record<string, Quest[]>>((acc, q) => {
-    if (!acc[q.partner_slug]) acc[q.partner_slug] = [];
-    acc[q.partner_slug].push(q);
-    return acc;
-  }, {});
-  const partnerGroups = Object.entries(byPartner);
+  const isSignedIn = !!user;
+
+  // Group by chain, preserving API insertion order.
+  const byChain = new Map<string, Quest[]>();
+  for (const q of quests) {
+    const key = (q.chain ?? "general").toLowerCase();
+    if (!byChain.has(key)) byChain.set(key, []);
+    byChain.get(key)!.push(q);
+  }
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-8">
-        <h1 className="font-sterling text-3xl font-semibold text-akiba-ink">Partner Quests</h1>
-        <p className="mt-2 text-akiba-muted">
-          Complete tasks from our partner ecosystem. Earn AkibaMiles for every verified quest.
+    <main className="mx-auto max-w-7xl px-4 py-5 sm:py-8 sm:px-6 lg:px-8">
+
+      <div className="mb-5 sm:mb-8">
+        <h1 className="font-sterling text-2xl font-semibold text-akiba-ink sm:text-3xl">
+          Partner Quests
+        </h1>
+        <p className="mt-1 text-sm text-akiba-muted sm:mt-2">
+          Complete on-chain tasks from our partner ecosystem. Earn AkibaMiles for every verified quest.
         </p>
       </div>
 
@@ -90,31 +78,70 @@ export default async function QuestsPage() {
         <QuestPreview />
       ) : (
         <div className="space-y-10">
-          {partnerGroups.map(([slug, pQuests]) => {
-            const first = pQuests[0];
+          {[...byChain.entries()].map(([chainKey, chainQuests]) => {
+            const meta = getChainMeta(chainKey === "general" ? undefined : chainKey);
+
+            // Sub-group by partner within this chain
+            const byPartner = new Map<string, Quest[]>();
+            for (const q of chainQuests) {
+              if (!byPartner.has(q.partner_slug)) byPartner.set(q.partner_slug, []);
+              byPartner.get(q.partner_slug)!.push(q);
+            }
+            const multiPartner = byPartner.size > 1;
+
             return (
-              <section key={slug}>
+              <section key={chainKey}>
+
+                {/* Chain header */}
                 <div className="mb-4 flex items-center gap-3">
-                  {first.partner_logo ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={first.partner_logo} alt={first.partner_name} className="h-8 w-8 rounded-lg object-contain" />
-                  ) : (
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-akiba-teal/10 text-akiba-teal">
-                      <Zap className="h-4 w-4" />
-                    </div>
-                  )}
+                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl ${meta.iconBg}`}>
+                    {meta.logoSrc ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={meta.logoSrc} alt={meta.label} className="h-6 w-6 object-contain" />
+                    ) : (
+                      <span className="text-lg">{meta.emoji}</span>
+                    )}
+                  </span>
                   <h2 className="font-sterling text-xl font-semibold text-akiba-ink">
-                    {first.partner_name}
+                    {meta.label}
                   </h2>
                   <span className="rounded-full bg-akiba-card px-2.5 py-0.5 text-xs font-medium text-akiba-muted">
-                    {pQuests.length} quest{pQuests.length !== 1 ? "s" : ""}
+                    {chainQuests.length} quest{chainQuests.length !== 1 ? "s" : ""}
                   </span>
                 </div>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {pQuests.map((q) => (
-                    <QuestCard key={q.id} quest={q} />
-                  ))}
-                </div>
+
+                {/* Cards */}
+                {multiPartner ? (
+                  <div className="space-y-6">
+                    {[...byPartner.entries()].map(([, pQuests]) => (
+                      <div key={pQuests[0].partner_slug}>
+                        <p className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-akiba-muted">
+                          {pQuests[0].partner_logo && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={pQuests[0].partner_logo}
+                              alt=""
+                              className="mr-1.5 inline-block h-4 w-4 rounded align-middle object-contain"
+                            />
+                          )}
+                          {pQuests[0].partner_name}
+                        </p>
+                        <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                          {pQuests.map((q) => (
+                            <QuestCard key={q.id} quest={q} chainMeta={meta} isSignedIn={isSignedIn} />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {chainQuests.map((q) => (
+                      <QuestCard key={q.id} quest={q} chainMeta={meta} isSignedIn={isSignedIn} />
+                    ))}
+                  </div>
+                )}
+
               </section>
             );
           })}
@@ -124,101 +151,75 @@ export default async function QuestsPage() {
   );
 }
 
-function QuestCard({ quest: q }: { quest: Quest }) {
-  return (
-    <div
-      className={`flex flex-col rounded-2xl border bg-white p-5 transition ${
-        q.completed
-          ? "border-green-200 bg-green-50/30"
-          : "border-akiba-line hover:border-akiba-teal/40 hover:shadow-chip"
-      }`}
-    >
-      <div className="mb-2 flex items-center gap-2">
-        {q.completed && <CheckCircle2 className="h-4 w-4 text-green-500" />}
-        {q.difficulty && (
-          <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${DIFFICULTY_BADGE[q.difficulty] ?? "bg-akiba-card text-akiba-muted"}`}>
-            {q.difficulty}
-          </span>
-        )}
-        {q.chain && (
-          <span className="rounded-full bg-akiba-card px-2 py-0.5 text-[11px] text-akiba-muted">
-            {q.chain}
-          </span>
-        )}
-      </div>
+// ── Coming-soon preview ───────────────────────────────────────────────────────
 
-      <h3 className="font-semibold text-akiba-ink">{q.title}</h3>
-      <p className="mt-1 flex-1 text-sm leading-relaxed text-akiba-muted">{q.description}</p>
-
-      <div className="mt-4 flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-sm font-semibold text-akiba-teal">
-          <MilesAmount amount={q.miles_reward} size="sm" prefix="+" className="text-akiba-teal" />
-        </span>
-        {q.ends_at && (
-          <span className="flex items-center gap-1 text-xs text-akiba-muted">
-            <Clock className="h-3 w-3" />
-            {new Date(q.ends_at).toLocaleDateString("en-KE", { month: "short", day: "numeric" })}
-          </span>
-        )}
-      </div>
-
-      {q.action_url && !q.completed && (
-        <a
-          href={q.action_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-3 flex items-center justify-center gap-1.5 rounded-xl bg-akiba-ink py-2.5 text-sm font-semibold text-white transition hover:bg-akiba-teal"
-        >
-          Start quest <ExternalLink className="h-3.5 w-3.5" />
-        </a>
-      )}
-
-      {q.completed && (
-        <div className="mt-3 flex items-center justify-center gap-1.5 rounded-xl bg-green-100 py-2.5 text-sm font-semibold text-green-700">
-          <CheckCircle2 className="h-4 w-4" /> Completed
-        </div>
-      )}
-    </div>
-  );
-}
+const PREVIEW: Array<{
+  chain: string;
+  quests: Array<{ title: string; desc: string; miles: number }>;
+}> = [
+  {
+    chain: "celo",
+    quests: [
+      { title: "Daily check-in",   desc: "Check in every day to earn steady rewards.",              miles: 10  },
+      { title: "Stake CELO",       desc: "Lock CELO in a validator group for 7+ days.",             miles: 250 },
+    ],
+  },
+  {
+    chain: "minipay",
+    quests: [
+      { title: "Fund your savings",desc: "Save $5 or more in MiniPay.",                             miles: 150 },
+      { title: "Refer a friend",   desc: "Invite a friend who completes their first transaction.",  miles: 300 },
+    ],
+  },
+];
 
 function QuestPreview() {
   return (
     <div>
-      <div className="mb-6 rounded-2xl border border-dashed border-akiba-teal/30 bg-akiba-tint p-6 text-center">
+      <div className="mb-6 rounded-2xl border border-dashed border-akiba-teal/30 bg-akiba-tint p-5 text-center sm:p-6">
         <Zap className="mx-auto mb-3 h-8 w-8 text-akiba-teal/60" />
         <p className="font-semibold text-akiba-ink">Partner quests are being configured</p>
         <p className="mt-1 text-sm text-akiba-muted">
-          Quests from our partner network will appear here. Below is a preview of what&apos;s coming.
+          Quests from our partner ecosystem will appear here. Below is a preview of what&apos;s coming.
         </p>
       </div>
 
       <div className="space-y-8">
-        {PREVIEW_PARTNERS.map(({ name, logo, quests }) => (
-          <section key={name}>
-            <div className="mb-3 flex items-center gap-2">
-              <span className="text-xl">{logo}</span>
-              <h2 className="font-sterling text-xl font-semibold text-akiba-ink">{name}</h2>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 opacity-50">
-              {quests.map((q) => (
-                <div
-                  key={q.title}
-                  className="rounded-2xl border border-akiba-line bg-white p-5"
-                >
-                  <h3 className="font-semibold text-akiba-ink">{q.title}</h3>
-                  <p className="mt-1 text-sm text-akiba-muted">{q.desc}</p>
-                  <div className="mt-4 flex items-center gap-1.5 text-sm font-semibold text-akiba-teal">
-                    <MilesAmount amount={q.miles} size="sm" prefix="+" className="text-akiba-teal" />
+        {PREVIEW.map(({ chain, quests }) => {
+          const meta = getChainMeta(chain);
+          return (
+            <section key={chain} className="opacity-50">
+              <div className="mb-3 flex items-center gap-3">
+                <span className={`flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl ${meta.iconBg}`}>
+                  {meta.logoSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={meta.logoSrc} alt={meta.label} className="h-5 w-5 object-contain" />
+                  ) : (
+                    <span className="text-base">{meta.emoji}</span>
+                  )}
+                </span>
+                <h2 className="font-sterling text-lg font-semibold text-akiba-ink">{meta.label}</h2>
+              </div>
+              <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {quests.map((q) => (
+                  <div key={q.title} className="rounded-2xl border border-akiba-line bg-white p-4 sm:p-5">
+                    <span className={`mb-2 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${meta.badgeCls}`}>
+                      {meta.label}
+                    </span>
+                    <h3 className="font-semibold text-akiba-ink">{q.title}</h3>
+                    <p className="mt-1 text-sm text-akiba-muted">{q.desc}</p>
+                    <div className="mt-4 flex items-center justify-between">
+                      <MilesAmount amount={q.miles} size="sm" prefix="+" className="font-semibold text-akiba-teal" />
+                      <span className="flex items-center gap-1 rounded-full bg-akiba-card px-2.5 py-1 text-xs font-medium text-akiba-muted">
+                        <Clock className="h-3 w-3" /> Coming soon
+                      </span>
+                    </div>
                   </div>
-                  <div className="mt-3 flex items-center justify-center gap-1.5 rounded-xl bg-akiba-card py-2.5 text-sm font-semibold text-akiba-muted">
-                    <Clock className="h-3.5 w-3.5" /> Coming soon
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        ))}
+                ))}
+              </div>
+            </section>
+          );
+        })}
       </div>
     </div>
   );
