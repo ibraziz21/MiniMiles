@@ -29,6 +29,7 @@ export async function POST(req: Request) {
   const session = await getSession();
   session.walletAddress = addr;
   session.issuedAt = Date.now();
+  session.authProvider = "minipay";
   await session.save();
 
   return Response.json({ ok: true, walletAddress: addr });

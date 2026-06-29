@@ -74,10 +74,22 @@ export async function getSession() {
  * or null if the request is unauthenticated.
  * Use this in every reward-affecting route.
  */
-export async function requireSession(): Promise<{ walletAddress: string; issuedAt: number } | null> {
+export async function requireSession(): Promise<{
+  walletAddress: string;
+  issuedAt: number;
+  authProvider?: "wallet" | "minipay";
+} | null> {
   const session = await getSession();
   if (!session.walletAddress) return null;
-  return { walletAddress: session.walletAddress, issuedAt: session.issuedAt ?? 0 };
+  return {
+    walletAddress: session.walletAddress,
+    issuedAt: session.issuedAt ?? 0,
+    authProvider: session.authProvider,
+  };
+}
+
+export function isMiniPaySession(session: { authProvider?: string } | null): boolean {
+  return session?.authProvider === "minipay";
 }
 
 // ── Session age gate ──────────────────────────────────────────────────────────

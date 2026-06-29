@@ -8,7 +8,11 @@ export async function GET() {
   if (!session) {
     return Response.json({ authenticated: false }, { status: 401 });
   }
-  return Response.json({ authenticated: true, walletAddress: session.walletAddress });
+  return Response.json({
+    authenticated: true,
+    walletAddress: session.walletAddress,
+    authProvider: session.authProvider,
+  });
 }
 
 export async function DELETE() {

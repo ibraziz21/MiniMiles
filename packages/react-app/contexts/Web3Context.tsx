@@ -87,10 +87,19 @@ function useWeb3Logic() {
           _authResolve?.();
         };
 
+        const isMiniPay = !!(window as any).ethereum?.isMiniPay;
+
         try {
           const res = await fetch("/api/auth/session");
           const data = await res.json();
           if (data.authenticated && data.walletAddress === addr.toLowerCase()) {
+            if (isMiniPay && data.authProvider !== "minipay") {
+              await fetch("/api/auth/minipay", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ address: addr }),
+              });
+            }
             markAuthed();
             _signInAttempted = true;
             return;
@@ -100,8 +109,6 @@ function useWeb3Logic() {
         // Module-level guard — one attempt per page load, survives remounts
         if (_signInAttempted) return;
         _signInAttempted = true;
-
-        const isMiniPay = !!(window as any).ethereum?.isMiniPay;
 
         try {
           if (isMiniPay) {

@@ -5,7 +5,7 @@ import { getAddress } from "viem";
 import { isBlacklisted } from "@/lib/blacklist";
 import { enqueueSimpleMint } from "@/lib/minipointQueue";
 import { getCeloTxCount } from "@/lib/celoClient";
-import { requireSession } from "@/lib/auth";
+import { isMiniPaySession, requireSession } from "@/lib/auth";
 
 /* ── setup ───────────────────────────────────────────────────────── */
 const supabase = createClient(
@@ -37,22 +37,25 @@ export async function POST(_req: Request) {
   }
 
   /* 0) wallet activity gate — must have at least 1 prior tx on Celo.
-     Prevents mass-registration of fresh bot wallets for signup rewards. */
-  try {
-    const txCount = await getCeloTxCount(userAddr.toLowerCase());
-    if (txCount < 1) {
+     Prevents mass-registration of fresh bot wallets for signup rewards.
+     MiniPay sessions skip this so new custodial users can onboard. */
+  if (!isMiniPaySession(session)) {
+    try {
+      const txCount = await getCeloTxCount(userAddr.toLowerCase());
+      if (txCount < 1) {
+        return NextResponse.json(
+          { error: "Wallet must have prior on-chain activity on Celo to register." },
+          { status: 403 }
+        );
+      }
+    } catch (e) {
+      console.error("[users/signup] RPC error:", e);
+      // Hard fail — do not bypass on RPC error
       return NextResponse.json(
-        { error: "Wallet must have prior on-chain activity on Celo to register." },
-        { status: 403 }
+        { error: "Could not verify wallet activity. Please try again." },
+        { status: 503 }
       );
     }
-  } catch (e) {
-    console.error("[users/signup] RPC error:", e);
-    // Hard fail — do not bypass on RPC error
-    return NextResponse.json(
-      { error: "Could not verify wallet activity. Please try again." },
-      { status: 503 }
-    );
   }
 
   /* 1) claim registration slot atomically — prevents race-condition double-mints.

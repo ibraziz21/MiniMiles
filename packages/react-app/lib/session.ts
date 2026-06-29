@@ -3,6 +3,7 @@ import { SessionOptions } from "iron-session";
 export interface SessionData {
   walletAddress: string; // verified, lowercase
   issuedAt: number;      // unix ms
+  authProvider?: "wallet" | "minipay";
 }
 
 export const sessionOptions: SessionOptions = {
