@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { LinkedWallets } from "./LinkedWallets";
 import { SignOutButton } from "./SignOutButton";
 import { WalletPickerModal } from "./WalletPickerModal";
+import { AkibaPassCard } from "./AkibaPassCard";
 import { ShoppingBag, Ticket, ArrowUpRight, MapPin, Tag, Sparkles } from "lucide-react";
 import { MilesIcon } from "@/components/MilesIcon";
 
@@ -115,6 +116,27 @@ export default async function MePage() {
   const displayName = activeRow?.full_name ?? activeRow?.username ?? user.email ?? "You";
   const initials = displayName.slice(0, 2).toUpperCase();
 
+  // Fetch or create the stable Akiba Pass ID for this user
+  let publicPassId: string | null = null;
+  if (user.email) {
+    let { data: passRow } = await admin
+      .from("hub_user_passes")
+      .select("public_pass_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!passRow) {
+      const { data: inserted } = await admin
+        .from("hub_user_passes")
+        .insert({ user_id: user.id, email: user.email })
+        .select("public_pass_id")
+        .single();
+      passRow = inserted;
+    }
+
+    publicPassId = passRow?.public_pass_id ?? null;
+  }
+
   return (
     <>
       {/* Wallet picker modal — shown only when multiple wallets and no choice saved */}
@@ -176,6 +198,20 @@ export default async function MePage() {
             )}
           </div>
         </div>
+
+        {/* Akiba Pass — in-store QR card */}
+        {publicPassId && (
+          <div className="mb-6">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-akiba-muted">
+              Your pass
+            </h2>
+            <AkibaPassCard
+              initialPassId={publicPassId}
+              email={user.email!}
+              displayLabel={displayName}
+            />
+          </div>
+        )}
 
         {/* Profile chips */}
         {activeRow && (activeRow.country || (activeRow.interests ?? []).length > 0) && (

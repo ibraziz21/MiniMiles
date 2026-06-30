@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack",
+    "dev": "node ../../scripts/with-available-port.mjs --prefer 3000 -- next dev --webpack",
     "build": "next build --webpack",
-    "start": "next start",
+    "start": "node ../../scripts/with-available-port.mjs --prefer 3000 -- next start",
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest"

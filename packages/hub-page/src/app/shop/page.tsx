@@ -1,6 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ShoppingBag, Tag, Truck } from "lucide-react";
-import { MilesAmount } from "@/components/MilesIcon";
 import { ShopFilters } from "./ShopFilters";
 import Link from "next/link";
 
@@ -64,8 +63,8 @@ export default async function ShopPage() {
         <div>
           <h1 className="font-sterling text-3xl font-semibold text-akiba-ink">Shop & Earn</h1>
           <p className="mt-2 text-akiba-muted">
-            Buy from verified merchants using stablecoins or M-Pesa. Earn{" "}
-            <MilesAmount amount={200} size="sm" className="text-akiba-teal" /> on every delivery.
+            Buy from verified merchants using stablecoins or M-Pesa.{" "}
+            Earn eligible AkibaMiles rewards after verified purchases.
           </p>
         </div>
         <Link href="/vouchers" className="flex items-center gap-2 rounded-full border border-akiba-teal/30 bg-akiba-tint px-4 py-2 text-sm font-semibold text-akiba-teal hover:bg-akiba-teal hover:text-white transition">
@@ -78,7 +77,7 @@ export default async function ShopPage() {
         {[
           { icon: <ShoppingBag className="h-5 w-5 text-akiba-teal" />, text: "Add items to cart from any merchant" },
           { icon: <Tag className="h-5 w-5 text-akiba-teal" />, text: "Apply a voucher code to save on price" },
-          { icon: <Truck className="h-5 w-5 text-akiba-teal" />, text: "Pay with cUSD, USDT or USDC and earn miles" },
+          { icon: <Truck className="h-5 w-5 text-akiba-teal" />, text: "Pay with M-Pesa or supported stablecoins; rewards issue after verification" },
         ].map(({ icon, text }, i) => (
           <div key={i} className="flex items-center gap-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white shadow-chip">

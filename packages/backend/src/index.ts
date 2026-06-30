@@ -53,9 +53,11 @@ app.post("/drain", async (req, res) => {
   res.json({ ok: true, message: "drain triggered" });
 });
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
+const PORT = Number(process.env.PORT ?? 0);
+const server = app.listen(PORT, () => {
+  const address = server.address();
+  const actualPort = typeof address === "object" && address ? address.port : PORT;
+  console.log(`Server listening on port ${actualPort}`);
   startMintWorker();
   startBurnBlacklistWatcher();
   startProsperityPassWorker();

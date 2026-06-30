@@ -22,6 +22,7 @@ const DELIVERY_CITIES = [
 
 type Step = "cart" | "delivery" | "review" | "paying" | "mpesa-wait" | "done" | "error";
 type PayMode = "crypto" | "mpesa";
+type RewardResult = { issued: boolean; miles: number; pending?: boolean; reason?: string };
 
 export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { items, merchantId, merchantName, subtotal, count, remove, setQty, clear } = useCart();
@@ -57,6 +58,7 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
   const [orderId, setOrderId] = useState<string | null>(null);
   const [eta,     setEta]     = useState("3–5 days");
   const [error,   setError]   = useState<string | null>(null);
+  const [reward,  setReward]  = useState<RewardResult | null>(null);
 
   const firstItem = items[0];
   const pricing = firstItem
@@ -77,7 +79,7 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
     setCurrency("cUSD"); setWalletAddress(null); setTxHash(null);
     setMpesaPhone(""); setCheckoutRequestId(null); setMpesaReceipt(null);
     setVoucherInput(""); setAppliedVoucher(null); setVoucherCode("");
-    setOrderId(null); setError(null);
+    setOrderId(null); setError(null); setReward(null);
     onClose();
   }
 
@@ -124,13 +126,29 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
             location_details: location || undefined,
             ...overrides,
           }),
-        }).then((r) => r.json())
+        }).then((r) => r.json() as Promise<{
+          order?: { id?: string; eta?: string };
+          reward?: RewardResult;
+          error?: string;
+        }>)
       )
     );
     const failed = results.find((r) => r.error);
-    if (failed) { setError(failed.error); setStep("error"); return; }
+    if (failed) { setError(failed.error ?? "Order failed."); setStep("error"); return; }
+    const rewards = results.map((r) => r.reward).filter((r): r is RewardResult => !!r);
+    const issuedMiles = rewards.reduce((sum, r) => sum + (r.issued ? r.miles : 0), 0);
+    const pending = rewards.some((r) => r.pending);
+    const firstReason = rewards.find((r) => r.reason)?.reason;
+
     setOrderId(results[0]?.order?.id ?? null);
     setEta(results[0]?.order?.eta ?? "3–5 days");
+    setReward(
+      issuedMiles > 0
+        ? { issued: true, miles: issuedMiles, ...(firstReason ? { reason: firstReason } : {}) }
+        : pending
+          ? { issued: false, miles: 0, pending: true }
+          : rewards[0] ?? null
+    );
     setStep("done");
     clear();
   }
@@ -261,10 +279,7 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
                     <span className="text-akiba-muted">{count} item{count !== 1 ? "s" : ""}</span>
                     <span className="font-semibold text-akiba-ink">${subtotal.toFixed(2)}</span>
                   </div>
-                  <div className="mt-1 flex items-center gap-1 text-xs text-akiba-teal">
-                    <MilesAmount amount={200 * items.reduce((s, i) => s + i.qty, 0)} size="xs" prefix="+" />
-                    <span>on delivery</span>
-                  </div>
+                  <p className="mt-1 text-xs text-akiba-teal">Rewards issued after verified purchase</p>
                 </div>
 
                 <button onClick={() => setStep("delivery")} className="w-full rounded-xl bg-akiba-teal py-3 text-sm font-semibold text-white hover:bg-[#1E7E8D]">
@@ -473,10 +488,18 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
               </div>
               <h3 className="font-sterling text-2xl font-semibold text-akiba-ink">Order placed!</h3>
               <p className="mt-2 text-sm text-akiba-muted">Estimated delivery: <span className="font-semibold text-akiba-ink">{eta}</span></p>
-              <div className="mt-4 flex items-center gap-2 rounded-full bg-akiba-teal/10 px-5 py-2.5">
-                <MilesAmount amount={200 * count} size="md" prefix="+" className="text-akiba-teal" />
-                <span className="text-sm text-akiba-muted">on delivery</span>
-              </div>
+              {reward?.issued && reward.miles > 0 && (
+                <div className="mt-4 flex items-center gap-2 rounded-full bg-akiba-teal/10 px-5 py-2.5">
+                  <MilesAmount amount={reward.miles} size="md" prefix="+" className="text-akiba-teal" />
+                  <span className="text-sm text-akiba-muted">earned</span>
+                </div>
+              )}
+              {reward?.pending && (
+                <div className="mt-4 flex items-center gap-2 rounded-full bg-gray-100 px-5 py-2.5 text-sm font-semibold text-akiba-muted">
+                  <MilesIcon className="h-4 w-4" />
+                  Reward pending confirmation
+                </div>
+              )}
               {mpesaReceipt && <p className="mt-3 text-xs text-akiba-muted font-mono">M-Pesa: {mpesaReceipt}</p>}
               {orderId && <p className="mt-1 text-xs text-akiba-muted">Order: <span className="font-mono">{orderId.slice(0, 8)}</span></p>}
               <div className="mt-6 flex w-full gap-3">

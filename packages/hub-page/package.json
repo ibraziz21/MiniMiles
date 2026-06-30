@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3003",
+    "dev": "node ../../scripts/with-available-port.mjs --prefer 3003 -- next dev",
     "build": "next build",
-    "start": "next start --port 3003",
+    "start": "node ../../scripts/with-available-port.mjs --prefer 3003 -- next start",
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",

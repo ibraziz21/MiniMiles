@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ShoppingBag, Clock, CheckCircle2, Truck, Package, ArrowLeft } from "lucide-react";
-import { MilesAmount } from "@/components/MilesIcon";
+import { ShoppingBag, Clock, CheckCircle2, Truck, Package, ArrowLeft, Coins } from "lucide-react";
+import { getPurchaseEventForOrder } from "@/lib/akiba/purchase-events";
+import type { OrderRewardStatus } from "@/lib/akiba/purchase-events";
 
 export const metadata = { title: "My Orders — Akiba Hub" };
 
@@ -98,6 +99,21 @@ export default async function OrdersPage() {
 
   const orders = await getOrders(user.id);
 
+  // Fetch Platform reward status for all orders in parallel.
+  // Promise.allSettled ensures a Platform failure for one order never breaks the page.
+  const rewardStatuses = await Promise.allSettled(
+    orders.map((o) => getPurchaseEventForOrder(o.id))
+  );
+
+  const rewardByOrderId = new Map<string, OrderRewardStatus>(
+    orders.map((o, i) => {
+      const result = rewardStatuses[i];
+      const status: OrderRewardStatus =
+        result.status === "fulfilled" ? result.value : { state: "pending" };
+      return [o.id, status];
+    })
+  );
+
   return (
     <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
       <a href="/me" className="mb-6 flex items-center gap-1.5 text-sm text-akiba-muted hover:text-akiba-ink">
@@ -123,6 +139,7 @@ export default async function OrdersPage() {
           {orders.map((order) => {
             const cfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.placed;
             const partner = Array.isArray(order.partners) ? order.partners[0] : order.partners;
+            const reward = rewardByOrderId.get(order.id) ?? { state: "pending" as const };
 
             return (
               <div
@@ -165,6 +182,8 @@ export default async function OrdersPage() {
                       </p>
                     )}
 
+                    <RewardBadge reward={reward} />
+
                     {order.status === "delivered" && (
                       <ConfirmReceiptButton orderId={order.id} />
                     )}
@@ -179,6 +198,24 @@ export default async function OrdersPage() {
   );
 }
 
+function RewardBadge({ reward }: { reward: OrderRewardStatus }) {
+  if (reward.state === "rewarded") {
+    return (
+      <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-akiba-teal">
+        <Coins className="h-3.5 w-3.5" />
+        +{reward.miles} AkibaMiles
+      </div>
+    );
+  }
+  if (reward.state === "not_rewarded") {
+    return (
+      <p className="mt-2 text-xs text-akiba-muted">No reward issued</p>
+    );
+  }
+  // pending / unavailable — show nothing rather than cluttering every card
+  return null;
+}
+
 function ConfirmReceiptButton({ orderId }: { orderId: string }) {
   return (
     <form
@@ -189,7 +226,7 @@ function ConfirmReceiptButton({ orderId }: { orderId: string }) {
         type="submit"
         className="mt-3 w-full rounded-xl bg-akiba-teal py-2 text-xs font-semibold text-white transition hover:bg-[#1E7E8D]"
       >
-        Confirm received (<MilesAmount amount={200} size="xs" prefix="+" />)
+        Confirm received
       </button>
     </form>
   );

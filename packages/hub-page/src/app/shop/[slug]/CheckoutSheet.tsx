@@ -74,6 +74,7 @@ export function CheckoutSheet({
   const [orderId, setOrderId] = useState<string | null>(null);
   const [eta, setEta] = useState<string>("3–5 days");
   const [error, setError] = useState<string | null>(null);
+  const [reward, setReward] = useState<{ issued: boolean; miles: number; pending?: boolean; reason?: string } | null>(null);
 
   const pricing = calculateOrder(
     product.price_cusd,
@@ -97,6 +98,7 @@ export function CheckoutSheet({
     setTxHash(null);
     setOrderId(null);
     setError(null);
+    setReward(null);
   };
 
   const close = () => {
@@ -205,7 +207,11 @@ export function CheckoutSheet({
         }),
       });
 
-      const json = await res.json();
+      const json = await res.json() as {
+        error?: string;
+        order?: { id: string; eta?: string };
+        reward?: { issued: boolean; miles: number; pending?: boolean; reason?: string };
+      };
 
       if (!res.ok) {
         setError(json.error ?? "Order failed.");
@@ -213,8 +219,9 @@ export function CheckoutSheet({
         return;
       }
 
-      setOrderId(json.order.id);
-      setEta(json.order.eta ?? "3–5 days");
+      setOrderId(json.order!.id);
+      setEta(json.order!.eta ?? "3–5 days");
+      setReward(json.reward ?? null);
       setStep("done");
     } catch (e: unknown) {
       if ((e as { code?: number })?.code === 4001) {
@@ -226,7 +233,7 @@ export function CheckoutSheet({
     }
   }, [
     merchant.wallet_address, walletAddress, currency, pricing.total,
-    product.id, voucherCode, name, phone, city, locationDetails, connectWallet,
+    product.id, voucherId, voucherCode, name, phone, city, locationDetails, connectWallet,
   ]);
 
   return (
@@ -350,7 +357,7 @@ export function CheckoutSheet({
                 <SuccessScreen
                   orderId={orderId!}
                   eta={eta}
-                  milesEarned={200}
+                  reward={reward}
                   onClose={close}
                 />
               )}
@@ -633,28 +640,46 @@ function Row({
 }
 
 function SuccessScreen({
-  orderId, eta, milesEarned, onClose,
+  orderId, eta, reward, onClose,
 }: {
   orderId: string;
   eta: string;
-  milesEarned: number;
+  reward: { issued: boolean; miles: number; pending?: boolean; reason?: string } | null;
   onClose: () => void;
 }) {
+  const rewardBadge = (() => {
+    if (!reward) return null;
+    if (reward.pending) {
+      return (
+        <div className="mt-4 flex items-center gap-2 rounded-full bg-gray-100 px-5 py-2.5 text-sm font-semibold text-akiba-muted">
+          <Coins className="h-4 w-4" />
+          Reward pending confirmation
+        </div>
+      );
+    }
+    if (reward.issued && reward.miles > 0) {
+      return (
+        <div className="mt-4 flex items-center gap-2 rounded-full bg-akiba-teal/10 px-5 py-2.5 text-sm font-semibold text-akiba-teal">
+          <Coins className="h-4 w-4" />
+          +{reward.miles} AkibaMiles earned
+        </div>
+      );
+    }
+    return null;
+  })();
+
   return (
     <div className="flex flex-col items-center py-8 text-center">
       <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-akiba-tint">
         <CheckCircle2 className="h-9 w-9 text-akiba-teal" />
       </div>
-      <h3 className="font-sterling text-2xl font-semibold text-akiba-ink">Order placed!</h3>
+      <h3 className="font-sterling text-2xl font-semibold text-akiba-ink">Order confirmed</h3>
       <p className="mt-2 text-sm text-akiba-muted">
-        Your order is confirmed and will be delivered in approximately{" "}
+        Your order will be delivered in approximately{" "}
         <span className="font-semibold text-akiba-ink">{eta}</span>.
       </p>
 
-      <div className="mt-4 flex items-center gap-2 rounded-full bg-akiba-teal/10 px-5 py-2.5 text-sm font-semibold text-akiba-teal">
-        <Coins className="h-4 w-4" />
-        +{milesEarned} AkibaMiles on delivery
-      </div>
+      {rewardBadge}
 
       <p className="mt-4 text-xs text-akiba-muted">
         Order ID: <span className="font-mono">{orderId.slice(0, 8)}</span>

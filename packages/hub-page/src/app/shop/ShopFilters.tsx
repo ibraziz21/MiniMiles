@@ -3,7 +3,6 @@
 import { useState, useMemo } from "react";
 import { Search, ShoppingBag, Tag, MapPin, X } from "lucide-react";
 import clsx from "clsx";
-import { MilesAmount } from "@/components/MilesIcon";
 
 type Merchant = {
   id: string;
@@ -160,7 +159,7 @@ function MerchantCard({ merchant: m }: { merchant: Merchant }) {
           </div>
         )}
         <div className="mt-4 flex items-center justify-between">
-          <MilesAmount amount={200} size="xs" prefix="+" className="rounded-full bg-akiba-tint px-3 py-1 text-akiba-teal" />
+          <span className="rounded-full bg-akiba-tint px-3 py-1 text-[11px] font-semibold text-akiba-teal">Rewards eligible</span>
           <span className="text-xs font-semibold text-akiba-teal group-hover:underline">Shop →</span>
         </div>
       </div>

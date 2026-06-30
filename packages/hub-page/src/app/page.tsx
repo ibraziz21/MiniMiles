@@ -55,7 +55,7 @@ export default async function HomePage() {
           href="/shop"
           icon={<ShoppingBag className="h-6 w-6" />}
           title="Shop & Earn"
-          description="Buy from verified merchants using cUSD, USDT, or USDC. Earn 200 AkibaMiles per delivery."
+          description="Buy from verified merchants using stablecoins or M-Pesa. Earn eligible AkibaMiles rewards after verified purchases."
           color="teal"
           cta="Browse merchants"
         />

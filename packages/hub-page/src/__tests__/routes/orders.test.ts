@@ -13,6 +13,20 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// ── Mock Platform purchase-events adapter ────────────────────────────────────
+import type { PurchaseEventResult } from "@/lib/akiba/purchase-events";
+
+let mockPurchaseEventResult: PurchaseEventResult = {
+  ok: true,
+  rewardIssued: true,
+  milesAwarded: 300,
+  reason: "launch reward",
+};
+
+vi.mock("@/lib/akiba/purchase-events", () => ({
+  sendPurchaseEvent: vi.fn(async () => mockPurchaseEventResult),
+}));
+
 // ── Mock Supabase admin client ────────────────────────────────────────────────
 type Chain = {
   select: (cols: string) => Chain;
@@ -432,10 +446,154 @@ describe("POST /api/shop/orders — M-Pesa callback verification", () => {
 
   it("creates an order from a complete successful callback", async () => {
     const res = await placeMpesaOrder();
-    const json = await res.json() as { order: { id: string; amount_cusd: number } };
+    const json = await res.json() as { order: { id: string; amount_cusd: number }; reward?: unknown };
 
     expect(res.status).toBe(201);
     expect(json.order.id).toBe("order-uuid");
     expect(json.order.amount_cusd).toBe(8);
+    // Response must not carry the legacy hardcoded miles_earned field
+    expect((json.order as Record<string, unknown>).miles_earned).toBeUndefined();
+    // Reward result from Platform is present
+    expect(json.reward).toBeDefined();
+  });
+});
+
+// ── Platform purchase-event reward path ──────────────────────────────────────
+
+describe("POST /api/shop/orders — Platform reward integration", () => {
+  const CHECKOUT_ID = "ws_CO_reward_tests";
+  const EXPECTED_KES = 1040;
+
+  function walletListChain(rows: Array<{ address: string }>) {
+    const result = { data: rows, error: null };
+    const thenable = {
+      then: <T>(resolve: (value: typeof result) => T) =>
+        Promise.resolve(result).then(resolve),
+    };
+    return { select: () => ({ eq: () => thenable }) } as unknown as Chain;
+  }
+
+  function setupMpesaTables() {
+    fromImpl = (table) => {
+      if (table === "merchant_products") return makeChain(PRODUCT);
+      if (table === "partner_settings")  return makeChain(SETTINGS);
+      if (table === "hub_user_wallets")  return walletListChain([{ address: "0xbuyer" }]);
+      if (table === "mpesa_stk_requests") return makeChain({
+        hub_user_id: "user-uuid",
+        phone:       "254712345678",
+        amount_kes:  EXPECTED_KES,
+        expires_at:  new Date(Date.now() + 3_600_000).toISOString(),
+      });
+      if (table === "mpesa_stk_results") return makeChain({
+        result_code:    "0",
+        receipt_number: "RCPT001",
+        amount_kes:     EXPECTED_KES,
+        phone:          "254712345678",
+      });
+      if (table === "merchant_transactions") return makeChain(null);
+      return makeChain(null);
+    };
+
+    mockRpc.mockResolvedValue({
+      data: [{ ok: true, order_id: "order-uuid", error_code: "" }],
+      error: null,
+    });
+  }
+
+  function placeOrder() {
+    return POST(makeRequest({
+      product_id:        "prod-1",
+      recipient_name:    "Alice",
+      phone:             "0712345678",
+      city:              "Nairobi",
+      mpesa_checkout_id: CHECKOUT_ID,
+    }));
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupMpesaTables();
+  });
+
+  it("returns reward.issued=true and miles from Platform when reward is granted", async () => {
+    mockPurchaseEventResult = {
+      ok: true,
+      purchaseEventId: "pe-abc",
+      rewardIssued:    true,
+      milesAwarded:    300,
+      reason:          "launch reward",
+    };
+
+    const res = await placeOrder();
+    const json = await res.json() as {
+      order: { id: string };
+      reward: { issued: boolean; miles: number; reason?: string; pending?: boolean };
+    };
+
+    expect(res.status).toBe(201);
+    expect(json.reward.issued).toBe(true);
+    expect(json.reward.miles).toBe(300);
+    expect(json.reward.reason).toBe("launch reward");
+    expect(json.reward.pending).toBeUndefined();
+  });
+
+  it("returns reward.issued=false and miles=0 when Platform has no active reward", async () => {
+    mockPurchaseEventResult = {
+      ok:           true,
+      rewardIssued: false,
+      milesAwarded: 0,
+      reason:       "no active campaign",
+    };
+
+    const res = await placeOrder();
+    const json = await res.json() as { order: unknown; reward: { issued: boolean; miles: number } };
+
+    expect(res.status).toBe(201);
+    expect(json.reward.issued).toBe(false);
+    expect(json.reward.miles).toBe(0);
+  });
+
+  it("still returns 201 and reward.pending=true when Platform call fails after order succeeds", async () => {
+    mockPurchaseEventResult = {
+      ok:           false,
+      rewardIssued: false,
+      milesAwarded: 0,
+      error:        "Platform unavailable",
+    };
+
+    const res = await placeOrder();
+    const json = await res.json() as {
+      order: { id: string };
+      reward: { issued: boolean; pending?: boolean };
+    };
+
+    expect(res.status).toBe(201);
+    expect(json.order.id).toBe("order-uuid");
+    expect(json.reward.issued).toBe(false);
+    expect(json.reward.pending).toBe(true);
+  });
+
+  it("sends Platform purchase-event fields derived from the verified order", async () => {
+    const { sendPurchaseEvent } = await import("@/lib/akiba/purchase-events");
+    const spy = vi.mocked(sendPurchaseEvent);
+
+    mockPurchaseEventResult = { ok: true, rewardIssued: false, milesAwarded: 0 };
+
+    await placeOrder();
+
+    expect(spy).toHaveBeenCalledOnce();
+    const payload = spy.mock.calls[0][0];
+    expect(payload.externalPurchaseId).toBe(CHECKOUT_ID);
+    expect(payload.idempotencyKey).toBe("hub-purchase-order-uuid");
+    expect(payload.sourceApp).toBe("hub");
+    expect(payload.amount).toBe(EXPECTED_KES);
+    expect(payload.currency).toBe("KES");
+    expect(payload.recipient).toEqual({ type: "wallet", value: "0xbuyer" });
+    expect(payload.metadata).toEqual(expect.objectContaining({
+      orderId: "order-uuid",
+      paymentMethod: expect.stringMatching(/^mpesa:/),
+      paymentRef: CHECKOUT_ID,
+      productId: "prod-1",
+    }));
   });
 });

@@ -19,12 +19,9 @@ import type { TokenSymbol } from "@/lib/tokens";
 import { claimVoucher, releaseVoucher } from "@/lib/vouchers/redemption";
 import type { VoucherForPricing } from "@/lib/pricing";
 import type { RulesSnapshot } from "@/lib/vouchers/types";
+import { sendPurchaseEvent } from "@/lib/akiba/purchase-events";
 
-const CELO_RPC     = process.env.CELO_RPC_URL ?? "https://forno.celo.org";
-const AKIBA_API_URL = process.env.AKIBA_API_URL ?? "";
-const AKIBA_API_KEY = process.env.AKIBA_API_KEY ?? "";
-const AKIBA_HUB_CAMPAIGN_ID = process.env.AKIBA_HUB_CAMPAIGN_ID ?? "";
-const MILES_EARNED_PER_ORDER = 200;
+const CELO_RPC = process.env.CELO_RPC_URL ?? "https://forno.celo.org";
 
 async function rpc(method: string, params: unknown[]) {
   const res = await fetch(CELO_RPC, {
@@ -74,31 +71,6 @@ async function verifyOnChain(
   return { ok: false, actualAmountUsd: 0 };
 }
 
-async function awardMiles(userEmail: string, orderId: string): Promise<void> {
-  if (!AKIBA_API_URL || !AKIBA_API_KEY || !AKIBA_HUB_CAMPAIGN_ID) return;
-  try {
-    const res = await fetch(`${AKIBA_API_URL}/api/v1/rewards/distribute`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${AKIBA_API_KEY}`,
-        "Content-Type": "application/json",
-        "Idempotency-Key": `purchase-${orderId}`,
-      },
-      body: JSON.stringify({
-        campaignId: AKIBA_HUB_CAMPAIGN_ID,
-        recipient: { type: "email", value: userEmail },
-        amount: MILES_EARNED_PER_ORDER,
-        orderId,
-      }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({})) as Record<string, unknown>;
-      console.error("[orders] awardMiles failed:", err);
-    }
-  } catch (e) {
-    console.error("[orders] awardMiles exception:", e);
-  }
-}
 
 export async function POST(request: Request) {
   // ── Auth ────────────────────────────────────────────────────────────────────
@@ -524,17 +496,67 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: placeRow?.error_code ?? "Order creation failed" }, { status: 500 });
   }
 
-  void awardMiles(user.email!, placeRow.order_id);
+  // Ask Platform to evaluate and issue a reward for this verified purchase.
+  // This is awaited so the result is included in the response, but order
+  // success is not gated on it — a Platform failure still returns 201.
+  const primaryWallet = allAddresses[0] ?? null;
+  const purchaseAmount = isCrypto ? paidAmountUsd : Math.round(paidAmountUsd * usdRate);
+  const purchaseCurrency = isCrypto ? String(currency) : "KES";
+  const recipient = primaryWallet
+    ? { type: "wallet" as const, value: primaryWallet }
+    : user.email
+      ? { type: "email" as const, value: user.email }
+      : { type: "phone" as const, value: String(phone) };
+  const purchaseIdempotencyKey = `hub-purchase-${placeRow.order_id}`;
+  const rewardResult = await sendPurchaseEvent({
+    merchantId:         product.merchant_id,
+    externalPurchaseId: paymentRef,
+    idempotencyKey:     purchaseIdempotencyKey,
+    recipient,
+    amount:             purchaseAmount,
+    currency:           purchaseCurrency,
+    productCategory:    product.category,
+    sourceApp:          "hub",
+    occurredAt:         new Date().toISOString(),
+    metadata: {
+      orderId:       placeRow.order_id,
+      hubUserId:     user.id,
+      hubUserEmail:  user.email ?? null,
+      walletAddress: primaryWallet,
+      paymentRef,
+      paymentMethod,
+      amountUsd:     paidAmountUsd,
+      amountKes:     Math.round(paidAmountUsd * usdRate),
+      productId:     String(product.id),
+      itemName:      product.name,
+    },
+  });
+
+  if (!rewardResult.ok) {
+    console.error(
+      "[orders] Platform purchase-event failed after order",
+      placeRow.order_id,
+      rewardResult.error
+    );
+  }
+
+  const rewardResponse = rewardResult.ok
+    ? {
+        issued: rewardResult.rewardIssued,
+        miles:  rewardResult.milesAwarded,
+        ...(rewardResult.reason ? { reason: rewardResult.reason } : {}),
+      }
+    : { issued: false, miles: 0, pending: true };
 
   return NextResponse.json(
     {
       order: {
-        id:           placeRow.order_id,
-        status:       "placed",
-        amount_cusd:  paidAmountUsd,
-        eta:          pricing.eta,
-        miles_earned: MILES_EARNED_PER_ORDER,
+        id:          placeRow.order_id,
+        status:      "placed",
+        amount_cusd: paidAmountUsd,
+        eta:         pricing.eta,
       },
+      reward: rewardResponse,
     },
     { status: 201 }
   );

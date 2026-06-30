@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { voucherLabel } from "@/lib/pricing";
 import { ShoppingBag, Tag, MapPin, Mail, ArrowLeft } from "lucide-react";
-import { MilesAmount } from "@/components/MilesIcon";
 import { AddToCart } from "./AddToCart";
 
 export const revalidate = 60;
@@ -163,8 +162,8 @@ export default async function MerchantPage({ params }: { params: { slug: string 
           )}
         </div>
         <div className="rounded-xl bg-akiba-tint px-4 py-2 text-center">
-          <p className="text-xs text-akiba-muted">Earn per order</p>
-          <MilesAmount amount={200} size="lg" prefix="+" className="text-akiba-teal" />
+          <p className="text-xs text-akiba-muted">Rewards</p>
+          <p className="text-sm font-semibold text-akiba-teal">Eligible after verification</p>
         </div>
       </div>
 
@@ -266,7 +265,9 @@ function ProductCard({
           <span className="font-sterling text-xl font-semibold text-akiba-ink">
             ${product.price_cusd.toFixed(2)}
           </span>
-          <MilesAmount amount={200} size="xs" prefix="+" className="text-akiba-teal" />
+          <span className="rounded-full bg-akiba-tint px-2.5 py-1 text-[11px] font-semibold text-akiba-teal">
+            Rewards eligible
+          </span>
         </div>
 
         <AddToCart
