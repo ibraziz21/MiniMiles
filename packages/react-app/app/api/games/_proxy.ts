@@ -5,6 +5,7 @@ export type UpstreamJson = {
 
 export const GAMES_PROXY_TIMEOUT_MS = Number(process.env.GAMES_PROXY_TIMEOUT_MS ?? "30000") || 30_000;
 export const GAMES_STATUS_PROXY_TIMEOUT_MS = Number(process.env.GAMES_STATUS_PROXY_TIMEOUT_MS ?? "10000") || 10_000;
+const GAMES_PROXY_TRACE = process.env.GAMES_PROXY_TRACE === "true";
 
 function parseJson(text: string) {
   if (!text) return {};
@@ -22,16 +23,35 @@ export async function fetchUpstreamJson(
 ): Promise<UpstreamJson> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const startedAt = Date.now();
+  const method = init.method ?? "GET";
+  const target = new URL(url);
+  const safeTarget = `${target.origin}${target.pathname}`;
+  if (GAMES_PROXY_TRACE) {
+    console.log(`[games-proxy] -> ${method} ${safeTarget}`);
+  }
   try {
     const upstream = await fetch(url, {
       ...init,
       signal: controller.signal,
     });
     const text = await upstream.text();
+    const durationMs = Date.now() - startedAt;
+    if (GAMES_PROXY_TRACE || upstream.status >= 400) {
+      const level = upstream.status >= 500 ? "error" : "warn";
+      console[level](`[games-proxy] <- ${upstream.status} ${method} ${safeTarget} ${durationMs}ms`);
+    }
     return {
       data: parseJson(text),
       status: upstream.status,
     };
+  } catch (err) {
+    const durationMs = Date.now() - startedAt;
+    console.error(
+      `[games-proxy] !! ${method} ${safeTarget} ${durationMs}ms`,
+      err instanceof Error ? err.message : err,
+    );
+    throw err;
   } finally {
     clearTimeout(timeoutId);
   }

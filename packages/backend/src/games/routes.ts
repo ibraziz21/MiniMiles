@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type NextFunction, type Request, type Response } from "express";
 import {
   AbiCoder,
   Contract,
@@ -46,6 +46,7 @@ import {
 import type { GameReplay, GameType, MemoryFlipReplay, RuleTapReplay } from "./types";
 
 const router = Router();
+const VERBOSE_GAME_REQUEST_LOGS = process.env.GAMES_VERBOSE_REQUEST_LOGS === "true";
 const CELO_RPC = process.env.CELO_RPC_URL ?? "https://forno.celo.org";
 const CELO_CHAIN_ID = 42220n;
 
@@ -109,6 +110,93 @@ const BLOCKING_FLAGS = [
   "non_monotonic_action_log",
   "input_during_pair_evaluation_lock",
 ];
+
+function shortValue(value: unknown) {
+  if (typeof value !== "string") return value;
+  if (/^0x[a-fA-F0-9]{40}$/.test(value)) return `${value.slice(0, 8)}...${value.slice(-4)}`;
+  if (/^0x[a-fA-F0-9]{64}$/.test(value)) return `${value.slice(0, 10)}...${value.slice(-6)}`;
+  if (/^\d+$/.test(value) && value.length > 12) return `${value.slice(0, 6)}...${value.slice(-4)}`;
+  return value.length > 96 ? `${value.slice(0, 48)}...${value.slice(-12)}` : value;
+}
+
+function pickGameFields(source: Record<string, unknown> | undefined) {
+  if (!source) return {};
+  const picked: Record<string, unknown> = {};
+  for (const key of [
+    "sessionId",
+    "walletAddress",
+    "wallet",
+    "gameType",
+    "txHash",
+    "seedCommitment",
+    "cardIndex",
+    "tileIndex",
+    "offsetMs",
+  ]) {
+    if (source[key] !== undefined) picked[key] = shortValue(source[key]);
+  }
+  return picked;
+}
+
+function gameRequestId(req: Request) {
+  return (req as Request & { gameRequestId?: string }).gameRequestId;
+}
+
+function logGame(level: "log" | "warn" | "error", event: string, meta: Record<string, unknown>) {
+  const payload = JSON.stringify(meta, (_key, value) => (typeof value === "bigint" ? value.toString() : value));
+  console[level](`[games] ${event} ${payload}`);
+}
+
+function shouldLogGameRequest(path: string) {
+  if (VERBOSE_GAME_REQUEST_LOGS) return true;
+  return (
+    path === "/health" ||
+    path === "/status" ||
+    path === "/register-start" ||
+    path === "/settlement-status" ||
+    path === "/session/init" ||
+    path === "/session/finish" ||
+    path === "/session/recover" ||
+    path === "/verify"
+  );
+}
+
+router.use((req: Request, res: Response, next: NextFunction) => {
+  const startedAt = Date.now();
+  const requestId =
+    String(req.headers["x-request-id"] ?? req.headers["x-vercel-id"] ?? "") ||
+    `${startedAt.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  (req as Request & { gameRequestId?: string }).gameRequestId = requestId;
+
+  const logByDefault = shouldLogGameRequest(req.path);
+  if (logByDefault) {
+    logGame("log", "request.in", {
+      requestId,
+      method: req.method,
+      path: req.path,
+      query: pickGameFields(req.query as Record<string, unknown>),
+      body: pickGameFields(req.body as Record<string, unknown> | undefined),
+      host: req.headers.host,
+      origin: req.headers.origin,
+    });
+  }
+
+  res.on("finish", () => {
+    const durationMs = Date.now() - startedAt;
+    const level = res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "log";
+    if (logByDefault || res.statusCode >= 400) {
+      logGame(level, "request.out", {
+        requestId,
+        method: req.method,
+        path: req.path,
+        status: res.statusCode,
+        durationMs,
+      });
+    }
+  });
+
+  next();
+});
 
 function getSkillGames(readonly = false) {
   if (!skillGamesAddress) throw new Error("SKILL_GAMES_CONTRACT_ADDRESS not set");

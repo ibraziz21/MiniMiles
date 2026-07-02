@@ -54,7 +54,7 @@ app.post("/drain", async (req, res) => {
 });
 
 // BACKEND_ROLE=api    → only game/quest API routes, no background workers
-// BACKEND_ROLE=worker → background workers only (no HTTP server is still started)
+// BACKEND_ROLE=worker → HTTP server plus background workers; route externally only if desired
 // BACKEND_ROLE=all    → default; API + all workers
 // DISABLE_BACKGROUND_WORKERS=true → skip workers regardless of role
 const role = (process.env.BACKEND_ROLE ?? "all").toLowerCase();

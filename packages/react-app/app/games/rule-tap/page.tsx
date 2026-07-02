@@ -17,6 +17,7 @@ import { useWeeklyLeaderboard } from "@/hooks/games/useWeeklyLeaderboard";
 import { Lightning, ArrowCounterClockwise, Trophy, ShoppingCart } from "@phosphor-icons/react";
 import { MilesAmount } from "@/components/games/miles-amount";
 import { rewardForScore } from "@/lib/games/score";
+import { AKIBA_SKILL_GAMES_ADDRESS } from "@/lib/games/contracts";
 import type { GameResult } from "@/lib/games/types";
 
 export default function RuleTapPage() {
@@ -33,10 +34,16 @@ export default function RuleTapPage() {
 
   const { isDailyCapped, playsToday, credits, hasCredits } = creditStatus;
   const MAX_DAILY = creditStatus.dailyCap;
+  const serviceUnavailable = Boolean(AKIBA_SKILL_GAMES_ADDRESS) && creditStatus.backendDegraded;
   // A ticket is required when the contract is live; force a purchase when out.
   const mustBuy = creditStatus.contractAvailable && !hasCredits;
 
   async function startRound() {
+    if (serviceUnavailable) {
+      setIntroOpen(true);
+      setResultOpen(false);
+      return;
+    }
     // No ticket → cannot play. Send the player to buy tickets instead.
     if (mustBuy) {
       setIntroOpen(false);
@@ -243,9 +250,15 @@ export default function RuleTapPage() {
         credits={credits}
         mustBuy={mustBuy}
         onBuyTickets={() => { setIntroOpen(false); setBuyPlaysOpen(true); }}
-        disabled={isDailyCapped}
-        disabledReason={isDailyCapped ? `${MAX_DAILY}/${MAX_DAILY} played today · Come back tomorrow` : undefined}
-        error={sessionFlow.error}
+        disabled={isDailyCapped || serviceUnavailable}
+        disabledReason={
+          serviceUnavailable
+            ? creditStatus.statusError ?? "Skill Games service is temporarily unavailable. Please try again shortly."
+            : isDailyCapped
+              ? `${MAX_DAILY}/${MAX_DAILY} played today · Come back tomorrow`
+              : undefined
+        }
+        error={sessionFlow.error ?? creditStatus.statusError}
         rules={[
           "A rule appears above the grid for the full 20-second round.",
           "Tap only tiles matching the rule. Wrong taps reduce your score.",

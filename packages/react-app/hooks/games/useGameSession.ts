@@ -112,16 +112,6 @@ export function useGameSession(gameType: GameType) {
     setError(null);
     setIsStarting(true);
     try {
-      if (creditStatus?.isDailyCapped) {
-        throw new Error("Daily play limit reached");
-      }
-
-      // A ticket is required to play. When the contract is live and the player
-      // has none, force a purchase rather than attempting a ticketless start.
-      if (creditStatus?.contractAvailable && !creditStatus?.hasCredits) {
-        throw new Error("You need a ticket to play. Buy tickets to continue.");
-      }
-
       const resolvedAddress = address ?? (await getUserAddress?.()) ?? null;
       const wallet = resolvedAddress ?? MOCK_WALLET;
       const skillGamesAddress = AKIBA_SKILL_GAMES_ADDRESS;
@@ -131,6 +121,28 @@ export function useGameSession(gameType: GameType) {
         window.ethereum &&
         resolvedAddress
       );
+
+      if (creditStatus?.isDailyCapped) {
+        throw new Error("Daily play limit reached");
+      }
+
+      if (canUseChain) {
+        if (!creditStatus?.statusReady) {
+          throw new Error("Skill Games status is still loading. Please try again in a moment.");
+        }
+        if (creditStatus.backendDegraded) {
+          throw new Error("Skill Games service is temporarily unavailable. Your ticket was not used; please try again shortly.");
+        }
+        if (!creditStatus.contractAvailable) {
+          throw new Error("Skill Games contract status is unavailable. Please try again shortly.");
+        }
+        // A ticket is required to play. When the contract is live and the player
+        // has none, force a purchase rather than attempting a ticketless start.
+        if (!creditStatus.hasCredits) {
+          throw new Error("You need a ticket to play. Buy tickets to continue.");
+        }
+      }
+
       const next = canUseChain
         ? createPendingSession(gameType, wallet)
         : await mockVerifier.createGameSession(gameType, wallet);

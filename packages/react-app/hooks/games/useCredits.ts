@@ -16,11 +16,15 @@ export type CreditStatus = {
   isDailyCapped:  boolean;
   hasCredits:     boolean;
   contractAvailable: boolean;
+  statusReady: boolean;
+  backendDegraded: boolean;
+  statusError: string | null;
 };
 
 const EMPTY: CreditStatus = {
   credits: 0, playsToday: 0, playsRemaining: PER_GAME_DAILY_PLAY_CAP, dailyCap: PER_GAME_DAILY_PLAY_CAP,
   nonce: 0, isDailyCapped: false, hasCredits: false, contractAvailable: false,
+  statusReady: false, backendDegraded: false, statusError: null,
 };
 
 const CREDIT_STATUS_TIMEOUT_MS = 10_000;
@@ -33,6 +37,24 @@ async function fetchWithTimeout(url: string, timeoutMs = CREDIT_STATUS_TIMEOUT_M
   } finally {
     window.clearTimeout(timeoutId);
   }
+}
+
+function parseMaybeJson(text: string) {
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { error: text };
+  }
+}
+
+function degradedStatus(message: string): CreditStatus {
+  return {
+    ...EMPTY,
+    statusReady: true,
+    backendDegraded: true,
+    statusError: message,
+  };
 }
 
 export const PLAY_BUNDLES = [
@@ -57,8 +79,11 @@ export function useCredits(gameType: GameType, walletAddress: string | null | un
       const res = await fetchWithTimeout(
         `/api/games/status?wallet=${walletAddress}&gameType=${gameType}`
       );
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
+      const data = parseMaybeJson(await res.text()) as Record<string, any>;
+      if (!res.ok || data.degraded === true) {
+        setStatus(degradedStatus("Skill Games service is temporarily unavailable. Please try again shortly."));
+        return;
+      }
       const playsToday = data.playsToday ?? 0;
       const playsRemaining = data.playsRemaining ?? PER_GAME_DAILY_PLAY_CAP;
       const dailyCap = data.dailyCap ?? Math.max(PER_GAME_DAILY_PLAY_CAP, playsToday + playsRemaining);
@@ -71,9 +96,12 @@ export function useCredits(gameType: GameType, walletAddress: string | null | un
         isDailyCapped:     playsRemaining === 0,
         hasCredits:        (data.credits ?? 0) > 0,
         contractAvailable: data.contractAvailable ?? false,
+        statusReady:       true,
+        backendDegraded:   false,
+        statusError:       null,
       });
     } catch {
-      setStatus(EMPTY);
+      setStatus(degradedStatus("Skill Games status could not be loaded. Please try again shortly."));
     } finally {
       setLoading(false);
     }

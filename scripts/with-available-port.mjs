@@ -10,7 +10,8 @@ function usage() {
 }
 
 const args = process.argv.slice(2);
-let preferredPort = process.env.PORT ? Number(process.env.PORT) : 3000;
+const envPort = process.env.PORT ? Number(process.env.PORT) : null;
+let preferredPort = envPort ?? 3000;
 let envOnly = false;
 const commandIndex = args.indexOf("--");
 
@@ -21,7 +22,9 @@ for (let i = 0; i < commandIndex; i += 1) {
   if (arg === "--prefer") {
     const next = args[i + 1];
     if (!next) usage();
-    preferredPort = Number(next);
+    // On hosts like Railway/Render/Fly, PORT is the contract with the platform.
+    // A local --prefer should not override it or the app will listen on the wrong port.
+    if (envPort == null) preferredPort = Number(next);
     i += 1;
   } else if (arg === "--env-only") {
     envOnly = true;
