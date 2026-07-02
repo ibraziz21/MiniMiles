@@ -25,6 +25,13 @@ import {
 const isHexAddress = (value: string | null | undefined): value is HexAddress =>
   !!value && /^0x[a-fA-F0-9]{40}$/.test(value);
 
+const INVITE_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I
+function generateInviteCode(): string {
+  const bytes = randomBytes(4);
+  const part = Array.from(bytes).map((b) => INVITE_CODE_CHARS[b % INVITE_CODE_CHARS.length]).join("");
+  return `FARK-${part}`;
+}
+
 const ACTIVE_MATCH_STATUSES = ["created", "funded", "in_progress"];
 const FARKLE_MODE_KEYS = new Set(["FARKLE_QUICK_1500_AKIBA", "FARKLE_REWARD_3000_USDT"]);
 const FARKLE_QUEUE_TTL_MS = Number(process.env.FARKLE_QUEUE_TTL_MS ?? "120000") || 120_000;
@@ -305,7 +312,14 @@ async function markSettled(matchId: string) {
 
 async function syncRewardMirror(winnerAddress: HexAddress, expectedCreditCents: number, chainId?: number) {
   if (expectedCreditCents <= 0) return null;
-  const rewardCreditsCents = await readFarkleRewardCreditCents(winnerAddress, chainId);
+  let rewardCreditsCents: number;
+  try {
+    rewardCreditsCents = await readFarkleRewardCreditCents(winnerAddress, chainId);
+  } catch (err: any) {
+    // Vault read is best-effort — Vercel reads on-chain balance directly for display.
+    console.warn(`[farkle/service] syncRewardMirror skipped for ${winnerAddress}: ${err?.message ?? err}`);
+    return null;
+  }
   await supabase.from("farkle_credit_balances").upsert(
     {
       wallet_address: winnerAddress.toLowerCase(),
@@ -318,36 +332,33 @@ async function syncRewardMirror(winnerAddress: HexAddress, expectedCreditCents: 
 }
 
 async function writeRewardLedger(match: MatchRow, params: FarkleSettlementParams, txHash: string | null) {
-  const { data: existing } = await supabase
-    .from("game_credit_ledger")
-    .select("id")
-    .eq("reference_type", "match")
-    .eq("reference_id", match.id)
-    .eq("ledger_type", "AKIBAMILES_REWARD_GRANTED")
-    .limit(1);
-  if (existing?.length) return;
-
-  const { error } = await supabase.from("game_credit_ledger").insert([
+  const { error } = await supabase.from("game_credit_ledger").upsert(
+    [
+      {
+        wallet_address: params.winnerAddress.toLowerCase(),
+        amount: params.winMiles,
+        currency: "AKIBAMILES",
+        ledger_type: "AKIBAMILES_REWARD_GRANTED",
+        reference_type: "match",
+        reference_id: match.id,
+        tx_hash: txHash,
+      },
+      {
+        wallet_address: params.loserAddress.toLowerCase(),
+        amount: params.losMiles,
+        currency: "AKIBAMILES",
+        ledger_type: "AKIBAMILES_REWARD_GRANTED",
+        reference_type: "match",
+        reference_id: match.id,
+        tx_hash: txHash,
+      },
+    ],
     {
-      wallet_address: params.winnerAddress.toLowerCase(),
-      amount: params.winMiles,
-      currency: "AKIBAMILES",
-      ledger_type: "AKIBAMILES_REWARD_GRANTED",
-      reference_type: "match",
-      reference_id: match.id,
-      tx_hash: txHash,
+      onConflict: "reference_type,reference_id,ledger_type,wallet_address",
+      ignoreDuplicates: true,
     },
-    {
-      wallet_address: params.loserAddress.toLowerCase(),
-      amount: params.losMiles,
-      currency: "AKIBAMILES",
-      ledger_type: "AKIBAMILES_REWARD_GRANTED",
-      reference_type: "match",
-      reference_id: match.id,
-      tx_hash: txHash,
-    },
-  ]);
-  if (error) console.error(`[farkle/service] reward ledger insert failed matchId=${match.id}:`, error.message);
+  );
+  if (error) console.error(`[farkle/service] reward ledger upsert failed matchId=${match.id}:`, error.message);
 }
 
 export async function expireWaitingFarkleQueue(now = new Date()) {
@@ -631,12 +642,30 @@ export interface EnterFarkleMatchInput {
   address: string;
   modeKey: string;
   targetAddress?: string | null;
+  inviteCode?: string | null;
 }
 
 export async function enterFarkleMatch(input: EnterFarkleMatchInput) {
   const address = input.address.toLowerCase();
   const modeKey = input.modeKey;
-  const targetAddress = input.targetAddress ? input.targetAddress.toLowerCase() : null;
+  let targetAddress = input.targetAddress ? input.targetAddress.toLowerCase() : null;
+
+  // Resolve invite code to wallet address if provided and no explicit target
+  if (!targetAddress && input.inviteCode) {
+    const code = input.inviteCode.toUpperCase().trim();
+    const { data: slot } = await supabase
+      .from("matchmaking_queue")
+      .select("wallet_address, mode_key")
+      .eq("invite_code", code)
+      .eq("status", "waiting")
+      .gt("expires_at", new Date().toISOString())
+      .neq("wallet_address", address)
+      .maybeSingle();
+    if (!slot) {
+      return { statusCode: 404, body: { error: "invite_not_found", message: "Code not found or already used." } };
+    }
+    targetAddress = slot.wallet_address;
+  }
 
   if (!FARKLE_MODE_KEYS.has(modeKey)) {
     return { statusCode: 400, body: { error: "invalid modeKey" } };
@@ -695,6 +724,7 @@ export async function enterFarkleMatch(input: EnterFarkleMatchInput) {
   const matchKey = `farkle-${Date.now()}`;
   const seed = generateServerSeed();
   const seedHash = hashServerSeed(seed);
+  const inviteCode = generateInviteCode();
 
   const { data: result, error: rpcError } = await withSupabaseRetry("farkle_enter_match rpc", () =>
     supabase.rpc("farkle_enter_match", {
@@ -705,6 +735,7 @@ export async function enterFarkleMatch(input: EnterFarkleMatchInput) {
       p_match_key: matchKey,
       p_seed: seed,
       p_seed_hash: seedHash,
+      p_invite_code: inviteCode,
     }),
     { timeoutMs: Math.max(FARKLE_SUPABASE_TIMEOUT_MS, 8_000) },
   );
@@ -766,11 +797,12 @@ export async function getFarkleQueue(modeKey: string, address?: string | null) {
   }
 
   let myMatchId: string | null = null;
+  let myInviteCode: string | null = null;
   if (wallet) {
-    const { data: myEntry } = await readDb<QueueRow>("read queue entry", () =>
+    const { data: myEntry } = await readDb<QueueRow & { invite_code?: string | null }>("read queue entry", () =>
       supabase
         .from("matchmaking_queue")
-        .select("status, match_id")
+        .select("status, match_id, invite_code")
         .eq("wallet_address", wallet)
         .eq("mode_key", modeKey)
         .maybeSingle(),
@@ -797,6 +829,7 @@ export async function getFarkleQueue(modeKey: string, address?: string | null) {
         );
       }
     } else if (myEntry?.status === "waiting") {
+      myInviteCode = myEntry.invite_code ?? null;
       await bestEffortDb("refresh queue ttl", () =>
         supabase
           .from("matchmaking_queue")
@@ -838,6 +871,7 @@ export async function getFarkleQueue(modeKey: string, address?: string | null) {
     statusCode: 200,
     body: {
       matchId: myMatchId,
+      myInviteCode,
       waiters: waiters.map((row) => ({
         address: row.wallet_address,
         username: usernameMap[row.wallet_address] ?? null,

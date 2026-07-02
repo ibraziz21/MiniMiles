@@ -23,6 +23,7 @@ export async function POST(req: Request) {
   const targetAddress = typeof body?.targetAddress === "string"
     ? body.targetAddress.toLowerCase()
     : null;
+  const inviteCode = typeof body?.inviteCode === "string" ? body.inviteCode.trim() : null;
 
   if (!modeKey) return NextResponse.json({ error: "missing modeKey" }, { status: 400 });
   if (!VALID_MODES.has(modeKey)) return NextResponse.json({ error: "invalid modeKey" }, { status: 400 });
@@ -37,6 +38,7 @@ export async function POST(req: Request) {
       address: session.walletAddress.toLowerCase(),
       modeKey,
       ...(targetAddress ? { targetAddress } : {}),
+      ...(inviteCode ? { inviteCode } : {}),
     }),
   });
 }

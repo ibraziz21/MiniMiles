@@ -953,9 +953,14 @@ function Matchmaking({ mode, myAddress, onChallenge, onCancel }: {
   mode: FarkleMode; myAddress: string;
   onChallenge: (t: string) => void; onCancel: () => void;
 }) {
-  const [waiters,     setWaiters]     = useState<WaitingPlayer[]>([]);
-  const [challenging, setChallenging] = useState<string | null>(null);
-  const [dots,        setDots]        = useState(".");
+  const [waiters,      setWaiters]      = useState<WaitingPlayer[]>([]);
+  const [challenging,  setChallenging]  = useState<string | null>(null);
+  const [dots,         setDots]         = useState(".");
+  const [myInviteCode, setMyInviteCode] = useState<string | null>(null);
+  const [codeCopied,   setCodeCopied]   = useState(false);
+  const [codeInput,    setCodeInput]    = useState("");
+  const [codeError,    setCodeError]    = useState<string | null>(null);
+  const [joiningCode,  setJoiningCode]  = useState(false);
   const matchedRef = useRef(false);
 
   const cancelQueue = useCallback(async () => {
@@ -979,6 +984,7 @@ function Matchmaking({ mode, myAddress, onChallenge, onCancel }: {
       if (!r.ok) return;
       const data = await r.json();
       setWaiters(data.waiters ?? []);
+      if (data.myInviteCode) setMyInviteCode(data.myInviteCode);
       if (data.matchId) {
         matchedRef.current = true;
         onChallenge("__matched__:" + data.matchId);
@@ -1002,6 +1008,43 @@ function Matchmaking({ mode, myAddress, onChallenge, onCancel }: {
     onCancel();
   }
 
+  async function joinWithCode() {
+    const code = codeInput.trim().toUpperCase();
+    if (!code) return;
+    setCodeError(null);
+    setJoiningCode(true);
+    try {
+      const r = await fetch("/api/games/farkle/matches/find", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ modeKey: mode, inviteCode: code }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        setCodeError(
+          data.error === "invite_not_found"
+            ? "Code not found — it may have expired."
+            : data.message ?? data.error ?? "Failed to join.",
+        );
+        return;
+      }
+      if (data.matchId) {
+        matchedRef.current = true;
+        onChallenge("__matched__:" + data.matchId);
+      }
+    } finally {
+      setJoiningCode(false);
+    }
+  }
+
+  function copyCode() {
+    if (!myInviteCode) return;
+    navigator.clipboard.writeText(myInviteCode).then(() => {
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
+    }).catch(() => {});
+  }
+
   return (
     <div className="px-4 mt-5">
       <div className="flex items-center gap-3 rounded-2xl bg-[#E8F7F9] border border-[#238D9D]/20 px-4 py-3 mb-5">
@@ -1011,15 +1054,30 @@ function Matchmaking({ mode, myAddress, onChallenge, onCancel }: {
           className="h-2 w-2 rounded-full bg-[#238D9D] flex-shrink-0"
         />
         <div>
-          <p className="text-sm font-bold text-[#238D9D]">You're in the lobby{dots}</p>
+          <p className="text-sm font-bold text-[#238D9D]">You&apos;re in the lobby{dots}</p>
           <p className="text-xs text-[#238D9D]/70 font-poppins mt-0.5">
             {mode === "FARKLE_QUICK_1500_AKIBA" ? "Quick Duel · 1,500 pts" : "Reward Duel · 2,500 pts"}
           </p>
         </div>
       </div>
 
+      {/* Invite code card */}
+      {myInviteCode && (
+        <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl bg-white border border-gray-100 shadow-sm px-4 py-3 mb-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] text-[#A0A0A0] font-poppins">Your invite code</p>
+            <p className="text-lg font-extrabold tracking-widest text-[#1A1A1A] font-mono">{myInviteCode}</p>
+          </div>
+          <motion.button type="button" whileTap={{ scale: 0.92 }} onClick={copyCode}
+            className="rounded-xl bg-[#E8F7F9] border border-[#238D9D]/20 px-3 py-2 text-xs font-bold text-[#238D9D]">
+            {codeCopied ? "Copied!" : "Copy"}
+          </motion.button>
+        </motion.div>
+      )}
+
       <h3 className="text-sm font-extrabold mb-2">
-        {waiters.length === 0 ? "No opponents yet — share the link!" : `${waiters.length} player${waiters.length !== 1 ? "s" : ""} waiting`}
+        {waiters.length === 0 ? "No opponents in lobby" : `${waiters.length} player${waiters.length !== 1 ? "s" : ""} waiting`}
       </h3>
 
       <AnimatePresence>
@@ -1029,7 +1087,7 @@ function Matchmaking({ mode, myAddress, onChallenge, onCancel }: {
             <Sword size={28} className="text-gray-300" />
             <p className="text-sm text-[#A0A0A0] font-poppins text-center">
               Waiting for someone{dots}<br />
-              <span className="text-xs">Both devices need to be on this page</span>
+              <span className="text-xs">Share your code or ask a friend for theirs</span>
             </p>
           </motion.div>
         ) : (
@@ -1057,8 +1115,33 @@ function Matchmaking({ mode, myAddress, onChallenge, onCancel }: {
         )}
       </AnimatePresence>
 
+      {/* Enter a friend's code */}
+      <div className="mt-5">
+        <p className="text-xs font-bold text-[#1A1A1A] mb-2">Have a friend&apos;s code?</p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={codeInput}
+            onChange={(e) => { setCodeInput(e.target.value.toUpperCase()); setCodeError(null); }}
+            onKeyDown={(e) => { if (e.key === "Enter") void joinWithCode(); }}
+            placeholder="FARK-XXXX"
+            maxLength={9}
+            className="flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-mono font-semibold tracking-widest uppercase placeholder:text-gray-300 focus:outline-none focus:border-[#238D9D]"
+          />
+          <motion.button type="button" whileTap={{ scale: 0.94 }}
+            onClick={() => void joinWithCode()}
+            disabled={joiningCode || codeInput.length < 4}
+            className="rounded-xl bg-[#238D9D] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40">
+            {joiningCode ? <SpinnerGap size={16} className="animate-spin" /> : "Join"}
+          </motion.button>
+        </div>
+        {codeError && (
+          <p className="mt-1.5 text-xs text-red-500 font-poppins">{codeError}</p>
+        )}
+      </div>
+
       <button type="button" onClick={leaveLobby}
-        className="mt-5 w-full rounded-xl border border-gray-200 bg-white py-2.5 text-sm font-semibold text-[#717171]">
+        className="mt-4 w-full rounded-xl border border-gray-200 bg-white py-2.5 text-sm font-semibold text-[#717171]">
         Leave lobby
       </button>
     </div>
@@ -1811,6 +1894,7 @@ function ResultScreen({ result, myAddress, mode, onPlayAgain, onBackToFarkle }: 
   const [checkedStatus, setCheckedStatus] = useState<"settled" | "pending" | null>(null);
   const [settlementError, setSettlementError] = useState<string | null>(null);
   const [claimed, setClaimed] = useState(false);
+  const [claimedAmountUsd, setClaimedAmountUsd] = useState<number | null>(null);
   const {
     claimable,
     claimEnabled,
@@ -1838,13 +1922,12 @@ function ResultScreen({ result, myAddress, mode, onPlayAgain, onBackToFarkle }: 
         method: "POST",
         headers: { "content-type": "application/json" },
       });
-      const statusData = statusRes.ok ? await statusRes.json().catch(() => null) : null;
+      const statusData = await statusRes.json().catch(() => null);
       if (statusRes.ok && statusData) {
         setCheckedStatus(statusData.settlementStatus === "settled" ? "settled" : "pending");
         if (statusData.retryError) setSettlementError(statusData.retryError);
       } else {
-        const fallback = await statusRes.json().catch(() => null);
-        setSettlementError(fallback?.error ?? "Settlement status unavailable");
+        setSettlementError(statusData?.error ?? "Settlement status unavailable");
         setCheckedStatus("pending");
       }
 
@@ -1876,8 +1959,10 @@ function ResultScreen({ result, myAddress, mode, onPlayAgain, onBackToFarkle }: 
 
   async function handleClaimUsdt() {
     if (claiming) return;
+    const snapshot = claimableUsd;
     const ok = await claim();
     if (ok) {
+      setClaimedAmountUsd(snapshot);
       setClaimed(true);
       setCheckedStatus("settled");
       try { localStorage.removeItem("farkle:lastResult"); } catch {}
@@ -1915,7 +2000,9 @@ function ResultScreen({ result, myAddress, mode, onPlayAgain, onBackToFarkle }: 
                 <SpinnerGap size={13} className="animate-spin" /> Confirming…
               </span>
             ) : (
-              <span className="text-sm font-bold text-green-600">+$0.15</span>
+              <span className="text-sm font-bold text-green-600">
+                +${(hasClaimableUsdt ? claimableUsd : claimedAmountUsd ?? 0).toFixed(2)}
+              </span>
             )}
           </div>
         )}

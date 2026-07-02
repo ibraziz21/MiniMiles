@@ -72,6 +72,8 @@ router.post("/matches/find", async (req, res) => {
     typeof req.body?.targetAddress === "string"
       ? req.body.targetAddress.toLowerCase()
       : null;
+  const inviteCode =
+    typeof req.body?.inviteCode === "string" ? req.body.inviteCode.trim() : null;
 
   if (!isWalletAddress(address)) {
     res.status(400).json({ error: "missing or invalid address" });
@@ -87,7 +89,7 @@ router.post("/matches/find", async (req, res) => {
   }
 
   try {
-    const result = await enterFarkleMatch({ address, modeKey, targetAddress });
+    const result = await enterFarkleMatch({ address, modeKey, targetAddress, inviteCode });
     res.status(result.statusCode).json(result.body);
   } catch (e: any) {
     console.error(
