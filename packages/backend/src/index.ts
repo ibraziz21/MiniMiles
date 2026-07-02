@@ -21,7 +21,7 @@ app.use("/claim", questRouter);
 app.use("/games", gamesRouter);
 app.use("/games/farkle", farkleRouter);
 
-app.get("/", (req, res) => {
+app.get("/", (_req, res) => {
   res.send("Welcome to the Minimiles Daily Quests Backend!");
 });
 
@@ -53,17 +53,28 @@ app.post("/drain", async (req, res) => {
   res.json({ ok: true, message: "drain triggered" });
 });
 
+// BACKEND_ROLE=api    → only game/quest API routes, no background workers
+// BACKEND_ROLE=worker → background workers only (no HTTP server is still started)
+// BACKEND_ROLE=all    → default; API + all workers
+// DISABLE_BACKGROUND_WORKERS=true → skip workers regardless of role
+const role = (process.env.BACKEND_ROLE ?? "all").toLowerCase();
+const workersEnabled =
+  role !== "api" &&
+  process.env.DISABLE_BACKGROUND_WORKERS !== "true";
+
 const PORT = Number(process.env.PORT ?? 0);
 const server = app.listen(PORT, () => {
   const address = server.address();
   const actualPort = typeof address === "object" && address ? address.port : PORT;
-  console.log(`Server listening on port ${actualPort}`);
-  startMintWorker();
-  startBurnBlacklistWatcher();
-  startProsperityPassWorker();
-  startCrackPotSweeper();
-  startVaultEventWatcher();
-  startVaultRewardScheduler();
+  console.log(`Server listening on port ${actualPort} (role=${role}, workers=${workersEnabled})`);
+  if (workersEnabled) {
+    startMintWorker();
+    startBurnBlacklistWatcher();
+    startProsperityPassWorker();
+    startCrackPotSweeper();
+    startVaultEventWatcher();
+    startVaultRewardScheduler();
+  }
 });
 
 // Release the mint queue lock before Railway (or any host) kills the process.

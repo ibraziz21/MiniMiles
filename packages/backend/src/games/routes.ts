@@ -12,6 +12,15 @@ import {
 import { supabase } from "../supabaseClient";
 import { GAME_TYPE_ID, PER_GAME_DAILY_PLAY_CAP, isGameType } from "./config";
 import { akibaSkillGamesAbi, SETTLEMENT_TYPEHASH_PREIMAGE } from "./contracts";
+import {
+  type SettlementJobRow,
+  getSettlementJob,
+  leaseSettlementJobs,
+  markJobConfirmed,
+  markJobRetrying,
+  markJobSubmitted,
+  upsertSettlementJob,
+} from "./settlementJobs";
 import { seedCommitment, validateMemoryFlipReplay, validateRuleTapReplay } from "./replayValidation";
 import {
   applyFlip,
@@ -730,22 +739,35 @@ router.get("/settlement-status", async (req, res) => {
       return;
     }
 
+    // Check the Phase-3 job table first; fall back to legacy fields if no job exists.
+    let jobRow: SettlementJobRow | null = null;
+    try {
+      jobRow = await getSettlementJob(sessionId);
+    } catch (err: any) {
+      if ((err as any)?.code !== "42P01") {
+        console.warn("[games/settlement-status] job lookup failed:", err?.message);
+      }
+    }
+
     const nowSec = Math.floor(Date.now() / 1000);
     const settlementExpiry = Number(data.settlement_expiry ?? 0);
+    const isSettled = Boolean(data.settled_at) || jobRow?.status === "confirmed";
+
     res.json({
       sessionId: data.session_id,
       accepted: Boolean(data.accepted),
-      settled: Boolean(data.settled_at),
-      settleTxHash: data.settle_tx_hash,
+      settled: isSettled,
+      settleTxHash: jobRow?.tx_hash ?? data.settle_tx_hash,
       settledAt: data.settled_at,
-      settleAttempts: Number(data.settle_attempts ?? 0),
+      settleAttempts: jobRow?.attempts ?? Number(data.settle_attempts ?? 0),
       settlementExpired: settlementExpiry > 0 && settlementExpiry <= nowSec,
-      retryable: Boolean(data.accepted) &&
-        !data.settled_at &&
-        Number(data.settle_attempts ?? 0) < MAX_SETTLE_ATTEMPTS,
+      retryable: jobRow
+        ? ["queued", "retrying"].includes(jobRow.status)
+        : Boolean(data.accepted) && !data.settled_at && Number(data.settle_attempts ?? 0) < MAX_SETTLE_ATTEMPTS,
       rewardMiles: Number(data.reward_miles ?? 0),
       rewardStable: Number(data.reward_stable ?? 0),
       antiAbuseFlags: data.anti_abuse_flags ?? [],
+      ...(jobRow ? { jobStatus: jobRow.status, lastError: jobRow.last_error } : {}),
     });
   } catch (err: any) {
     console.error("[games/settlement-status]", err);
@@ -1040,6 +1062,149 @@ async function attemptSettleLocked(
   return false;
 }
 
+// ---------------------------------------------------------------------------
+// Phase 3: job-table-based settlement worker
+// ---------------------------------------------------------------------------
+
+const WORKER_ID = `w-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
+
+async function reconcileJobTx(txHash: string): Promise<"pending" | "success" | "reverted" | "error"> {
+  try {
+    const receipt = await readWithFallback((p) => p.getTransactionReceipt(txHash));
+    if (!receipt) return "pending";
+    return (receipt as any).status === 1 ? "success" : "reverted";
+  } catch {
+    return "error";
+  }
+}
+
+async function processSettlementJob(job: SettlementJobRow): Promise<void> {
+  if (!verifierPk || !skillGamesAddress) return;
+
+  const sid = job.session_id;
+  const numericSid = BigInt(sid);
+  const attempts = job.attempts + 1;
+
+  // Already settled on-chain? Short-circuit.
+  const alreadyOnchain = await markSettledIfOnchain(sid, numericSid, attempts);
+  if (alreadyOnchain) {
+    await markJobConfirmed(job.id, job.tx_hash ?? "already-settled-onchain", attempts);
+    return;
+  }
+
+  // Check if already settled in DB (inline settlement won the race).
+  const { data: regRow } = await supabase
+    .from("skill_game_sessions")
+    .select("settled_at, settle_tx_hash")
+    .eq("session_id", sid)
+    .maybeSingle();
+  if (regRow?.settled_at) {
+    await markJobConfirmed(job.id, regRow.settle_tx_hash ?? "already-settled-db", attempts);
+    return;
+  }
+
+  // Reconcile an in-flight tx if one was submitted previously.
+  if (job.tx_hash) {
+    const txState = await reconcileJobTx(job.tx_hash);
+    if (txState === "pending") {
+      // Still in-flight — release lease so the next sweep re-checks.
+      await markJobRetrying(job.id, "tx-pending", job.attempts);
+      return;
+    }
+    if (txState === "success") {
+      await supabase
+        .from("skill_game_sessions")
+        .update({ settled_at: new Date().toISOString() })
+        .eq("session_id", sid);
+      await markJobConfirmed(job.id, job.tx_hash, attempts);
+      return;
+    }
+    // Reverted or error — clear the stale hash and retry with a fresh tx.
+    await supabase
+      .from("skill_game_settlement_jobs")
+      .update({ tx_hash: null, updated_at: new Date().toISOString() })
+      .eq("id", job.id);
+  }
+
+  try {
+    const score        = BigInt(Math.round(job.score));
+    const rewardMiles  = toMilesUnits(job.reward_miles);
+    const rewardStable = toStableUnits(Number(job.reward_stable));
+
+    const { expiry, signature } = await signSettlementPayload({
+      sessionId: numericSid,
+      player:    job.wallet_address,
+      gameType:  GAME_TYPE_ID[job.game_type as keyof typeof GAME_TYPE_ID] ?? 0,
+      score,
+      rewardMiles,
+      rewardStable,
+    });
+
+    const contract = getSkillGames(false);
+    const tx = await contract.settleGame(numericSid, score, rewardMiles, rewardStable, expiry, signature);
+
+    await markJobSubmitted(job.id, tx.hash as string, attempts);
+    await supabase
+      .from("skill_game_sessions")
+      .update({ settle_tx_hash: tx.hash, settle_attempts: attempts })
+      .eq("session_id", sid);
+
+    const receipt = await withTimeout(tx.wait(1), SETTLE_RECEIPT_TIMEOUT_MS);
+    if (!receipt) {
+      await markJobRetrying(job.id, "receipt-timeout", attempts);
+      return;
+    }
+    if ((receipt as any).status === 0) throw new Error("settlement-tx-reverted");
+
+    await supabase
+      .from("skill_game_sessions")
+      .update({ settled_at: new Date().toISOString(), settle_tx_hash: tx.hash, settle_attempts: attempts })
+      .eq("session_id", sid);
+    await markJobConfirmed(job.id, tx.hash as string, attempts);
+    console.log(`[games/settle-jobs] ✅ job ${job.id} session ${sid} settled tx=${tx.hash}`);
+  } catch (err: any) {
+    const msg = err?.shortMessage ?? err?.message ?? String(err);
+    console.error(`[games/settle-jobs] job ${job.id} session ${sid} failed (attempt ${attempts}):`, msg);
+    await markJobRetrying(job.id, msg, attempts);
+    await supabase
+      .from("skill_game_sessions")
+      .update({ settle_attempts: attempts })
+      .eq("session_id", sid);
+    if (msg.includes("insufficient funds")) {
+      console.error("[games/settle-jobs] ❌ VERIFIER OUT OF GAS");
+      void checkVerifierBalance();
+    }
+  }
+}
+
+let settlementJobsRunning = false;
+
+async function runSettlementJobs(): Promise<void> {
+  if (!verifierPk || !skillGamesAddress) return;
+  if (settlementJobsRunning) return;
+  settlementJobsRunning = true;
+  try {
+    let jobs: SettlementJobRow[];
+    try {
+      jobs = await leaseSettlementJobs(WORKER_ID, 5);
+    } catch (err: any) {
+      if ((err as any)?.code === "42P01") return; // table not yet migrated
+      throw err;
+    }
+    for (const job of jobs) {
+      void processSettlementJob(job).catch((err) =>
+        console.error(`[games/settle-jobs] unhandled error for job ${job.id}:`, err?.message ?? err)
+      );
+    }
+  } finally {
+    settlementJobsRunning = false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Legacy settlement retry (skill_game_sessions-based, pre-Phase-3 sessions)
+// ---------------------------------------------------------------------------
+
 // Retry accepted sessions that were never settled on-chain (e.g. process restart mid-flight).
 // Re-signs expired settlement payloads so accepted sessions do not get stranded.
 let retryPendingSettlementsRunning = false;
@@ -1079,17 +1244,22 @@ async function retryPendingSettlements() {
   }
 }
 
+// Legacy retry (pre-Phase-3 sessions without a job row)
 setTimeout(() => { void retryPendingSettlements(); }, 5000);
 setInterval(() => { void retryPendingSettlements(); }, SETTLE_RETRY_INTERVAL_MS);
+// Phase-3 job-table worker (staggered start to avoid thundering herd)
+setTimeout(() => { void runSettlementJobs(); }, 8000);
+setInterval(() => { void runSettlementJobs(); }, SETTLE_RETRY_INTERVAL_MS);
 
 // ---------------------------------------------------------------------------
-// Server-authoritative Memory Flip
+// Server-authoritative Memory Flip (hybrid mode)
 //
-// The shuffled deck lives only in skill_game_server_sessions and is never sent
-// to the client unflipped. The client flips one index at a time; the server
-// reveals just that card's value and tracks all state + timing on its own clock.
-// Because the board is never disclosed up front, knowing the seed/commitment
-// gives a cheater nothing — memory is the only way to clear the board.
+// The deck is built server-side from a secret seed and sent to the client on
+// /session/init so the client can render matches at zero latency. The server
+// mirrors every flip via /session/flip and scores authoritatively — the client
+// cannot report a false result because the server holds the source of truth.
+// This is hybrid mode: the board transits once on init, but gameplay scoring
+// stays server-side.
 // ---------------------------------------------------------------------------
 
 const SETTLE_ROW_COLUMNS =
@@ -1609,6 +1779,24 @@ router.post("/session/finish", async (req, res) => {
         }
       }
 
+      // Phase 3: ensure a durable settlement job exists so the worker can
+      // retry if the inline attempt above failed or was skipped (e.g. verifier
+      // not configured yet). Non-fatal — legacy retry still covers old sessions.
+      if (final.accepted && hasReward) {
+        try {
+          await upsertSettlementJob({
+            sessionId:    sid,
+            walletAddress: wallet,
+            gameType,
+            score:        final.score,
+            rewardMiles:  final.accepted ? final.rewardMiles : 0,
+            rewardStable: final.accepted ? final.rewardStable : 0,
+          });
+        } catch (jobErr: any) {
+          console.warn("[games/session/finish] could not upsert settlement job:", jobErr?.message ?? jobErr);
+        }
+      }
+
       return {
         status: 200,
         body: {
@@ -1633,6 +1821,363 @@ router.post("/session/finish", async (req, res) => {
     console.error("[games/session/finish] ERROR", { message: err?.message, code: err?.code, details: err?.details, hint: err?.hint });
     res.status(err?.status ?? 500).json({ error: err?.message ?? "server-error" });
   }
+});
+
+// ---------------------------------------------------------------------------
+// GET /games/session/recover?sessionId=...&wallet=...
+//
+// Returns a structured lifecycle snapshot for a session so the client can
+// determine what went wrong and what to do next. Read-only except for one safe
+// reconciliation: if an existing settle_tx_hash is already confirmed on-chain,
+// we write settled_at so subsequent calls see the correct state.
+// ---------------------------------------------------------------------------
+router.get("/session/recover", async (req, res) => {
+  try {
+    const sessionId = String(req.query.sessionId ?? "").trim();
+    const wallet    = String(req.query.wallet ?? req.query.walletAddress ?? "").toLowerCase().trim();
+
+    if (!sessionId || !wallet) {
+      res.status(400).json({ error: "sessionId and wallet required" });
+      return;
+    }
+
+    // 1. On-chain session (best-effort; RPC might be down)
+    let onchain: OnchainSession | null = null;
+    let onchainErr: string | undefined;
+    try {
+      onchain = await readOnchainSession(sessionId);
+    } catch (err: any) {
+      onchainErr = err?.message ?? "rpc-unavailable";
+    }
+
+    // Wallet ownership check — enforce via whichever source we have.
+    if (onchain && onchain.player !== wallet) {
+      res.status(403).json({ error: "wallet-mismatch" });
+      return;
+    }
+
+    // 2. Registered session (skill_game_sessions)
+    const { data: regRow, error: regErr } = await supabase
+      .from("skill_game_sessions")
+      .select("session_id, wallet_address, game_type, accepted, score, reward_miles, reward_stable, anti_abuse_flags, settle_tx_hash, settled_at, settle_attempts, settlement_expiry")
+      .eq("session_id", sessionId)
+      .maybeSingle();
+    if (regErr) throw regErr;
+
+    if (!onchain && regRow && (regRow as any).wallet_address !== wallet) {
+      res.status(403).json({ error: "wallet-mismatch" });
+      return;
+    }
+    if (!onchain && !regRow) {
+      res.status(404).json({ error: "session-not-found" });
+      return;
+    }
+
+    // 3. Server session (skill_game_server_sessions)
+    const { data: srvRow, error: srvErr } = await supabase
+      .from("skill_game_server_sessions")
+      .select("session_id, game_type, finalized, completed, updated_at")
+      .eq("session_id", sessionId)
+      .maybeSingle();
+    if (srvErr) throw srvErr;
+
+    // 4. Settlement job (Phase 3 — table may not exist yet pre-migration)
+    let jobRow: SettlementJobRow | null = null;
+    try {
+      jobRow = await getSettlementJob(sessionId);
+    } catch (err: any) {
+      if ((err as any)?.code !== "42P01") {
+        console.warn("[games/session/recover] settlement job lookup failed:", err?.message);
+      }
+    }
+
+    // 5. Safe reconciliation: if we have a tx hash not yet marked settled, check chain.
+    const r = regRow as any;
+    if (r?.settle_tx_hash && !r?.settled_at) {
+      try {
+        const receipt = await readWithFallback((p) => p.getTransactionReceipt(r.settle_tx_hash)).catch(() => null);
+        if ((receipt as any)?.status === 1) {
+          await supabase
+            .from("skill_game_sessions")
+            .update({ settled_at: new Date().toISOString() })
+            .eq("session_id", sessionId);
+          r.settled_at = new Date().toISOString();
+          if (jobRow && jobRow.status !== "confirmed") {
+            await markJobConfirmed(jobRow.id, r.settle_tx_hash, jobRow.attempts);
+            jobRow = { ...jobRow, status: "confirmed", tx_hash: r.settle_tx_hash };
+          }
+        }
+      } catch { /* best-effort — don't break recovery on reconcile error */ }
+    }
+
+    // 6. Derive settlement state
+    const settled    = Boolean(r?.settled_at) || onchain?.settled === true;
+    const accepted   = Boolean(r?.accepted);
+    const rewardMiles = Number(r?.reward_miles ?? 0);
+    const rewardStable = Number(r?.reward_stable ?? 0);
+    const hasReward  = rewardMiles > 0 || rewardStable > 0;
+    const txHash     = jobRow?.tx_hash ?? r?.settle_tx_hash ?? null;
+    const attempts   = jobRow?.attempts ?? Number(r?.settle_attempts ?? 0);
+
+    let settlementState: string;
+    let settlementRetryable = false;
+    let settlementReason: string | undefined;
+
+    if (jobRow) {
+      settlementState    = jobRow.status;
+      settlementRetryable = ["queued", "retrying"].includes(jobRow.status);
+      settlementReason   = jobRow.last_error ?? undefined;
+    } else if (settled) {
+      settlementState = "confirmed";
+    } else if (!accepted || !hasReward) {
+      settlementState = "not_required";
+    } else if (!txHash && attempts === 0) {
+      settlementState    = "not_started";
+      settlementRetryable = true;
+    } else if (txHash && !settled) {
+      settlementState    = "submitted";
+      settlementRetryable = true;
+    } else if (attempts > 0 && !txHash) {
+      settlementState    = attempts >= MAX_SETTLE_ATTEMPTS ? "manual_review" : "retrying";
+      settlementRetryable = attempts < MAX_SETTLE_ATTEMPTS;
+    } else if (attempts >= MAX_SETTLE_ATTEMPTS) {
+      settlementState   = "manual_review";
+      settlementReason  = "max attempts reached";
+    } else {
+      settlementState = "unknown";
+    }
+
+    // 7. Determine next action
+    let nextAction: string;
+    if (onchainErr && !onchain && !r) {
+      nextAction = "unavailable";
+    } else if (!onchain) {
+      nextAction = r ? "wait_settlement" : "unavailable";
+    } else if (!r) {
+      nextAction = "register_start";
+    } else if (!srvRow) {
+      nextAction = "init_session";
+    } else if (!srvRow.finalized) {
+      nextAction = "finish_session";
+    } else if (settled || settlementState === "not_required") {
+      nextAction = "complete";
+    } else if (settlementState === "manual_review") {
+      nextAction = "manual_review";
+    } else if (settlementState === "submitted" || settlementState === "leased") {
+      nextAction = "wait_settlement";
+    } else if (settlementRetryable) {
+      nextAction = "retry_settlement";
+    } else {
+      nextAction = "wait_settlement";
+    }
+
+    res.json({
+      sessionId,
+      wallet,
+      ...(onchainErr ? { onchainError: onchainErr } : {}),
+      onchain: onchain
+        ? {
+            exists:       true,
+            playerMatches: onchain.player === wallet,
+            gameType:     onchain.gameType,
+            seedCommitment: onchain.seedCommitment,
+            settled:      onchain.settled,
+            createdAt:    new Date(onchain.createdAt * 1000).toISOString(),
+          }
+        : { exists: false },
+      registeredSession: r
+        ? {
+            exists:         true,
+            accepted:       Boolean(r.accepted),
+            score:          Number(r.score ?? 0),
+            rewardMiles:    Number(r.reward_miles ?? 0),
+            rewardStable:   Number(r.reward_stable ?? 0),
+            antiAbuseFlags: r.anti_abuse_flags ?? [],
+            settleTxHash:   r.settle_tx_hash ?? null,
+            settledAt:      r.settled_at ?? null,
+            settleAttempts: Number(r.settle_attempts ?? 0),
+          }
+        : { exists: false },
+      serverSession: srvRow
+        ? {
+            exists:      true,
+            gameType:    srvRow.game_type,
+            initialized: true,
+            finalized:   Boolean(srvRow.finalized),
+            completed:   Boolean(srvRow.completed),
+            updatedAt:   srvRow.updated_at,
+          }
+        : { exists: false },
+      settlement: {
+        state:    settlementState,
+        retryable: settlementRetryable,
+        txHash,
+        attempts,
+        ...(settlementReason ? { reason: settlementReason } : {}),
+        ...(jobRow ? { jobId: jobRow.id, jobStatus: jobRow.status } : {}),
+      },
+      nextAction,
+    });
+  } catch (err: any) {
+    console.error("[games/session/recover]", err);
+    res.status(500).json({ error: err?.message ?? "server-error" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /games/health
+// Structured readiness check for monitoring. Returns 200 when all required
+// systems are reachable; 503 when a hard dependency is missing or down.
+// Low verifier balance is a warning (degraded) but not a hard failure.
+// ---------------------------------------------------------------------------
+router.get("/health", async (_req, res) => {
+  type Check = { ok: boolean; message?: string };
+  const checks: Record<string, Check> = {};
+  const warnings: string[] = [];
+  const errors: string[] = [];
+
+  function addOk(key: string, message?: string) {
+    checks[key] = { ok: true, ...(message ? { message } : {}) };
+  }
+  function addWarn(key: string, message: string) {
+    checks[key] = { ok: false, message };
+    warnings.push(message);
+  }
+  function addErr(key: string, message: string) {
+    checks[key] = { ok: false, message };
+    errors.push(message);
+  }
+
+  // Process alive
+  addOk("process");
+
+  // Env key presence (values never logged or returned)
+  const contractAddr = skillGamesAddress;
+  if (process.env.SUPABASE_URL) addOk("env.SUPABASE_URL"); else addErr("env.SUPABASE_URL", "SUPABASE_URL missing");
+  if (process.env.SUPABASE_SERVICE_KEY) addOk("env.SUPABASE_SERVICE_KEY"); else addErr("env.SUPABASE_SERVICE_KEY", "SUPABASE_SERVICE_KEY missing");
+  if (contractAddr) addOk("env.SKILL_GAMES_CONTRACT_ADDRESS"); else addErr("env.SKILL_GAMES_CONTRACT_ADDRESS", "SKILL_GAMES_CONTRACT_ADDRESS not set");
+  if (verifierPk) addOk("env.SKILL_GAMES_VERIFIER_PK"); else addWarn("env.SKILL_GAMES_VERIFIER_PK", "SKILL_GAMES_VERIFIER_PK not set — settlement signing disabled");
+
+  // All I/O checks run concurrently
+  await Promise.allSettled([
+    // Celo RPC reachable, then contract read
+    (async () => {
+      try {
+        await Promise.race([
+          readWithFallback((p) => p.getBlockNumber()),
+          new Promise<never>((_, r) => setTimeout(() => r(new Error("rpc-timeout")), 6000)),
+        ]);
+        addOk("celoRpc");
+      } catch (err: any) {
+        addErr("celoRpc", `Celo RPC unreachable: ${err?.message ?? "unknown"}`);
+        return;
+      }
+      if (!contractAddr) {
+        addWarn("contractRead", "contract address not configured");
+        return;
+      }
+      try {
+        await Promise.race([
+          readWithFallback((p) =>
+            new Contract(contractAddr, akibaSkillGamesAbi, p).playerStatus(
+              "0x0000000000000000000000000000000000000001",
+              1,
+            )
+          ),
+          new Promise<never>((_, r) => setTimeout(() => r(new Error("contract-read-timeout")), 6000)),
+        ]);
+        addOk("contractRead");
+      } catch (err: any) {
+        addWarn("contractRead", `playerStatus failed: ${err?.message ?? "unknown"}`);
+      }
+    })(),
+
+    // Verifier gas balance
+    (async () => {
+      if (!verifierPk) {
+        addWarn("verifierBalance", "verifier key not configured");
+        return;
+      }
+      try {
+        const w = new Wallet(verifierPk, provider);
+        const bal = await Promise.race([
+          readWithFallback((p) => p.getBalance(w.address)),
+          new Promise<never>((_, r) => setTimeout(() => r(new Error("balance-timeout")), 6000)),
+        ]);
+        const celo = Number(bal) / 1e18;
+        if (celo < VERIFIER_LOW_BALANCE_CELO) {
+          addWarn("verifierBalance", `${celo.toFixed(4)} CELO — top up needed`);
+        } else {
+          addOk("verifierBalance", `${celo.toFixed(4)} CELO`);
+        }
+      } catch (err: any) {
+        addWarn("verifierBalance", `balance check failed: ${err?.message ?? "unknown"}`);
+      }
+    })(),
+
+    // skill_game_sessions reachable + pending unsettled count
+    (async () => {
+      try {
+        const { count, error } = await supabase
+          .from("skill_game_sessions")
+          .select("session_id", { count: "exact", head: true })
+          .eq("accepted", true)
+          .is("settled_at", null);
+        if (error) throw error;
+        addOk("supabaseSkillSessions");
+        const n = count ?? 0;
+        if (n >= 50) {
+          addWarn("pendingUnsettled", `${n} sessions — high backlog`);
+        } else {
+          addOk("pendingUnsettled", `${n} sessions`);
+        }
+      } catch (err: any) {
+        addErr("supabaseSkillSessions", `skill_game_sessions read failed: ${err?.message ?? "unknown"}`);
+      }
+    })(),
+
+    // skill_game_server_sessions reachable
+    (async () => {
+      try {
+        const { error } = await supabase
+          .from("skill_game_server_sessions")
+          .select("session_id", { count: "exact", head: true });
+        if (error) throw error;
+        addOk("supabaseServerSessions");
+      } catch (err: any) {
+        addErr("supabaseServerSessions", `skill_game_server_sessions unreachable: ${err?.message ?? "unknown"}`);
+      }
+    })(),
+
+    // settle_claimed_at migration presence
+    (async () => {
+      try {
+        const { error } = await supabase
+          .from("skill_game_sessions")
+          .select("settle_claimed_at")
+          .limit(1);
+        if (error && (error as any).code === "42703") {
+          addWarn("settleClaimedAtMigration", "column missing — run: alter table skill_game_sessions add column if not exists settle_claimed_at timestamptz");
+        } else if (error) {
+          addWarn("settleClaimedAtMigration", error.message);
+        } else {
+          addOk("settleClaimedAtMigration");
+        }
+      } catch (err: any) {
+        addWarn("settleClaimedAtMigration", err?.message ?? "check failed");
+      }
+    })(),
+  ]);
+
+  const ok = errors.length === 0;
+  res.status(ok ? 200 : 503).json({
+    ok,
+    degraded: ok && warnings.length > 0,
+    checks,
+    warnings,
+    errors,
+    ts: new Date().toISOString(),
+  });
 });
 
 export default router;

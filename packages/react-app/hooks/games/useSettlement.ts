@@ -43,8 +43,23 @@ export function useSettlement(gameType: GameType) {
       if (pollTokenRef.current !== token) return;
 
       const qs = new URLSearchParams({ sessionId, wallet });
-      const res = await fetch(`/api/games/settlement-status?${qs.toString()}`);
-      if (!res.ok) continue;
+      let res: Response;
+      try {
+        res = await fetch(`/api/games/settlement-status?${qs.toString()}`);
+      } catch {
+        continue; // transient network error — retry
+      }
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({})) as { degraded?: boolean };
+        if (errBody.degraded) {
+          // Backend is down — stop polling and surface a recoverable message.
+          setStatus("error");
+          setError("Settlement status unavailable. Use Check Status to recover when the service is back.");
+          return;
+        }
+        continue;
+      }
 
       const body = (await res.json()) as SettlementStatusResponse;
       if (pollTokenRef.current !== token) return;
@@ -60,10 +75,13 @@ export function useSettlement(gameType: GameType) {
 
       if (body.accepted && body.retryable === false) {
         setStatus("error");
-        setError("Reward settlement needs manual review");
+        setError("Reward settlement needs manual review. Contact support with your session ID.");
         return;
       }
     }
+    // Polling exhausted without confirmation — surface an actionable error.
+    setStatus("error");
+    setError("Settlement is taking longer than expected. Use Check Status to view current state and retry.");
   }, []);
 
   const submitReplay = useCallback(
@@ -130,6 +148,12 @@ export function useSettlement(gameType: GameType) {
         });
         const body = await res.json();
         if (!res.ok) {
+          const isDegraded = Boolean((body as { degraded?: boolean }).degraded);
+          if (isDegraded) {
+            throw new Error(
+              "Backend unavailable. Your session is saved — use Check Status to resume when the service is back.",
+            );
+          }
           throw new Error(`Finish returned ${res.status}: ${body.error ?? JSON.stringify(body)}`);
         }
 

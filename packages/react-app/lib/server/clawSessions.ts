@@ -111,3 +111,16 @@ export async function listClawSessionsForPlayer(player: string, limit = 50) {
     error,
   };
 }
+
+export async function listRecentClawSessions(limit = 500) {
+  const { data, error } = await supabase
+    .from("claw_sessions")
+    .select("session_id, player, tier_id, tx_hash, created_at, updated_at")
+    .order("updated_at", { ascending: false })
+    .limit(limit);
+
+  return {
+    sessions: (data ?? []).map(normalizeRow),
+    error,
+  };
+}

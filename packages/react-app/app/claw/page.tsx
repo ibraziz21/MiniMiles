@@ -54,10 +54,21 @@ type IndexedClawSession = {
   updatedAt?: string | null;
 };
 
+type SettleIssue = {
+  sessionId: string;
+  retryable: boolean;
+};
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function getPublicClient() {
   return createPublicClient({ chain: celo, transport: http("https://forno.celo.org") });
+}
+
+function settleRetryDelayMs(attempts: number, retryable: boolean) {
+  if (!retryable) return 5 * 60_000;
+  if (attempts <= 3) return 3_000;
+  return Math.min(60_000, 5_000 * 2 ** Math.min(attempts - 4, 4));
 }
 
 // ── Page ───────────────────────────────────────────────────────────────────
@@ -97,16 +108,16 @@ export default function ClawPage() {
   const [showConfetti, setShowConfetti]   = useState(false);
 
   // Settle bookkeeping. `settlingRef` is only an in-flight guard (one attempt
-  // per session at a time); `settleAttemptsRef` caps retries so a genuinely
-  // stuck session does not hammer the relayer forever.
+  // per session at a time); retry cadence is controlled by `nextSettleAtRef`
+  // so a temporarily blocked session keeps recovering without hammering the relayer.
   const settlingRef    = useRef<Set<string>>(new Set());
   const settleAttemptsRef = useRef<Map<string, number>>(new Map());
+  const nextSettleAtRef = useRef<Map<string, number>>(new Map());
   const shownVoucherRef = useRef<Set<string>>(new Set());
   const pollRef        = useRef<ReturnType<typeof setInterval> | null>(null);
   const localStartedSessionIdsRef = useRef<Set<string>>(new Set());
   const recoverAttemptedRef = useRef(false);
-
-  const MAX_SETTLE_ATTEMPTS = 8;
+  const [settleIssue, setSettleIssue] = useState<SettleIssue | null>(null);
 
   const loadBatchStatus = useCallback(async () => {
     try {
@@ -192,7 +203,9 @@ export default function ClawPage() {
     localStartedSessionIdsRef.current.clear();
     settlingRef.current.clear();
     settleAttemptsRef.current.clear();
+    nextSettleAtRef.current.clear();
     recoverAttemptedRef.current = false;
+    setSettleIssue(null);
   }, [address]);
 
   // ── Session load from local index + direct contract reads ───────────────
@@ -213,12 +226,7 @@ export default function ClawPage() {
 
       indexedSessions = await loadIndexedSessions();
 
-      if (
-        indexedSessions.length === 0 &&
-        localSessionIds.length === 0 &&
-        unresolvedCount > 0n &&
-        !recoverAttemptedRef.current
-      ) {
+      if (unresolvedCount > 0n && !recoverAttemptedRef.current) {
         await waitForAuth();
         const recovery = await fetch("/api/claw/sessions/recover", { method: "POST" }).catch(() => null);
         if (recovery?.ok) {
@@ -294,10 +302,8 @@ export default function ClawPage() {
       // actual on-chain resolution; here we just trigger it reliably.
       //
       // `settlingRef` guards against firing twice for the same session while a
-      // request is in flight. We ALWAYS release it when the attempt finishes so
-      // the next 3s poll retries — fetch() does not throw on HTTP 4xx/5xx, so a
-      // transient 503 (batch/outcome not ready) or 401 (auth warming up) must
-      // not permanently park the session. Retries are capped per session.
+      // request is in flight. We ALWAYS release it when the attempt finishes.
+      // Failed attempts are retried with backoff instead of a permanent cap.
       for (const s of loaded) {
         const needsSettle =
           s.status === SessionStatus.Pending ||
@@ -308,7 +314,7 @@ export default function ClawPage() {
 
         const key = s.sessionId.toString();
         if (settlingRef.current.has(key)) continue; // attempt already in flight
-        if ((settleAttemptsRef.current.get(key) ?? 0) >= MAX_SETTLE_ATTEMPTS) continue;
+        if ((nextSettleAtRef.current.get(key) ?? 0) > Date.now()) continue;
 
         settlingRef.current.add(key);
         (async () => {
@@ -319,13 +325,33 @@ export default function ClawPage() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ sessionId: key }),
             });
+            const data = await res.json().catch(() => null);
             if (res.ok) {
               settleAttemptsRef.current.delete(key);
+              nextSettleAtRef.current.delete(key);
+              setSettleIssue((issue) => issue?.sessionId === key ? null : issue);
             } else {
-              settleAttemptsRef.current.set(key, (settleAttemptsRef.current.get(key) ?? 0) + 1);
+              const attempts = (settleAttemptsRef.current.get(key) ?? 0) + 1;
+              const retryable = data?.retryable !== false;
+              settleAttemptsRef.current.set(key, attempts);
+              nextSettleAtRef.current.set(key, Date.now() + settleRetryDelayMs(attempts, retryable));
+              if (attempts >= 3) {
+                setSettleIssue({
+                  sessionId: key,
+                  retryable,
+                });
+              }
             }
           } catch {
-            settleAttemptsRef.current.set(key, (settleAttemptsRef.current.get(key) ?? 0) + 1);
+            const attempts = (settleAttemptsRef.current.get(key) ?? 0) + 1;
+            settleAttemptsRef.current.set(key, attempts);
+            nextSettleAtRef.current.set(key, Date.now() + settleRetryDelayMs(attempts, true));
+            if (attempts >= 3) {
+              setSettleIssue({
+                sessionId: key,
+                retryable: true,
+              });
+            }
           } finally {
             // Release the in-flight guard so the next poll can retry if needed.
             settlingRef.current.delete(key);
@@ -550,6 +576,21 @@ export default function ClawPage() {
     !hasEnoughMiles;
 
   const tierMeta = TIER_META[selectedTier] ?? TIER_META[0];
+  const activeSettleIssue =
+    activeSession && settleIssue?.sessionId === activeSession.sessionId.toString()
+      ? settleIssue
+      : null;
+  const activeSettleStatusText =
+    activeSession?.status === SessionStatus.Settled
+      ? "Voucher issuance is taking longer than usual. Retrying automatically."
+      : "Prize reveal is taking longer than usual. Retrying automatically.";
+  const retryActiveSettlement = () => {
+    if (!activeSession) return;
+    const key = activeSession.sessionId.toString();
+    nextSettleAtRef.current.delete(key);
+    setSettleIssue(null);
+    void loadSessions();
+  };
 
   return (
     <main
@@ -602,6 +643,24 @@ export default function ClawPage() {
           activeSession.status !== SessionStatus.Refunded && (
             <div className="mb-3">
               <ClawActionBanner session={activeSession} />
+              {activeSettleIssue ? (
+                <div className="px-4 pt-2">
+                  <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-2.5">
+                    <p className="text-xs font-semibold text-amber-700">
+                      {activeSettleIssue.retryable
+                        ? activeSettleStatusText
+                        : "This session needs a support retry."}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={retryActiveSettlement}
+                      className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-bold text-amber-700 shadow-sm"
+                    >
+                      Retry now
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           )}
 

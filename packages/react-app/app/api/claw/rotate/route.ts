@@ -15,7 +15,7 @@ import {
   settleSession,
   logSettle,
 } from "@/lib/server/clawAssign";
-import { upsertClawSession } from "@/lib/server/clawSessions";
+import { listRecentClawSessions, upsertClawSession } from "@/lib/server/clawSessions";
 
 const CLAW_GAME = (process.env.NEXT_PUBLIC_CLAW_GAME_ADDRESS ??
   "0x32cd4449A49786f8e9C68A5466d46E4dbC5197B3") as `0x${string}`;
@@ -24,6 +24,7 @@ const BATCH_RNG = (process.env.NEXT_PUBLIC_BATCH_RNG_ADDRESS ??
 const RPC_URL = process.env.CELO_RPC_URL ?? "https://forno.celo.org";
 const RELAYER_PK = process.env.CELO_RELAYER_PK ?? process.env.PRIVATE_KEY ?? "";
 const DEPLOY_BLOCK = BigInt(process.env.NEXT_PUBLIC_CLAW_DEPLOY_BLOCK ?? "61599859");
+const INDEXED_SESSION_LIMIT = Number(process.env.CLAW_ROTATE_INDEXED_SESSION_LIMIT ?? "500");
 
 // Session status values (mirror Solidity enum)
 const SS = { NONE: 0, PENDING: 1, SETTLED: 2, CLAIMED: 3, BURNED: 4, REFUNDED: 5 };
@@ -41,6 +42,7 @@ export async function POST(_req: Request) {
   const { pub, wal, account } = getClients();
   const results: {
     activeBatch?: object;
+    scanned?: object;
     retried: object[];
     autoClaimed: object[];
     skipped: object[];
@@ -108,12 +110,61 @@ export async function POST(_req: Request) {
       }
     }
 
-    // ── 3. Process each session ────────────────────────────────────────────
+    const candidates = new Map<string, {
+      player?: string;
+      tierId?: number;
+      txHash?: string | null;
+      source: "log" | "index" | "log,index";
+    }>();
+
     for (const logEntry of logs) {
       const sessionId = (logEntry.args as any).sessionId as bigint | undefined;
       if (!sessionId) continue;
-
       const sessionIdStr = sessionId.toString();
+      candidates.set(sessionIdStr, {
+        player: String((logEntry.args as any).player ?? "").toLowerCase(),
+        tierId: Number((logEntry.args as any).tierId ?? 0),
+        txHash: logEntry.transactionHash ?? null,
+        source: "log",
+      });
+    }
+
+    let indexedCount = 0;
+    try {
+      const { sessions: indexedSessions, error } = await listRecentClawSessions(INDEXED_SESSION_LIMIT);
+      if (error) {
+        results.errors.push({ stage: "index_scan", err: error.message });
+      } else {
+        indexedCount = indexedSessions.length;
+        for (const indexed of indexedSessions) {
+          const existing = candidates.get(indexed.sessionId);
+          candidates.set(indexed.sessionId, {
+            player: indexed.player,
+            tierId: indexed.tierId,
+            txHash: existing?.txHash ?? indexed.txHash,
+            source: existing ? "log,index" : "index",
+          });
+        }
+      }
+    } catch (e: any) {
+      results.errors.push({ stage: "index_scan", err: e?.message ?? String(e) });
+    }
+
+    results.scanned = {
+      logs: logs.length,
+      indexed: indexedCount,
+      candidates: candidates.size,
+    };
+
+    // ── 3. Process each session ────────────────────────────────────────────
+    for (const [sessionIdStr, candidate] of candidates) {
+      let sessionId: bigint;
+      try {
+        sessionId = BigInt(sessionIdStr);
+      } catch {
+        results.skipped.push({ sessionId: sessionIdStr, reason: "invalid_session_id" });
+        continue;
+      }
 
       try {
         const session = (await pub.readContract({
@@ -124,14 +175,14 @@ export async function POST(_req: Request) {
         })) as any;
 
         const status = Number(session.status);
-        const player = String(session.player ?? session[1] ?? (logEntry.args as any).player ?? "").toLowerCase();
-        const tierId = Number(session.tierId ?? session[2] ?? (logEntry.args as any).tierId ?? 0);
+        const player = String(session.player ?? session[1] ?? candidate.player ?? "").toLowerCase();
+        const tierId = Number(session.tierId ?? session[2] ?? candidate.tierId ?? 0);
         if (player) {
           await upsertClawSession({
             sessionId: sessionIdStr,
             player,
             tierId,
-            txHash: logEntry.transactionHash ?? null,
+            txHash: candidate.txHash ?? null,
           }).catch(() => {});
         }
 
@@ -142,7 +193,7 @@ export async function POST(_req: Request) {
             .from("claw_batch_plays")
             .select("batch_id, play_index, commit_status")
             .eq("session_id", sessionIdStr)
-            .single();
+            .maybeSingle();
 
           // Skip sessions that are already claimed in our DB (chain may lag)
           if (existingAssign?.commit_status === "claimed") {

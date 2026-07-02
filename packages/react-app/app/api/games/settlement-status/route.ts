@@ -1,31 +1,41 @@
 /**
  * GET /api/games/settlement-status?sessionId=...&wallet=...
  *
- * Thin proxy -> Express backend /games/settlement-status
+ * Thin proxy → Express backend /games/settlement-status
+ * If the backend is unavailable, returns a structured degraded error.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { GAMES_STATUS_PROXY_TIMEOUT_MS, fetchUpstreamJson, isAbortError } from "../_proxy";
+import {
+  GAMES_STATUS_PROXY_TIMEOUT_MS,
+  fetchUpstreamJson,
+  isAbortError,
+  makeDegradedError,
+} from "../_proxy";
 
 const BACKEND = process.env.GAMES_BACKEND_URL ?? "https://backend-production-aa7f.up.railway.app";
 
 export async function GET(req: NextRequest) {
+  const qs = new URL(req.url).searchParams.toString();
   try {
-    const url = new URL(req.url);
     const { data, status } = await fetchUpstreamJson(
-      `${BACKEND}/games/settlement-status?${url.searchParams.toString()}`,
-      {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      },
+      `${BACKEND}/games/settlement-status?${qs}`,
+      {},
       GAMES_STATUS_PROXY_TIMEOUT_MS,
     );
-    return NextResponse.json(data, { status });
-  } catch (err: any) {
-    if (isAbortError(err)) {
-      return NextResponse.json({ error: "proxy-timeout" }, { status: 504 });
+    if (status >= 500) {
+      return NextResponse.json(
+        makeDegradedError({ reason: "upstream-5xx", upstreamStatus: status }),
+        { status: 502 },
+      );
     }
-    console.error("[proxy/games/settlement-status]", err?.message ?? err);
-    return NextResponse.json({ error: "backend-unavailable" }, { status: 502 });
+    return NextResponse.json(data, { status });
+  } catch (err: unknown) {
+    const isTimeout = isAbortError(err);
+    console.error("[proxy/games/settlement-status]", err instanceof Error ? err.message : err);
+    return NextResponse.json(
+      makeDegradedError({ reason: isTimeout ? "timeout" : "unreachable" }),
+      { status: isTimeout ? 504 : 502 },
+    );
   }
 }

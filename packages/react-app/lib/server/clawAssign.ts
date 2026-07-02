@@ -62,8 +62,8 @@ export async function logSettle(
 // ── Types ─────────────────────────────────────────────────────────────────
 
 export type AssignResult =
-  | { ok: true; batchId: string; playIndex: number }
-  | { ok: false; reason: "no_active_batch" | "batch_full" | "db_error" | "already_assigned" };
+  | { ok: true; batchId: string; playIndex: number; mirrorWarning?: string }
+  | { ok: false; reason: "no_active_batch" | "chain_read_error" };
 
 export type SettleResult =
   | { ok: true; rewardClass: number; rewardAmount: string; voucherId: string; txHash?: string; alreadyClaimed?: boolean }
@@ -75,7 +75,7 @@ export type SettleResult =
  * Idempotently loads the play slot that MerkleBatchRng assigned on-chain
  * during startGame(), then mirrors it to Supabase for audit/retry visibility.
  *
- * - If the session already has a row in claw_batch_plays, returns it (idempotent).
+ * - If the session already has a row in claw_batch_plays, keeps it aligned best-effort.
  * - If the session was never registered by the RNG, returns { ok: false, reason: "no_active_batch" }.
  * - Only stores (session_id, batch_id, play_index) in Supabase — no outcome data.
  */
@@ -95,55 +95,51 @@ export async function assignBatchPlay(
 
     batchId = (sessionPlay.batchId ?? sessionPlay[0]).toString();
     playIndex = Number(sessionPlay.playIndex ?? sessionPlay[1]);
-  } catch (e: any) {
-    return { ok: false, reason: "db_error" };
+  } catch {
+    return { ok: false, reason: "chain_read_error" };
   }
 
   if (batchId === "0") {
     return { ok: false, reason: "no_active_batch" };
   }
 
-  // Fast path: already tracked locally. Chain remains the source of truth.
-  const { data: existing } = await supabase
-    .from("claw_batch_plays")
-    .select("batch_id, play_index")
-    .eq("session_id", sessionId)
-    .single();
-
-  if (existing) {
-    if (existing.batch_id !== batchId || Number(existing.play_index) !== playIndex) {
-      await supabase
-        .from("claw_batch_plays")
-        .update({ batch_id: batchId, play_index: playIndex })
-        .eq("session_id", sessionId);
-    }
-    return { ok: true, batchId, playIndex };
-  }
-
-  // Track the on-chain assignment locally for audit/retry visibility only.
-  const { error: insertErr } = await supabase.from("claw_batch_plays").insert({
-    session_id: sessionId,
-    batch_id: batchId,
-    play_index: playIndex,
-    commit_status: "pending",
-    created_at: new Date().toISOString(),
-  });
-
-  if (insertErr) {
-    // Could be a race where another request inserted first — re-read
-    const { data: retry } = await supabase
+  // Mirror the on-chain assignment locally for audit/retry visibility only.
+  // Settlement must not depend on this table: older deployments may have an
+  // incompatible schema, and a transient Supabase/RLS issue should not leave
+  // the user's on-chain session pending.
+  let mirrorWarning: string | undefined;
+  try {
+    const { data: existing, error: readErr } = await supabase
       .from("claw_batch_plays")
       .select("batch_id, play_index")
       .eq("session_id", sessionId)
-      .single();
+      .maybeSingle();
 
-    if (retry) {
-      return { ok: true, batchId: retry.batch_id, playIndex: Number(retry.play_index) };
+    if (readErr) {
+      mirrorWarning = `read failed: ${readErr.message}`;
+    } else if (existing) {
+      if (existing.batch_id !== batchId || Number(existing.play_index) !== playIndex) {
+        const { error: updateErr } = await supabase
+          .from("claw_batch_plays")
+          .update({ batch_id: batchId, play_index: playIndex })
+          .eq("session_id", sessionId);
+        if (updateErr) mirrorWarning = `update failed: ${updateErr.message}`;
+      }
+    } else {
+      const { error: insertErr } = await supabase.from("claw_batch_plays").insert({
+        session_id: sessionId,
+        batch_id: batchId,
+        play_index: playIndex,
+        commit_status: "pending",
+        created_at: new Date().toISOString(),
+      });
+      if (insertErr) mirrorWarning = `insert failed: ${insertErr.message}`;
     }
-    return { ok: false, reason: "db_error" };
+  } catch (err: any) {
+    mirrorWarning = err?.message ? `mirror failed: ${err.message}` : "mirror failed";
   }
 
-  return { ok: true, batchId, playIndex };
+  return { ok: true, batchId, playIndex, mirrorWarning };
 }
 
 // ── Settle ────────────────────────────────────────────────────────────────
@@ -171,7 +167,7 @@ export async function settleSession(
   const assignment = await assignBatchPlay(sessionIdStr, pub);
 
   if (!assignment.ok) {
-    const retryable = assignment.reason === "no_active_batch" || assignment.reason === "db_error";
+    const retryable = assignment.reason === "no_active_batch" || assignment.reason === "chain_read_error";
     const reason = `Assignment failed: ${assignment.reason}`;
     await logSettle(sessionIdStr, "assign", reason, false);
     return { ok: false, retryable, reason };
@@ -179,6 +175,9 @@ export async function settleSession(
 
   const { batchId, playIndex } = assignment;
   await logSettle(sessionIdStr, "assign", `batch=${batchId} idx=${playIndex}`, true);
+  if (assignment.mirrorWarning) {
+    await logSettle(sessionIdStr, "assign_mirror", assignment.mirrorWarning, false);
+  }
 
   // ── Step 2: Load outcome from server-only batch store ─────────────────
   const outcome = await getBatchPlayOutcomeAsync(batchId, playIndex);

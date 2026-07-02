@@ -40,3 +40,30 @@ export async function fetchUpstreamJson(
 export function isAbortError(err: unknown) {
   return err instanceof Error && err.name === "AbortError";
 }
+
+export type DegradedError = {
+  error: string;
+  code: string;
+  upstreamStatus?: number;
+  degraded: true;
+  retryable: boolean;
+};
+
+export function makeDegradedError(opts: {
+  reason: "upstream-5xx" | "timeout" | "unreachable";
+  upstreamStatus?: number;
+}): DegradedError {
+  if (opts.reason === "upstream-5xx") {
+    return {
+      error: "backend-error",
+      code: "upstream-5xx",
+      upstreamStatus: opts.upstreamStatus,
+      degraded: true,
+      retryable: true,
+    };
+  }
+  if (opts.reason === "timeout") {
+    return { error: "proxy-timeout", code: "timeout", degraded: true, retryable: true };
+  }
+  return { error: "backend-unavailable", code: "unreachable", degraded: true, retryable: true };
+}
