@@ -4,6 +4,7 @@ import * as dotenv from "dotenv";
 import questRouter from "./questRoutes";
 import gamesRouter from "./games/routes";
 import farkleRouter from "./farkle/routes";
+import { startFarkleSettlementWorker } from "./farkle/service";
 import { startMintWorker, runDrain, releaseCurrentLock } from "./mintWorker";
 import { startBurnBlacklistWatcher } from "./burnBlacklistWatcher";
 import { startProsperityPassWorker, releaseCurrentPassLock } from "./prosperityPassWorker";
@@ -74,6 +75,7 @@ const server = app.listen(PORT, () => {
     startCrackPotSweeper();
     startVaultEventWatcher();
     startVaultRewardScheduler();
+    startFarkleSettlementWorker();
   }
 });
 
