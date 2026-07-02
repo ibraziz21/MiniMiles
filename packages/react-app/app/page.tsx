@@ -26,9 +26,9 @@ import {
   laptop,
   jbl,
   bag,
-  docking, camera, washmachine, chair, usdtround
+  docking, camera, washmachine, chair, usdtround, Dice
 } from "@/lib/img";
-import { akibaMilesSymbol, akibaMilesSymbolAlt, RefreshSvg } from "@/lib/svg";
+import { akibaMilesSymbol, akibaMilesSymbolAlt, RefreshSvg, usdtSymbol } from "@/lib/svg";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -150,6 +150,58 @@ export type SpendRaffle = {
   winners?: number;
   requirements?: RaffleRequirementsResult | null;
 };
+
+function RewardFarkleBanner() {
+  return (
+    <section className="mx-4 mt-4">
+      <Link
+        href="/games/farkle?mode=reward"
+        className="group block overflow-hidden rounded-2xl bg-[#061A1D] shadow-lg active:scale-[0.99] transition-transform"
+        aria-label="Play Farkle Reward Duel"
+      >
+        <div className="relative min-h-[216px] overflow-hidden">
+          <Image
+            src={Dice}
+            alt=""
+            fill
+            priority
+            className="object-cover opacity-25 scale-110 transition-transform duration-500 group-hover:scale-105"
+          />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_20%,rgba(52,211,153,0.35),transparent_28%),linear-gradient(135deg,rgba(6,26,29,0.96),rgba(10,92,78,0.86)_52%,rgba(16,24,39,0.92))]" />
+
+          <div className="relative flex min-h-[216px] flex-col justify-end p-4">
+            <div className="absolute right-4 top-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20 backdrop-blur">
+              <Image src={usdtSymbol} alt="USDT" width={34} height={34} />
+            </div>
+
+            <span className="inline-flex items-center gap-1.5 self-start rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-white ring-1 ring-white/20">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+              Real PvP
+            </span>
+
+            <h2 className="mt-2 max-w-[230px] text-2xl font-extrabold leading-tight text-white">
+              Farkle Reward Duel
+            </h2>
+
+            <p className="mt-1.5 max-w-[280px] text-[13px] leading-snug text-white/80 font-poppins">
+              Play against another real player. Bank points, race to 2,500, and win claimable USDT.
+            </p>
+
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold">
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-white ring-1 ring-white/15">1v1 live match</span>
+              <span className="rounded-full bg-emerald-300 px-2.5 py-1 text-[#062019]">$0.15 winner reward</span>
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-white ring-1 ring-white/15">1 credit entry</span>
+            </div>
+
+            <span className="mt-3 inline-flex h-11 items-center justify-center rounded-xl bg-white px-4 text-sm font-extrabold text-[#0A6B7A] shadow-md">
+              Play Reward Duel
+            </span>
+          </div>
+        </div>
+      </Link>
+    </section>
+  );
+}
 
 type PassportState =
   | { status: "idle" | "loading" | "none" }
@@ -658,6 +710,8 @@ const badgeButtonLabel =
           onEnter={() => openTokenRaffle(featuredRaffle)}
         />
       )}
+
+      {!featuredRaffle && <RewardFarkleBanner />}
 
       {/* Daily challenges — the daily check-in lives here, promoted near the top */}
       <div className="mx-4 mt-6 gap-1">

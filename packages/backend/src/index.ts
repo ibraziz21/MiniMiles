@@ -16,6 +16,7 @@ dotenv.config();
 
 const app = express();
 app.use(express.json());
+const crackPotEnabled = process.env.CRACKPOT_ENABLED === "true";
 
 // Mount the quest routes at /claim
 app.use("/claim", questRouter);
@@ -28,6 +29,11 @@ app.get("/", (_req, res) => {
 
 // Manual one-shot CrackPot sweep (protected)
 app.post("/crackpot/sweep", async (req, res) => {
+  if (!crackPotEnabled) {
+    res.status(503).json({ error: "crackpot-coming-soon" });
+    return;
+  }
+
   const secret = process.env.ADMIN_QUEUE_SECRET ?? "";
   const auth = req.headers.authorization;
   if (!secret || auth !== `Bearer ${secret}`) {
@@ -72,7 +78,7 @@ const server = app.listen(PORT, () => {
     startMintWorker();
     startBurnBlacklistWatcher();
     startProsperityPassWorker();
-    startCrackPotSweeper();
+    if (crackPotEnabled) startCrackPotSweeper();
     startVaultEventWatcher();
     startVaultRewardScheduler();
     startFarkleSettlementWorker();

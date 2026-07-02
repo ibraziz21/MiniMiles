@@ -1,0 +1,246 @@
+-- 014_farkle_observability.sql
+-- Phase 4: seed isolation, health indexes, and RPC update.
+--
+-- Changes:
+-- 1. Add server_seed column — stores raw seed separately from public metadata JSONB.
+--    Existing matches keep metadata.seed; routes fall back to it while in-progress.
+-- 2. Update farkle_enter_match() to write seed into server_seed, not metadata.seed.
+--    Metadata now only carries modeKey (non-sensitive).
+-- 3. Add indexes used by the health endpoint.
+
+-- ── 1. Seed isolation column ─────────────────────────────────────────────────
+
+alter table if exists public.game_matches
+  add column if not exists server_seed text;
+
+-- Live environments may already have game_credit_ledger.reference_id as uuid.
+-- Farkle uses this column for mixed reference strings ("match", tx recovery,
+-- future non-match references), so normalize to text before replacing the RPC.
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'game_credit_ledger'
+      and column_name = 'reference_id'
+      and data_type <> 'text'
+  ) then
+    alter table public.game_credit_ledger
+      alter column reference_id type text using reference_id::text;
+  end if;
+end;
+$$;
+
+-- ── 2. Health-endpoint indexes ───────────────────────────────────────────────
+
+-- Active matches with stale activity (used by health/stale-match count)
+create index if not exists game_matches_active_activity_idx
+  on public.game_matches (last_action_at)
+  where status in ('created', 'funded', 'in_progress');
+
+-- Waiting queue per mode (health/queue-depth)
+create index if not exists matchmaking_queue_waiting_mode_idx
+  on public.matchmaking_queue (mode_key, queued_at)
+  where status = 'waiting';
+
+-- ── 3. Updated farkle_enter_match RPC ───────────────────────────────────────
+-- Identical to 012 except:
+--   · INSERT lists server_seed as a column and passes p_seed as its value.
+--   · metadata JSONB no longer contains 'seed' (removed from jsonb_build_object).
+
+create or replace function public.farkle_enter_match(
+  p_caller      text,
+  p_mode_key    text,
+  p_target_addr text,
+  p_match_id    uuid,
+  p_match_key   text,
+  p_seed        text,
+  p_seed_hash   text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_mode_id        uuid;
+  v_game_id        uuid;
+  v_waiter_id      uuid;
+  v_waiter_addr    text;
+  v_caller_bal     integer;
+  v_new_bal_waiter integer;
+  v_new_bal_caller integer;
+  v_expires_at     timestamptz := now() + interval '120 seconds';
+  v_is_ticket      boolean;
+begin
+  select id, game_id
+  into v_mode_id, v_game_id
+  from public.game_modes
+  where mode_key = p_mode_key and active = true;
+
+  if not found then
+    return jsonb_build_object('error', 'invalid_mode');
+  end if;
+
+  v_is_ticket := (p_mode_key = 'FARKLE_QUICK_1500_AKIBA');
+
+  if v_is_ticket then
+    select balance into v_caller_bal
+    from public.farkle_ticket_balances
+    where wallet_address = p_caller;
+    if coalesce(v_caller_bal, 0) < 1 then
+      return jsonb_build_object('error', 'insufficient_tickets');
+    end if;
+  else
+    select purchased_credits into v_caller_bal
+    from public.farkle_credit_balances
+    where wallet_address = p_caller;
+    if coalesce(v_caller_bal, 0) < 1 then
+      return jsonb_build_object('error', 'insufficient_credits');
+    end if;
+  end if;
+
+  if p_target_addr is not null then
+    update public.matchmaking_queue
+    set status = 'matched', expires_at = v_expires_at
+    where wallet_address = p_target_addr
+      and mode_key       = p_mode_key
+      and status         = 'waiting'
+      and wallet_address <> p_caller
+    returning id, wallet_address into v_waiter_id, v_waiter_addr;
+  else
+    update public.matchmaking_queue mq
+    set status = 'matched', expires_at = v_expires_at
+    from (
+      select id
+      from public.matchmaking_queue
+      where mode_key       = p_mode_key
+        and status         = 'waiting'
+        and wallet_address <> p_caller
+        and expires_at     > now()
+      order by queued_at asc
+      limit 1
+      for update skip locked
+    ) sub
+    where mq.id = sub.id
+    returning mq.id, mq.wallet_address into v_waiter_id, v_waiter_addr;
+  end if;
+
+  if v_waiter_addr is null then
+    insert into public.matchmaking_queue
+      (wallet_address, mode_key, status, match_id, queued_at, expires_at)
+    values
+      (p_caller, p_mode_key, 'waiting', null, now(), v_expires_at)
+    on conflict (wallet_address, mode_key) do update
+      set status     = 'waiting',
+          match_id   = null,
+          queued_at  = now(),
+          expires_at = excluded.expires_at;
+    return jsonb_build_object('status', 'waiting');
+  end if;
+
+  if v_is_ticket then
+    update public.farkle_ticket_balances
+    set balance = balance - 1, updated_at = now()
+    where wallet_address = v_waiter_addr and balance >= 1
+    returning balance into v_new_bal_waiter;
+  else
+    update public.farkle_credit_balances
+    set purchased_credits = purchased_credits - 1, updated_at = now()
+    where wallet_address = v_waiter_addr and purchased_credits >= 1
+    returning purchased_credits into v_new_bal_waiter;
+  end if;
+
+  if v_new_bal_waiter is null then
+    update public.matchmaking_queue
+    set status = 'expired', expires_at = now()
+    where id = v_waiter_id;
+    insert into public.matchmaking_queue
+      (wallet_address, mode_key, status, match_id, queued_at, expires_at)
+    values
+      (p_caller, p_mode_key, 'waiting', null, now(), v_expires_at)
+    on conflict (wallet_address, mode_key) do update
+      set status     = 'waiting',
+          match_id   = null,
+          queued_at  = now(),
+          expires_at = excluded.expires_at;
+    return jsonb_build_object('status', 'waiting');
+  end if;
+
+  if v_is_ticket then
+    update public.farkle_ticket_balances
+    set balance = balance - 1, updated_at = now()
+    where wallet_address = p_caller and balance >= 1
+    returning balance into v_new_bal_caller;
+  else
+    update public.farkle_credit_balances
+    set purchased_credits = purchased_credits - 1, updated_at = now()
+    where wallet_address = p_caller and purchased_credits >= 1
+    returning purchased_credits into v_new_bal_caller;
+  end if;
+
+  if v_new_bal_caller is null then
+    if v_is_ticket then
+      update public.farkle_ticket_balances
+      set balance = balance + 1, updated_at = now()
+      where wallet_address = v_waiter_addr;
+    else
+      update public.farkle_credit_balances
+      set purchased_credits = purchased_credits + 1, updated_at = now()
+      where wallet_address = v_waiter_addr;
+    end if;
+    update public.matchmaking_queue
+    set status = 'waiting', expires_at = v_expires_at
+    where id = v_waiter_id;
+    return jsonb_build_object('error', 'insufficient_balance_retry');
+  end if;
+
+  -- ── Create match: seed stored in server_seed, NOT in metadata ────────────────
+  insert into public.game_matches (
+    id, match_key, game_id, mode_id, status, seed_hash, server_seed,
+    current_turn_address, turn_number, metadata,
+    started_at, turn_started_at, last_action_at
+  ) values (
+    p_match_id, p_match_key, v_game_id, v_mode_id, 'in_progress', p_seed_hash, p_seed,
+    v_waiter_addr, 1,
+    jsonb_build_object('modeKey', p_mode_key),
+    now(), now(), now()
+  );
+
+  insert into public.game_match_players
+    (match_id, wallet_address, seat_index, entry_debited)
+  values
+    (p_match_id, v_waiter_addr, 0, true),
+    (p_match_id, p_caller,      1, true);
+
+  if v_is_ticket then
+    insert into public.game_credit_ledger
+      (wallet_address, amount, balance_after, currency, ledger_type, reference_type, reference_id)
+    values
+      (v_waiter_addr, -1, v_new_bal_waiter, 'AKIBA_TICKET', 'AKIBA_TICKET_DEBITED', 'match', p_match_id::text),
+      (p_caller,      -1, v_new_bal_caller, 'AKIBA_TICKET', 'AKIBA_TICKET_DEBITED', 'match', p_match_id::text);
+  else
+    insert into public.game_credit_ledger
+      (wallet_address, amount, balance_after, currency, ledger_type, reference_type, reference_id)
+    values
+      (v_waiter_addr, -1, v_new_bal_waiter, 'GAME_CREDIT', 'GAME_CREDIT_DEBITED', 'match', p_match_id::text),
+      (p_caller,      -1, v_new_bal_caller, 'GAME_CREDIT', 'GAME_CREDIT_DEBITED', 'match', p_match_id::text);
+  end if;
+
+  update public.matchmaking_queue
+  set match_id = p_match_id, expires_at = v_expires_at
+  where id = v_waiter_id;
+
+  insert into public.matchmaking_queue
+    (wallet_address, mode_key, status, match_id, queued_at, expires_at)
+  values
+    (p_caller, p_mode_key, 'matched', p_match_id, now(), v_expires_at)
+  on conflict (wallet_address, mode_key) do update
+    set status     = 'matched',
+        match_id   = excluded.match_id,
+        expires_at = excluded.expires_at;
+
+  return jsonb_build_object('status', 'matched', 'match_id', p_match_id);
+end;
+$$;
