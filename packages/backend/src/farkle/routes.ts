@@ -36,11 +36,16 @@ router.post("/settle", async (req, res) => {
     return;
   }
 
+  console.log(`[farkle/routes] settlement_submit matchId=${matchId}`);
   try {
     const result = await settleCompletedFarkleMatch(matchId);
+    console.log(
+      `[farkle/routes] settlement_confirm matchId=${matchId}` +
+        ` alreadySettled=${result.alreadySettled} txHash=${result.txHash ?? "none"}`,
+    );
     res.json({ ok: true, ...result });
   } catch (e: any) {
-    console.error(`[farkle/routes] settle failed for ${matchId}:`, e?.message ?? e);
+    console.error(`[farkle/routes] settlement_failure matchId=${matchId} error=${e?.message ?? e}`);
     res.status(500).json({ ok: false, error: e?.message ?? "settle failed" });
   }
 });

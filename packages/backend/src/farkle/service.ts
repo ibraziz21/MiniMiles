@@ -72,6 +72,15 @@ async function getCompletedMatch(matchId: string): Promise<MatchRow> {
   return data as unknown as MatchRow;
 }
 
+async function markSettled(matchId: string) {
+  const { error } = await supabase
+    .from("game_matches")
+    .update({ settled_at: new Date().toISOString() })
+    .eq("id", matchId)
+    .is("settled_at", null);
+  if (error) console.error(`[farkle/service] failed to set settled_at matchId=${matchId}:`, error.message);
+}
+
 async function syncRewardMirror(winnerAddress: HexAddress, expectedCreditCents: number, chainId?: number) {
   if (expectedCreditCents <= 0) return null;
   const rewardCreditsCents = await readFarkleRewardCreditCents(winnerAddress, chainId);
@@ -116,7 +125,7 @@ async function writeRewardLedger(match: MatchRow, params: FarkleSettlementParams
       tx_hash: txHash,
     },
   ]);
-  if (error) console.error("[farkle/service] reward ledger insert failed:", error.message);
+  if (error) console.error(`[farkle/service] reward ledger insert failed matchId=${match.id}:`, error.message);
 }
 
 export async function settleCompletedFarkleMatch(matchId: string): Promise<FarkleSettleResult> {
@@ -125,7 +134,25 @@ export async function settleCompletedFarkleMatch(matchId: string): Promise<Farkl
   const chainId = match.chain_id ?? undefined;
 
   const alreadySettled = await isFarkleMatchSettledOnChain(matchId, chainId);
-  const txHash = alreadySettled ? null : await settleFarkleOnChain(params, chainId);
+
+  let txHash: string | null = null;
+  if (alreadySettled) {
+    console.log(
+      `[farkle/service] matchId=${matchId} modeKey=${params.modeKey}` +
+      ` winner=${params.winnerAddress} — already settled on-chain`,
+    );
+    // Still sync the off-chain mirror in case it was missed
+    await markSettled(matchId);
+  } else {
+    console.log(
+      `[farkle/service] settling matchId=${matchId} modeKey=${params.modeKey}` +
+      ` winner=${params.winnerAddress} loser=${params.loserAddress}` +
+      ` winMiles=${params.winMiles} losMiles=${params.losMiles} winCreditCents=${params.winCreditCents}`,
+    );
+    txHash = await settleFarkleOnChain(params, chainId);
+    console.log(`[farkle/service] settled matchId=${matchId} txHash=${txHash}`);
+    await markSettled(matchId);
+  }
 
   const rewardCreditsCents = await syncRewardMirror(params.winnerAddress, params.winCreditCents, chainId);
   await writeRewardLedger(match, params, txHash);
@@ -147,6 +174,8 @@ export async function reconcileFarkleSettlements(opts: { sinceDays?: number; lim
   const sinceIso = new Date(Date.now() - sinceDays * 86_400_000).toISOString();
   const result: ReconcileResult = { checked: 0, settled: [], alreadySettled: 0, reverted: [], failed: [] };
 
+  // Filter settled_at IS NULL to skip rows already confirmed on-chain.
+  // This avoids one RPC call per match on every reconcile run.
   const { data, error } = await supabase
     .from("game_matches")
     .select(
@@ -154,10 +183,13 @@ export async function reconcileFarkleSettlements(opts: { sinceDays?: number; lim
         "game_modes(mode_key,winner_miles_reward,loser_miles_reward,winner_reward_credit)",
     )
     .eq("status", "completed")
+    .is("settled_at", null)
     .gte("completed_at", sinceIso)
     .order("completed_at", { ascending: true });
 
   if (error) throw new Error(`reconcile query failed: ${error.message}`);
+
+  console.log(`[farkle/service] reconcile starting: ${(data ?? []).length} unsettled matches (last ${sinceDays}d)`);
 
   for (const match of (data ?? []) as unknown as MatchRow[]) {
     if (result.settled.length >= limit) break;
@@ -166,8 +198,11 @@ export async function reconcileFarkleSettlements(opts: { sinceDays?: number; lim
     try {
       const params  = toSettlementParams(match);
       const chainId = match.chain_id ?? undefined;
+
       if (await isFarkleMatchSettledOnChain(match.id, chainId)) {
         result.alreadySettled++;
+        console.log(`[farkle/service] reconcile matchId=${match.id} — already settled, syncing mirror`);
+        await markSettled(match.id);
         await syncRewardMirror(params.winnerAddress, params.winCreditCents, chainId);
         await writeRewardLedger(match, params, null);
         continue;
@@ -176,20 +211,29 @@ export async function reconcileFarkleSettlements(opts: { sinceDays?: number; lim
       const sim = await simulateFarkleSettlement(params, chainId);
       if (!sim.ok) {
         result.reverted.push({ matchId: match.id, error: sim.error });
+        console.warn(`[farkle/service] reconcile matchId=${match.id} would revert — skipping: ${sim.error}`);
         continue;
       }
 
       const settled = await settleCompletedFarkleMatch(match.id);
       result.settled.push({ matchId: match.id, txHash: settled.txHash });
+      console.log(`[farkle/service] reconcile settled matchId=${match.id} txHash=${settled.txHash}`);
     } catch (e: any) {
       const msg = e?.shortMessage ?? e?.reason ?? e?.message ?? String(e);
       if (/AlreadySettled/i.test(msg)) {
         result.alreadySettled++;
+        await markSettled(match.id);
       } else {
         result.failed.push({ matchId: match.id, error: msg });
+        console.error(`[farkle/service] reconcile failed matchId=${match.id}: ${msg}`);
       }
     }
   }
+
+  console.log(
+    `[farkle/service] reconcile done: checked=${result.checked} settled=${result.settled.length}` +
+    ` alreadySettled=${result.alreadySettled} reverted=${result.reverted.length} failed=${result.failed.length}`,
+  );
 
   return result;
 }
