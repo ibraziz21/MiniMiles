@@ -1155,6 +1155,94 @@ export async function getFarkleRecoverySnapshot(input: {
   }
 }
 
+export interface FarkleLeaderboardEntry {
+  rank: number;
+  walletAddress: string;
+  username: string | null;
+  wins: number;
+  losses: number;
+  record: string;
+}
+
+export interface FarkleLeaderboardResult {
+  entries: FarkleLeaderboardEntry[];
+  me: FarkleLeaderboardEntry | null;
+}
+
+const REWARD_DUEL_MODE_KEY = "FARKLE_REWARD_3000_USDT";
+
+export async function getFarkleLeaderboard(opts: {
+  modeKey: string;
+  limit: number;
+  address?: string | null;
+}): Promise<{ statusCode: number; body: FarkleLeaderboardResult | { error: string } }> {
+  if (opts.modeKey !== REWARD_DUEL_MODE_KEY) {
+    return { statusCode: 400, body: { error: "only FARKLE_REWARD_3000_USDT is supported in v1" } };
+  }
+
+  const limit = Math.max(1, Math.min(opts.limit, 100));
+  const myAddress = opts.address?.toLowerCase() ?? null;
+
+  const { data, error } = await withSupabaseRetry("leaderboard matches query", () =>
+    supabase
+      .from("game_matches")
+      .select("winner_address, loser_address, game_modes!inner(mode_key)")
+      .eq("status", "completed")
+      .eq("game_modes.mode_key", REWARD_DUEL_MODE_KEY),
+    { timeoutMs: FARKLE_SUPABASE_TIMEOUT_MS },
+  );
+
+  if (error) throw new Error(`leaderboard query failed: ${dbErrorText(error)}`);
+
+  const stats: Record<string, { wins: number; losses: number }> = {};
+  for (const match of (data ?? []) as Array<{ winner_address: string | null; loser_address: string | null }>) {
+    const w = match.winner_address?.toLowerCase();
+    const l = match.loser_address?.toLowerCase();
+    if (w) { stats[w] ??= { wins: 0, losses: 0 }; stats[w].wins++; }
+    if (l) { stats[l] ??= { wins: 0, losses: 0 }; stats[l].losses++; }
+  }
+
+  const sorted = Object.entries(stats).sort(([, a], [, b]) =>
+    b.wins !== a.wins ? b.wins - a.wins : a.losses - b.losses,
+  );
+
+  const myRankIndex = myAddress ? sorted.findIndex(([addr]) => addr === myAddress) : -1;
+  const topAddresses = sorted.slice(0, limit).map(([addr]) => addr);
+  const addressesForLookup = [...new Set([
+    ...topAddresses,
+    ...(myAddress && myRankIndex >= 0 ? [myAddress] : []),
+  ])];
+
+  const usernameMap: Record<string, string | null> = {};
+  if (addressesForLookup.length > 0) {
+    const { data: users } = await withSupabaseRetry("leaderboard usernames query", () =>
+      supabase.from("users").select("user_address, username").in("user_address", addressesForLookup),
+      { timeoutMs: FARKLE_SUPABASE_TIMEOUT_MS },
+    );
+    for (const user of (users ?? []) as Array<{ user_address: string; username: string | null }>) {
+      usernameMap[user.user_address] = user.username ?? null;
+    }
+  }
+
+  function buildEntry(addr: string, s: { wins: number; losses: number }, rank: number): FarkleLeaderboardEntry {
+    return {
+      rank,
+      walletAddress: addr,
+      username: usernameMap[addr] ?? null,
+      wins: s.wins,
+      losses: s.losses,
+      record: `${s.wins}W-${s.losses}L`,
+    };
+  }
+
+  const entries = topAddresses.map((addr, i) => buildEntry(addr, stats[addr], i + 1));
+  const me = myAddress && myRankIndex >= 0
+    ? buildEntry(myAddress, stats[myAddress], myRankIndex + 1)
+    : null;
+
+  return { statusCode: 200, body: { entries, me } };
+}
+
 export async function retryFarkleRecoveryTarget(input: { jobId?: string; matchId?: string }) {
   let job: FarkleSettlementJobRow | null = null;
   if (input.jobId) {

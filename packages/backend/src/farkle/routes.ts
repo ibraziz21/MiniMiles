@@ -4,6 +4,7 @@ import {
   cancelFarkleQueueEntry,
   enterFarkleMatch,
   getActiveFarkleMatchForPlayer,
+  getFarkleLeaderboard,
   getFarkleRecoverySnapshot,
   getFarkleQueue,
   reconcileFarkleSettlements,
@@ -241,6 +242,31 @@ router.post("/admin/recovery/retry", async (req, res) => {
   } catch (e: any) {
     console.error("[farkle/routes] recovery retry failed:", e?.message ?? e);
     res.status(500).json({ ok: false, error: e?.message ?? "recovery retry failed" });
+  }
+});
+
+router.get("/leaderboard", async (req, res) => {
+  if (!authorized(req)) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+
+  const modeKey = typeof req.query.modeKey === "string" ? req.query.modeKey : "";
+  const limit = req.query.limit ? Math.max(1, Math.min(Number(req.query.limit), 100)) : 10;
+  const rawAddress = typeof req.query.address === "string" ? req.query.address.toLowerCase() : null;
+  const address = rawAddress && isWalletAddress(rawAddress) ? rawAddress : null;
+
+  if (!modeKey) {
+    res.status(400).json({ error: "missing modeKey" });
+    return;
+  }
+
+  try {
+    const result = await getFarkleLeaderboard({ modeKey, limit, address });
+    res.status(result.statusCode).json(result.body);
+  } catch (e: any) {
+    console.error(`[farkle/routes] leaderboard failed modeKey=${modeKey}:`, e?.message ?? e);
+    res.status(503).json({ error: "leaderboard unavailable", retryable: true });
   }
 });
 

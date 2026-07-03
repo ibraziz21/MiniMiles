@@ -28,6 +28,19 @@ type FarkleResult = {
   settlementStatus?: FarkleSettlementStatus;
 };
 
+type LeaderboardEntry = {
+  rank: number;
+  walletAddress: string;
+  username: string | null;
+  wins: number;
+  losses: number;
+  record: string;
+};
+type LeaderboardData = {
+  entries: LeaderboardEntry[];
+  me: LeaderboardEntry | null;
+};
+
 // ─── Dot positions per face (in a 0–100 viewbox) ─────────────────────────────
 
 const DOTS: Record<number, [number, number][]> = {
@@ -425,8 +438,17 @@ export default function FarklePage() {
   // Game result
   const [result, setResult] = useState<FarkleResult | null>(null);
 
-  const [balanceTick, setBalanceTick] = useState(0);
+  const [balanceTick,      setBalanceTick]      = useState(0);
+  const [leaderboardTick,  setLeaderboardTick]  = useState(0);
   const refreshBalances = useCallback(() => setBalanceTick((n) => n + 1), []);
+
+  // Pre-fetch leaderboard data in the background as soon as a Reward Duel result appears,
+  // so the data is warm when the user returns to mode-select and opens the sheet.
+  useEffect(() => {
+    if (screen === "result" && mode === "FARKLE_REWARD_3000_USDT") {
+      setLeaderboardTick((n) => n + 1);
+    }
+  }, [screen, mode]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -573,7 +595,8 @@ export default function FarklePage() {
 
       {!reconnecting && screen === "mode-select" && (
         <ModeSelect balances={balances} selectedMode={mode} onSelectMode={setMode}
-          onPlay={joinLobby} address={address} onBalanceRefresh={refreshBalances} />
+          onPlay={joinLobby} address={address} onBalanceRefresh={refreshBalances}
+          leaderboardTick={leaderboardTick} />
       )}
 
       {screen === "matchmaking" && (
@@ -604,21 +627,236 @@ export default function FarklePage() {
   );
 }
 
+// ─── Reward Duel Leaderboard sheet ───────────────────────────────────────────
+
+function RewardDuelLeaderboardSheet({
+  address,
+  onClose,
+  onSelectRewardDuel,
+  data,
+  loading,
+  error,
+  onRetry,
+}: {
+  address: string | null;
+  onClose: () => void;
+  onSelectRewardDuel: () => void;
+  data: LeaderboardData | null;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+}) {
+  const myAddr = address?.toLowerCase() ?? null;
+  const outsideTop10 = !!data?.me && !data.entries.some((e) => e.walletAddress === myAddr);
+  const shorten = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+  const MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
+
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 z-40 bg-black/50"
+        onClick={onClose}
+      />
+      <motion.div
+        initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+        transition={{ type: "spring", damping: 28, stiffness: 300 }}
+        className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl bg-white px-4 pt-4 pb-10 max-h-[80dvh] overflow-y-auto"
+      >
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-300" />
+
+        {/* Header */}
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2">
+            <Trophy size={18} weight="fill" className="text-amber-500" />
+            <h2 className="text-lg font-extrabold text-[#1A1A1A]">Reward Duel Leaderboard</h2>
+            {/* Subtle spinner while refreshing with stale data already shown */}
+            {loading && data && (
+              <SpinnerGap size={14} className="text-[#238D9D] animate-spin" />
+            )}
+          </div>
+          <button type="button" onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Initial loading — no data yet */}
+        {loading && !data && (
+          <div className="flex flex-col items-center gap-3 py-10">
+            <SpinnerGap size={24} className="text-[#238D9D] animate-spin" />
+            <p className="text-sm text-[#717171] font-poppins">Loading…</p>
+          </div>
+        )}
+
+        {/* First-load error (no stale data to show) */}
+        {!loading && error && !data && (
+          <div className="flex flex-col items-center gap-4 py-10">
+            <WarningCircle size={32} className="text-gray-300" />
+            <div className="text-center">
+              <p className="text-sm font-semibold text-[#1A1A1A]">Couldn't load leaderboard</p>
+              <p className="text-[11px] text-[#717171] font-poppins mt-1">Check your connection and try again</p>
+            </div>
+            <button
+              type="button"
+              onClick={onRetry}
+              className="rounded-2xl bg-gray-100 px-5 py-2.5 text-sm font-semibold text-[#1A1A1A] active:scale-95 transition-transform"
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
+        {/* Refresh error banner — shown on top of stale data */}
+        {error && data && (
+          <div className="mb-3 flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-100 px-3 py-2.5">
+            <WarningCircle size={14} className="text-amber-600 flex-shrink-0" />
+            <p className="flex-1 text-xs text-amber-700 font-poppins">Couldn't refresh</p>
+            <button
+              type="button"
+              onClick={onRetry}
+              className="text-xs font-bold text-amber-700 underline-offset-2 hover:underline"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!loading && !error && data && data.entries.length === 0 && (
+          <div className="flex flex-col items-center gap-4 py-10">
+            <Trophy size={40} className="text-gray-200" />
+            <div className="text-center">
+              <p className="text-sm font-semibold text-[#1A1A1A]">No Reward Duel records yet</p>
+              <p className="text-[11px] text-[#717171] font-poppins mt-1">Be the first to climb the ranks</p>
+            </div>
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.97 }}
+              onClick={onSelectRewardDuel}
+              className="rounded-2xl bg-[#238D9D] px-6 py-3 text-sm font-bold text-white"
+            >
+              Play Reward Duel
+            </motion.button>
+          </div>
+        )}
+
+        {/* Leaderboard entries */}
+        {data && data.entries.length > 0 && (
+          <div className="space-y-1.5 mb-2">
+            {data.entries.map((entry) => {
+              const isMe = entry.walletAddress === myAddr;
+              return (
+                <div
+                  key={entry.walletAddress}
+                  className={[
+                    "flex items-center gap-3 rounded-xl px-3 py-2.5",
+                    isMe ? "bg-[#E8F7F9] border border-[#238D9D]/20" : "bg-gray-50",
+                  ].join(" ")}
+                >
+                  <span className={[
+                    "w-7 flex-shrink-0 text-center font-extrabold leading-none",
+                    entry.rank <= 3 ? "text-sm" : "text-xs text-[#A0A0A0]",
+                  ].join(" ")}>
+                    {MEDAL[entry.rank] ?? `#${entry.rank}`}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate text-[#1A1A1A]">
+                      {entry.username ?? shorten(entry.walletAddress)}
+                      {isMe && (
+                        <span className="ml-1.5 rounded-full bg-[#238D9D]/10 px-1.5 py-0.5 text-[10px] font-bold text-[#238D9D]">
+                          you
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <span className="flex-shrink-0 text-xs font-bold text-[#1A1A1A] tabular-nums">
+                    {entry.record}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* "Your record" row — only when connected wallet is outside the top 10 */}
+        {outsideTop10 && data?.me && (
+          <>
+            <div className="my-3 border-t border-dashed border-gray-200" />
+            <p className="mb-2 text-[10px] font-extrabold uppercase tracking-widest text-[#A0A0A0]">Your record</p>
+            <div className="flex items-center gap-3 rounded-xl bg-[#E8F7F9] border border-[#238D9D]/20 px-3 py-2.5">
+              <span className="w-7 flex-shrink-0 text-center text-xs font-bold text-[#238D9D]">
+                #{data.me.rank}
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="truncate text-sm font-semibold text-[#1A1A1A]">
+                  {data.me.username ?? shorten(data.me.walletAddress)}
+                  <span className="ml-1.5 rounded-full bg-[#238D9D]/10 px-1.5 py-0.5 text-[10px] font-bold text-[#238D9D]">
+                    you
+                  </span>
+                </p>
+              </div>
+              <span className="flex-shrink-0 text-xs font-bold text-[#1A1A1A] tabular-nums">
+                {data.me.record}
+              </span>
+            </div>
+          </>
+        )}
+      </motion.div>
+    </>
+  );
+}
+
 // ─── Mode Select ──────────────────────────────────────────────────────────────
 
-function ModeSelect({ balances, selectedMode, onSelectMode, onPlay, address, onBalanceRefresh }: {
+function ModeSelect({ balances, selectedMode, onSelectMode, onPlay, address, onBalanceRefresh, leaderboardTick }: {
   balances: BalancesResponse | null; selectedMode: FarkleMode;
   onSelectMode: (m: FarkleMode) => void; onPlay: () => void;
   address: string | null; onBalanceRefresh: () => void;
+  leaderboardTick: number;
 }) {
   const { buyPack,       buying: buyingTickets, buyError: ticketError }       = useFarkleTickets(address);
   const { buyCreditPack, buying: buyingCredits, buyError: creditError, step } = useFarkleCredits(address);
   const { claimable, claimEnabled, claiming, claimError, claim } = useFarkleClaim(address);
-  const [showRules,      setShowRules]      = useState(false);
-  const [showGameNights, setShowGameNights] = useState(false);
-  const [justBought,     setJustBought]     = useState(false);
+  const [showRules,        setShowRules]        = useState(false);
+  const [showGameNights,   setShowGameNights]   = useState(false);
+  const [showLeaderboard,  setShowLeaderboard]  = useState(false);
+  const [justBought,       setJustBought]       = useState(false);
+  const [lbData,           setLbData]           = useState<LeaderboardData | null>(null);
+  const [lbLoading,        setLbLoading]        = useState(false);
+  const [lbError,          setLbError]          = useState<string | null>(null);
+  const lbFetchingRef                           = useRef(false);
 
   const claimableUsd = Number(claimable) / 1e6; // 6-dp USDT base units → dollars
+
+  const fetchLeaderboard = useCallback(async () => {
+    if (lbFetchingRef.current) return;
+    lbFetchingRef.current = true;
+    setLbLoading(true);
+    setLbError(null);
+    const params = new URLSearchParams({ modeKey: "FARKLE_REWARD_3000_USDT", limit: "10" });
+    if (address) params.set("address", address.toLowerCase());
+    try {
+      const r = await fetch(`/api/games/farkle/leaderboard?${params.toString()}`);
+      if (!r.ok) throw new Error(String(r.status));
+      setLbData((await r.json()) as LeaderboardData);
+    } catch {
+      setLbError("Couldn't load leaderboard");
+    } finally {
+      lbFetchingRef.current = false;
+      setLbLoading(false);
+    }
+  }, [address]);
+
+  // Fetch fresh data each time the sheet opens
+  useEffect(() => {
+    if (showLeaderboard) void fetchLeaderboard();
+  }, [showLeaderboard, fetchLeaderboard]);
+
+  // Pre-fetch when the parent signals a result was just shown (background refresh)
+  useEffect(() => {
+    if (leaderboardTick > 0) void fetchLeaderboard();
+  }, [leaderboardTick, fetchLeaderboard]);
 
   async function handleClaim() {
     if (claiming) return;
@@ -726,6 +964,22 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onPlay, address, onB
         />
       )}
     </AnimatePresence>
+    <AnimatePresence>
+      {showLeaderboard && (
+        <RewardDuelLeaderboardSheet
+          address={address}
+          onClose={() => setShowLeaderboard(false)}
+          onSelectRewardDuel={() => {
+            onSelectMode("FARKLE_REWARD_3000_USDT");
+            setShowLeaderboard(false);
+          }}
+          data={lbData}
+          loading={lbLoading}
+          error={lbError}
+          onRetry={fetchLeaderboard}
+        />
+      )}
+    </AnimatePresence>
 
     <div className="px-4 mt-2 flex flex-col" style={{ minHeight: "calc(100dvh - 190px)" }}>
       {/* ── Currency hero (adapts to selected mode) ─────────────── */}
@@ -794,14 +1048,14 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onPlay, address, onB
       <div className="grid grid-cols-2 gap-2.5 mb-3">
         {modes.map((m) => {
           const active = selectedMode === m.key;
-          return (
-            <button key={m.key} type="button" onClick={() => onSelectMode(m.key)}
-              className={[
-                "relative text-left rounded-2xl p-3 overflow-hidden transition-all",
-                `bg-gradient-to-br ${m.gradient}`,
-                active ? "ring-2 ring-white shadow-lg scale-[1.02]" : "opacity-75",
-              ].join(" ")}
-            >
+          const isRewardMode = m.key === "FARKLE_REWARD_3000_USDT";
+          const cardClass = [
+            "relative text-left rounded-2xl p-3 overflow-hidden transition-all",
+            `bg-gradient-to-br ${m.gradient}`,
+            active ? "ring-2 ring-white shadow-lg scale-[1.02]" : "opacity-75",
+          ].join(" ");
+          const cardInner = (
+            <>
               <div className="pointer-events-none absolute -right-5 -top-5 h-16 w-16 rounded-full bg-white/10" />
               {active && (
                 <span className="absolute top-2 right-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-white text-[#0A6B7A] text-[11px] font-black">✓</span>
@@ -812,6 +1066,37 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onPlay, address, onB
                 <p className="text-[10px] text-white/60 font-poppins mt-0.5">First to {m.target}</p>
                 <p className="text-[11px] text-white/85 font-poppins font-semibold mt-1.5">{m.reward}</p>
               </div>
+            </>
+          );
+
+          if (isRewardMode) {
+            return (
+              <div
+                key={m.key}
+                role="button"
+                tabIndex={0}
+                onClick={() => onSelectMode(m.key)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onSelectMode(m.key); }}
+                className={`${cardClass} cursor-pointer select-none`}
+              >
+                {cardInner}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setShowLeaderboard(true); }}
+                  aria-label="View Reward Duel leaderboard"
+                  className="absolute bottom-2 right-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-white/80 transition-colors hover:bg-white/35 active:scale-90"
+                >
+                  <Trophy size={12} weight="fill" />
+                </button>
+              </div>
+            );
+          }
+
+          return (
+            <button key={m.key} type="button" onClick={() => onSelectMode(m.key)}
+              className={cardClass}
+            >
+              {cardInner}
             </button>
           );
         })}

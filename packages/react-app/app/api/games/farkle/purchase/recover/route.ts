@@ -31,31 +31,70 @@ const CLAIMED_EVENT = parseAbiItem("event RewardCreditsClaimed(address indexed u
 const PURCHASE_TYPES = ["ticket", "credit", "claim"] as const;
 type PurchaseType = (typeof PURCHASE_TYPES)[number];
 
+function makeDebugId(input: unknown) {
+  return typeof input === "string" && input.trim()
+    ? input.trim().slice(0, 80)
+    : `recover-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function isTxHash(value: unknown): value is `0x${string}` {
+  return typeof value === "string" && /^0x[0-9a-fA-F]{64}$/.test(value);
+}
+
+function dbErrorText(error: any) {
+  return error?.message ?? error?.details ?? error?.hint ?? String(error ?? "unknown db error");
+}
+
+function errorJson(
+  message: string,
+  status: number,
+  debugId: string,
+  code: string,
+  extra: Record<string, unknown> = {},
+) {
+  return NextResponse.json({ error: message, code, debugId, ...extra }, { status });
+}
+
 export async function POST(req: Request) {
   const session = await requireSession();
   if (!session) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
   const address = session.walletAddress.toLowerCase();
   const body = await req.json().catch(() => null);
-  const txHash: string | undefined = body?.txHash;
+  const txHash: unknown = body?.txHash;
   const purchaseType: PurchaseType | undefined = body?.purchaseType;
+  const debugId = makeDebugId(body?.debugId);
 
-  if (!txHash) return NextResponse.json({ error: "missing txHash" }, { status: 400 });
+  if (!isTxHash(txHash)) return errorJson("missing or invalid txHash", 400, debugId, "invalid_tx_hash");
   if (!purchaseType || !PURCHASE_TYPES.includes(purchaseType)) {
-    return NextResponse.json({ error: "missing or invalid purchaseType" }, { status: 400 });
+    return errorJson("missing or invalid purchaseType", 400, debugId, "invalid_purchase_type");
   }
+
+  console.log(
+    `[farkle/purchase/recover] start debugId=${debugId}` +
+      ` wallet=${address} type=${purchaseType} txHash=${txHash}`,
+  );
 
   const receipt = await createPublicClient({ chain: celo, transport: http(CELO_RPC) })
-    .getTransactionReceipt({ hash: txHash as `0x${string}` })
-    .catch(() => null);
+    .getTransactionReceipt({ hash: txHash })
+    .catch((err) => {
+      console.warn(
+        `[farkle/purchase/recover] receipt read failed debugId=${debugId}` +
+          ` wallet=${address} type=${purchaseType} txHash=${txHash}: ${err?.shortMessage ?? err?.message ?? err}`,
+      );
+      return null;
+    });
   if (!receipt) {
-    return NextResponse.json(
-      { error: "Transaction is still confirming. Try again shortly.", retryable: true },
-      { status: 425 },
-    );
+    return errorJson("Transaction is still confirming. Try again shortly.", 425, debugId, "receipt_pending", {
+      retryable: true,
+    });
   }
   if (receipt.status !== "success") {
-    return NextResponse.json({ error: "Transaction reverted or failed on-chain" }, { status: 402 });
+    console.warn(
+      `[farkle/purchase/recover] receipt not successful debugId=${debugId}` +
+        ` wallet=${address} type=${purchaseType} txHash=${txHash} status=${receipt.status}`,
+    );
+    return errorJson("Transaction reverted or failed on-chain", 402, debugId, "tx_failed");
   }
 
   if (purchaseType === "ticket") {
@@ -64,7 +103,7 @@ export async function POST(req: Request) {
   if (purchaseType === "credit") {
     return recoverCredit(address, txHash, receipt.logs);
   }
-  return recoverClaim(address, txHash, receipt.logs);
+  return recoverClaim(address, txHash, receipt.logs, debugId);
 }
 
 // ─── ticket recovery ────────────────────────────────────────────────────────
@@ -249,24 +288,34 @@ async function recoverClaim(
   address: string,
   txHash: string,
   logs: readonly { address: string; data: `0x${string}`; topics: readonly `0x${string}`[] }[],
+  debugId: string,
 ) {
-  if (!VAULT) return NextResponse.json({ error: "credit vault not configured" }, { status: 500 });
+  if (!VAULT) return errorJson("credit vault not configured", 500, debugId, "vault_not_configured");
 
   // Idempotency
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from("game_credit_ledger")
     .select("balance_after")
     .eq("tx_hash", txHash)
     .eq("ledger_type", "REWARD_CREDIT_CLAIMED")
     .maybeSingle();
+  if (existingError) {
+    console.warn(
+      `[farkle/purchase/recover] claim ledger idempotency read failed debugId=${debugId}` +
+        ` wallet=${address} txHash=${txHash}: ${dbErrorText(existingError)}`,
+    );
+    return errorJson("failed to check claim recovery state", 500, debugId, "ledger_read_failed");
+  }
   if (existing) {
-    return NextResponse.json({ ok: true, recovered: false, duplicate: true });
+    return NextResponse.json({ ok: true, recovered: false, duplicate: true, debugId });
   }
 
   // Decode RewardCreditsClaimed event
   let claimedBaseUnits = 0n;
+  let vaultLogCount = 0;
   for (const log of logs) {
     if (log.address.toLowerCase() !== VAULT) continue;
+    vaultLogCount += 1;
     try {
       const decoded = decodeEventLog({
         abi: [CLAIMED_EVENT],
@@ -281,11 +330,14 @@ async function recoverClaim(
   }
 
   if (claimedBaseUnits === 0n) {
-    console.error(`[farkle/purchase/recover] RewardCreditsClaimed not found wallet=${address} txHash=${txHash}`);
-    return NextResponse.json(
-      { error: "RewardCreditsClaimed event not found for this wallet in the tx" },
-      { status: 402 },
+    console.warn(
+      `[farkle/purchase/recover] RewardCreditsClaimed not found debugId=${debugId}` +
+        ` wallet=${address} txHash=${txHash} vaultLogCount=${vaultLogCount} receiptLogs=${logs.length}`,
     );
+    return errorJson("RewardCreditsClaimed event not found for this wallet in the tx", 402, debugId, "claim_event_not_found", {
+      vaultLogCount,
+      logCount: logs.length,
+    });
   }
 
   // Read post-claim on-chain balance (source of truth)
@@ -298,27 +350,58 @@ async function recoverClaim(
       args: [address as `0x${string}`],
     })) as bigint;
     remainingCents = Math.round(Number(remaining) / 1e4);
-  } catch { /* fall back to 0 */ }
+  } catch (err: any) {
+    console.warn(
+      `[farkle/purchase/recover] claim remaining balance read failed debugId=${debugId}` +
+        ` wallet=${address} txHash=${txHash}: ${err?.shortMessage ?? err?.message ?? err}`,
+    );
+    /* fall back to 0 because the event proves withdrawal */
+  }
 
-  await supabase.from("farkle_credit_balances").upsert(
+  const { error: balanceWriteError } = await supabase.from("farkle_credit_balances").upsert(
     { wallet_address: address, reward_credits_cents: remainingCents, updated_at: new Date().toISOString() },
     { onConflict: "wallet_address" },
   );
+  if (balanceWriteError) {
+    console.warn(
+      `[farkle/purchase/recover] claim balance mirror write failed debugId=${debugId}` +
+        ` wallet=${address} txHash=${txHash}: ${dbErrorText(balanceWriteError)}`,
+    );
+    return errorJson("claim succeeded on-chain but balance sync failed", 500, debugId, "balance_sync_failed", {
+      retryable: true,
+    });
+  }
 
-  await supabase.from("game_credit_ledger").insert({
+  const claimedCents = Math.round(Number(claimedBaseUnits) / 1e4);
+  const { error: ledgerWriteError } = await supabase.from("game_credit_ledger").insert({
     wallet_address: address,
-    amount: -Math.round(Number(claimedBaseUnits) / 1e4),
+    amount: -claimedCents,
     balance_after: remainingCents,
     currency: "REWARD_CREDIT",
     ledger_type: "REWARD_CREDIT_CLAIMED",
     tx_hash: txHash,
-    metadata: { usdt_base_units: claimedBaseUnits.toString(), recovered: true },
+    metadata: { usdt_base_units: claimedBaseUnits.toString(), recovered: true, debug_id: debugId },
   });
+  if (ledgerWriteError) {
+    if (ledgerWriteError.code === "23505") {
+      console.warn(
+        `[farkle/purchase/recover] duplicate claim ledger race debugId=${debugId}` +
+          ` wallet=${address} txHash=${txHash}`,
+      );
+      return NextResponse.json({ ok: true, recovered: false, duplicate: true, debugId });
+    }
+    console.warn(
+      `[farkle/purchase/recover] claim ledger write failed debugId=${debugId}` +
+        ` wallet=${address} txHash=${txHash}: ${dbErrorText(ledgerWriteError)}`,
+    );
+    return errorJson("claim succeeded on-chain but ledger sync failed", 500, debugId, "ledger_sync_failed", {
+      retryable: true,
+    });
+  }
 
-  const claimedCents = Math.round(Number(claimedBaseUnits) / 1e4);
   console.log(
-    `[farkle/purchase/recover] claim recovered wallet=${address} txHash=${txHash}` +
+    `[farkle/purchase/recover] claim recovered debugId=${debugId} wallet=${address} txHash=${txHash}` +
       ` claimedCents=${claimedCents} remainingCents=${remainingCents}`,
   );
-  return NextResponse.json({ ok: true, recovered: true, claimedCents, remainingCents });
+  return NextResponse.json({ ok: true, recovered: true, debugId, claimedCents, remainingCents });
 }
