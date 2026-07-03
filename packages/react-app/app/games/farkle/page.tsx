@@ -1071,24 +1071,14 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onPlay, address, onB
 
           if (isRewardMode) {
             return (
-              <div
+              <button
                 key={m.key}
-                role="button"
-                tabIndex={0}
+                type="button"
                 onClick={() => onSelectMode(m.key)}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onSelectMode(m.key); }}
-                className={`${cardClass} cursor-pointer select-none`}
+                className={`${cardClass}`}
               >
                 {cardInner}
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); setShowLeaderboard(true); }}
-                  aria-label="View Reward Duel leaderboard"
-                  className="absolute bottom-2 right-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-white/80 transition-colors hover:bg-white/35 active:scale-90"
-                >
-                  <Trophy size={12} weight="fill" />
-                </button>
-              </div>
+              </button>
             );
           }
 
@@ -1101,6 +1091,26 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onPlay, address, onB
           );
         })}
       </div>
+
+      {/* ── Reward Duel leaderboard entry ───────────────────────── */}
+      <button
+        type="button"
+        onClick={() => setShowLeaderboard(true)}
+        className="w-full text-left rounded-2xl overflow-hidden mb-3 shadow-sm active:scale-[0.99] transition-transform"
+      >
+        <div className="bg-gradient-to-r from-[#2A1A00] to-[#3D2800] border border-amber-700/40 px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Trophy size={18} weight="fill" className="text-amber-400 flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-extrabold text-white leading-tight">Reward Duel Leaderboard</p>
+              <p className="text-[10px] text-white/50 font-poppins">All-time wins · USDT mode</p>
+            </div>
+          </div>
+          <span className="flex-shrink-0 ml-2 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold text-white">
+            View →
+          </span>
+        </div>
+      </button>
 
       {/* secondary balances — the other currency + on-chain claimable winnings */}
       {balances && (
@@ -2380,7 +2390,6 @@ function ResultScreen({ result, myAddress, mode, onPlayAgain, onBackToFarkle }: 
   const isRewardWinner = isWinner && mode === "FARKLE_REWARD_3000_USDT";
   const [checking, setChecking] = useState(false);
   const [checkedStatus, setCheckedStatus] = useState<"settled" | "pending" | null>(null);
-  const [settlementError, setSettlementError] = useState<string | null>(null);
   const [claimed, setClaimed] = useState(false);
   const [claimedAmountUsd, setClaimedAmountUsd] = useState<number | null>(null);
   const {
@@ -2403,7 +2412,6 @@ function ResultScreen({ result, myAddress, mode, onPlayAgain, onBackToFarkle }: 
   const checkRewardStatus = useCallback(async () => {
     if (checking || !result.matchId) return;
     setChecking(true);
-    setSettlementError(null);
     try {
       await refresh();
       const statusRes = await fetch(`/api/games/farkle/${result.matchId}/settlement`, {
@@ -2413,9 +2421,7 @@ function ResultScreen({ result, myAddress, mode, onPlayAgain, onBackToFarkle }: 
       const statusData = await statusRes.json().catch(() => null);
       if (statusRes.ok && statusData) {
         setCheckedStatus(statusData.settlementStatus === "settled" ? "settled" : "pending");
-        if (statusData.retryError) setSettlementError(statusData.retryError);
       } else {
-        setSettlementError(statusData?.error ?? "Settlement status unavailable");
         setCheckedStatus("pending");
       }
 
@@ -2423,8 +2429,7 @@ function ResultScreen({ result, myAddress, mode, onPlayAgain, onBackToFarkle }: 
       const r = await fetch(`/api/games/farkle/balances?address=${encodeURIComponent(myAddress)}`);
       const data = r.ok ? await r.json().catch(() => null) : null;
       if ((data?.rewardCreditsCents ?? 0) > 0) setCheckedStatus("settled");
-    } catch (err: any) {
-      setSettlementError(err?.message ?? "Settlement check failed");
+    } catch {
       setCheckedStatus("pending");
     } finally {
       setChecking(false);
@@ -2561,16 +2566,11 @@ function ResultScreen({ result, myAddress, mode, onPlayAgain, onBackToFarkle }: 
             </p>
           )}
 
-          {(claimError || settlementError || syncFailed || (!hasClaimableUsdt && !claimed)) && (
+          {(claimError || syncFailed || (!hasClaimableUsdt && !claimed)) && (
             <div className="mt-3 border-t border-white/10 pt-3">
               {claimError && (
                 <p className="text-[11px] text-red-100 font-poppins mb-2 flex items-center gap-1">
                   <WarningCircle size={12} /> {claimError}
-                </p>
-              )}
-              {settlementError && (
-                <p className="text-[11px] text-red-100 font-poppins mb-2 flex items-center gap-1">
-                  <WarningCircle size={12} /> {settlementError}
                 </p>
               )}
               {syncFailed && (
