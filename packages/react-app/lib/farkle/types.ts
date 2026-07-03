@@ -1,5 +1,14 @@
 export type FarkleMode = "FARKLE_QUICK_1500_AKIBA" | "FARKLE_REWARD_3000_USDT";
 
+export type FarkleReactionEmoji = "fire" | "cry" | "laugh" | "tongue" | "angry_censored";
+
+export interface FarkleReaction {
+  id:            string;
+  emoji:         FarkleReactionEmoji;
+  fromUserId:    string;
+  sentAt:        string;
+}
+
 export type MatchStatus =
   | "created" | "waiting" | "funded" | "in_progress"
   | "completed" | "settled" | "cancelled" | "disputed";
@@ -71,6 +80,7 @@ export interface TurnState {
   lastAction?:      string | null;
   turnStartedAt?:      string | null;
   turnTimeoutSeconds?: number;
+  lastReaction?:       FarkleReaction | null;
 }
 
 export interface BalancesResponse {

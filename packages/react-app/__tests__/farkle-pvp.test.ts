@@ -650,3 +650,115 @@ describe("POST /api/games/farkle/matches/find", () => {
     await expect(mockGrantRewards({ matchId: MATCH_ID, modeKey: "FARKLE_QUICK_1500_AKIBA", winnerAddress: WALLET_A, loserAddress: WALLET_B, winnerScore: 1500, loserScore: 700, winMiles: 10, losMiles: 5, winCreditCents: 0, endReason: "score" })).resolves.toBeUndefined();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. /state and /events — participant auth (requirement d)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("GET /api/games/farkle/[matchId]/state — participant auth", () => {
+  let stateHandler: (req: Request, ctx: any) => Promise<Response>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    const mod = await import("../app/api/games/farkle/[matchId]/state/route");
+    stateHandler = mod.GET;
+    mockSession.mockResolvedValue({ walletAddress: WALLET_A });
+  });
+
+  const makeStateReq = () =>
+    new Request(`http://localhost/api/games/farkle/${MATCH_ID}/state`, { method: "GET" });
+
+  it("(d) returns 401 when there is no session", async () => {
+    mockSession.mockResolvedValue(null);
+    const res = await stateHandler(makeStateReq(), { params: Promise.resolve({ matchId: MATCH_ID }) });
+    expect(res.status).toBe(401);
+  });
+
+  it("(d) returns 403 when the authenticated wallet is not a participant", async () => {
+    // The match exists but its player list does not contain WALLET_A.
+    const nonParticipant = "0xcccccccccccccccccccccccccccccccccccccccc";
+    mockSession.mockResolvedValue({ walletAddress: nonParticipant });
+
+    let callCount = 0;
+    mockFrom.mockImplementation((table: string) => {
+      callCount++;
+      if (table === "game_matches") return makeChain({ data: makeMatch(), error: null });
+      if (table === "game_match_players")
+        // Only WALLET_A and WALLET_B are participants — not nonParticipant.
+        return makeChain({ data: [
+          { wallet_address: WALLET_A, banked_score: 0 },
+          { wallet_address: WALLET_B, banked_score: 0 },
+        ], error: null });
+      return makeChain({ data: null, error: null });
+    });
+
+    const res = await stateHandler(makeStateReq(), { params: Promise.resolve({ matchId: MATCH_ID }) });
+    expect(res.status).toBe(403);
+  });
+
+  it("(d) returns 200 when the authenticated wallet is a participant", async () => {
+    let callCount = 0;
+    mockFrom.mockImplementation((table: string) => {
+      callCount++;
+      if (table === "game_matches") return makeChain({ data: makeMatch(), error: null });
+      if (table === "game_match_players")
+        return makeChain({ data: [
+          { wallet_address: WALLET_A, banked_score: 0 },
+          { wallet_address: WALLET_B, banked_score: 0 },
+        ], error: null });
+      if (table === "farkle_turns") return makeChain({ data: [], error: null });
+      if (table === "farkle_reactions") return makeChain({ data: [], error: null });
+      return makeChain({ data: null, error: null });
+    });
+
+    const res = await stateHandler(makeStateReq(), { params: Promise.resolve({ matchId: MATCH_ID }) });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.matchId).toBe(MATCH_ID);
+    expect(json.yourUserId).toBe(WALLET_A);
+  });
+});
+
+describe("GET /api/games/farkle/[matchId]/events — participant auth", () => {
+  let eventsHandler: (req: Request, ctx: any) => Promise<Response>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    const mod = await import("../app/api/games/farkle/[matchId]/events/route");
+    eventsHandler = mod.GET;
+    mockSession.mockResolvedValue({ walletAddress: WALLET_A });
+  });
+
+  const makeEventsReq = () =>
+    new Request(`http://localhost/api/games/farkle/${MATCH_ID}/events`, { method: "GET" });
+
+  it("(d) returns 401 when there is no session", async () => {
+    mockSession.mockResolvedValue(null);
+    const res = await eventsHandler(makeEventsReq(), { params: Promise.resolve({ matchId: MATCH_ID }) });
+    expect(res.status).toBe(401);
+  });
+
+  it("(d) returns 403 before opening the stream for a non-participant", async () => {
+    const nonParticipant = "0xcccccccccccccccccccccccccccccccccccccccc";
+    mockSession.mockResolvedValue({ walletAddress: nonParticipant });
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "game_matches") return makeChain({ data: makeMatch(), error: null });
+      if (table === "game_match_players")
+        return makeChain({ data: [
+          { wallet_address: WALLET_A, banked_score: 0 },
+          { wallet_address: WALLET_B, banked_score: 0 },
+        ], error: null });
+      return makeChain({ data: null, error: null });
+    });
+
+    // The pre-flight check should reject before a stream is opened, so the response
+    // is a plain JSON 403, not an SSE text/event-stream response.
+    const res = await eventsHandler(makeEventsReq(), { params: Promise.resolve({ matchId: MATCH_ID }) });
+    expect(res.status).toBe(403);
+    const ct = res.headers.get("content-type") ?? "";
+    expect(ct).toContain("application/json");
+  });
+});

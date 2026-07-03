@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import type { TurnState } from "@/lib/farkle/types";
+import type { TurnState, FarkleReactionEmoji } from "@/lib/farkle/types";
 import { getScoringIndices, type DiceValue } from "@/lib/farkle/engine";
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
@@ -72,6 +72,9 @@ export async function getFarkleTurnState(matchId: string, address: string): Prom
 
   const typedPlayers = (players ?? []) as PlayerRow[];
   const me = typedPlayers.find((p) => p.wallet_address === wallet);
+  if (!me) {
+    throw new FarkleStateError("not a participant in this match", 403);
+  }
   const opp = typedPlayers.find((p) => p.wallet_address !== wallet);
 
   const activeAddress = (typedMatch.current_turn_address ?? null) as string | null;
@@ -109,6 +112,17 @@ export async function getFarkleTurnState(matchId: string, address: string): Prom
     }
   }
 
+  const { data: reactionRows } = await supabase
+    .from("farkle_reactions")
+    .select("id, emoji, wallet_address, created_at")
+    .eq("match_id", matchId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  const latestReaction = reactionRows?.[0] as
+    | { id: string; emoji: string; wallet_address: string; created_at: string }
+    | undefined;
+
   const mode = getMode(typedMatch);
   return {
     matchId,
@@ -131,5 +145,13 @@ export async function getFarkleTurnState(matchId: string, address: string): Prom
     winnerUserId: typedMatch.winner_address ?? null,
     turnStartedAt: typedMatch.turn_started_at ?? null,
     turnTimeoutSeconds: 60,
+    lastReaction: latestReaction
+      ? {
+          id: latestReaction.id,
+          emoji: latestReaction.emoji as FarkleReactionEmoji,
+          fromUserId: latestReaction.wallet_address,
+          sentAt: latestReaction.created_at,
+        }
+      : null,
   };
 }

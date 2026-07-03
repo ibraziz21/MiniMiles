@@ -688,7 +688,10 @@ export async function enterFarkleMatch(input: EnterFarkleMatchInput) {
       .maybeSingle(),
   );
 
-  if (existingQueue?.status === "waiting") {
+  // Only short-circuit if the caller is already waiting AND has no specific target.
+  // When targetAddress is set (from inviteCode or direct challenge) we must proceed
+  // to the RPC so the waiter can match against another player.
+  if (existingQueue?.status === "waiting" && !targetAddress) {
     return { statusCode: 200, body: { status: "waiting" } };
   }
 

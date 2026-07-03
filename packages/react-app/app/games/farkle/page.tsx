@@ -534,22 +534,6 @@ export default function FarklePage() {
     if (data.matchId) enterGame(data.matchId, (data.modeKey ?? mode) as FarkleMode);
   }
 
-  async function challengePlayer(targetAddress: string) {
-    if (!address) return;
-    setError(null);
-    if (targetAddress.startsWith("__matched__:")) {
-      enterGame(targetAddress.slice("__matched__:".length), mode);
-      return;
-    }
-    const r = await fetch("/api/games/farkle/matches/find", {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ address: address.toLowerCase(), modeKey: mode, targetAddress }),
-    });
-    const data = await r.json();
-    if (!r.ok) { setError(data.error ?? "challenge failed"); return; }
-    if (data.matchId) enterGame(data.matchId, (data.modeKey ?? mode) as FarkleMode);
-  }
-
   return (
     <main className="pb-28 font-sterling bg-onboarding min-h-screen">
       <div className="px-4 pt-8 pb-2 flex items-center gap-3">
@@ -558,6 +542,11 @@ export default function FarklePage() {
           onClick={() => {
             if (screen === "result") {
               resetToFarkleStart();
+              return;
+            }
+            if (screen === "matchmaking") {
+              // Matchmaking's cleanup effect cancels the queue when it unmounts.
+              setScreen("mode-select");
               return;
             }
             router.push("/games");
@@ -589,7 +578,7 @@ export default function FarklePage() {
 
       {screen === "matchmaking" && (
         <Matchmaking mode={mode} myAddress={address?.toLowerCase() ?? ""}
-          onChallenge={challengePlayer} onCancel={() => setScreen("mode-select")} />
+          onMatchStart={enterGame} onCancel={() => setScreen("mode-select")} />
       )}
 
       {screen === "game" && matchId && address && (
@@ -949,19 +938,24 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onPlay, address, onB
 
 type WaitingPlayer = { address: string; username: string | null; queuedAt: string };
 
-function Matchmaking({ mode, myAddress, onChallenge, onCancel }: {
-  mode: FarkleMode; myAddress: string;
-  onChallenge: (t: string) => void; onCancel: () => void;
+function Matchmaking({ mode, myAddress, onMatchStart, onCancel }: {
+  mode: FarkleMode;
+  myAddress: string;
+  onMatchStart: (matchId: string, mode: FarkleMode) => void;
+  onCancel: () => void;
 }) {
-  const [waiters,      setWaiters]      = useState<WaitingPlayer[]>([]);
-  const [challenging,  setChallenging]  = useState<string | null>(null);
-  const [dots,         setDots]         = useState(".");
-  const [myInviteCode, setMyInviteCode] = useState<string | null>(null);
-  const [codeCopied,   setCodeCopied]   = useState(false);
-  const [codeInput,    setCodeInput]    = useState("");
-  const [codeError,    setCodeError]    = useState<string | null>(null);
-  const [joiningCode,  setJoiningCode]  = useState(false);
-  const matchedRef = useRef(false);
+  const [waiters,        setWaiters]        = useState<WaitingPlayer[]>([]);
+  const [challenging,    setChallenging]    = useState<string | null>(null);
+  const [challengeError, setChallengeError] = useState<string | null>(null);
+  const [dots,           setDots]           = useState(".");
+  const [myInviteCode,   setMyInviteCode]   = useState<string | null>(null);
+  const [codeCopied,     setCodeCopied]     = useState(false);
+  const [codeInput,      setCodeInput]      = useState("");
+  const [codeError,      setCodeError]      = useState<string | null>(null);
+  const [joiningCode,    setJoiningCode]    = useState(false);
+  const [pollError,      setPollError]      = useState(false);
+  const pollFailCount = useRef(0);
+  const matchedRef    = useRef(false);
 
   const cancelQueue = useCallback(async () => {
     if (!myAddress) return;
@@ -980,20 +974,31 @@ function Matchmaking({ mode, myAddress, onChallenge, onCancel }: {
 
   useEffect(() => {
     const poll = async () => {
-      const r = await fetch(`/api/games/farkle/matches/queue?modeKey=${mode}&address=${myAddress}`);
-      if (!r.ok) return;
-      const data = await r.json();
-      setWaiters(data.waiters ?? []);
-      if (data.myInviteCode) setMyInviteCode(data.myInviteCode);
-      if (data.matchId) {
-        matchedRef.current = true;
-        onChallenge("__matched__:" + data.matchId);
+      try {
+        const r = await fetch(`/api/games/farkle/matches/queue?modeKey=${mode}&address=${myAddress}`);
+        if (!r.ok) {
+          pollFailCount.current += 1;
+          if (pollFailCount.current >= 3) setPollError(true);
+          return;
+        }
+        pollFailCount.current = 0;
+        setPollError(false);
+        const data = await r.json();
+        setWaiters(data.waiters ?? []);
+        if (data.myInviteCode) setMyInviteCode(data.myInviteCode);
+        if (data.matchId && !matchedRef.current) {
+          matchedRef.current = true;
+          onMatchStart(data.matchId, mode);
+        }
+      } catch {
+        pollFailCount.current += 1;
+        if (pollFailCount.current >= 3) setPollError(true);
       }
     };
     poll();
     const id = setInterval(poll, 2000);
     return () => clearInterval(id);
-  }, [mode, myAddress, onChallenge]);
+  }, [mode, myAddress, onMatchStart]);
 
   useEffect(() => {
     return () => {
@@ -1006,6 +1011,32 @@ function Matchmaking({ mode, myAddress, onChallenge, onCancel }: {
   async function leaveLobby() {
     await cancelQueue();
     onCancel();
+  }
+
+  async function challengePlayer(addr: string) {
+    if (challenging) return;
+    setChallenging(addr);
+    setChallengeError(null);
+    try {
+      const r = await fetch("/api/games/farkle/matches/find", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ modeKey: mode, targetAddress: addr }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        setChallengeError(data.error ?? "Challenge failed — try again");
+        return;
+      }
+      if (data.matchId) {
+        matchedRef.current = true;
+        onMatchStart(data.matchId, (data.modeKey ?? mode) as FarkleMode);
+      }
+    } catch {
+      setChallengeError("Network error — please try again");
+    } finally {
+      setChallenging(null);
+    }
   }
 
   async function joinWithCode() {
@@ -1021,17 +1052,21 @@ function Matchmaking({ mode, myAddress, onChallenge, onCancel }: {
       });
       const data = await r.json();
       if (!r.ok) {
-        setCodeError(
-          data.error === "invite_not_found"
-            ? "Code not found — it may have expired."
-            : data.message ?? data.error ?? "Failed to join.",
-        );
+        if (data.error === "invite_not_found" || data.error === "code_expired") {
+          setCodeError("Code not found or expired — ask your friend for a fresh one.");
+        } else if (data.error === "mode_mismatch") {
+          setCodeError("That code is for a different game mode.");
+        } else {
+          setCodeError(data.message ?? data.error ?? "Failed to join — try again.");
+        }
         return;
       }
       if (data.matchId) {
         matchedRef.current = true;
-        onChallenge("__matched__:" + data.matchId);
+        onMatchStart(data.matchId, (data.modeKey ?? mode) as FarkleMode);
       }
+    } catch {
+      setCodeError("Network error — please try again.");
     } finally {
       setJoiningCode(false);
     }
@@ -1045,53 +1080,104 @@ function Matchmaking({ mode, myAddress, onChallenge, onCancel }: {
     }).catch(() => {});
   }
 
+  const modeLabel = mode === "FARKLE_QUICK_1500_AKIBA" ? "Quick Duel · 1,500 pts" : "Reward Duel · 2,500 pts";
+  const isTransitioning = joiningCode || !!challenging;
+
   return (
     <div className="px-4 mt-5">
-      <div className="flex items-center gap-3 rounded-2xl bg-[#E8F7F9] border border-[#238D9D]/20 px-4 py-3 mb-5">
-        <motion.div
-          animate={{ scale: [1, 1.3, 1] }}
-          transition={{ repeat: Infinity, duration: 1.2 }}
-          className="h-2 w-2 rounded-full bg-[#238D9D] flex-shrink-0"
-        />
-        <div>
-          <p className="text-sm font-bold text-[#238D9D]">You&apos;re in the lobby{dots}</p>
-          <p className="text-xs text-[#238D9D]/70 font-poppins mt-0.5">
-            {mode === "FARKLE_QUICK_1500_AKIBA" ? "Quick Duel · 1,500 pts" : "Reward Duel · 2,500 pts"}
+
+      {/* ── Status banner ──────────────────────────────────────────────── */}
+      <div className="flex items-center gap-3 rounded-2xl bg-[#E8F7F9] border border-[#238D9D]/20 px-4 py-3 mb-4">
+        {isTransitioning ? (
+          <SpinnerGap size={18} className="text-[#238D9D] animate-spin flex-shrink-0" />
+        ) : (
+          <motion.div
+            animate={{ scale: [1, 1.3, 1] }}
+            transition={{ repeat: Infinity, duration: 1.2 }}
+            className="h-2 w-2 rounded-full bg-[#238D9D] flex-shrink-0"
+          />
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-[#238D9D]">
+            {joiningCode
+              ? "Joining with code…"
+              : challenging
+              ? "Challenging player…"
+              : `Searching for opponent${dots}`}
           </p>
+          <p className="text-xs text-[#238D9D]/70 font-poppins mt-0.5">{modeLabel}</p>
         </div>
       </div>
 
-      {/* Invite code card */}
-      {myInviteCode && (
-        <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl bg-white border border-gray-100 shadow-sm px-4 py-3 mb-4 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[11px] text-[#A0A0A0] font-poppins">Your invite code</p>
-            <p className="text-lg font-extrabold tracking-widest text-[#1A1A1A] font-mono">{myInviteCode}</p>
-          </div>
-          <motion.button type="button" whileTap={{ scale: 0.92 }} onClick={copyCode}
-            className="rounded-xl bg-[#E8F7F9] border border-[#238D9D]/20 px-3 py-2 text-xs font-bold text-[#238D9D]">
-            {codeCopied ? "Copied!" : "Copy"}
-          </motion.button>
-        </motion.div>
+      {/* ── Poll error ─────────────────────────────────────────────────── */}
+      {pollError && (
+        <div className="mb-3 flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2">
+          <WarningCircle size={14} className="text-amber-600 flex-shrink-0" />
+          <p className="text-[11px] text-amber-700 font-poppins">
+            Trouble reaching the server — still retrying…
+          </p>
+        </div>
       )}
 
-      <h3 className="text-sm font-extrabold mb-2">
-        {waiters.length === 0 ? "No opponents in lobby" : `${waiters.length} player${waiters.length !== 1 ? "s" : ""} waiting`}
-      </h3>
+      {/* ── Your invite code ───────────────────────────────────────────── */}
+      {myInviteCode ? (
+        <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl bg-white border border-[#238D9D]/20 shadow-sm px-4 py-3 mb-4">
+          <p className="text-[10px] font-extrabold text-[#A0A0A0] uppercase tracking-widest mb-1.5">
+            Your invite code
+          </p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-2xl font-extrabold tracking-[0.2em] text-[#1A1A1A] font-mono leading-none">
+              {myInviteCode}
+            </p>
+            <motion.button type="button" whileTap={{ scale: 0.92 }} onClick={copyCode}
+              className={[
+                "rounded-xl px-3 py-2 text-xs font-bold transition-colors flex-shrink-0",
+                codeCopied
+                  ? "bg-green-50 border border-green-200 text-green-700"
+                  : "bg-[#E8F7F9] border border-[#238D9D]/20 text-[#238D9D]",
+              ].join(" ")}>
+              {codeCopied ? "✓ Copied" : "Copy"}
+            </motion.button>
+          </div>
+          <p className="text-[11px] text-[#A0A0A0] font-poppins mt-1.5">
+            Share this so a friend can join you directly.
+          </p>
+        </motion.div>
+      ) : (
+        <div className="rounded-2xl bg-gray-50 border border-gray-100 px-4 py-3 mb-4 animate-pulse">
+          <div className="h-2.5 w-20 bg-gray-200 rounded mb-2.5" />
+          <div className="h-7 w-36 bg-gray-200 rounded" />
+        </div>
+      )}
+
+      {/* ── Challenge error ────────────────────────────────────────────── */}
+      {challengeError && (
+        <div className="mb-3 flex items-center gap-2 rounded-xl bg-red-50 border border-red-100 px-3 py-2">
+          <WarningCircle size={14} className="text-red-500 flex-shrink-0" />
+          <p className="text-[11px] text-red-700 font-poppins">{challengeError}</p>
+        </div>
+      )}
+
+      {/* ── Waiters list ───────────────────────────────────────────────── */}
+      <p className="text-[11px] font-extrabold text-[#A0A0A0] uppercase tracking-widest mb-2">
+        {waiters.length === 0
+          ? "Players in lobby"
+          : `${waiters.length} player${waiters.length !== 1 ? "s" : ""} waiting`}
+      </p>
 
       <AnimatePresence>
         {waiters.length === 0 ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            className="rounded-2xl border border-dashed border-gray-200 bg-white px-4 py-8 flex flex-col items-center gap-3">
-            <Sword size={28} className="text-gray-300" />
-            <p className="text-sm text-[#A0A0A0] font-poppins text-center">
-              Waiting for someone{dots}<br />
-              <span className="text-xs">Share your code or ask a friend for theirs</span>
+            className="rounded-2xl border border-dashed border-gray-200 bg-white px-4 py-6 flex flex-col items-center gap-2 mb-4">
+            <Sword size={24} className="text-gray-300" />
+            <p className="text-sm text-[#A0A0A0] font-poppins text-center">No one else here yet</p>
+            <p className="text-xs text-[#C0C0C0] font-poppins text-center">
+              Share your code or wait for someone to join
             </p>
           </motion.div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2 mb-4">
             {waiters.map((w) => (
               <motion.div key={w.address}
                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
@@ -1101,13 +1187,17 @@ function Matchmaking({ mode, myAddress, onChallenge, onCancel }: {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate">{w.username ?? shorten(w.address)}</p>
-                  {w.username && <p className="text-[11px] text-[#A0A0A0] font-poppins">{shorten(w.address)}</p>}
+                  {w.username && (
+                    <p className="text-[11px] text-[#A0A0A0] font-poppins">{shorten(w.address)}</p>
+                  )}
                 </div>
                 <motion.button type="button" whileTap={{ scale: 0.94 }}
-                  onClick={() => { setChallenging(w.address); onChallenge(w.address); }}
+                  onClick={() => void challengePlayer(w.address)}
                   disabled={challenging !== null}
-                  className="flex-shrink-0 rounded-xl bg-[#238D9D] px-4 py-2 text-xs font-bold text-white disabled:opacity-50">
-                  {challenging === w.address ? "Starting…" : "Challenge"}
+                  className="flex-shrink-0 rounded-xl bg-[#238D9D] px-4 py-2 text-xs font-bold text-white disabled:opacity-50 flex items-center justify-center min-w-[76px]">
+                  {challenging === w.address
+                    ? <SpinnerGap size={14} className="animate-spin" />
+                    : "Challenge"}
                 </motion.button>
               </motion.div>
             ))}
@@ -1115,9 +1205,12 @@ function Matchmaking({ mode, myAddress, onChallenge, onCancel }: {
         )}
       </AnimatePresence>
 
-      {/* Enter a friend's code */}
-      <div className="mt-5">
-        <p className="text-xs font-bold text-[#1A1A1A] mb-2">Have a friend&apos;s code?</p>
+      {/* ── Join a friend's game ───────────────────────────────────────── */}
+      <div className="rounded-2xl bg-white border border-gray-100 px-4 py-3.5 mb-3">
+        <p className="text-xs font-bold text-[#1A1A1A] mb-0.5">Join a friend&apos;s game</p>
+        <p className="text-[11px] text-[#A0A0A0] font-poppins mb-2.5">
+          Enter their invite code to match directly — works even while you&apos;re in queue.
+        </p>
         <div className="flex gap-2">
           <input
             type="text"
@@ -1126,22 +1219,24 @@ function Matchmaking({ mode, myAddress, onChallenge, onCancel }: {
             onKeyDown={(e) => { if (e.key === "Enter") void joinWithCode(); }}
             placeholder="FARK-XXXX"
             maxLength={9}
-            className="flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-mono font-semibold tracking-widest uppercase placeholder:text-gray-300 focus:outline-none focus:border-[#238D9D]"
+            className="flex-1 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm font-mono font-semibold tracking-widest uppercase placeholder:text-gray-300 focus:outline-none focus:border-[#238D9D] focus:bg-white transition-colors"
           />
           <motion.button type="button" whileTap={{ scale: 0.94 }}
             onClick={() => void joinWithCode()}
-            disabled={joiningCode || codeInput.length < 4}
-            className="rounded-xl bg-[#238D9D] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40">
+            disabled={joiningCode || codeInput.trim().length < 4}
+            className="rounded-xl bg-[#238D9D] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40 flex items-center justify-center min-w-[56px]">
             {joiningCode ? <SpinnerGap size={16} className="animate-spin" /> : "Join"}
           </motion.button>
         </div>
         {codeError && (
-          <p className="mt-1.5 text-xs text-red-500 font-poppins">{codeError}</p>
+          <p className="mt-1.5 text-xs text-red-500 font-poppins flex items-center gap-1">
+            <WarningCircle size={12} className="flex-shrink-0" /> {codeError}
+          </p>
         )}
       </div>
 
-      <button type="button" onClick={leaveLobby}
-        className="mt-4 w-full rounded-xl border border-gray-200 bg-white py-2.5 text-sm font-semibold text-[#717171]">
+      <button type="button" onClick={() => void leaveLobby()}
+        className="w-full rounded-xl border border-gray-200 bg-white py-2.5 text-sm font-semibold text-[#717171] active:bg-gray-50 transition-colors">
         Leave lobby
       </button>
     </div>
@@ -1159,6 +1254,33 @@ interface RollState {
   isFarkle:      boolean;
   isHotDice:     boolean;
 }
+
+// ─── Reactions (tap-to-send emotes, v1) ──────────────────────────────────────
+
+type ReactionKey = "fire" | "cry" | "laugh" | "tongue" | "angry_censored";
+
+const REACTION_GLYPH: Record<ReactionKey, string> = {
+  fire:           "🔥",
+  cry:            "😢",
+  laugh:          "🤣",
+  tongue:         "🤪",
+  angry_censored: "🤬",
+};
+
+function ReactionGlyph({ emoji }: { emoji: string }) {
+  return <>{REACTION_GLYPH[emoji as ReactionKey] ?? "🔥"}</>;
+}
+
+const REACTIONS: {
+  key: ReactionKey;
+  suggested?: (roll: RollState | null, isMyTurn: boolean) => boolean;
+}[] = [
+  { key: "fire",           suggested: (roll) => Boolean(roll?.isHotDice) },
+  { key: "cry" },
+  { key: "laugh", suggested: (roll, isMyTurn) => !isMyTurn && Boolean(roll?.isFarkle) },
+  { key: "tongue" },
+  { key: "angry_censored", suggested: (roll, isMyTurn) => isMyTurn && Boolean(roll?.isFarkle) },
+];
 
 function GameBoard({ matchId, myAddress, mode, waitForAuth, onMatchEnd }: {
   matchId:    string;
@@ -1188,6 +1310,13 @@ function GameBoard({ matchId, myAddress, mode, waitForAuth, onMatchEnd }: {
   const [claiming,      setClaiming]      = useState(false);
   const [showRules,     setShowRules]     = useState(false);
 
+  // Reactions (tap-to-send emotes)
+  const [incomingReaction, setIncomingReaction] = useState<{ emoji: string; key: number } | null>(null);
+  const [reactionCooldown, setReactionCooldown] = useState(false);
+  const lastReactionIdRef = useRef<string | null>(null);
+  const incomingReactionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reactionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const pollRef    = useRef<ReturnType<typeof setInterval> | null>(null);
   const failuresRef = useRef(0);
   const busyRef    = useRef(false);
@@ -1216,6 +1345,15 @@ function GameBoard({ matchId, myAddress, mode, waitForAuth, onMatchEnd }: {
 
     const nowMyTurn = s.isYourTurn;
     setIsMyTurn(nowMyTurn);
+
+    if (s.lastReaction && s.lastReaction.id !== lastReactionIdRef.current) {
+      lastReactionIdRef.current = s.lastReaction.id;
+      if (s.lastReaction.fromUserId !== myAddress) {
+        setIncomingReaction({ emoji: s.lastReaction.emoji, key: Date.now() });
+        if (incomingReactionTimer.current) clearTimeout(incomingReactionTimer.current);
+        incomingReactionTimer.current = setTimeout(() => setIncomingReaction(null), 2200);
+      }
+    }
 
     if (["completed", "settled"].includes(s.matchStatus)) {
       onMatchEnd({
@@ -1300,7 +1438,7 @@ function GameBoard({ matchId, myAddress, mode, waitForAuth, onMatchEnd }: {
         setRollState(null);
       }
     }
-  }, [onMatchEnd]);
+  }, [onMatchEnd, myAddress]);
 
   // ── Fetch fallback: only active while the SSE stream is disconnected ──────
   const poll = useCallback(async () => {
@@ -1370,6 +1508,8 @@ function GameBoard({ matchId, myAddress, mode, waitForAuth, onMatchEnd }: {
       if (pollRef.current) clearInterval(pollRef.current);
       if (specRollTimer.current) clearTimeout(specRollTimer.current);
       if (specFarkleTimer.current) clearTimeout(specFarkleTimer.current);
+      if (incomingReactionTimer.current) clearTimeout(incomingReactionTimer.current);
+      if (reactionTimerRef.current) clearTimeout(reactionTimerRef.current);
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [poll]);
@@ -1406,6 +1546,31 @@ function GameBoard({ matchId, myAddress, mode, waitForAuth, onMatchEnd }: {
       }
     } catch {}
     setClaiming(false);
+  }
+
+  async function sendReaction(emoji: "fire" | "cry" | "laugh" | "tongue" | "angry_censored") {
+    if (reactionCooldown) return;
+    setReactionCooldown(true);
+    if (reactionTimerRef.current) clearTimeout(reactionTimerRef.current);
+    reactionTimerRef.current = setTimeout(() => setReactionCooldown(false), 2000);
+    try {
+      await waitForAuth?.();
+      const r = await fetch(`/api/games/farkle/${matchId}/react`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ emoji }),
+      });
+      // On auth or server error, release the cooldown immediately so the
+      // player can retry. 429 (rate_limited) keeps the cooldown in place.
+      if (!r.ok && r.status !== 429) {
+        if (reactionTimerRef.current) clearTimeout(reactionTimerRef.current);
+        setReactionCooldown(false);
+      }
+    } catch {
+      // Network error — release cooldown so the player can retry.
+      if (reactionTimerRef.current) clearTimeout(reactionTimerRef.current);
+      setReactionCooldown(false);
+    }
   }
 
   async function doRoll(holdIndices: number[] = []) {
@@ -1683,6 +1848,44 @@ function GameBoard({ matchId, myAddress, mode, waitForAuth, onMatchEnd }: {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Incoming opponent reaction */}
+      <div className="relative h-0">
+        <AnimatePresence>
+          {incomingReaction && (
+            <motion.div
+              key={incomingReaction.key}
+              initial={{ opacity: 0, y: 8, scale: 0.6 }}
+              animate={{ opacity: 1, y: -18, scale: 1.3 }}
+              exit={{ opacity: 0, y: -34, scale: 0.9 }}
+              transition={{ duration: 0.5 }}
+              className="absolute right-2 -top-2 z-20 text-4xl drop-shadow-md pointer-events-none"
+            >
+              <ReactionGlyph emoji={incomingReaction.emoji} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Reaction tray — tap to send, never auto-sent */}
+      <div className="mb-2 flex items-center justify-center gap-1.5">
+        {REACTIONS.map(({ key, suggested }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => sendReaction(key)}
+            disabled={reactionCooldown}
+            aria-label={`Send ${key} reaction`}
+            className={`h-9 w-9 flex items-center justify-center rounded-full bg-white border shadow-sm text-lg leading-none transition-all active:scale-90 disabled:opacity-40 ${
+              suggested && suggested(rollState, isMyTurn)
+                ? "border-[#238D9D] ring-2 ring-[#238D9D]/40 animate-pulse"
+                : "border-gray-200"
+            }`}
+          >
+            <ReactionGlyph emoji={key} />
+          </button>
+        ))}
+      </div>
 
       {/* Hot dice */}
       <AnimatePresence>

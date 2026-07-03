@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSession } from "@/lib/auth";
 import { FarkleStateError, getFarkleTurnState } from "@/server/farkle/state";
 
 export const dynamic = "force-dynamic";
@@ -20,8 +21,22 @@ function sseData(data: unknown) {
 
 export async function GET(req: Request, { params }: Ctx) {
   const { matchId } = await params;
-  const address = new URL(req.url).searchParams.get("address")?.toLowerCase();
-  if (!address) return NextResponse.json({ error: "missing address" }, { status: 400 });
+
+  const session = await requireSession();
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  const wallet = session.walletAddress.toLowerCase();
+
+  // Pre-flight: verify participant and fetch initial state before opening the stream.
+  // This ensures non-participants get a proper 403 HTTP response rather than an error SSE event.
+  let initialState;
+  try {
+    initialState = await getFarkleTurnState(matchId, wallet);
+  } catch (err) {
+    const status = err instanceof FarkleStateError ? err.status : 500;
+    const message = err instanceof Error ? err.message : "state unavailable";
+    return NextResponse.json({ error: message }, { status });
+  }
 
   const encoder = new TextEncoder();
   const startedAt = Date.now();
@@ -47,12 +62,16 @@ export async function GET(req: Request, { params }: Ctx) {
 
       req.signal.addEventListener("abort", close, { once: true });
 
-      let lastSignature = "";
-      let lastHeartbeat = 0;
+      // Send the pre-flight state as the first event so the client gets data immediately.
+      let lastSignature = JSON.stringify(initialState);
+      enqueue(sseData(initialState));
+      let lastHeartbeat = Date.now();
 
       while (!closed && Date.now() - startedAt < MAX_STREAM_MS) {
+        await sleep(POLL_MS);
+
         try {
-          const state = await getFarkleTurnState(matchId, address);
+          const state = await getFarkleTurnState(matchId, wallet);
           const signature = JSON.stringify(state);
           if (signature !== lastSignature) {
             enqueue(sseData(state));
@@ -69,8 +88,6 @@ export async function GET(req: Request, { params }: Ctx) {
           enqueue(": heartbeat\n\n");
           lastHeartbeat = Date.now();
         }
-
-        await sleep(POLL_MS);
       }
 
       close();
