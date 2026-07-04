@@ -33,7 +33,11 @@ function generateInviteCode(): string {
 }
 
 const ACTIVE_MATCH_STATUSES = ["created", "funded", "in_progress"];
-const FARKLE_MODE_KEYS = new Set(["FARKLE_QUICK_1500_AKIBA", "FARKLE_REWARD_3000_USDT"]);
+const FARKLE_MODE_KEYS = new Set([
+  "FARKLE_QUICK_1500_AKIBA",
+  "FARKLE_REWARD_3000_USDT",
+  "FARKLE_PRO_5000_USDT",
+]);
 const FARKLE_QUEUE_TTL_MS = Number(process.env.FARKLE_QUEUE_TTL_MS ?? "120000") || 120_000;
 const FARKLE_TURN_TIMEOUT_SECONDS = Number(process.env.FARKLE_TURN_TIMEOUT_SECONDS ?? "60") || 60;
 const FARKLE_MATCH_STALE_SECONDS = Number(process.env.FARKLE_MATCH_STALE_SECONDS ?? "300") || 300;
@@ -64,6 +68,7 @@ interface MatchRow {
   game_modes: {
     mode_key: string | null;
     entry_currency?: string | null;
+    entry_amount?: number | null;
     winner_miles_reward: number | null;
     loser_miles_reward: number | null;
     winner_reward_credit: number | null;
@@ -216,6 +221,11 @@ function getModeKey(match: MatchRow) {
 function isFarkleMatch(match: MatchRow) {
   const modeKey = getModeKey(match);
   return !!modeKey && FARKLE_MODE_KEYS.has(modeKey);
+}
+
+function entryAmountForMode(mode: { entry_amount?: number | null } | null | undefined) {
+  const amount = Number(mode?.entry_amount ?? 1);
+  return Number.isFinite(amount) && amount > 0 ? Math.floor(amount) : 1;
 }
 
 function matchActivityIso(match: MatchRow) {
@@ -396,13 +406,15 @@ async function refundMatchEntries(matchId: string) {
   const { data: modeRow } = await readDb<any>("read refund match mode", () =>
     supabase
       .from("game_matches")
-      .select("game_modes(mode_key, entry_currency)")
+      .select("game_modes(mode_key, entry_currency, entry_amount)")
       .eq("id", matchId)
       .maybeSingle(),
   );
 
-  const modeKey = modeRow?.game_modes?.mode_key ?? "";
+  const refundMode = Array.isArray(modeRow?.game_modes) ? modeRow.game_modes[0] : modeRow?.game_modes;
+  const modeKey = refundMode?.mode_key ?? "";
   const isTicket = modeKey === "FARKLE_QUICK_1500_AKIBA";
+  const entryAmount = entryAmountForMode(refundMode);
 
   for (const player of players) {
     const addr = player.wallet_address;
@@ -414,7 +426,7 @@ async function refundMatchEntries(matchId: string) {
           .eq("wallet_address", addr)
           .maybeSingle(),
       );
-      const newBal = (bal?.balance ?? 0) + 1;
+      const newBal = (bal?.balance ?? 0) + entryAmount;
       await bestEffortDb("write ticket refund balance", () =>
         supabase.from("farkle_ticket_balances").upsert(
           { wallet_address: addr, balance: newBal, updated_at: new Date().toISOString() },
@@ -424,7 +436,7 @@ async function refundMatchEntries(matchId: string) {
       await bestEffortDb("write ticket refund ledger", () =>
         supabase.from("game_credit_ledger").insert({
           wallet_address: addr,
-          amount: 1,
+          amount: entryAmount,
           balance_after: newBal,
           currency: "AKIBA_TICKET",
           ledger_type: "AKIBA_TICKET_REFUNDED",
@@ -440,7 +452,7 @@ async function refundMatchEntries(matchId: string) {
           .eq("wallet_address", addr)
           .maybeSingle(),
       );
-      const newBal = (bal?.purchased_credits ?? 0) + 1;
+      const newBal = (bal?.purchased_credits ?? 0) + entryAmount;
       await bestEffortDb("write credit refund balance", () =>
         supabase.from("farkle_credit_balances").upsert(
           { wallet_address: addr, purchased_credits: newBal, updated_at: new Date().toISOString() },
@@ -450,7 +462,7 @@ async function refundMatchEntries(matchId: string) {
       await bestEffortDb("write credit refund ledger", () =>
         supabase.from("game_credit_ledger").insert({
           wallet_address: addr,
-          amount: 1,
+          amount: entryAmount,
           balance_after: newBal,
           currency: "GAME_CREDIT",
           ledger_type: "GAME_CREDIT_REFUNDED",
@@ -745,17 +757,24 @@ export async function enterFarkleMatch(input: EnterFarkleMatchInput) {
 
   if (rpcError) throw new Error(`matchmaking rpc failed: ${dbErrorText(rpcError)}`);
 
-  const res = result as { status?: string; match_id?: string; error?: string } | null;
+  const res = result as { status?: string; match_id?: string; error?: string; required?: number } | null;
+  const requiredEntry = Number.isFinite(Number(res?.required)) ? Math.max(1, Math.floor(Number(res?.required))) : 1;
   if (res?.error === "insufficient_tickets") {
     return {
       statusCode: 402,
-      body: { error: "insufficient-tickets", message: "You need at least 1 ticket to enter." },
+      body: {
+        error: "insufficient-tickets",
+        message: `You need at least ${requiredEntry} ticket${requiredEntry === 1 ? "" : "s"} to enter.`,
+      },
     };
   }
   if (res?.error === "insufficient_credits") {
     return {
       statusCode: 402,
-      body: { error: "insufficient-credits", message: "You need at least 1 game credit to enter." },
+      body: {
+        error: "insufficient-credits",
+        message: `You need at least ${requiredEntry} game credit${requiredEntry === 1 ? "" : "s"} to enter.`,
+      },
     };
   }
   if (res?.error === "insufficient_balance_retry") {

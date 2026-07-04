@@ -5,7 +5,10 @@ import { LinkedWallets } from "./LinkedWallets";
 import { SignOutButton } from "./SignOutButton";
 import { WalletPickerModal } from "./WalletPickerModal";
 import { AkibaPassCard } from "./AkibaPassCard";
-import { ShoppingBag, Ticket, ArrowUpRight, MapPin, Tag, Sparkles } from "lucide-react";
+import { ProfileQuickActions } from "./ProfileQuickActions";
+import { ActivityFeed } from "./ActivityFeed";
+import { getRecentActivity } from "@/lib/akiba/activity";
+import { ArrowUpRight, MapPin, Tag } from "lucide-react";
 import { MilesIcon } from "@/components/MilesIcon";
 
 export const metadata = { title: "My Profile — Akiba Hub" };
@@ -137,6 +140,13 @@ export default async function MePage() {
     publicPassId = passRow?.public_pass_id ?? null;
   }
 
+  // Recent activity — merchant scan awards + engagement-layer earnings
+  const activity = await getRecentActivity({
+    userId: user.id,
+    walletAddress,
+    limit: 6,
+  });
+
   return (
     <>
       {/* Wallet picker modal — shown only when multiple wallets and no choice saved */}
@@ -152,41 +162,41 @@ export default async function MePage() {
         />
       )}
 
-      <main className="mx-auto max-w-2xl px-4 py-10">
+      <main className="mx-auto max-w-2xl px-4 py-5 sm:py-10">
         {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="mb-4 flex items-center justify-between sm:mb-8">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
             {activeRow?.avatar_url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={activeRow.avatar_url} alt={displayName} className="h-12 w-12 rounded-full object-cover" />
+              <img src={activeRow.avatar_url} alt={displayName} className="h-11 w-11 rounded-full object-cover sm:h-12 sm:w-12" />
             ) : (
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-akiba-teal text-base font-semibold text-white">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-akiba-teal text-base font-semibold text-white sm:h-12 sm:w-12">
                 {initials}
               </div>
             )}
-            <div>
-              <p className="font-semibold text-akiba-ink">{displayName}</p>
-              <p className="text-sm text-akiba-muted">{user.email}</p>
+            <div className="min-w-0">
+              <p className="truncate font-semibold text-akiba-ink">{displayName}</p>
+              <p className="truncate text-sm text-akiba-muted">{user.email}</p>
             </div>
           </div>
           <SignOutButton />
         </div>
 
         {/* Balance card */}
-        <div className="mb-6 overflow-hidden rounded-2xl bg-akiba-ink text-white">
-          <div className="px-6 py-8">
+        <div className="mb-4 overflow-hidden rounded-2xl bg-akiba-ink text-white sm:mb-6">
+          <div className="px-5 py-5 sm:px-6 sm:py-8">
             <p className="flex items-center gap-1.5 text-sm font-medium text-white/60">
               <MilesIcon className="h-4 w-4 opacity-60" /> Balance
             </p>
             {walletAddress ? (
-              <>
-                <p className="mt-2 font-sterling text-5xl font-semibold tracking-tight">
+              <div className="flex items-end justify-between gap-3">
+                <p className="mt-1.5 font-sterling text-4xl font-semibold tracking-tight sm:mt-2 sm:text-5xl">
                   {balance?.toLocaleString("en-KE") ?? "—"}
                 </p>
-                <p className="mt-3 font-mono text-xs text-white/30">
-                  {walletAddress.slice(0, 10)}…{walletAddress.slice(-6)}
+                <p className="mb-1 font-mono text-[10px] text-white/30 sm:text-xs">
+                  {walletAddress.slice(0, 6)}…{walletAddress.slice(-4)}
                 </p>
-              </>
+              </div>
             ) : needsPicker ? (
               <p className="mt-2 text-lg font-medium text-white/40">
                 Choose a wallet above to see your balance
@@ -199,23 +209,32 @@ export default async function MePage() {
           </div>
         </div>
 
-        {/* Akiba Pass — in-store QR card */}
-        {publicPassId && (
-          <div className="mb-6">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-akiba-muted">
-              Your pass
-            </h2>
-            <AkibaPassCard
-              initialPassId={publicPassId}
-              email={user.email!}
-              displayLabel={displayName}
-            />
-          </div>
-        )}
+        {/* Quick actions — Pass & Wallets open sheets; rest are links */}
+        <div className="mb-4 sm:mb-6">
+          <ProfileQuickActions
+            passSlot={
+              publicPassId ? (
+                <AkibaPassCard
+                  initialPassId={publicPassId}
+                  email={user.email!}
+                  displayLabel={displayName}
+                />
+              ) : undefined
+            }
+            walletsSlot={
+              <LinkedWallets
+                minipayAddress={walletAddress}
+                hasMultiple={rows.length > 1}
+                userId={user.id}
+                variant="sheet"
+              />
+            }
+          />
+        </div>
 
-        {/* Profile chips */}
+        {/* Profile chips — secondary info, desktop only */}
         {activeRow && (activeRow.country || (activeRow.interests ?? []).length > 0) && (
-          <div className="mb-6 flex flex-wrap gap-2">
+          <div className="mb-6 hidden flex-wrap gap-2 sm:flex">
             {activeRow.country && (
               <span className="flex items-center gap-1.5 rounded-full border border-akiba-line bg-akiba-card px-3 py-1 text-xs font-medium text-akiba-muted">
                 <MapPin className="h-3 w-3" /> {activeRow.country}
@@ -232,27 +251,9 @@ export default async function MePage() {
           </div>
         )}
 
-        {/* Quick actions */}
-        <div className="mb-6 grid grid-cols-3 gap-3">
-          {[
-            { href: "/shop", icon: <ShoppingBag className="h-5 w-5 text-akiba-teal" />, label: "Shop & earn" },
-            { href: "/me/orders", icon: <Ticket className="h-5 w-5 text-akiba-teal" />, label: "My orders" },
-            { href: "/rewards", icon: <Sparkles className="h-5 w-5 text-akiba-teal" />, label: "Rewards" },
-          ].map(({ href, icon, label }) => (
-            <a
-              key={href}
-              href={href}
-              className="flex flex-col items-center gap-2 rounded-2xl border border-akiba-line bg-white p-4 text-center transition hover:border-akiba-teal/40 hover:shadow-chip"
-            >
-              {icon}
-              <span className="text-xs font-medium text-akiba-ink">{label}</span>
-            </a>
-          ))}
-        </div>
-
         {/* No wallet found */}
         {!walletAddress && !needsPicker && (
-          <div className="mb-6 rounded-2xl border border-dashed border-akiba-teal/30 bg-akiba-tint px-6 py-6 text-center">
+          <div className="mb-4 rounded-2xl border border-dashed border-akiba-teal/30 bg-akiba-tint px-6 py-5 text-center sm:mb-6">
             <p className="text-sm font-medium text-akiba-ink">No MiniPay wallet found</p>
             <p className="mt-1 text-xs text-akiba-muted">
               Make sure you sign in with the same email you used in MiniPay.
@@ -260,30 +261,23 @@ export default async function MePage() {
           </div>
         )}
 
-        <LinkedWallets
-          minipayAddress={walletAddress}
-          hasMultiple={rows.length > 1}
-          userId={user.id}
-        />
-
-        {/* Activity */}
-        {walletAddress && (
-          <div className="mt-6">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-akiba-muted">
+        {/* Activity — merchant awards + engagement earnings */}
+        <div>
+          <div className="mb-2.5 flex items-center justify-between sm:mb-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-akiba-muted">
               Recent activity
             </h2>
-            <div className="rounded-2xl border border-akiba-line bg-akiba-card px-6 py-10 text-center">
-              <MilesIcon className="mx-auto mb-3 h-8 w-8 opacity-20" />
-              <p className="text-sm font-medium text-akiba-ink">No activity yet</p>
-              <p className="mt-1 text-xs text-akiba-muted">
-                Complete quests or shop at a merchant to start earning.
-              </p>
-              <a href="/" className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-akiba-teal">
-                Explore opportunities <ArrowUpRight className="h-3.5 w-3.5" />
+            {activity.length >= 6 && (
+              <a
+                href="/me/activity"
+                className="flex items-center gap-1 text-xs font-semibold text-akiba-teal"
+              >
+                View all <ArrowUpRight className="h-3.5 w-3.5" />
               </a>
-            </div>
+            )}
           </div>
-        )}
+          <ActivityFeed items={activity.slice(0, 5)} />
+        </div>
       </main>
     </>
   );

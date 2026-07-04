@@ -9,9 +9,11 @@ type Props = {
   minipayAddress: string | null;  // auto-resolved from users table
   hasMultiple: boolean;            // user has >1 address → show switch option
   userId: string;
+  /** "sheet" — rendered inside a bottom sheet: no outer margin or heading */
+  variant?: "default" | "sheet";
 };
 
-export function LinkedWallets({ minipayAddress, hasMultiple, userId }: Props) {
+export function LinkedWallets({ minipayAddress, hasMultiple, userId, variant = "default" }: Props) {
   const router = useRouter();
   const [linking, setLinking] = useState(false);
   const [input, setInput] = useState("");
@@ -50,10 +52,12 @@ export function LinkedWallets({ minipayAddress, hasMultiple, userId }: Props) {
   }
 
   return (
-    <div className="mt-6">
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-akiba-muted">
-        Linked wallets
-      </h2>
+    <div className={variant === "sheet" ? "" : "mt-6"}>
+      {variant !== "sheet" && (
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-akiba-muted">
+          Linked wallets
+        </h2>
+      )}
       <div className="space-y-3">
 
         {/* MiniPay slot — auto-imported from users table */}
