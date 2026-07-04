@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
+const USDT_REWARD_MODE_KEYS = new Set(["FARKLE_REWARD_3000_USDT", "FARKLE_PRO_5000_USDT"]);
 
 type Ctx = { params: Promise<{ matchId: string }> };
 type HexAddress = `0x${string}`;
@@ -98,7 +99,7 @@ async function handle(_req: Request, { params }: Ctx, retry: boolean) {
     .maybeSingle();
 
   let rewardCreditsCents: number | null = null;
-  if (mode?.mode_key === "FARKLE_REWARD_3000_USDT" && isWinner && isHexAddress(address)) {
+  if (USDT_REWARD_MODE_KEYS.has(mode?.mode_key ?? "") && isWinner && isHexAddress(address)) {
     try {
       rewardCreditsCents = await readFarkleRewardCreditCents(address, matchRow.chain_id ?? undefined);
     } catch (err: any) {

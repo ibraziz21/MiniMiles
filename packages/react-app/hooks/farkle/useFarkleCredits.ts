@@ -14,8 +14,9 @@ type BuyStep = "idle" | "approving" | "buying" | "syncing";
 
 /**
  * Reward Duel credits are bought with USDT via GameCreditVault.buyCredits(packId).
- * Pack 0 = 5 credits for $0.50 USDT. The vault pulls USDT with transferFrom, so we
- * approve first when the allowance is short, then buy, then sync the off-chain ledger.
+ * Pack 0 = 5 credits for $0.50 USDT. Pack 1 is intended for Pro Duel:
+ * 50 credits for $5.00 USDT. The vault pulls USDT with transferFrom, so we approve
+ * first when the allowance is short, then buy, then sync the off-chain ledger.
  */
 export function useFarkleCredits(address: string | null | undefined) {
   const [buying,     setBuying]     = useState(false);

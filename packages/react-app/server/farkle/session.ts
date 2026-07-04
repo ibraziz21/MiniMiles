@@ -6,7 +6,11 @@ export const FARKLE_MATCH_STALE_SECONDS = 5 * 60;
 export const FARKLE_QUEUE_TTL_MS = 120_000;
 
 const ACTIVE_MATCH_STATUSES = ["created", "funded", "in_progress"];
-const FARKLE_MODE_KEYS = new Set(["FARKLE_QUICK_1500_AKIBA", "FARKLE_REWARD_3000_USDT"]);
+const FARKLE_MODE_KEYS = new Set([
+  "FARKLE_QUICK_1500_AKIBA",
+  "FARKLE_REWARD_3000_USDT",
+  "FARKLE_PRO_5000_USDT",
+]);
 
 interface MatchRow {
   id: string;
@@ -22,6 +26,7 @@ interface MatchRow {
 
 interface ModeRow {
   mode_key?: string | null;
+  entry_amount?: number | null;
   winner_miles_reward?: number | null;
   loser_miles_reward?: number | null;
   winner_reward_credit?: number | null;
@@ -55,6 +60,11 @@ function getMode(match: MatchRow) {
 function isFarkleMatch(match: MatchRow) {
   const modeKey = getModeKey(match);
   return !!modeKey && FARKLE_MODE_KEYS.has(modeKey);
+}
+
+function entryAmountForMode(mode: ModeRow | null | undefined) {
+  const amount = Number(mode?.entry_amount ?? 1);
+  return Number.isFinite(amount) && amount > 0 ? Math.floor(amount) : 1;
 }
 
 export async function expireWaitingQueue(supabase: SupabaseClient, now = new Date()) {
@@ -111,12 +121,16 @@ async function refundMatchEntries(supabase: SupabaseClient, matchId: string) {
 
   const { data: modeRow } = await supabase
     .from("game_matches")
-    .select("game_modes(mode_key, entry_currency)")
+    .select("game_modes(mode_key, entry_currency, entry_amount)")
     .eq("id", matchId)
     .maybeSingle();
 
-  const modeKey = (modeRow as any)?.game_modes?.mode_key ?? "";
+  const refundMode = Array.isArray((modeRow as any)?.game_modes)
+    ? (modeRow as any).game_modes[0]
+    : (modeRow as any)?.game_modes;
+  const modeKey = refundMode?.mode_key ?? "";
   const isTicket = modeKey === "FARKLE_QUICK_1500_AKIBA";
+  const entryAmount = entryAmountForMode(refundMode);
 
   for (const player of players) {
     const addr = player.wallet_address;
@@ -126,13 +140,13 @@ async function refundMatchEntries(supabase: SupabaseClient, matchId: string) {
         .select("balance")
         .eq("wallet_address", addr)
         .maybeSingle();
-      const newBal = (bal?.balance ?? 0) + 1;
+      const newBal = (bal?.balance ?? 0) + entryAmount;
       await supabase.from("farkle_ticket_balances").upsert(
         { wallet_address: addr, balance: newBal, updated_at: new Date().toISOString() },
         { onConflict: "wallet_address" },
       );
       await supabase.from("game_credit_ledger").insert({
-        wallet_address: addr, amount: 1, balance_after: newBal,
+        wallet_address: addr, amount: entryAmount, balance_after: newBal,
         currency: "AKIBA_TICKET", ledger_type: "AKIBA_TICKET_REFUNDED",
         reference_type: "match", reference_id: matchId,
       });
@@ -142,13 +156,13 @@ async function refundMatchEntries(supabase: SupabaseClient, matchId: string) {
         .select("purchased_credits")
         .eq("wallet_address", addr)
         .maybeSingle();
-      const newBal = (bal?.purchased_credits ?? 0) + 1;
+      const newBal = (bal?.purchased_credits ?? 0) + entryAmount;
       await supabase.from("farkle_credit_balances").upsert(
         { wallet_address: addr, purchased_credits: newBal, updated_at: new Date().toISOString() },
         { onConflict: "wallet_address" },
       );
       await supabase.from("game_credit_ledger").insert({
-        wallet_address: addr, amount: 1, balance_after: newBal,
+        wallet_address: addr, amount: entryAmount, balance_after: newBal,
         currency: "GAME_CREDIT", ledger_type: "GAME_CREDIT_REFUNDED",
         reference_type: "match", reference_id: matchId,
       });

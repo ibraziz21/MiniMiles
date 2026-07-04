@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, type ReactNode } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -40,6 +40,29 @@ type LeaderboardData = {
   entries: LeaderboardEntry[];
   me: LeaderboardEntry | null;
 };
+
+const QUICK_DUEL_MODE: FarkleMode = "FARKLE_QUICK_1500_AKIBA";
+const REWARD_DUEL_MODE: FarkleMode = "FARKLE_REWARD_3000_USDT";
+const PRO_DUEL_MODE: FarkleMode = "FARKLE_PRO_5000_USDT";
+const CREDIT_MODE_KEYS = new Set<FarkleMode>([REWARD_DUEL_MODE, PRO_DUEL_MODE]);
+
+function isCreditFarkleMode(mode: FarkleMode) {
+  return CREDIT_MODE_KEYS.has(mode);
+}
+
+function creditEntryAmount(mode: FarkleMode) {
+  return mode === PRO_DUEL_MODE ? 10 : mode === REWARD_DUEL_MODE ? 1 : 0;
+}
+
+function creditPackIdForMode(mode: FarkleMode) {
+  return mode === PRO_DUEL_MODE ? 1 : 0;
+}
+
+function modeDisplayLabel(mode: FarkleMode) {
+  if (mode === PRO_DUEL_MODE) return "Pro Duel · 5,000 pts";
+  if (mode === REWARD_DUEL_MODE) return "Reward Duel · 2,500 pts";
+  return "Quick Duel · 1,500 pts";
+}
 
 // ─── Dot positions per face (in a 0–100 viewbox) ─────────────────────────────
 
@@ -429,7 +452,7 @@ export default function FarklePage() {
   const router      = useRouter();
 
   const [screen,   setScreen]   = useState<Screen>("mode-select");
-  const [mode,     setMode]     = useState<FarkleMode>("FARKLE_QUICK_1500_AKIBA");
+  const [mode,     setMode]     = useState<FarkleMode>(QUICK_DUEL_MODE);
   const [balances, setBalances] = useState<BalancesResponse | null>(null);
   const [matchId,  setMatchId]  = useState<string | null>(null);
   const [error,    setError]    = useState<string | null>(null);
@@ -445,7 +468,7 @@ export default function FarklePage() {
   // Pre-fetch leaderboard data in the background as soon as a Reward Duel result appears,
   // so the data is warm when the user returns to mode-select and opens the sheet.
   useEffect(() => {
-    if (screen === "result" && mode === "FARKLE_REWARD_3000_USDT") {
+    if (screen === "result" && mode === REWARD_DUEL_MODE) {
       setLeaderboardTick((n) => n + 1);
     }
   }, [screen, mode]);
@@ -453,8 +476,10 @@ export default function FarklePage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const requestedMode = params.get("mode") ?? params.get("modeKey");
-    if (requestedMode === "reward" || requestedMode === "FARKLE_REWARD_3000_USDT") {
-      setMode("FARKLE_REWARD_3000_USDT");
+    if (requestedMode === "pro" || requestedMode === PRO_DUEL_MODE) {
+      setMode(PRO_DUEL_MODE);
+    } else if (requestedMode === "reward" || requestedMode === REWARD_DUEL_MODE) {
+      setMode(REWARD_DUEL_MODE);
     }
   }, []);
 
@@ -509,7 +534,7 @@ export default function FarklePage() {
         if (r.ok) {
           const { active } = await r.json();
           if (!cancelled && active?.matchId && active.status === "in_progress") {
-            enterGame(active.matchId, (active.modeKey ?? hinted?.mode ?? "FARKLE_QUICK_1500_AKIBA") as FarkleMode);
+            enterGame(active.matchId, (active.modeKey ?? hinted?.mode ?? QUICK_DUEL_MODE) as FarkleMode);
             setReconnecting(false);
             return;
           }
@@ -523,7 +548,7 @@ export default function FarklePage() {
         const saved = raw ? JSON.parse(raw) : null;
         const fresh = typeof saved?.savedAt === "number" && Date.now() - saved.savedAt < 24 * 60 * 60 * 1000;
         if (!cancelled && fresh && saved?.wallet === address.toLowerCase() && saved?.result?.matchId) {
-          setMode((saved.mode ?? hinted?.mode ?? "FARKLE_QUICK_1500_AKIBA") as FarkleMode);
+          setMode((saved.mode ?? hinted?.mode ?? QUICK_DUEL_MODE) as FarkleMode);
           setResult(saved.result as FarkleResult);
           setScreen("result");
           setReconnecting(false);
@@ -834,7 +859,7 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onPlay, address, onB
     lbFetchingRef.current = true;
     setLbLoading(true);
     setLbError(null);
-    const params = new URLSearchParams({ modeKey: "FARKLE_REWARD_3000_USDT", limit: "10" });
+    const params = new URLSearchParams({ modeKey: REWARD_DUEL_MODE, limit: "10" });
     if (address) params.set("address", address.toLowerCase());
     try {
       const r = await fetch(`/api/games/farkle/leaderboard?${params.toString()}`);
@@ -867,7 +892,9 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onPlay, address, onB
     }
   }
 
-  const isReward = selectedMode === "FARKLE_REWARD_3000_USDT";
+  const isCreditMode = isCreditFarkleMode(selectedMode);
+  const isProMode = selectedMode === PRO_DUEL_MODE;
+  const requiredCredits = creditEntryAmount(selectedMode);
   const tickets  = balances?.akibaTickets ?? 0;
   const credits  = balances?.gameCredits ?? 0;
 
@@ -887,28 +914,28 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onPlay, address, onB
       celebrate();
     }
   }
-  const handleBuy        = () => runBuy(buyPack,                  buyingTickets);
-  const handleBuyCredits = () => runBuy(() => buyCreditPack(0),   buyingCredits);
+  const handleBuy        = () => runBuy(buyPack, buyingTickets);
+  const handleBuyCredits = () => runBuy(() => buyCreditPack(creditPackIdForMode(selectedMode)), buyingCredits);
 
   // Everything the hero + CTA need, derived from the selected mode's currency
-  const need = isReward
+  const need = isCreditMode
     ? {
         balance:  credits,
         unit:     "credit",
-        empty:    balances !== null && credits === 0,
+        empty:    balances !== null && credits < requiredCredits,
         buy:      handleBuyCredits,
         busy:     buyingCredits,
         error:    creditError,
         busyLabel: step === "approving" ? "Approving…" : step === "syncing" ? "Confirming…" : "Buying…",
-        costNode: <>+5 · $0.50</>,
-        perMatch: "1 credit per match",
-        emptyHint: "Buy credits with USDT to enter",
-        addedMsg:  "✓ Added 5 credits!",
+        costNode: isProMode ? <>+50 · $5.00</> : <>+5 · $0.50</>,
+        perMatch: isProMode ? "10 credits per match" : "1 credit per match",
+        emptyHint: isProMode ? "Buy 50 credits with USDT to enter Pro Duel" : "Buy credits with USDT to enter",
+        addedMsg:  isProMode ? "✓ Added 50 credits!" : "✓ Added 5 credits!",
         icon:      <TokenIcon token="usdt" size={26} className="drop-shadow-sm" />,
         heroBg:    "bg-gradient-to-br from-[#1A4A2A] to-[#2A7040] border border-white/10",
         accentBtn: "bg-white/15 text-white border border-white/20",
         ctaIcon:   <TokenIcon token="usdt" size={16} />,
-        ctaLabel:  "Buy credits to play",
+        ctaLabel:  isProMode ? "Buy 50 credits to play" : "Buy credits to play",
       }
     : {
         balance:  tickets,
@@ -929,24 +956,60 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onPlay, address, onB
         ctaLabel:  "Buy tickets to play",
       };
 
-  const modes = [
+  const modes: {
+    key: FarkleMode;
+    tabLabel: string;
+    tabMeta: string;
+    label: string;
+    target: string;
+    entry: string;
+    reward: ReactNode;
+    token: "miles" | "usdt";
+    panelClass: string;
+    badgeClass: string;
+    badgeText: string;
+  }[] = [
     {
-      key:      "FARKLE_QUICK_1500_AKIBA" as FarkleMode,
-      label:    "Quick Duel",
-      target:   "1,500 pts",
-      reward:   <span className="inline-flex items-center gap-1">Win <MilesAmount value={10} size={10} variant="alt" /></span>,
-      icon:     <TokenIcon token="miles" size={20} />,
-      gradient: "from-[#0A6B7A] to-[#1A9AAD]",
+      key:        QUICK_DUEL_MODE,
+      tabLabel:   "Quick",
+      tabMeta:    "Miles",
+      label:      "Quick Duel",
+      target:     "1,500 pts",
+      entry:      "1 ticket",
+      reward:     <span className="inline-flex items-center gap-1">10 <MilesAmount value={10} size={11} variant="alt" /></span>,
+      token:      "miles",
+      panelClass: "bg-[#E8F7F9] border-[#238D9D]/20",
+      badgeClass: "bg-[#238D9D]/10 text-[#238D9D]",
+      badgeText:  "Fastest",
     },
     {
-      key:      "FARKLE_REWARD_3000_USDT" as FarkleMode,
-      label:    "Reward Duel",
-      target:   "2,500 pts",
-      reward:   <span>Win $0.15</span>,
-      icon:     <TokenIcon token="usdt" size={20} />,
-      gradient: "from-[#1A4A2A] to-[#2A7040]",
+      key:        REWARD_DUEL_MODE,
+      tabLabel:   "Reward",
+      tabMeta:    "$0.15",
+      label:      "Reward Duel",
+      target:     "2,500 pts",
+      entry:      "1 credit",
+      reward:     <span>$0.15 USDT</span>,
+      token:      "usdt",
+      panelClass: "bg-[#EEF8EF] border-[#2A7040]/20",
+      badgeClass: "bg-[#2A7040]/10 text-[#2A7040]",
+      badgeText:  "USDT",
+    },
+    {
+      key:        PRO_DUEL_MODE,
+      tabLabel:   "Pro",
+      tabMeta:    "$1.85",
+      label:      "Pro Duel",
+      target:     "5,000 pts",
+      entry:      "10 credits",
+      reward:     <span>$1.85 USDT</span>,
+      token:      "usdt",
+      panelClass: "bg-[#FFF7E6] border-amber-300",
+      badgeClass: "bg-amber-400/25 text-amber-800",
+      badgeText:  "Higher stakes",
     },
   ];
+  const selectedModeConfig = modes.find((m) => m.key === selectedMode) ?? modes[0];
 
   return (
     <>
@@ -958,7 +1021,7 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onPlay, address, onB
         <GameNightsSheet
           onClose={() => setShowGameNights(false)}
           onSelectRewardDuel={() => {
-            onSelectMode("FARKLE_REWARD_3000_USDT");
+            onSelectMode(REWARD_DUEL_MODE);
             setShowGameNights(false);
           }}
         />
@@ -970,7 +1033,7 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onPlay, address, onB
           address={address}
           onClose={() => setShowLeaderboard(false)}
           onSelectRewardDuel={() => {
-            onSelectMode("FARKLE_REWARD_3000_USDT");
+            onSelectMode(REWARD_DUEL_MODE);
             setShowLeaderboard(false);
           }}
           data={lbData}
@@ -995,7 +1058,7 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onPlay, address, onB
       >
         <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl ${need.empty ? "bg-amber-400/40" : "bg-white/15"}`}>
           {need.empty
-            ? (isReward
+            ? (isCreditMode
                 ? <TokenIcon token="usdt" size={26} />
                 : <TokenIcon token="miles" size={26} />)
             : need.icon}
@@ -1043,79 +1106,71 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onPlay, address, onB
         </p>
       )}
 
-      {/* ── Mode picker (2-up grid) ─────────────────────────────── */}
-      <p className="text-[10px] font-extrabold text-[#A0A0A0] uppercase tracking-widest mb-2 px-0.5">Choose a mode</p>
-      <div className="grid grid-cols-2 gap-2.5 mb-3">
+      {/* ── Mode picker: compact tabs + selected-mode summary ─────── */}
+      <p className="text-[10px] font-extrabold text-[#A0A0A0] uppercase tracking-widest mb-2 px-0.5">Choose a table</p>
+      <div className="grid grid-cols-3 gap-1 rounded-2xl bg-white border border-gray-100 p-1 mb-2.5 shadow-sm">
         {modes.map((m) => {
           const active = selectedMode === m.key;
-          const isRewardMode = m.key === "FARKLE_REWARD_3000_USDT";
-          const cardClass = [
-            "relative text-left rounded-2xl p-3 overflow-hidden transition-all",
-            `bg-gradient-to-br ${m.gradient}`,
-            active ? "ring-2 ring-white shadow-lg scale-[1.02]" : "opacity-75",
-          ].join(" ");
-          const cardInner = (
-            <>
-              <div className="pointer-events-none absolute -right-5 -top-5 h-16 w-16 rounded-full bg-white/10" />
-              {active && (
-                <span className="absolute top-2 right-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-white text-[#0A6B7A] text-[11px] font-black">✓</span>
-              )}
-              <div className="relative z-[1]">
-                <div className="rounded-lg bg-white/15 p-1.5 w-fit mb-2">{m.icon}</div>
-                <p className="font-bold text-white text-sm leading-tight">{m.label}</p>
-                <p className="text-[10px] text-white/60 font-poppins mt-0.5">First to {m.target}</p>
-                <p className="text-[11px] text-white/85 font-poppins font-semibold mt-1.5">{m.reward}</p>
-              </div>
-            </>
-          );
-
-          if (isRewardMode) {
-            return (
-              <button
-                key={m.key}
-                type="button"
-                onClick={() => onSelectMode(m.key)}
-                className={`${cardClass}`}
-              >
-                {cardInner}
-              </button>
-            );
-          }
-
           return (
-            <button key={m.key} type="button" onClick={() => onSelectMode(m.key)}
-              className={cardClass}
+            <button
+              key={m.key}
+              type="button"
+              onClick={() => onSelectMode(m.key)}
+              className={[
+                "h-[74px] rounded-xl px-1.5 py-2 text-center transition-all",
+                active ? "bg-[#1A1A1A] text-white shadow-sm" : "text-[#717171] active:bg-gray-50",
+              ].join(" ")}
             >
-              {cardInner}
+              <span
+                className={[
+                  "mx-auto mb-1 flex h-7 w-7 items-center justify-center rounded-lg",
+                  active ? "bg-white/15" : "bg-gray-50",
+                ].join(" ")}
+              >
+                <TokenIcon token={m.token} size={17} />
+              </span>
+              <span className="block text-[11px] font-extrabold leading-tight">{m.tabLabel}</span>
+              <span className={`block text-[9px] font-poppins leading-tight mt-0.5 ${active ? "text-white/55" : "text-[#A0A0A0]"}`}>
+                {m.tabMeta}
+              </span>
             </button>
           );
         })}
       </div>
 
-      {/* ── Reward Duel leaderboard entry ───────────────────────── */}
-      <button
-        type="button"
-        onClick={() => setShowLeaderboard(true)}
-        className="w-full text-left rounded-2xl overflow-hidden mb-3 shadow-sm active:scale-[0.99] transition-transform"
-      >
-        <div className="bg-gradient-to-r from-[#2A1A00] to-[#3D2800] border border-amber-700/40 px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <Trophy size={18} weight="fill" className="text-amber-400 flex-shrink-0" />
-            <div className="min-w-0">
-              <p className="text-sm font-extrabold text-white leading-tight">Reward Duel Leaderboard</p>
-              <p className="text-[10px] text-white/50 font-poppins">All-time wins · USDT mode</p>
-            </div>
+      <div className={`rounded-2xl border px-4 py-3 mb-3 ${selectedModeConfig.panelClass}`}>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white shadow-sm">
+            <TokenIcon token={selectedModeConfig.token} size={23} />
           </div>
-          <span className="flex-shrink-0 ml-2 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold text-white">
-            View →
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-extrabold text-[#1A1A1A] leading-tight">{selectedModeConfig.label}</p>
+            <p className="text-[11px] text-[#717171] font-poppins mt-0.5">Real-player PvP duel</p>
+          </div>
+          <span className={`flex-shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold ${selectedModeConfig.badgeClass}`}>
+            {selectedModeConfig.badgeText}
           </span>
         </div>
-      </button>
+        <div className="grid grid-cols-3 gap-2 mt-3">
+          <div className="rounded-xl bg-white/70 px-2.5 py-2">
+            <p className="text-[9px] font-extrabold uppercase text-[#A0A0A0]">Goal</p>
+            <p className="text-[11px] font-bold text-[#1A1A1A] leading-tight mt-0.5">{selectedModeConfig.target}</p>
+          </div>
+          <div className="rounded-xl bg-white/70 px-2.5 py-2">
+            <p className="text-[9px] font-extrabold uppercase text-[#A0A0A0]">Entry</p>
+            <p className="text-[11px] font-bold text-[#1A1A1A] leading-tight mt-0.5">{selectedModeConfig.entry}</p>
+          </div>
+          <div className="rounded-xl bg-white/70 px-2.5 py-2">
+            <p className="text-[9px] font-extrabold uppercase text-[#A0A0A0]">Win</p>
+            <p className="text-[11px] font-bold text-[#1A1A1A] leading-tight mt-0.5">{selectedModeConfig.reward}</p>
+          </div>
+        </div>
+      </div>
 
       {/* secondary balances — the other currency + on-chain claimable winnings */}
       {balances && (
-        <div className="flex items-center gap-3 mb-3 px-0.5 text-[11px] font-poppins text-[#717171]">
-          {isReward
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-3 px-0.5 text-[11px] font-poppins text-[#717171]">
+          {isCreditMode
             ? <span className="flex items-center gap-1"><TokenIcon token="miles" size={12} /> {tickets} tickets</span>
             : <span className="flex items-center gap-1"><TokenIcon token="usdt" size={12} /> {credits} credits</span>}
           <span className="flex items-center gap-1"><Trophy size={12} weight="fill" className="text-amber-500" /> ${claimableUsd.toFixed(2)} winnings</span>
@@ -1152,38 +1207,26 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onPlay, address, onB
         </p>
       )}
 
-      {/* ── Akiba Game Nights promo card ─────────────────────────── */}
-      <p className="text-[10px] font-extrabold text-[#A0A0A0] uppercase tracking-widest mb-2 px-0.5 mt-1">Featured Event</p>
-      <button
-        type="button"
-        onClick={() => setShowGameNights(true)}
-        className="w-full text-left rounded-2xl overflow-hidden mb-3 shadow-sm active:scale-[0.99] transition-transform"
-      >
-        <div className="bg-gradient-to-r from-[#1A0A3A] to-[#312E81] px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
-            <Trophy size={18} weight="fill" className="text-amber-300 flex-shrink-0" />
-            <div className="min-w-0">
-              <p className="text-sm font-extrabold text-white leading-tight">Akiba Game Nights</p>
-              <p className="text-[10px] text-white/60 font-poppins">Weekly Farkle PvP · Prizes up to $15</p>
-            </div>
-          </div>
-          <span className="flex-shrink-0 ml-2 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold text-white">
-            View →
-          </span>
-        </div>
-        <div className="bg-white border border-t-0 border-gray-100 px-4 py-2.5">
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <p className="text-[10px] font-extrabold uppercase text-[#A0A0A0]">Qualify</p>
-              <p className="text-[11px] font-bold text-[#1A1A1A]">{GN_REQUIRED} Reward Duels</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-extrabold uppercase text-[#A0A0A0]">Prize pool</p>
-              <p className="text-[11px] font-bold text-[#238D9D]">${GN_WINNER_PRIZE_USD + GN_RUNNER_UP_PRIZE_USD} weekly</p>
-            </div>
-          </div>
-        </div>
-      </button>
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        <button
+          type="button"
+          onClick={() => setShowLeaderboard(true)}
+          className="rounded-2xl bg-white border border-gray-100 px-3 py-3 text-left shadow-sm active:scale-[0.99] transition-transform"
+        >
+          <Trophy size={18} weight="fill" className="text-amber-500 mb-2" />
+          <p className="text-xs font-extrabold text-[#1A1A1A] leading-tight">Leaderboard</p>
+          <p className="text-[10px] text-[#A0A0A0] font-poppins mt-0.5">Reward Duel records</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowGameNights(true)}
+          className="rounded-2xl bg-[#F4F0FF] border border-[#D8CCFF] px-3 py-3 text-left shadow-sm active:scale-[0.99] transition-transform"
+        >
+          <Trophy size={18} weight="fill" className="text-[#6D5BD0] mb-2" />
+          <p className="text-xs font-extrabold text-[#1A1A1A] leading-tight">Game Nights</p>
+          <p className="text-[10px] text-[#6D5BD0]/75 font-poppins mt-0.5">Coming soon · ${GN_WINNER_PRIZE_USD + GN_RUNNER_UP_PRIZE_USD} weekly</p>
+        </button>
+      </div>
 
       {/* ── Spacer pushes actions to the bottom (no-scroll layout) ── */}
       <div className="flex-1 min-h-2" />
@@ -1375,7 +1418,7 @@ function Matchmaking({ mode, myAddress, onMatchStart, onCancel }: {
     }).catch(() => {});
   }
 
-  const modeLabel = mode === "FARKLE_QUICK_1500_AKIBA" ? "Quick Duel · 1,500 pts" : "Reward Duel · 2,500 pts";
+  const modeLabel = modeDisplayLabel(mode);
   const isTransitioning = joiningCode || !!challenging;
 
   return (
@@ -2387,7 +2430,7 @@ function ResultScreen({ result, myAddress, mode, onPlayAgain, onBackToFarkle }: 
   onPlayAgain: () => void; onBackToFarkle: () => void;
 }) {
   const isWinner = result.winnerId.toLowerCase() === myAddress.toLowerCase();
-  const isRewardWinner = isWinner && mode === "FARKLE_REWARD_3000_USDT";
+  const isRewardWinner = isWinner && isCreditFarkleMode(mode);
   const [checking, setChecking] = useState(false);
   const [checkedStatus, setCheckedStatus] = useState<"settled" | "pending" | null>(null);
   const [claimed, setClaimed] = useState(false);

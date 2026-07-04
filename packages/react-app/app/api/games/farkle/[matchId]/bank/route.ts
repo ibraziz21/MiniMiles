@@ -19,6 +19,7 @@ type Ctx = { params: Promise<{ matchId: string }> };
 const MODE_TARGET: Record<string, number> = {
   FARKLE_QUICK_1500_AKIBA: 1500,
   FARKLE_REWARD_3000_USDT: 2500,
+  FARKLE_PRO_5000_USDT: 5000,
 };
 
 function targetScoreForMode(modeKey: string | null | undefined, configuredTarget: number | null | undefined) {

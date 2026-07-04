@@ -41,6 +41,7 @@ export async function GET(req: Request) {
   const [
     quickQueue,
     rewardQueue,
+    proQueue,
     activeMatches,
     staleMatches,
     pendingSettlement,
@@ -59,6 +60,13 @@ export async function GET(req: Request) {
       .from("matchmaking_queue")
       .select("*", { count: "exact", head: true })
       .eq("mode_key", "FARKLE_REWARD_3000_USDT")
+      .eq("status", "waiting")
+      .gt("expires_at", now.toISOString()),
+
+    supabase
+      .from("matchmaking_queue")
+      .select("*", { count: "exact", head: true })
+      .eq("mode_key", "FARKLE_PRO_5000_USDT")
       .eq("status", "waiting")
       .gt("expires_at", now.toISOString()),
 
@@ -132,6 +140,7 @@ export async function GET(req: Request) {
 
   console.log(
     `[farkle/health] checked: quickQueue=${count(quickQueue)} rewardQueue=${count(rewardQueue)}` +
+      ` proQueue=${count(proQueue)}` +
       ` activeMatches=${activeRows.length} staleMatches=${count(staleMatches)}` +
       ` pendingSettlement=${pendingCount} overdueSettlement=${overdueCount}` +
       ` backendOk=${backendResult?.ok ?? false}`,
@@ -142,6 +151,7 @@ export async function GET(req: Request) {
     queue: {
       FARKLE_QUICK_1500_AKIBA: { waiting: count(quickQueue) ?? 0 },
       FARKLE_REWARD_3000_USDT: { waiting: count(rewardQueue) ?? 0 },
+      FARKLE_PRO_5000_USDT: { waiting: count(proQueue) ?? 0 },
     },
     matches: {
       in_progress: byCounts["in_progress"] ?? 0,

@@ -1,4 +1,7 @@
-export type FarkleMode = "FARKLE_QUICK_1500_AKIBA" | "FARKLE_REWARD_3000_USDT";
+export type FarkleMode =
+  | "FARKLE_QUICK_1500_AKIBA"
+  | "FARKLE_REWARD_3000_USDT"
+  | "FARKLE_PRO_5000_USDT";
 
 export type FarkleReactionEmoji = "fire" | "cry" | "laugh" | "tongue" | "angry_censored";
 
