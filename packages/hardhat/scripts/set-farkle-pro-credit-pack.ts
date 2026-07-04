@@ -3,8 +3,8 @@
  *
  * Defaults:
  *   packId:       1
- *   usdtAmount:   5_000_000  ($5.00 with 6 dp USDT)
- *   creditAmount: 50
+ *   usdtAmount:   1_000_000  ($1.00 with 6 dp USDT)
+ *   creditAmount: 10
  *
  * Run with the GameCreditVault owner key:
  *   npx hardhat run scripts/set-farkle-pro-credit-pack.ts --network celo
@@ -48,8 +48,8 @@ async function main() {
     "0x31B4cbc6c3508156eCaFD937b36C5Bf68848bcba";
 
   const packId = bigintEnv("FARKLE_PRO_PACK_ID", 1n);
-  const usdtAmount = bigintEnv("FARKLE_PRO_PACK_USDT_BASE_UNITS", 5_000_000n);
-  const creditAmount = bigintEnv("FARKLE_PRO_PACK_CREDITS", 50n);
+  const usdtAmount = bigintEnv("FARKLE_PRO_PACK_USDT_BASE_UNITS", 1_000_000n);
+  const creditAmount = bigintEnv("FARKLE_PRO_PACK_CREDITS", 10n);
   const active = (process.env.FARKLE_PRO_PACK_ACTIVE ?? "true").toLowerCase() !== "false";
 
   const vault = new ethers.Contract(vaultAddr, VAULT_ABI, signer);
