@@ -124,10 +124,25 @@ export async function getFarkleTurnState(matchId: string, address: string): Prom
     | { id: string; emoji: string; wallet_address: string; created_at: string }
     | undefined;
 
+  const usernameMap: Record<string, string> = {};
+  const wallets = [wallet, opp?.wallet_address].filter(Boolean) as string[];
+  if (wallets.length > 0) {
+    const { data: users } = await supabase
+      .from("users")
+      .select("user_address, username")
+      .in("user_address", wallets);
+    for (const user of users ?? []) {
+      if (user.username) usernameMap[String(user.user_address).toLowerCase()] = user.username;
+    }
+  }
+
   const mode = getMode(typedMatch);
   return {
     matchId,
     yourUserId: wallet,
+    opponentUserId: opp?.wallet_address ?? null,
+    yourUsername: usernameMap[wallet] ?? null,
+    opponentUsername: opp?.wallet_address ? usernameMap[opp.wallet_address] ?? null : null,
     yourScore: me?.banked_score ?? 0,
     opponentScore: opp?.banked_score ?? 0,
     isYourTurn: isMyTurn,

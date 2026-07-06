@@ -16,6 +16,7 @@ interface MatchRow {
   id: string;
   status: string;
   current_turn_address?: string | null;
+  turn_number?: number | null;
   turn_started_at?: string | null;
   last_action_at?: string | null;
   started_at?: string | null;
@@ -67,6 +68,10 @@ function entryAmountForMode(mode: ModeRow | null | undefined) {
   return Number.isFinite(amount) && amount > 0 ? Math.floor(amount) : 1;
 }
 
+function isOpeningTurn(match: MatchRow) {
+  return (match.turn_number ?? 1) <= 1;
+}
+
 export async function expireWaitingQueue(supabase: SupabaseClient, now = new Date()) {
   const nowIso = now.toISOString();
 
@@ -105,9 +110,21 @@ async function cancelMatch(supabase: SupabaseClient, match: MatchRow, reason: st
 
   // For matches that never became playable (e.g. created with < 2 players due to a
   // system error), refund any debited entries so no player silently loses their stake.
-  if (reason === "stale_incomplete_match") {
+  if (reason === "stale_incomplete_match" || reason === "opening_turn_no_show") {
     await refundMatchEntries(supabase, match.id);
   }
+}
+
+async function hasRecordedFarkleTurns(supabase: SupabaseClient, matchId: string) {
+  const { count, error } = await supabase
+    .from("farkle_turns")
+    .select("id", { count: "exact", head: true })
+    .eq("match_id", matchId);
+  if (error) {
+    console.error(`[farkle/session] failed to count turns matchId=${matchId}`, error);
+    return true;
+  }
+  return (count ?? 0) > 0;
 }
 
 async function refundMatchEntries(supabase: SupabaseClient, matchId: string) {
@@ -263,7 +280,7 @@ export async function reconcilePlayerFarkleSessions(supabase: SupabaseClient, ad
     await Promise.all([
       supabase
         .from("game_matches")
-        .select("id, status, current_turn_address, turn_started_at, last_action_at, started_at, created_at, metadata, game_modes(mode_key, winner_miles_reward, loser_miles_reward, winner_reward_credit)")
+        .select("id, status, current_turn_address, turn_number, turn_started_at, last_action_at, started_at, created_at, metadata, game_modes(mode_key, winner_miles_reward, loser_miles_reward, winner_reward_credit)")
         .in("id", matchIds)
         .in("status", ACTIVE_MATCH_STATUSES),
       supabase
@@ -289,7 +306,11 @@ export async function reconcilePlayerFarkleSessions(supabase: SupabaseClient, ad
     }
 
     if (isOlderThan(activityIso, FARKLE_MATCH_STALE_SECONDS, now)) {
-      await cancelMatch(supabase, match, "stale_inactive_match", nowIso);
+      if (isOpeningTurn(match) && !(await hasRecordedFarkleTurns(supabase, match.id))) {
+        await cancelMatch(supabase, match, "opening_turn_no_show", nowIso);
+      } else {
+        await cancelMatch(supabase, match, "stale_inactive_match", nowIso);
+      }
       continue;
     }
 
@@ -301,7 +322,11 @@ export async function reconcilePlayerFarkleSessions(supabase: SupabaseClient, ad
       const loser = players.find((row) => row.wallet_address === match.current_turn_address);
       const winner = players.find((row) => row.wallet_address !== match.current_turn_address);
       if (winner && loser) {
-        await completeTimeout(supabase, match, winner, loser, nowIso);
+        if (isOpeningTurn(match) && !(await hasRecordedFarkleTurns(supabase, match.id))) {
+          await cancelMatch(supabase, match, "opening_turn_no_show", nowIso);
+        } else {
+          await completeTimeout(supabase, match, winner, loser, nowIso);
+        }
       } else {
         await cancelMatch(supabase, match, "invalid_timeout_players", nowIso);
       }

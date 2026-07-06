@@ -75,6 +75,7 @@ router.post("/matches/find", async (req, res) => {
       : null;
   const inviteCode =
     typeof req.body?.inviteCode === "string" ? req.body.inviteCode.trim() : null;
+  const queueType = req.body?.queueType === "invite" ? "invite" : "public";
 
   if (!isWalletAddress(address)) {
     res.status(400).json({ error: "missing or invalid address" });
@@ -90,7 +91,7 @@ router.post("/matches/find", async (req, res) => {
   }
 
   try {
-    const result = await enterFarkleMatch({ address, modeKey, targetAddress, inviteCode });
+    const result = await enterFarkleMatch({ address, modeKey, targetAddress, inviteCode, queueType });
     res.status(result.statusCode).json(result.body);
   } catch (e: any) {
     console.error(

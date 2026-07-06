@@ -513,10 +513,23 @@ describe("POST /api/games/farkle/matches/find", () => {
       "https://backend.test/games/farkle/matches/find",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ address: WALLET_A, modeKey: "FARKLE_QUICK_1500_AKIBA" }),
+        body: JSON.stringify({ address: WALLET_A, modeKey: "FARKLE_QUICK_1500_AKIBA", queueType: "public" }),
       }),
     );
     expect(mockRpc).not.toHaveBeenCalled();
+  });
+
+  it("passes invite queueType through to backend", async () => {
+    mockFetch.mockResolvedValue(new Response(JSON.stringify({ status: "waiting", inviteCode: "FARK-TEST" }), { status: 200 }));
+    const res = await findHandler(makeFind({ modeKey: "FARKLE_QUICK_1500_AKIBA", queueType: "invite" }));
+    expect(res.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://backend.test/games/farkle/matches/find",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ address: WALLET_A, modeKey: "FARKLE_QUICK_1500_AKIBA", queueType: "invite" }),
+      }),
+    );
   });
 
   it("retries backend auth with fallback secrets when the primary secret is stale", async () => {

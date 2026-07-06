@@ -64,6 +64,9 @@ export interface FarkleMatch {
 export interface TurnState {
   matchId:          string;
   yourUserId:       string;
+  opponentUserId?:  string | null;
+  yourUsername?:    string | null;
+  opponentUsername?: string | null;
   yourScore:        number;
   opponentScore:    number;
   isYourTurn:       boolean;

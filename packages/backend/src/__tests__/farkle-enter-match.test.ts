@@ -2,10 +2,11 @@
  * Backend unit tests for enterFarkleMatch.
  *
  * Proves:
- *   (a) Player A enters queue → returns waiting; RPC is called with a generated invite code.
- *   (b) Player B joins with A's invite code → invite code resolves to A's address;
+ *   (a) Player A enters public queue → returns waiting; RPC is called without an invite code.
+ *   (b) Player A creates an invite-only challenge → returns waiting with a generated invite code.
+ *   (c) Player B joins with A's invite code → invite code resolves to A's address;
  *       RPC receives p_target_addr=A and returns matched.
- *   (c) Player A is already in queue (status="waiting") AND provides targetAddress=B →
+ *   (d) Player A is already in queue (status="waiting") AND provides targetAddress=B →
  *       the early-return guard is skipped; RPC is called and returns matched.
  */
 
@@ -124,8 +125,8 @@ describe("enterFarkleMatch", () => {
     vi.resetModules();
   });
 
-  // (a) Player A enters queue and the RPC is called with a generated invite code.
-  it("(a) returns waiting and passes invite code to RPC when no opponent is found", async () => {
+  // (a) Player A enters public queue and the RPC is called without an invite code.
+  it("(a) returns waiting without invite code for public lobby when no opponent is found", async () => {
     setupMocks({ existingQueue: null });
     mockRpc.mockResolvedValue({ data: { status: "waiting" }, error: null });
 
@@ -138,14 +139,35 @@ describe("enterFarkleMatch", () => {
     expect(mockRpc).toHaveBeenCalledOnce();
     const rpcArgs = mockRpc.mock.calls[0][1] as Record<string, unknown>;
     expect(rpcArgs.p_caller).toBe(WALLET_A);
-    // The service always generates an invite code and passes it to the RPC.
+    expect(rpcArgs.p_invite_code).toBeNull();
+    expect(rpcArgs.p_queue_scope).toBe("public");
+    expect(rpcArgs.p_target_addr).toBeNull();
+  });
+
+  // (b) Player A creates a private invite slot and receives a code.
+  it("(b) returns waiting with invite code for invite-only challenge", async () => {
+    setupMocks({ existingQueue: null });
+    mockRpc.mockResolvedValue({ data: { status: "waiting" }, error: null });
+
+    const { enterFarkleMatch } = await import("../farkle/service");
+    const result = await enterFarkleMatch({ address: WALLET_A, modeKey: MODE_KEY, queueType: "invite" });
+    const body = result.body as any;
+
+    expect(result.statusCode).toBe(200);
+    expect(body.status).toBe("waiting");
+    expect(typeof body.inviteCode).toBe("string");
+    expect(body.inviteCode.startsWith("FARK-")).toBe(true);
+
+    expect(mockRpc).toHaveBeenCalledOnce();
+    const rpcArgs = mockRpc.mock.calls[0][1] as Record<string, unknown>;
     expect(typeof rpcArgs.p_invite_code).toBe("string");
     expect((rpcArgs.p_invite_code as string).startsWith("FARK-")).toBe(true);
+    expect(rpcArgs.p_queue_scope).toBe("invite");
     expect(rpcArgs.p_target_addr).toBeNull();
   });
 
   // (b) Player B joins with A's invite code → match starts.
-  it("(b) resolves invite code to A's address and returns matched", async () => {
+  it("(c) resolves invite code to A's address and returns matched", async () => {
     setupMocks({
       hasInviteCode: true,
       inviteSlot: { wallet_address: WALLET_A, mode_key: MODE_KEY },
@@ -170,11 +192,14 @@ describe("enterFarkleMatch", () => {
     const rpcArgs = mockRpc.mock.calls[0][1] as Record<string, unknown>;
     // Invite code was resolved to A's wallet and passed as the target.
     expect(rpcArgs.p_target_addr).toBe(WALLET_A);
+    expect(rpcArgs.p_target_invite_code).toBe("FARK-TEST");
+    expect(rpcArgs.p_queue_scope).toBe("public");
+    expect(rpcArgs.p_invite_code).toBeNull();
     expect(rpcArgs.p_caller).toBe(WALLET_B);
   });
 
   // (c) A is already waiting; providing targetAddress must NOT trigger the early return.
-  it("(c) skips 'already waiting' early-return when targetAddress is provided", async () => {
+  it("(d) skips 'already waiting' early-return when targetAddress is provided", async () => {
     // A already has status="waiting" in the queue.
     setupMocks({ existingQueue: { status: "waiting", match_id: null } });
     mockRpc.mockResolvedValue({

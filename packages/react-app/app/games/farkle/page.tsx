@@ -19,6 +19,7 @@ import { useFarkleCredits } from "@/hooks/farkle/useFarkleCredits";
 import { useFarkleClaim } from "@/hooks/farkle/useFarkleClaim";
 
 type Screen = "mode-select" | "matchmaking" | "game" | "result";
+type QueueType = "public" | "invite";
 type FarkleSettlementStatus = "settled" | "pending";
 type FarkleResult = {
   matchId: string;
@@ -26,6 +27,8 @@ type FarkleResult = {
   yourScore: number;
   oppScore: number;
   settlementStatus?: FarkleSettlementStatus;
+  voided?: boolean;
+  message?: string;
 };
 
 type LeaderboardEntry = {
@@ -453,6 +456,8 @@ export default function FarklePage() {
 
   const [screen,   setScreen]   = useState<Screen>("mode-select");
   const [mode,     setMode]     = useState<FarkleMode>(QUICK_DUEL_MODE);
+  const [queueType, setQueueType] = useState<QueueType>("public");
+  const [initialInviteCode, setInitialInviteCode] = useState<string | null>(null);
   const [balances, setBalances] = useState<BalancesResponse | null>(null);
   const [matchId,  setMatchId]  = useState<string | null>(null);
   const [error,    setError]    = useState<string | null>(null);
@@ -568,17 +573,20 @@ export default function FarklePage() {
       .then((r) => r.json()).then(setBalances).catch(() => {});
   }, [address, screen, balanceTick]);
 
-  async function joinLobby() {
+  async function joinLobby(nextQueueType: QueueType) {
     if (!address) return;
     setError(null);
+    setInitialInviteCode(null);
+    setQueueType(nextQueueType);
     setScreen("matchmaking");
     const r = await fetch("/api/games/farkle/matches/find", {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ address: address.toLowerCase(), modeKey: mode }),
+      body: JSON.stringify({ address: address.toLowerCase(), modeKey: mode, queueType: nextQueueType }),
     });
     const data = await r.json();
     if (!r.ok) { setError(data.error ?? "failed to join lobby"); setScreen("mode-select"); return; }
     if (data.matchId) enterGame(data.matchId, (data.modeKey ?? mode) as FarkleMode);
+    if (data.inviteCode) setInitialInviteCode(data.inviteCode);
   }
 
   return (
@@ -620,12 +628,14 @@ export default function FarklePage() {
 
       {!reconnecting && screen === "mode-select" && (
         <ModeSelect balances={balances} selectedMode={mode} onSelectMode={setMode}
-          onPlay={joinLobby} address={address} onBalanceRefresh={refreshBalances}
+          onFindLobby={() => joinLobby("public")} onChallengeFriend={() => joinLobby("invite")}
+          address={address} onBalanceRefresh={refreshBalances}
           leaderboardTick={leaderboardTick} />
       )}
 
       {screen === "matchmaking" && (
-        <Matchmaking mode={mode} myAddress={address?.toLowerCase() ?? ""}
+        <Matchmaking mode={mode} queueType={queueType} initialInviteCode={initialInviteCode}
+          myAddress={address?.toLowerCase() ?? ""}
           onMatchStart={enterGame} onCancel={() => setScreen("mode-select")} />
       )}
 
@@ -834,9 +844,9 @@ function RewardDuelLeaderboardSheet({
 
 // ─── Mode Select ──────────────────────────────────────────────────────────────
 
-function ModeSelect({ balances, selectedMode, onSelectMode, onPlay, address, onBalanceRefresh, leaderboardTick }: {
+function ModeSelect({ balances, selectedMode, onSelectMode, onFindLobby, onChallengeFriend, address, onBalanceRefresh, leaderboardTick }: {
   balances: BalancesResponse | null; selectedMode: FarkleMode;
-  onSelectMode: (m: FarkleMode) => void; onPlay: () => void;
+  onSelectMode: (m: FarkleMode) => void; onFindLobby: () => void; onChallengeFriend: () => void;
   address: string | null; onBalanceRefresh: () => void;
   leaderboardTick: number;
 }) {
@@ -1243,7 +1253,7 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onPlay, address, onB
 
       {!address && <p className="text-xs text-[#717171] font-poppins text-center mb-2">Connect wallet to play</p>}
 
-      {/* Find Opponent — turns into a Buy prompt when the mode's currency is empty */}
+      {/* Play actions — turns into a Buy prompt when the mode's currency is empty */}
       {need.empty ? (
         <motion.button
           type="button"
@@ -1256,16 +1266,28 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onPlay, address, onB
                      : <>{need.ctaIcon} {need.ctaLabel}</>}
         </motion.button>
       ) : (
-        <motion.button
-          type="button"
-          onClick={onPlay}
-          disabled={!address}
-          whileTap={{ scale: 0.97 }}
-          className="w-full rounded-2xl bg-[#238D9D] py-4 text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-        >
-          <Sword size={16} weight="fill" />
-          Find Opponent
-        </motion.button>
+        <div className="space-y-2">
+          <motion.button
+            type="button"
+            onClick={onChallengeFriend}
+            disabled={!address}
+            whileTap={{ scale: 0.97 }}
+            className="w-full rounded-2xl border-2 border-[#238D9D] bg-white py-3.5 text-sm font-bold text-[#238D9D] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            <Sword size={16} weight="fill" />
+            Challenge Friend
+          </motion.button>
+          <motion.button
+            type="button"
+            onClick={onFindLobby}
+            disabled={!address}
+            whileTap={{ scale: 0.97 }}
+            className="w-full rounded-2xl bg-[#238D9D] py-4 text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            <Sword size={16} weight="fill" />
+            Find Lobby Match
+          </motion.button>
+        </div>
       )}
     </div>
     </>
@@ -1276,8 +1298,10 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onPlay, address, onB
 
 type WaitingPlayer = { address: string; username: string | null; queuedAt: string };
 
-function Matchmaking({ mode, myAddress, onMatchStart, onCancel }: {
+function Matchmaking({ mode, queueType, initialInviteCode, myAddress, onMatchStart, onCancel }: {
   mode: FarkleMode;
+  queueType: QueueType;
+  initialInviteCode: string | null;
   myAddress: string;
   onMatchStart: (matchId: string, mode: FarkleMode) => void;
   onCancel: () => void;
@@ -1286,7 +1310,7 @@ function Matchmaking({ mode, myAddress, onMatchStart, onCancel }: {
   const [challenging,    setChallenging]    = useState<string | null>(null);
   const [challengeError, setChallengeError] = useState<string | null>(null);
   const [dots,           setDots]           = useState(".");
-  const [myInviteCode,   setMyInviteCode]   = useState<string | null>(null);
+  const [myInviteCode,   setMyInviteCode]   = useState<string | null>(initialInviteCode);
   const [codeCopied,     setCodeCopied]     = useState(false);
   const [codeInput,      setCodeInput]      = useState("");
   const [codeError,      setCodeError]      = useState<string | null>(null);
@@ -1294,6 +1318,7 @@ function Matchmaking({ mode, myAddress, onMatchStart, onCancel }: {
   const [pollError,      setPollError]      = useState(false);
   const pollFailCount = useRef(0);
   const matchedRef    = useRef(false);
+  const isInviteOnly = queueType === "invite";
 
   const cancelQueue = useCallback(async () => {
     if (!myAddress) return;
@@ -1311,6 +1336,10 @@ function Matchmaking({ mode, myAddress, onMatchStart, onCancel }: {
   }, []);
 
   useEffect(() => {
+    if (initialInviteCode) setMyInviteCode(initialInviteCode);
+  }, [initialInviteCode]);
+
+  useEffect(() => {
     const poll = async () => {
       try {
         const r = await fetch(`/api/games/farkle/matches/queue?modeKey=${mode}&address=${myAddress}`);
@@ -1322,7 +1351,7 @@ function Matchmaking({ mode, myAddress, onMatchStart, onCancel }: {
         pollFailCount.current = 0;
         setPollError(false);
         const data = await r.json();
-        setWaiters(data.waiters ?? []);
+        setWaiters(isInviteOnly ? [] : data.waiters ?? []);
         if (data.myInviteCode) setMyInviteCode(data.myInviteCode);
         if (data.matchId && !matchedRef.current) {
           matchedRef.current = true;
@@ -1336,7 +1365,7 @@ function Matchmaking({ mode, myAddress, onMatchStart, onCancel }: {
     poll();
     const id = setInterval(poll, 2000);
     return () => clearInterval(id);
-  }, [mode, myAddress, onMatchStart]);
+  }, [isInviteOnly, mode, myAddress, onMatchStart]);
 
   useEffect(() => {
     return () => {
@@ -1441,9 +1470,13 @@ function Matchmaking({ mode, myAddress, onMatchStart, onCancel }: {
               ? "Joining with code…"
               : challenging
               ? "Challenging player…"
-              : `Searching for opponent${dots}`}
+              : isInviteOnly
+              ? `Waiting for friend${dots}`
+              : `Searching lobby${dots}`}
           </p>
-          <p className="text-xs text-[#238D9D]/70 font-poppins mt-0.5">{modeLabel}</p>
+          <p className="text-xs text-[#238D9D]/70 font-poppins mt-0.5">
+            {modeLabel} · {isInviteOnly ? "Private invite" : "Public lobby"}
+          </p>
         </div>
       </div>
 
@@ -1457,36 +1490,38 @@ function Matchmaking({ mode, myAddress, onMatchStart, onCancel }: {
         </div>
       )}
 
-      {/* ── Your invite code ───────────────────────────────────────────── */}
-      {myInviteCode ? (
-        <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl bg-white border border-[#238D9D]/20 shadow-sm px-4 py-3 mb-4">
-          <p className="text-[10px] font-extrabold text-[#A0A0A0] uppercase tracking-widest mb-1.5">
-            Your invite code
-          </p>
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-2xl font-extrabold tracking-[0.2em] text-[#1A1A1A] font-mono leading-none">
-              {myInviteCode}
+      {/* ── Private invite code ─────────────────────────────────────────── */}
+      {isInviteOnly && (
+        myInviteCode ? (
+          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+            className="rounded-2xl bg-white border border-[#238D9D]/20 shadow-sm px-4 py-3 mb-4">
+            <p className="text-[10px] font-extrabold text-[#A0A0A0] uppercase tracking-widest mb-1.5">
+              Friend invite code
             </p>
-            <motion.button type="button" whileTap={{ scale: 0.92 }} onClick={copyCode}
-              className={[
-                "rounded-xl px-3 py-2 text-xs font-bold transition-colors flex-shrink-0",
-                codeCopied
-                  ? "bg-green-50 border border-green-200 text-green-700"
-                  : "bg-[#E8F7F9] border border-[#238D9D]/20 text-[#238D9D]",
-              ].join(" ")}>
-              {codeCopied ? "✓ Copied" : "Copy"}
-            </motion.button>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-2xl font-extrabold tracking-[0.2em] text-[#1A1A1A] font-mono leading-none">
+                {myInviteCode}
+              </p>
+              <motion.button type="button" whileTap={{ scale: 0.92 }} onClick={copyCode}
+                className={[
+                  "rounded-xl px-3 py-2 text-xs font-bold transition-colors flex-shrink-0",
+                  codeCopied
+                    ? "bg-green-50 border border-green-200 text-green-700"
+                    : "bg-[#E8F7F9] border border-[#238D9D]/20 text-[#238D9D]",
+                ].join(" ")}>
+                {codeCopied ? "✓ Copied" : "Copy"}
+              </motion.button>
+            </div>
+            <p className="text-[11px] text-[#A0A0A0] font-poppins mt-1.5">
+              This code is private. You will not be matched with lobby players while waiting here.
+            </p>
+          </motion.div>
+        ) : (
+          <div className="rounded-2xl bg-gray-50 border border-gray-100 px-4 py-3 mb-4 animate-pulse">
+            <div className="h-2.5 w-24 bg-gray-200 rounded mb-2.5" />
+            <div className="h-7 w-36 bg-gray-200 rounded" />
           </div>
-          <p className="text-[11px] text-[#A0A0A0] font-poppins mt-1.5">
-            Share this so a friend can join you directly.
-          </p>
-        </motion.div>
-      ) : (
-        <div className="rounded-2xl bg-gray-50 border border-gray-100 px-4 py-3 mb-4 animate-pulse">
-          <div className="h-2.5 w-20 bg-gray-200 rounded mb-2.5" />
-          <div className="h-7 w-36 bg-gray-200 rounded" />
-        </div>
+        )
       )}
 
       {/* ── Challenge error ────────────────────────────────────────────── */}
@@ -1498,56 +1533,60 @@ function Matchmaking({ mode, myAddress, onMatchStart, onCancel }: {
       )}
 
       {/* ── Waiters list ───────────────────────────────────────────────── */}
-      <p className="text-[11px] font-extrabold text-[#A0A0A0] uppercase tracking-widest mb-2">
-        {waiters.length === 0
-          ? "Players in lobby"
-          : `${waiters.length} player${waiters.length !== 1 ? "s" : ""} waiting`}
-      </p>
+      {!isInviteOnly && (
+        <>
+          <p className="text-[11px] font-extrabold text-[#A0A0A0] uppercase tracking-widest mb-2">
+            {waiters.length === 0
+              ? "Players in lobby"
+              : `${waiters.length} player${waiters.length !== 1 ? "s" : ""} waiting`}
+          </p>
 
-      <AnimatePresence>
-        {waiters.length === 0 ? (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            className="rounded-2xl border border-dashed border-gray-200 bg-white px-4 py-6 flex flex-col items-center gap-2 mb-4">
-            <Sword size={24} className="text-gray-300" />
-            <p className="text-sm text-[#A0A0A0] font-poppins text-center">No one else here yet</p>
-            <p className="text-xs text-[#C0C0C0] font-poppins text-center">
-              Share your code or wait for someone to join
-            </p>
-          </motion.div>
-        ) : (
-          <div className="space-y-2 mb-4">
-            {waiters.map((w) => (
-              <motion.div key={w.address}
-                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-3 rounded-2xl bg-white border border-gray-100 shadow-sm px-4 py-3">
-                <div className="h-9 w-9 rounded-full bg-[#E8F7F9] flex items-center justify-center flex-shrink-0">
-                  <Sword size={16} weight="fill" className="text-[#238D9D]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate">{w.username ?? shorten(w.address)}</p>
-                  {w.username && (
-                    <p className="text-[11px] text-[#A0A0A0] font-poppins">{shorten(w.address)}</p>
-                  )}
-                </div>
-                <motion.button type="button" whileTap={{ scale: 0.94 }}
-                  onClick={() => void challengePlayer(w.address)}
-                  disabled={challenging !== null}
-                  className="flex-shrink-0 rounded-xl bg-[#238D9D] px-4 py-2 text-xs font-bold text-white disabled:opacity-50 flex items-center justify-center min-w-[76px]">
-                  {challenging === w.address
-                    ? <SpinnerGap size={14} className="animate-spin" />
-                    : "Challenge"}
-                </motion.button>
+          <AnimatePresence>
+            {waiters.length === 0 ? (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                className="rounded-2xl border border-dashed border-gray-200 bg-white px-4 py-6 flex flex-col items-center gap-2 mb-4">
+                <Sword size={24} className="text-gray-300" />
+                <p className="text-sm text-[#A0A0A0] font-poppins text-center">No one else here yet</p>
+                <p className="text-xs text-[#C0C0C0] font-poppins text-center">
+                  Stay here to match the next public player
+                </p>
               </motion.div>
-            ))}
-          </div>
-        )}
-      </AnimatePresence>
+            ) : (
+              <div className="space-y-2 mb-4">
+                {waiters.map((w) => (
+                  <motion.div key={w.address}
+                    initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center gap-3 rounded-2xl bg-white border border-gray-100 shadow-sm px-4 py-3">
+                    <div className="h-9 w-9 rounded-full bg-[#E8F7F9] flex items-center justify-center flex-shrink-0">
+                      <Sword size={16} weight="fill" className="text-[#238D9D]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{w.username ?? shorten(w.address)}</p>
+                      {w.username && (
+                        <p className="text-[11px] text-[#A0A0A0] font-poppins">{shorten(w.address)}</p>
+                      )}
+                    </div>
+                    <motion.button type="button" whileTap={{ scale: 0.94 }}
+                      onClick={() => void challengePlayer(w.address)}
+                      disabled={challenging !== null}
+                      className="flex-shrink-0 rounded-xl bg-[#238D9D] px-4 py-2 text-xs font-bold text-white disabled:opacity-50 flex items-center justify-center min-w-[76px]">
+                      {challenging === w.address
+                        ? <SpinnerGap size={14} className="animate-spin" />
+                        : "Challenge"}
+                    </motion.button>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </AnimatePresence>
+        </>
+      )}
 
       {/* ── Join a friend's game ───────────────────────────────────────── */}
       <div className="rounded-2xl bg-white border border-gray-100 px-4 py-3.5 mb-3">
         <p className="text-xs font-bold text-[#1A1A1A] mb-0.5">Join a friend&apos;s game</p>
         <p className="text-[11px] text-[#A0A0A0] font-poppins mb-2.5">
-          Enter their invite code to match directly — works even while you&apos;re in queue.
+          Enter their invite code to match directly.
         </p>
         <div className="flex gap-2">
           <input
@@ -1629,6 +1668,8 @@ function GameBoard({ matchId, myAddress, mode, waitForAuth, onMatchEnd }: {
 }) {
   const [myScore,    setMyScore]    = useState(0);
   const [oppScore,   setOppScore]   = useState(0);
+  const [myScoreLabel, setMyScoreLabel] = useState(() => myAddress.slice(0, 6) + "…" + myAddress.slice(-4));
+  const [oppScoreLabel, setOppScoreLabel] = useState("Opponent");
   const [targetScore, setTargetScore] = useState(1500);
   const [isMyTurn,   setIsMyTurn]   = useState(false);
   const [matchStatus, setMatchStatus] = useState("in_progress");
@@ -1670,6 +1711,7 @@ function GameBoard({ matchId, myAddress, mode, waitForAuth, onMatchEnd }: {
   const specFarkleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const TURN_TIMEOUT = 60;
+  const shorten = useCallback((a: string) => a.slice(0, 6) + "…" + a.slice(-4), []);
 
   const applyState = useCallback((s: TurnState) => {
     failuresRef.current = 0;
@@ -1677,6 +1719,8 @@ function GameBoard({ matchId, myAddress, mode, waitForAuth, onMatchEnd }: {
 
     setMyScore(s.yourScore ?? 0);
     setOppScore(s.opponentScore ?? 0);
+    setMyScoreLabel(s.yourUsername || shorten(s.yourUserId || myAddress));
+    setOppScoreLabel(s.opponentUsername || (s.opponentUserId ? shorten(s.opponentUserId) : "Opponent"));
     setTargetScore(s.targetScore ?? 1500);
     setMatchStatus(s.matchStatus);
     setTurnStartedAt(s.turnStartedAt ? new Date(s.turnStartedAt).getTime() : null);
@@ -1691,6 +1735,18 @@ function GameBoard({ matchId, myAddress, mode, waitForAuth, onMatchEnd }: {
         if (incomingReactionTimer.current) clearTimeout(incomingReactionTimer.current);
         incomingReactionTimer.current = setTimeout(() => setIncomingReaction(null), 2200);
       }
+    }
+
+    if (s.matchStatus === "cancelled") {
+      onMatchEnd({
+        matchId: s.matchId,
+        winnerId: "",
+        yourScore: s.yourScore,
+        oppScore: s.opponentScore,
+        voided: true,
+        message: "Match voided. Entry refunded.",
+      });
+      return;
     }
 
     if (["completed", "settled"].includes(s.matchStatus)) {
@@ -1776,7 +1832,7 @@ function GameBoard({ matchId, myAddress, mode, waitForAuth, onMatchEnd }: {
         setRollState(null);
       }
     }
-  }, [onMatchEnd, myAddress]);
+  }, [onMatchEnd, myAddress, shorten]);
 
   // ── Fetch fallback: only active while the SSE stream is disconnected ──────
   const poll = useCallback(async () => {
@@ -1873,6 +1929,17 @@ function GameBoard({ matchId, myAddress, mode, waitForAuth, onMatchEnd }: {
         method: "POST", headers: { "content-type": "application/json" },
       });
       const data = await r.json();
+      if (r.ok && data.voided) {
+        onMatchEnd({
+          matchId,
+          winnerId: "",
+          yourScore: myScore,
+          oppScore,
+          voided: true,
+          message: data.message ?? "Opponent not online. Entry refunded.",
+        });
+        return;
+      }
       if (r.ok && data.winnerId) {
         onMatchEnd({
           matchId,
@@ -2074,8 +2141,8 @@ function GameBoard({ matchId, myAddress, mode, waitForAuth, onMatchEnd }: {
       </div>
       <div className="grid grid-cols-2 gap-3 mb-4">
         {[
-          { label: "You",      score: myScore,  pct: (myScore  / targetScore) * 100, accent: "#238D9D" },
-          { label: "Opponent", score: oppScore, pct: (oppScore / targetScore) * 100, accent: "#A0A0A0" },
+          { label: myScoreLabel,  score: myScore,  pct: (myScore  / targetScore) * 100, accent: "#238D9D" },
+          { label: oppScoreLabel, score: oppScore, pct: (oppScore / targetScore) * 100, accent: "#A0A0A0" },
         ].map(({ label, score, pct, accent }) => (
           <div key={label} className="rounded-2xl bg-white border border-gray-100 shadow-sm px-4 py-3 text-center">
             <p className="text-[10px] text-[#A0A0A0] font-poppins uppercase tracking-widest">{label}</p>
@@ -2136,7 +2203,7 @@ function GameBoard({ matchId, myAddress, mode, waitForAuth, onMatchEnd }: {
         )}
       </motion.div>
 
-      {/* Opponent idle — claim win */}
+      {/* Opponent idle — resolve timeout */}
       <AnimatePresence>
         {!isMyTurn && secondsLeft === 0 && matchStatus === "in_progress" && (
           <motion.div
@@ -2149,7 +2216,7 @@ function GameBoard({ matchId, myAddress, mode, waitForAuth, onMatchEnd }: {
               disabled={claiming}
               className="w-full rounded-xl bg-amber-500 py-3 text-sm font-bold text-white disabled:opacity-50 active:scale-[0.98] transition-all"
             >
-              {claiming ? "Claiming…" : "⏰ Opponent idle — Claim win"}
+              {claiming ? "Resolving…" : "⏰ Opponent idle — Resolve match"}
             </button>
           </motion.div>
         )}
@@ -2429,7 +2496,8 @@ function ResultScreen({ result, myAddress, mode, onPlayAgain, onBackToFarkle }: 
   myAddress: string; mode: FarkleMode;
   onPlayAgain: () => void; onBackToFarkle: () => void;
 }) {
-  const isWinner = result.winnerId.toLowerCase() === myAddress.toLowerCase();
+  const isVoided = Boolean(result.voided);
+  const isWinner = !isVoided && result.winnerId.toLowerCase() === myAddress.toLowerCase();
   const isRewardWinner = isWinner && isCreditFarkleMode(mode);
   const [checking, setChecking] = useState(false);
   const [checkedStatus, setCheckedStatus] = useState<"settled" | "pending" | null>(null);
@@ -2517,16 +2585,17 @@ function ResultScreen({ result, myAddress, mode, onPlayAgain, onBackToFarkle }: 
           isWinner ? "bg-gradient-to-br from-[#238D9D] to-[#0A6B7A]" : "bg-gray-200"
         }`}
       >
-        {isWinner ? "🏆" : "😤"}
+        {isVoided ? "↺" : isWinner ? "🏆" : "😤"}
       </motion.div>
 
       <div className="text-center">
-        <h2 className="text-2xl font-bold">{isWinner ? "You won!" : "You lost."}</h2>
+        <h2 className="text-2xl font-bold">{isVoided ? "Match voided" : isWinner ? "You won!" : "You lost."}</h2>
         <p className="text-sm text-[#717171] font-poppins mt-1">
-          {result.yourScore.toLocaleString()} — {result.oppScore.toLocaleString()}
+          {isVoided ? result.message ?? "Opponent not online. Entry refunded." : `${result.yourScore.toLocaleString()} — ${result.oppScore.toLocaleString()}`}
         </p>
       </div>
 
+      {!isVoided && (
       <div className="rounded-2xl bg-white border border-gray-100 shadow-sm px-6 py-4 w-full space-y-2.5">
         {isRewardWinner && (
           <div className="flex items-center justify-between">
@@ -2569,6 +2638,7 @@ function ResultScreen({ result, myAddress, mode, onPlayAgain, onBackToFarkle }: 
           </div>
         )}
       </div>
+      )}
 
       {isRewardWinner && (
         <div className="w-full rounded-2xl bg-gradient-to-br from-[#1A4A2A] to-[#2A7040] border border-white/10 px-4 py-4 shadow-sm">

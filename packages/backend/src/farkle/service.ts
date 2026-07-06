@@ -54,6 +54,7 @@ interface MatchRow {
   status?: string | null;
   chain_id: number | null;
   current_turn_address?: string | null;
+  turn_number?: number | null;
   turn_started_at?: string | null;
   last_action_at?: string | null;
   started_at?: string | null;
@@ -88,7 +89,11 @@ interface QueueRow {
   match_id: string | null;
   wallet_address?: string;
   queued_at?: string;
+  invite_code?: string | null;
+  queue_scope?: string | null;
 }
+
+type QueueScope = "public" | "invite";
 
 type DbErrorLike = {
   message?: string;
@@ -226,6 +231,10 @@ function isFarkleMatch(match: MatchRow) {
 function entryAmountForMode(mode: { entry_amount?: number | null } | null | undefined) {
   const amount = Number(mode?.entry_amount ?? 1);
   return Number.isFinite(amount) && amount > 0 ? Math.floor(amount) : 1;
+}
+
+function normalizeQueueScope(value: unknown): QueueScope {
+  return value === "invite" ? "invite" : "public";
 }
 
 function matchActivityIso(match: MatchRow) {
@@ -475,6 +484,20 @@ async function refundMatchEntries(matchId: string) {
   }
 }
 
+async function hasRecordedFarkleTurns(matchId: string) {
+  const { count } = await readDb<never>("count match turns", () =>
+    supabase
+      .from("farkle_turns")
+      .select("id", { count: "exact", head: true })
+      .eq("match_id", matchId),
+  );
+  return (count ?? 0) > 0;
+}
+
+function isOpeningTurn(match: MatchRow) {
+  return (match.turn_number ?? 1) <= 1;
+}
+
 async function cancelMatch(match: MatchRow, reason: string, nowIso: string) {
   const { error } = await withSupabaseRetry("cancel stale match", () =>
     supabase
@@ -493,7 +516,7 @@ async function cancelMatch(match: MatchRow, reason: string, nowIso: string) {
   }
 
   console.log(`[farkle/service] cancelled matchId=${match.id} reason=${reason}`);
-  if (reason === "stale_incomplete_match") {
+  if (reason === "stale_incomplete_match" || reason === "opening_turn_no_show") {
     await refundMatchEntries(match.id);
   }
 }
@@ -572,7 +595,7 @@ export async function reconcilePlayerFarkleSessions(address: string) {
       supabase
         .from("game_matches")
         .select(
-          "id,status,current_turn_address,turn_started_at,last_action_at,started_at,created_at,metadata," +
+          "id,status,current_turn_address,turn_number,turn_started_at,last_action_at,started_at,created_at,metadata," +
             "game_modes(mode_key,winner_miles_reward,loser_miles_reward,winner_reward_credit)",
         )
         .in("id", matchIds)
@@ -598,7 +621,11 @@ export async function reconcilePlayerFarkleSessions(address: string) {
     }
 
     if (isOlderThan(activityIso, FARKLE_MATCH_STALE_SECONDS, now)) {
-      await cancelMatch(match, "stale_inactive_match", nowIso);
+      if (isOpeningTurn(match) && !(await hasRecordedFarkleTurns(match.id))) {
+        await cancelMatch(match, "opening_turn_no_show", nowIso);
+      } else {
+        await cancelMatch(match, "stale_inactive_match", nowIso);
+      }
       continue;
     }
 
@@ -610,7 +637,11 @@ export async function reconcilePlayerFarkleSessions(address: string) {
       const loser = players.find((row) => row.wallet_address === match.current_turn_address);
       const winner = players.find((row) => row.wallet_address !== match.current_turn_address);
       if (winner && loser) {
-        await completeTimeout(match, winner, loser, nowIso);
+        if (isOpeningTurn(match) && !(await hasRecordedFarkleTurns(match.id))) {
+          await cancelMatch(match, "opening_turn_no_show", nowIso);
+        } else {
+          await completeTimeout(match, winner, loser, nowIso);
+        }
       } else {
         await cancelMatch(match, "invalid_timeout_players", nowIso);
       }
@@ -655,12 +686,15 @@ export interface EnterFarkleMatchInput {
   modeKey: string;
   targetAddress?: string | null;
   inviteCode?: string | null;
+  queueType?: QueueScope | null;
 }
 
 export async function enterFarkleMatch(input: EnterFarkleMatchInput) {
   const address = input.address.toLowerCase();
   const modeKey = input.modeKey;
   let targetAddress = input.targetAddress ? input.targetAddress.toLowerCase() : null;
+  const queueScope = normalizeQueueScope(input.queueType);
+  let targetInviteCode: string | null = null;
 
   // Resolve invite code to wallet address if provided and no explicit target
   if (!targetAddress && input.inviteCode) {
@@ -669,6 +703,7 @@ export async function enterFarkleMatch(input: EnterFarkleMatchInput) {
       .from("matchmaking_queue")
       .select("wallet_address, mode_key")
       .eq("invite_code", code)
+      .eq("queue_scope", "invite")
       .eq("status", "waiting")
       .gt("expires_at", new Date().toISOString())
       .neq("wallet_address", address)
@@ -676,7 +711,11 @@ export async function enterFarkleMatch(input: EnterFarkleMatchInput) {
     if (!slot) {
       return { statusCode: 404, body: { error: "invite_not_found", message: "Code not found or already used." } };
     }
+    if (slot.mode_key !== modeKey) {
+      return { statusCode: 400, body: { error: "mode_mismatch", message: "That code is for a different game mode." } };
+    }
     targetAddress = slot.wallet_address;
+    targetInviteCode = code;
   }
 
   if (!FARKLE_MODE_KEYS.has(modeKey)) {
@@ -694,7 +733,7 @@ export async function enterFarkleMatch(input: EnterFarkleMatchInput) {
   const { data: existingQueue } = await readDb<QueueRow>("read existing queue row", () =>
     supabase
       .from("matchmaking_queue")
-      .select("status, match_id")
+      .select("status, match_id, invite_code, queue_scope")
       .eq("wallet_address", address)
       .eq("mode_key", modeKey)
       .maybeSingle(),
@@ -704,7 +743,18 @@ export async function enterFarkleMatch(input: EnterFarkleMatchInput) {
   // When targetAddress is set (from inviteCode or direct challenge) we must proceed
   // to the RPC so the waiter can match against another player.
   if (existingQueue?.status === "waiting" && !targetAddress) {
-    return { statusCode: 200, body: { status: "waiting" } };
+    const existingScope = normalizeQueueScope(existingQueue.queue_scope);
+    if (existingScope === queueScope) {
+      return {
+        statusCode: 200,
+        body: {
+          status: "waiting",
+          ...(existingScope === "invite" && existingQueue.invite_code
+            ? { inviteCode: existingQueue.invite_code }
+            : {}),
+        },
+      };
+    }
   }
 
   if (existingQueue?.status === "matched" && existingQueue.match_id) {
@@ -739,7 +789,7 @@ export async function enterFarkleMatch(input: EnterFarkleMatchInput) {
   const matchKey = `farkle-${Date.now()}`;
   const seed = generateServerSeed();
   const seedHash = hashServerSeed(seed);
-  const inviteCode = generateInviteCode();
+  const inviteCode = queueScope === "invite" ? generateInviteCode() : null;
 
   const { data: result, error: rpcError } = await withSupabaseRetry("farkle_enter_match rpc", () =>
     supabase.rpc("farkle_enter_match", {
@@ -751,13 +801,15 @@ export async function enterFarkleMatch(input: EnterFarkleMatchInput) {
       p_seed: seed,
       p_seed_hash: seedHash,
       p_invite_code: inviteCode,
+      p_queue_scope: queueScope,
+      p_target_invite_code: targetInviteCode,
     }),
     { timeoutMs: Math.max(FARKLE_SUPABASE_TIMEOUT_MS, 8_000) },
   );
 
   if (rpcError) throw new Error(`matchmaking rpc failed: ${dbErrorText(rpcError)}`);
 
-  const res = result as { status?: string; match_id?: string; error?: string; required?: number } | null;
+  const res = result as { status?: string; match_id?: string; error?: string; required?: number; invite_code?: string } | null;
   const requiredEntry = Number.isFinite(Number(res?.required)) ? Math.max(1, Math.floor(Number(res?.required))) : 1;
   if (res?.error === "insufficient_tickets") {
     return {
@@ -796,8 +848,14 @@ export async function enterFarkleMatch(input: EnterFarkleMatchInput) {
     return { statusCode: 200, body: { status: "matched", matchId: res.match_id } };
   }
 
-  console.log(`[farkle/service] queue_join wallet=${address} modeKey=${modeKey}`);
-  return { statusCode: 200, body: { status: "waiting" } };
+  console.log(`[farkle/service] queue_join wallet=${address} modeKey=${modeKey} queueScope=${queueScope}`);
+  return {
+    statusCode: 200,
+    body: {
+      status: "waiting",
+      ...(queueScope === "invite" ? { inviteCode: res?.invite_code ?? inviteCode } : {}),
+    },
+  };
 }
 
 export async function getFarkleQueue(modeKey: string, address?: string | null) {
@@ -824,7 +882,7 @@ export async function getFarkleQueue(modeKey: string, address?: string | null) {
     const { data: myEntry } = await readDb<QueueRow & { invite_code?: string | null }>("read queue entry", () =>
       supabase
         .from("matchmaking_queue")
-        .select("status, match_id, invite_code")
+        .select("status, match_id, invite_code, queue_scope")
         .eq("wallet_address", wallet)
         .eq("mode_key", modeKey)
         .maybeSingle(),
@@ -851,7 +909,7 @@ export async function getFarkleQueue(modeKey: string, address?: string | null) {
         );
       }
     } else if (myEntry?.status === "waiting") {
-      myInviteCode = myEntry.invite_code ?? null;
+      myInviteCode = normalizeQueueScope(myEntry.queue_scope) === "invite" ? myEntry.invite_code ?? null : null;
       await bestEffortDb("refresh queue ttl", () =>
         supabase
           .from("matchmaking_queue")
@@ -869,6 +927,7 @@ export async function getFarkleQueue(modeKey: string, address?: string | null) {
       .select("wallet_address, queued_at")
       .eq("mode_key", modeKey)
       .eq("status", "waiting")
+      .eq("queue_scope", "public")
       .order("queued_at", { ascending: true }),
   );
 
