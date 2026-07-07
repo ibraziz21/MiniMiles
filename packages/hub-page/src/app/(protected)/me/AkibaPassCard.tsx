@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import QRCode from "qrcode";
-import { Copy, CheckCheck, Download, Share2, RefreshCw } from "lucide-react";
+import { Copy, CheckCheck, Download, Share2, RefreshCw, ShieldCheck, WifiOff } from "lucide-react";
 
 type Props = {
   initialPassId: string;
@@ -88,6 +88,12 @@ export function AkibaPassCard({ initialPassId, email, displayLabel }: Props) {
   const [actionError, setActionError]   = useState<string | null>(null);
   const [canShare, setCanShare] = useState(false);
 
+  // Live rotating token (akiba-id) — expires ~5 min; static pass is the
+  // offline fallback. A photographed live code is useless minutes later.
+  const [liveToken, setLiveToken]         = useState<string | null>(null);
+  const [liveExpiresAt, setLiveExpiresAt] = useState<number | null>(null);
+  const [secondsLeft, setSecondsLeft]     = useState<number | null>(null);
+
   useEffect(() => {
     setCanShare(
       typeof navigator.share === "function" &&
@@ -95,9 +101,9 @@ export function AkibaPassCard({ initialPassId, email, displayLabel }: Props) {
     );
   }, []);
 
-  const renderQr = useCallback((id: string) => {
+  const drawQr = useCallback((payload: string) => {
     if (!canvasRef.current) return;
-    return QRCode.toCanvas(canvasRef.current, qrPayload(id), {
+    return QRCode.toCanvas(canvasRef.current, payload, {
       width: 220,
       margin: 2,
       color: { dark: "#0D3349", light: "#FFFFFF" },
@@ -105,7 +111,51 @@ export function AkibaPassCard({ initialPassId, email, displayLabel }: Props) {
     });
   }, []);
 
-  useEffect(() => { renderQr(passId); }, [passId, renderQr]);
+  // Kept for save/share — the exported PNG always embeds the durable static pass
+  const renderQr = useCallback((id: string) => drawQr(qrPayload(id)), [drawQr]);
+
+  // ── Live token lifecycle ──────────────────────────────────────────────────
+  const fetchLiveToken = useCallback(async () => {
+    try {
+      const res = await fetch("/api/me/pass/token", { method: "POST" });
+      if (!res.ok) throw new Error(String(res.status));
+      const { token, expiresAt } = await res.json() as { token: string; expiresAt?: string };
+      setLiveToken(token);
+      setLiveExpiresAt(expiresAt ? new Date(expiresAt).getTime() : Date.now() + 300_000);
+    } catch {
+      // Offline or Platform down — static pass keeps working
+      setLiveToken(null);
+      setLiveExpiresAt(null);
+    }
+  }, []);
+
+  // Initial fetch + refresh when the tab regains focus (till moment)
+  useEffect(() => {
+    void fetchLiveToken();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void fetchLiveToken();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [fetchLiveToken]);
+
+  // Countdown + auto-refresh 30s before expiry
+  useEffect(() => {
+    if (!liveExpiresAt) { setSecondsLeft(null); return; }
+    const tick = () => {
+      const left = Math.max(0, Math.floor((liveExpiresAt - Date.now()) / 1000));
+      setSecondsLeft(left);
+      if (left <= 30) void fetchLiveToken();
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [liveExpiresAt, fetchLiveToken]);
+
+  // Render whichever code is current (live preferred, static fallback)
+  useEffect(() => {
+    void drawQr(liveToken ?? qrPayload(passId));
+  }, [liveToken, passId, drawQr]);
 
   // ── Regenerate: issue a new stable UUID, invalidating old QRs ────────────
   const regenerate = useCallback(async () => {
@@ -157,9 +207,11 @@ export function AkibaPassCard({ initialPassId, email, displayLabel }: Props) {
         setActionError("Could not save — try screenshotting the card instead.");
       }
     } finally {
+      // Restore the on-screen code (live token if we have one)
+      await drawQr(liveToken ?? qrPayload(passId));
       setSaving(false);
     }
-  }, [canShare, passId, displayLabel, email, renderQr]);
+  }, [canShare, passId, displayLabel, email, renderQr, drawQr, liveToken]);
 
   const copyEmail = useCallback(async () => {
     try {
@@ -187,7 +239,24 @@ export function AkibaPassCard({ initialPassId, email, displayLabel }: Props) {
           <canvas ref={canvasRef} />
         </div>
 
-        <p className="mt-4 max-w-[240px] text-center text-sm text-akiba-muted">
+        {/* Live vs offline status */}
+        {liveToken ? (
+          <p className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Live code · refreshes automatically
+            {secondsLeft !== null && secondsLeft > 0 && (
+              <span className="font-mono text-[10px] text-akiba-muted/60">
+                {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}
+              </span>
+            )}
+          </p>
+        ) : (
+          <p className="mt-3 flex items-center gap-1.5 text-xs font-medium text-amber-600">
+            <WifiOff className="h-3.5 w-3.5" /> Offline code — works, refreshes when you're back online
+          </p>
+        )}
+
+        <p className="mt-2 max-w-[240px] text-center text-sm text-akiba-muted">
           Show this at participating merchants to earn AkibaMiles.
         </p>
 

@@ -20,7 +20,9 @@ export type ActivityKind =
   | "partner_quest"
   | "bonus"
   | "voucher_grant"
-  | "voucher_redeem";
+  | "voucher_redeem"
+  | "merchant_award"
+  | "miles_spent";
 
 export type ActivityItem = {
   id: string;
@@ -32,6 +34,50 @@ export type ActivityItem = {
   /** miles earned, when the event awarded points */
   miles: number | null;
 };
+
+/**
+ * Off-chain Miles balance from the Platform ledger (unclaimed loyalty Miles).
+ * Sums credits − debits over the user's canonicals (email + wallet), excluding
+ * rows already bridged on-chain. Same Supabase project — direct query.
+ */
+export async function getLedgerBalance(opts: {
+  email: string | null;
+  walletAddress: string | null;
+}): Promise<number> {
+  const { email, walletAddress } = opts;
+  const wallet = walletAddress?.toLowerCase() ?? null;
+  const admin = createAdminClient();
+
+  const identityFilters: string[] = [];
+  if (email) identityFilters.push(`and(identity_type.eq.email,identity_value.eq.${email})`);
+  if (wallet) identityFilters.push(`and(identity_type.eq.wallet,identity_value.eq.${wallet})`);
+  if (identityFilters.length === 0) return 0;
+
+  try {
+    const { data: links } = await admin
+      .from("identity_links")
+      .select("canonical_id")
+      .or(identityFilters.join(","));
+
+    const canonicalIds = [...new Set((links ?? []).map((l: any) => l.canonical_id))];
+    if (canonicalIds.length === 0) return 0;
+
+    const { data: rows } = await admin
+      .from("miles_ledger")
+      .select("amount, direction")
+      .in("canonical_id", canonicalIds)
+      .eq("on_chain", false);
+
+    return (rows ?? []).reduce(
+      (sum: number, r: any) =>
+        sum + (r.direction === "credit" ? Number(r.amount) : -Number(r.amount)),
+      0,
+    );
+  } catch (err) {
+    console.error("[activity] ledger balance failed:", err);
+    return 0;
+  }
+}
 
 const GRANT_SOURCES: Record<string, string> = {
   merchant_grant: "Merchant gift",
@@ -53,9 +99,11 @@ function ts(dateStr: string): number {
 export async function getRecentActivity(opts: {
   userId: string;
   walletAddress: string | null;
+  /** Enables merchant scan-award events from the Platform miles ledger */
+  email?: string | null;
   limit?: number;
 }): Promise<ActivityItem[]> {
-  const { userId, walletAddress, limit = 20 } = opts;
+  const { userId, walletAddress, email = null, limit = 20 } = opts;
   const admin = createAdminClient();
   const wallet = walletAddress?.toLowerCase() ?? null;
 
@@ -178,6 +226,54 @@ export async function getRecentActivity(opts: {
         });
       }
     }
+  }
+
+  // ── 5. Platform miles ledger — merchant scan-awards & loyalty spends ───────
+  // (Same Supabase project. Canonical IDs resolved via identity_links for the
+  //  user's email and wallet — covers awards issued before identities linked.)
+  try {
+    const identityFilters: string[] = [];
+    if (email) identityFilters.push(`and(identity_type.eq.email,identity_value.eq.${email})`);
+    if (wallet) identityFilters.push(`and(identity_type.eq.wallet,identity_value.eq.${wallet})`);
+
+    if (identityFilters.length > 0) {
+      const { data: links } = await admin
+        .from("identity_links")
+        .select("canonical_id")
+        .or(identityFilters.join(","));
+
+      const canonicalIds = [...new Set((links ?? []).map((l: any) => l.canonical_id))];
+
+      if (canonicalIds.length > 0) {
+        const { data: ledger } = await admin
+          .from("miles_ledger")
+          .select("id, amount, direction, source_type, partner_id, note, created_at, partners ( name )")
+          .in("canonical_id", canonicalIds)
+          .order("created_at", { ascending: false })
+          .limit(limit);
+
+        for (const row of (ledger ?? []) as any[]) {
+          const partnerName: string | null = row.partners?.name ?? null;
+          const isCredit = row.direction === "credit";
+          items.push({
+            id: `ledger-${row.id}`,
+            ts: ts(row.created_at),
+            kind: isCredit ? "merchant_award" : "miles_spent",
+            title: isCredit
+              ? partnerName
+                ? `Earned at ${partnerName}`
+                : "Miles awarded"
+              : partnerName
+                ? `Spent at ${partnerName}`
+                : "Miles spent",
+            detail: isCredit ? "In-store award" : "Redemption",
+            miles: isCredit ? Number(row.amount) : -Number(row.amount),
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[activity] miles_ledger source failed:", err);
   }
 
   return items

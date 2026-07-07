@@ -4,6 +4,8 @@ import {
   Gift,
   QrCode,
   Award,
+  Store,
+  ShoppingBag,
   ArrowUpRight,
 } from "lucide-react";
 import { MilesIcon } from "@/components/MilesIcon";
@@ -15,6 +17,8 @@ const KIND_ICON: Record<ActivityKind, React.ReactNode> = {
   bonus: <Award className="h-4 w-4 text-amber-500" />,
   voucher_grant: <Gift className="h-4 w-4 text-purple-500" />,
   voucher_redeem: <QrCode className="h-4 w-4 text-emerald-600" />,
+  merchant_award: <Store className="h-4 w-4 text-akiba-teal" />,
+  miles_spent: <ShoppingBag className="h-4 w-4 text-akiba-muted" />,
 };
 
 function relativeTime(ts: number): string {
@@ -66,9 +70,14 @@ export function ActivityFeed({
               {relativeTime(item.ts)}
             </p>
           </div>
-          {item.miles !== null && item.miles > 0 && (
-            <span className="flex shrink-0 items-center gap-1 rounded-full bg-akiba-tint px-2.5 py-1 text-xs font-semibold text-akiba-teal">
-              +{item.miles.toLocaleString("en-KE")}
+          {item.miles !== null && item.miles !== 0 && (
+            <span
+              className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                item.miles > 0 ? "bg-akiba-tint text-akiba-teal" : "bg-akiba-card text-akiba-muted"
+              }`}
+            >
+              {item.miles > 0 ? "+" : "−"}
+              {Math.abs(item.miles).toLocaleString("en-KE")}
               <MilesIcon className="h-3 w-3" />
             </span>
           )}

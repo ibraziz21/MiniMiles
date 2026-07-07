@@ -7,7 +7,7 @@ import { WalletPickerModal } from "./WalletPickerModal";
 import { AkibaPassCard } from "./AkibaPassCard";
 import { ProfileQuickActions } from "./ProfileQuickActions";
 import { ActivityFeed } from "./ActivityFeed";
-import { getRecentActivity } from "@/lib/akiba/activity";
+import { getRecentActivity, getLedgerBalance } from "@/lib/akiba/activity";
 import { ArrowUpRight, MapPin, Tag } from "lucide-react";
 import { MilesIcon } from "@/components/MilesIcon";
 
@@ -113,8 +113,15 @@ export default async function MePage() {
   const walletAddress = activeRow?.user_address ?? null;
   console.log(`[me] wallet address to use: ${walletAddress ?? "none"}`);
 
-  const balance = walletAddress ? await readBalance(walletAddress) : null;
-  console.log(`[me] final balance: ${balance ?? "n/a"} miles`);
+  // One number: on-chain (claimed) + Platform ledger (unclaimed in-store Miles).
+  // Email-only users have no wallet but can still hold ledger Miles from scans.
+  const [chainBalance, ledgerBalance] = await Promise.all([
+    walletAddress ? readBalance(walletAddress) : Promise.resolve(0),
+    getLedgerBalance({ email: user.email ?? null, walletAddress }),
+  ]);
+  const balance = chainBalance + ledgerBalance;
+  const hasBalance = walletAddress !== null || ledgerBalance > 0;
+  console.log(`[me] balance: chain=${chainBalance} ledger=${ledgerBalance} total=${balance}`);
 
   const displayName = activeRow?.full_name ?? activeRow?.username ?? user.email ?? "You";
   const initials = displayName.slice(0, 2).toUpperCase();
@@ -144,6 +151,7 @@ export default async function MePage() {
   const activity = await getRecentActivity({
     userId: user.id,
     walletAddress,
+    email: user.email ?? null,
     limit: 6,
   });
 
@@ -188,14 +196,23 @@ export default async function MePage() {
             <p className="flex items-center gap-1.5 text-sm font-medium text-white/60">
               <MilesIcon className="h-4 w-4 opacity-60" /> Balance
             </p>
-            {walletAddress ? (
+            {hasBalance ? (
               <div className="flex items-end justify-between gap-3">
-                <p className="mt-1.5 font-sterling text-4xl font-semibold tracking-tight sm:mt-2 sm:text-5xl">
-                  {balance?.toLocaleString("en-KE") ?? "—"}
-                </p>
-                <p className="mb-1 font-mono text-[10px] text-white/30 sm:text-xs">
-                  {walletAddress.slice(0, 6)}…{walletAddress.slice(-4)}
-                </p>
+                <div>
+                  <p className="mt-1.5 font-sterling text-4xl font-semibold tracking-tight sm:mt-2 sm:text-5xl">
+                    {balance.toLocaleString("en-KE")}
+                  </p>
+                  {ledgerBalance > 0 && walletAddress && (
+                    <p className="mt-1 text-xs text-white/40">
+                      includes {ledgerBalance.toLocaleString("en-KE")} earned in-store
+                    </p>
+                  )}
+                </div>
+                {walletAddress && (
+                  <p className="mb-1 font-mono text-[10px] text-white/30 sm:text-xs">
+                    {walletAddress.slice(0, 6)}…{walletAddress.slice(-4)}
+                  </p>
+                )}
               </div>
             ) : needsPicker ? (
               <p className="mt-2 text-lg font-medium text-white/40">

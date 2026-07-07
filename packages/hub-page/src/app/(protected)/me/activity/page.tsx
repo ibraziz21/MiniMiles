@@ -23,6 +23,7 @@ export default async function ActivityPage() {
   const activity = await getRecentActivity({
     userId: user.id,
     walletAddress: savedWallet?.address ?? null,
+    email: user.email ?? null,
     limit: 50,
   });
 

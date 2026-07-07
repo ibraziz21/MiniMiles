@@ -4,6 +4,7 @@ import "./globals.css";
 import { SiteHeader } from "@/components/SiteHeader";
 import { BottomNav } from "@/components/NavLinks";
 import { CartProvider } from "@/lib/cart";
+import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 
 const sterling = localFont({
   src: [
@@ -18,10 +19,19 @@ const sterling = localFont({
 
 const siteUrl = "https://hub.akibamiles.com";
 
+export const viewport = {
+  themeColor: "#238D9D",
+};
+
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: "Akiba Hub | Shop, Earn, Rewards & Quests",
   description: "Shop from merchants, earn AkibaMiles, claim rewards, and complete quests.",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Akiba",
+  },
   openGraph: {
     title: "Akiba Hub | Shop, Earn, Rewards & Quests",
     description: "Shop from merchants, earn AkibaMiles, claim rewards, and complete quests.",
@@ -34,6 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={sterling.variable}>
       <body className="bg-akiba-paper text-akiba-ink antialiased">
         <CartProvider>
+          <ServiceWorkerRegister />
           <SiteHeader />
           <div className="pb-16 sm:pb-0">{children}</div>
           <BottomNav />

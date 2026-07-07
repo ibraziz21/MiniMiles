@@ -28,15 +28,58 @@
  */
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { timingSafeEqual } from "crypto";
 
-const AKIBA_API_KEY = process.env.AKIBA_API_KEY ?? "";
+// Key rotation: AKIBA_API_KEYS (comma-separated) takes precedence, so a new
+// key can be issued and the old one revoked without a coordinated deploy.
+// AKIBA_API_KEY remains supported as the single-key form.
+function validKeys(): string[] {
+  const multi = (process.env.AKIBA_API_KEYS ?? "")
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean);
+  const single = (process.env.AKIBA_API_KEY ?? "").trim();
+  return multi.length > 0 ? multi : single ? [single] : [];
+}
+
+function keyMatches(candidate: string): boolean {
+  const cand = Buffer.from(candidate);
+  let ok = false;
+  for (const key of validKeys()) {
+    const buf = Buffer.from(key);
+    if (buf.length === cand.length && timingSafeEqual(buf, cand)) ok = true;
+  }
+  return ok;
+}
+
+// ── Per-IP rate limit (in-memory sliding window) ─────────────────────────────
+// Serverless caveat: per-instance, so treat as a brake, not a guarantee.
+const RL_WINDOW_MS = 60_000;
+const RL_MAX = 60;
+const rlBuckets = new Map<string, number[]>();
+
+function rateLimited(ip: string): boolean {
+  const now = Date.now();
+  const hits = (rlBuckets.get(ip) ?? []).filter((t) => now - t < RL_WINDOW_MS);
+  hits.push(now);
+  rlBuckets.set(ip, hits);
+  if (rlBuckets.size > 10_000) rlBuckets.clear(); // memory guard
+  return hits.length > RL_MAX;
+}
 
 export async function GET(request: Request) {
+  // ── Rate limit ─────────────────────────────────────────────────────────────
+  const ip =
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (rateLimited(ip)) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+  }
+
   // ── Authenticate caller ────────────────────────────────────────────────────
   const auth = request.headers.get("Authorization") ?? "";
   const callerKey = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
 
-  if (!AKIBA_API_KEY || callerKey !== AKIBA_API_KEY) {
+  if (!callerKey || !keyMatches(callerKey)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
