@@ -21,7 +21,7 @@
 //           whether feedback is exact (USDT) or probabilistically noisy (Miles).
 
 import { NextResponse } from "next/server";
-import { crackPotComingSoonResponse } from "@/lib/server/crackpotComingSoon";
+import { crackPotComingSoonResponse, isCrackPotLive } from "@/lib/server/crackpotComingSoon";
 import { requireSession } from "@/lib/auth";
 import {
   getAttemptForPlayer,
@@ -32,10 +32,8 @@ import {
   settleWinningCycle,
 } from "@/lib/server/crackpotAttemptHelpers";
 
-const CRACKPOT_LIVE = process.env.CRACKPOT_LIVE === "true";
-
 export async function POST(req: Request) {
-  if (!CRACKPOT_LIVE) return crackPotComingSoonResponse();
+  if (!isCrackPotLive()) return crackPotComingSoonResponse();
 
   // ── Auth ─────────────────────────────────────────────────────────────────
   const appSession = await requireSession();

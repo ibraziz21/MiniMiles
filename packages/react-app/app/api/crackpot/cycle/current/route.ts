@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { crackPotComingSoonResponse } from "@/lib/server/crackpotComingSoon";
+import { crackPotComingSoonResponse, isCrackPotLive } from "@/lib/server/crackpotComingSoon";
 import { getOrSyncActiveCycle } from "@/lib/server/crackpotCycleSync";
 import {
   THEMES,
@@ -9,12 +9,10 @@ import {
 } from "@/lib/crackpotTypes";
 import { secondsUntil } from "@/lib/server/crackpotEngine";
 
-// Feature flag — set CRACKPOT_LIVE=true in .env to re-enable the live game.
-// All other crackpot routes remain locked independently.
-const CRACKPOT_LIVE = process.env.CRACKPOT_LIVE === "true";
+// Emergency kill switch: set CRACKPOT_PAUSED=true to pause the game.
 
 export async function GET(req: Request) {
-  if (!CRACKPOT_LIVE) return crackPotComingSoonResponse();
+  if (!isCrackPotLive()) return crackPotComingSoonResponse();
 
   try {
     const url      = new URL(req.url);

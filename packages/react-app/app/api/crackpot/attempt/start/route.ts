@@ -19,7 +19,7 @@
 
 import { NextResponse } from "next/server";
 import { celo } from "viem/chains";
-import { crackPotComingSoonResponse } from "@/lib/server/crackpotComingSoon";
+import { crackPotComingSoonResponse, isCrackPotLive } from "@/lib/server/crackpotComingSoon";
 import { requireSession } from "@/lib/auth";
 import { getOrSyncActiveCycle } from "@/lib/server/crackpotCycleSync";
 import { verifyUsdtEntry }      from "@/lib/server/crackpotEntryVerifier";
@@ -35,12 +35,11 @@ import {
 import { FREE_ATTEMPTS_PER_CYCLE } from "@/lib/crackpotTypes";
 import type { CrackPotVersion } from "@/lib/crackpotTypes";
 
-const CRACKPOT_LIVE  = process.env.CRACKPOT_LIVE === "true";
 const CELO_CHAIN_ID  = celo.id;                       // 42220
 const HASH_RE        = /^0x[0-9a-fA-F]{64}$/;
 
 export async function POST(req: Request) {
-  if (!CRACKPOT_LIVE) return crackPotComingSoonResponse();
+  if (!isCrackPotLive()) return crackPotComingSoonResponse();
 
   // ── Auth ─────────────────────────────────────────────────────────────────
   const appSession = await requireSession();

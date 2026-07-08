@@ -4,18 +4,16 @@
 // Returns recent entries, live player count, best locked, and last winner.
 
 import { NextResponse } from "next/server";
-import { crackPotComingSoonResponse } from "@/lib/server/crackpotComingSoon";
+import { crackPotComingSoonResponse, isCrackPotLive } from "@/lib/server/crackpotComingSoon";
 import { supabase } from "@/lib/supabaseClient";
 import type { CrackPotVersion } from "@/lib/crackpotTypes";
-
-const CRACKPOT_LIVE = process.env.CRACKPOT_LIVE === "true";
 
 function shortenAddress(addr: string): string {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
 export async function GET(req: Request) {
-  if (!CRACKPOT_LIVE) return crackPotComingSoonResponse();
+  if (!isCrackPotLive()) return crackPotComingSoonResponse();
 
   const url = new URL(req.url);
   const rawVersion = url.searchParams.get("version") ?? "miles";

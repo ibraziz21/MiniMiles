@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { ArrowLeft, LockKey } from "@phosphor-icons/react/dist/ssr";
 import { CrackPotGamePage } from "@/components/crackpot/CrackPotGamePage";
-
-const CRACKPOT_LIVE = process.env.CRACKPOT_LIVE === "true";
+import { isCrackPotLive } from "@/lib/server/crackpotComingSoon";
 
 export default function CrackPotPage() {
-  if (CRACKPOT_LIVE) {
+  if (isCrackPotLive()) {
     return <CrackPotGamePage />;
   }
 
