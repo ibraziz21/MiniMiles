@@ -33,6 +33,25 @@ interface IAkibaMiles {
  *
  * The contract never knows the secret code. It only holds funds and enforces
  * economic rules. All Mastermind logic lives off-chain.
+ *
+ * USDT accounting invariant (enforced at every mutation):
+ *   usdtToken.balanceOf(address(this)) >= usdtReservedPot + usdtHouseWithdrawable
+ *
+ * Fairness commitment:
+ *   Every cycle carries a `secretCommitment` (bytes32 keccak256 precommitment) set
+ *   by the relayer when the cycle is opened.  After the cycle ends the server
+ *   publishes the preimage so players can verify the secret was fixed before any
+ *   entry was accepted.
+ *   Algorithm:
+ *     keccak256(abi.encodePacked(
+ *       "CRACKPOT_SECRET_V1",
+ *       block.chainid,      // uint256
+ *       address(this),      // address
+ *       uint8(version),     // uint8
+ *       expiresAt,          // uint64
+ *       salt,               // bytes32
+ *       codeBytes           // bytes4  (one byte per symbol, 0–5)
+ *     ))
  */
 contract CrackPot is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
@@ -57,9 +76,13 @@ contract CrackPot is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgrade
 
         address winner;          // zero until cracked
         uint256 winnerGuesses;   // informational only
+
+        // Appended for upgrade safety — reads as 0x0 on pre-upgrade cycles.
+        bytes32 secretCommitment;
     }
 
     // ── Storage ──────────────────────────────────────────────────────
+    // IMPORTANT: Never reorder or remove these variables — UUPS storage layout.
 
     IAkibaMiles  public milesToken;
     IERC20       public usdtToken;
@@ -95,15 +118,36 @@ contract CrackPot is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgrade
     /// House rake on USDT entries, in basis points (5000 = 50%).
     uint256 public usdtHouseRakeBps;
 
+    // ── USDT Accounting (appended for upgrade safety) ─────────────────
+    // Invariant: usdtToken.balanceOf(this) >= usdtReservedPot + usdtHouseWithdrawable
+
+    /// @notice Sum of all active USDT pot balances — the minimum the contract
+    ///         must hold to honour pending winners.
+    uint256 public usdtReservedPot;
+
+    /// @notice USDT safely withdrawable by the house (rake + cap overflow).
+    uint256 public usdtHouseWithdrawable;
+
     // ── Events ───────────────────────────────────────────────────────
 
-    event CycleOpened(uint256 indexed cycleId, Version version, uint256 potSeed, uint64 expiresAt);
+    /// @notice Emitted when a new cycle is opened with a commitment.
+    ///         Historical `CycleOpened` events from before the upgrade will not
+    ///         carry the commitment field (reads as zero).
+    event CycleOpened(
+        uint256 indexed cycleId,
+        Version version,
+        uint256 potSeed,
+        uint64 expiresAt,
+        bytes32 secretCommitment
+    );
     event EntryRecorded(uint256 indexed cycleId, address indexed player, uint256 entryAmount, uint256 newPotBalance);
     event CycleCracked(uint256 indexed cycleId, address indexed winner, uint256 payout, uint256 guesses);
     event CycleExpired(uint256 indexed cycleId, Version version, uint256 potBalance);
     event HouseWithdrawn(uint256 amount, address indexed to);
     event RelayerUpdated(address indexed relayer);
     event TreasuryUpdated(address indexed treasury);
+    /// @notice Emitted when a USDT entry's pot contribution is clipped by the pot cap.
+    event USDTPotCapOverflow(uint256 indexed cycleId, uint256 overflow);
 
     // ── Errors ───────────────────────────────────────────────────────
 
@@ -115,6 +159,14 @@ contract CrackPot is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgrade
     error ZeroAddress();
     error InsufficientMilesBalance();
     error InvalidVersion();
+    /// @notice withdrawHouse requested more than the safely withdrawable amount.
+    error WithdrawExceedsHouseBalance(uint256 requested, uint256 available);
+    /// @notice rescueERC20 may not be used to remove USDT from the contract.
+    error USDTRescueBlocked();
+    /// @notice recordEntry is disabled for the USDT version; use enterGame().
+    error USDTRecordEntryBlocked();
+    /// @notice The two-argument openCycle is deprecated; pass a secretCommitment.
+    error CommitmentRequired();
 
     // ── Modifiers ────────────────────────────────────────────────────
 
@@ -161,24 +213,52 @@ contract CrackPot is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgrade
     // ── Relayer: cycle lifecycle ──────────────────────────────────────
 
     /**
-     * @notice Open a new cycle for the given version.
-     *         MILES: contract mints the seed directly to itself (pot accounting).
-     *         USDT:  relayer must have transferred usdtPotSeed to this contract first,
-     *                OR the contract already holds enough from a previous expired pot.
-     * @param version  0 = MILES, 1 = USDT
-     * @param expiresAt  Unix timestamp when this cycle expires (set by server).
+     * @notice Deprecated. Reverts with CommitmentRequired().
+     *         Use openCycle(version, expiresAt, secretCommitment) instead.
+     *         Preserved so ABIs that only see the old signature get a clear error
+     *         rather than a silent no-op or wrong selector match.
      */
-    function openCycle(Version version, uint64 expiresAt) external onlyRelayer nonReentrant {
+    function openCycle(Version /* version */, uint64 /* expiresAt */) external pure {
+        revert CommitmentRequired();
+    }
+
+    /**
+     * @notice Open a new cycle with a fairness commitment.
+     *
+     *         The `secretCommitment` must be nonzero and is computed server-side as:
+     *           keccak256(abi.encodePacked(
+     *             "CRACKPOT_SECRET_V1", chainid, address(this), uint8(version),
+     *             expiresAt, salt (bytes32), codeBytes (bytes4)
+     *           ))
+     *         After the cycle ends the server publishes the preimage so players
+     *         can independently verify the secret was fixed before entries started.
+     *
+     *         MILES: contract mints the seed directly to itself (pot accounting).
+     *         USDT:  the contract must already hold enough free USDT
+     *                (balance minus already-reserved and house-withdrawable amounts)
+     *                to cover usdtPotSeed. usdtReservedPot is incremented by usdtPotSeed.
+     *
+     * @param version           0 = MILES, 1 = USDT
+     * @param expiresAt         Unix timestamp when this cycle expires.
+     * @param secretCommitment  keccak256 precommitment of the secret code (must be nonzero).
+     */
+    function openCycle(
+        Version version,
+        uint64  expiresAt,
+        bytes32 secretCommitment
+    ) external onlyRelayer nonReentrant {
+        require(secretCommitment != bytes32(0), "CrackPot: zero commitment");
         if (activeCycleId[version] != 0) revert CycleAlreadyActive(version);
         require(expiresAt > block.timestamp, "CrackPot: expiry in the past");
 
         uint256 cycleId = nextCycleId++;
         Cycle storage c = _cycles[cycleId];
-        c.id        = cycleId;
-        c.version   = version;
-        c.status    = CycleStatus.ACTIVE;
-        c.openedAt  = uint64(block.timestamp);
-        c.expiresAt = expiresAt;
+        c.id               = cycleId;
+        c.version          = version;
+        c.status           = CycleStatus.ACTIVE;
+        c.openedAt         = uint64(block.timestamp);
+        c.expiresAt        = expiresAt;
+        c.secretCommitment = secretCommitment;
 
         if (version == Version.MILES) {
             c.potBalance = milesPotSeed;
@@ -189,15 +269,14 @@ contract CrackPot is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgrade
             c.potBalance = usdtPotSeed;
             c.potCap     = usdtPotCap;
             c.seedAmount = usdtPotSeed;
-            // Seed USDT must already be in the contract.
-            require(
-                usdtToken.balanceOf(address(this)) >= usdtPotSeed,
-                "CrackPot: insufficient USDT seed"
-            );
+            // Require enough free USDT (excluding already reserved and house-claimable amounts).
+            uint256 freeBal = usdtToken.balanceOf(address(this)) - usdtReservedPot - usdtHouseWithdrawable;
+            require(freeBal >= usdtPotSeed, "CrackPot: insufficient free USDT for seed");
+            usdtReservedPot += usdtPotSeed;
         }
 
         activeCycleId[version] = cycleId;
-        emit CycleOpened(cycleId, version, c.potBalance, expiresAt);
+        emit CycleOpened(cycleId, version, c.potBalance, expiresAt, secretCommitment);
     }
 
     /**
@@ -207,7 +286,10 @@ contract CrackPot is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgrade
      *                  credits the pot. No server involvement needed for payment.
      *
      *   USDT version:  pulls usdtEntryFee via transferFrom (player must approve
-     *                  this contract first), splits 50/50 pot/house.
+     *                  this contract first). Rake goes to usdtHouseWithdrawable.
+     *                  Only the non-overflow pot contribution is added to the pot
+     *                  and usdtReservedPot. Any overflow above potCap is routed to
+     *                  usdtHouseWithdrawable and emits USDTPotCapOverflow.
      *
      * The server listens for EntryRecorded, then opens a 2-minute attempt session.
      */
@@ -222,55 +304,60 @@ contract CrackPot is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgrade
 
         if (version == Version.MILES) {
             entryAmount = milesEntryFee;
-            // Burn Miles directly from player — no relayer needed
             milesToken.burn(msg.sender, entryAmount);
             uint256 newBal = c.potBalance + entryAmount;
             c.potBalance = newBal > c.potCap ? c.potCap : newBal;
         } else {
             entryAmount = usdtEntryFee;
-            // Pull USDT from player into this contract
             usdtToken.safeTransferFrom(msg.sender, address(this), entryAmount);
-            uint256 rake = (entryAmount * usdtHouseRakeBps) / 10_000;
-            uint256 toPot = entryAmount - rake;
-            c.houseAccrued += rake;
-            uint256 newBal = c.potBalance + toPot;
-            c.potBalance = newBal > c.potCap ? c.potCap : newBal;
+
+            uint256 rake   = (entryAmount * usdtHouseRakeBps) / 10_000;
+            uint256 toPot  = entryAmount - rake;
+            c.houseAccrued         += rake;
+            usdtHouseWithdrawable  += rake;
+
+            // Cap the pot contribution; route overflow to house.
+            uint256 space      = c.potCap - c.potBalance;
+            uint256 potContrib = toPot > space ? space : toPot;
+            uint256 overflow   = toPot - potContrib;
+
+            c.potBalance    += potContrib;
+            usdtReservedPot += potContrib;
+
+            if (overflow > 0) {
+                usdtHouseWithdrawable += overflow;
+                emit USDTPotCapOverflow(cycleId, overflow);
+            }
         }
 
         emit EntryRecorded(cycleId, msg.sender, entryAmount, c.potBalance);
     }
 
     /**
-     * @notice Relayer-only accounting sync — called after an off-chain payment
-     *         if needed for bookkeeping. Prefer enterGame() for normal flow.
+     * @notice Relayer-only accounting sync for Miles entries recorded off-chain.
+     *         USDT version is permanently disabled here — all USDT entries must
+     *         come through enterGame() so funds are actually collected on-chain.
      */
     function recordEntry(Version version, address player) external onlyRelayer {
+        if (version == Version.USDT) revert USDTRecordEntryBlocked();
+
         uint256 cycleId = activeCycleId[version];
         if (cycleId == 0) revert NoCycleActive(version);
         Cycle storage c = _cycles[cycleId];
         if (c.status != CycleStatus.ACTIVE) revert CycleNotActive(cycleId);
         require(block.timestamp < c.expiresAt, "CrackPot: cycle expired");
 
-        uint256 entryAmount;
-        if (version == Version.MILES) {
-            entryAmount = milesEntryFee;
-            uint256 newBal = c.potBalance + entryAmount;
-            c.potBalance = newBal > c.potCap ? c.potCap : newBal;
-        } else {
-            entryAmount = usdtEntryFee;
-            uint256 rake = (entryAmount * usdtHouseRakeBps) / 10_000;
-            uint256 toPot = entryAmount - rake;
-            c.houseAccrued += rake;
-            uint256 newBal = c.potBalance + toPot;
-            c.potBalance = newBal > c.potCap ? c.potCap : newBal;
-        }
+        uint256 entryAmount = milesEntryFee;
+        uint256 newBal = c.potBalance + entryAmount;
+        c.potBalance = newBal > c.potCap ? c.potCap : newBal;
         emit EntryRecorded(cycleId, player, entryAmount, c.potBalance);
     }
 
     /**
      * @notice Declare a winner. Pays out the full pot to the winner.
      *         MILES: mints potBalance Miles to winner.
-     *         USDT:  transfers potBalance USDT from contract to winner.
+     *         USDT:  decrements usdtReservedPot then transfers potBalance USDT
+     *                (checks-effects-interactions order preserved).
      */
     function declareWinner(
         Version version,
@@ -293,6 +380,8 @@ contract CrackPot is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgrade
         if (version == Version.MILES) {
             milesToken.mint(winner, payout);
         } else {
+            // Effects before interaction (CEI).
+            usdtReservedPot -= payout;
             usdtToken.safeTransfer(winner, payout);
         }
 
@@ -302,8 +391,9 @@ contract CrackPot is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgrade
     /**
      * @notice Expire a cycle that has passed its timer with no winner.
      *         MILES: pot is simply retired (accounting reset).
-     *         USDT:  pot balance stays in contract — seeds or supplements the next cycle.
-     *                House accrual is credited to houseAccrued for withdrawal.
+     *         USDT:  usdtReservedPot is decremented by the dead pot. The USDT
+     *                stays in the contract as unreserved seed float for future
+     *                cycles — it is NOT credited to usdtHouseWithdrawable.
      */
     function expireCycle(Version version) external onlyRelayer nonReentrant {
         uint256 cycleId = activeCycleId[version];
@@ -312,15 +402,14 @@ contract CrackPot is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgrade
         if (c.status != CycleStatus.ACTIVE) revert CycleNotActive(cycleId);
         require(block.timestamp >= c.expiresAt, "CrackPot: cycle not expired yet");
 
-        uint256 deadPot = c.potBalance;
-        c.status     = CycleStatus.DEAD;
-        c.potBalance = 0;
+        uint256 deadPot  = c.potBalance;
+        c.status         = CycleStatus.DEAD;
+        c.potBalance     = 0;
         activeCycleId[version] = 0;
 
-        // USDT: expired pot stays in contract; house claims it via withdrawHouse.
-        // For accounting we credit it to houseAccrued.
         if (version == Version.USDT) {
-            c.houseAccrued += deadPot;
+            // Release the reservation; funds remain in contract as seed float.
+            usdtReservedPot -= deadPot;
         }
 
         emit CycleExpired(cycleId, version, deadPot);
@@ -330,11 +419,15 @@ contract CrackPot is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgrade
 
     /**
      * @notice Withdraw accumulated USDT house rake to the treasury.
-     *         Callable by owner or relayer.
+     *         Amount must not exceed usdtHouseWithdrawable to ensure reserved
+     *         pot funds are never touched.
      */
     function withdrawHouse(uint256 amount) external onlyRelayer nonReentrant {
         require(amount > 0, "CrackPot: zero amount");
-        require(usdtToken.balanceOf(address(this)) >= amount, "CrackPot: insufficient balance");
+        if (amount > usdtHouseWithdrawable)
+            revert WithdrawExceedsHouseBalance(amount, usdtHouseWithdrawable);
+        // Effects before interaction.
+        usdtHouseWithdrawable -= amount;
         usdtToken.safeTransfer(treasury, amount);
         emit HouseWithdrawn(amount, treasury);
     }
@@ -355,6 +448,22 @@ contract CrackPot is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgrade
         uint256 cycleId = activeCycleId[version];
         if (cycleId == 0) return 0;
         return _cycles[cycleId].potBalance;
+    }
+
+    /**
+     * @notice Returns a snapshot of the USDT accounting state.
+     *         Reverts (underflow) if the invariant balance >= reserved + house is broken.
+     */
+    function usdtAccounting() external view returns (
+        uint256 balance,
+        uint256 reservedPot,
+        uint256 houseWithdrawable,
+        uint256 freeBalance
+    ) {
+        balance           = usdtToken.balanceOf(address(this));
+        reservedPot       = usdtReservedPot;
+        houseWithdrawable = usdtHouseWithdrawable;
+        freeBalance       = balance - reservedPot - houseWithdrawable;
     }
 
     // ── Owner config ──────────────────────────────────────────────────
@@ -396,8 +505,11 @@ contract CrackPot is UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgrade
         usdtHouseRakeBps = _houseRakeBps;
     }
 
-    /// @dev Allow owner to recover stuck ERC-20 tokens (not USDT mid-cycle).
+    /**
+     * @notice Recover stuck ERC-20 tokens (never USDT — use withdrawHouse instead).
+     */
     function rescueERC20(address token, uint256 amount, address to) external onlyOwner {
+        if (token == address(usdtToken)) revert USDTRescueBlocked();
         IERC20(token).safeTransfer(to, amount);
     }
 

@@ -138,7 +138,7 @@ export function getThemeForDate(date: Date): ThemeName {
 export type PotState = "seeded" | "growing" | "hot" | "burning" | "cracked" | "dead";
 
 export function getPotState(balance: number, cap: number, status: CycleSatus): PotState {
-  if (status === "cracked") return "cracked";
+  if (status === "cracked" || status === "settling") return "cracked";
   if (status === "dead") return "dead";
   const pct = balance / cap;
   if (pct >= 0.8) return "burning";
@@ -149,7 +149,8 @@ export function getPotState(balance: number, cap: number, status: CycleSatus): P
 
 // ── Cycle ────────────────────────────────────────────────────────
 
-export type CycleSatus = "active" | "cracked" | "dead";
+// `settling` = correct guess recorded, declareWinner() tx pending on-chain.
+export type CycleSatus = "active" | "settling" | "cracked" | "dead";
 
 export type CrackPotCycle = {
   id: string;
@@ -162,10 +163,22 @@ export type CrackPotCycle = {
   expires_at: string;
   winner_address: string | null;
   winner_guesses: number | null;
+  winner_tx_hash: string | null;
+  payout_amount: number | null;
+  cracked_at: string | null;
+  commitment_algorithm: string | null;
+  secret_revealed_at: string | null;
+  // Chain fields (from migration 024)
+  chain_id: number | null;
+  contract_cycle_id: number | null;
+  contract_version: number | null;
+  secret_commitment: string | null;
   created_at: string;
 };
 
-// What the client receives — no secret code, no internal IDs beyond cycle id
+// What the client receives — no secret code, no internal IDs beyond cycle id.
+// Active cycles expose the commitment so users can track it; the preimage is
+// withheld until the cycle ends.
 export type CycleView = {
   cycleId: string;
   version: CrackPotVersion;
@@ -180,6 +193,23 @@ export type CycleView = {
   secondsRemaining: number;
   winnerAddress: string | null;
   winnerGuesses: number | null;
+  // Commitment — always visible so players can note it before entries begin.
+  secretCommitment: string | null;
+};
+
+// Full reveal data — only returned after status is 'cracked' or 'dead'.
+// Lets anyone recompute the on-chain commitment and verify the secret was fixed.
+export type CycleReveal = {
+  cycleId: string;
+  secretCode: [number, number, number, number];
+  secretSalt: string;           // 32-byte hex, no 0x prefix
+  secretCommitment: string;     // on-chain bytes32 (0x-prefixed)
+  commitmentAlgorithm: string;  // human-readable algorithm description
+  // Fields needed to recompute the hash
+  chainId: number;
+  contractAddress: string;
+  contractVersion: number;
+  expiresAt: string;            // ISO-8601 (converts to unix for recomputation)
 };
 
 // ── Attempt ──────────────────────────────────────────────────────
@@ -192,7 +222,7 @@ export type CrackPotAttempt = {
   player_address: string;
   attempt_number: number;    // 1, 2, 3 (free); 4–6+ (paid)
   started_at: string;
-  expires_at: string;        // started_at + 2 minutes
+  expires_at: string;        // started_at + 60 seconds
   status: AttemptStatus;
   guesses_used: number;
   is_paid: boolean;          // true for attempts 4+
@@ -241,7 +271,7 @@ export type GuessView = {
 export type PlayerCycleState = {
   hasActiveAttempt: boolean;
   activeAttempt: AttemptView | null;
-  freeAttemptsUsed: number;    // max 3 free per cycle
+  freeAttemptsUsed: number;    // max 2 free per cycle
   totalAttemptsUsed: number;
   hasWonThisCycle: boolean;
   bestGuessCount: number | null;  // lowest locked count across all guesses
@@ -253,7 +283,7 @@ export type CrackPotVersion = "miles" | "usdt" | "base_miles" | "base_usdc";
 
 // ── Version A (Miles) constants ───────────────────────────────────
 
-export const FREE_ATTEMPTS_PER_CYCLE = 3;
+export const FREE_ATTEMPTS_PER_CYCLE = 2;
 export const UPSELL_ATTEMPTS_PER_PURCHASE = 3;
 export const ENTRY_FEE_MILES = 10;
 export const SEED_MILES = 200;
@@ -273,7 +303,7 @@ export const CYCLE_DURATION_HOURS_USDT = 12;  // 2 cycles per day
 
 // ── Shared constants ──────────────────────────────────────────────
 
-export const ATTEMPT_DURATION_SECONDS = 120;
+export const ATTEMPT_DURATION_SECONDS = 60;
 export const GUESS_COOLDOWN_SECONDS = 15;
 
 // ── Noise injection constants ─────────────────────────────────────

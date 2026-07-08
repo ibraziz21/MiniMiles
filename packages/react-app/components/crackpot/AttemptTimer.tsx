@@ -5,11 +5,11 @@ import { motion } from "framer-motion";
 
 type AttemptTimerProps = {
   expiresAt: string;        // ISO timestamp
-  totalSeconds?: number;    // default 120
+  totalSeconds?: number;    // default 60
   accentColor: string;
 };
 
-export function AttemptTimer({ expiresAt, totalSeconds = 120, accentColor }: AttemptTimerProps) {
+export function AttemptTimer({ expiresAt, totalSeconds = 60, accentColor }: AttemptTimerProps) {
   const [remaining, setRemaining] = useState(() =>
     Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000)),
   );

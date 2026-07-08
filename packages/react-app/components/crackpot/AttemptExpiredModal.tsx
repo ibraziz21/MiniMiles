@@ -8,6 +8,7 @@ type AttemptExpiredModalProps = {
   guesses: GuessView[];
   theme: ThemeConfig;
   freeAttemptsLeft: number;
+  retryLabel?: string;
   onTryAgain: () => void;
   onDismiss: () => void;
 };
@@ -20,7 +21,7 @@ const FEEDBACK_BG: Record<string, string> = {
 const FEEDBACK_ICON: Record<string, string> = { locked: "✓", close: "~", miss: "✕" };
 
 export function AttemptExpiredModal({
-  guesses, theme, freeAttemptsLeft, onTryAgain, onDismiss,
+  guesses, theme, freeAttemptsLeft, retryLabel, onTryAgain, onDismiss,
 }: AttemptExpiredModalProps) {
   const [visible, setVisible] = useState(false);
 
@@ -58,7 +59,7 @@ export function AttemptExpiredModal({
         <div className="flex items-center gap-3 mb-4">
           <div className="text-4xl">⏱️</div>
           <div>
-            <h3 className="text-lg font-black text-slate-900">Time's up</h3>
+            <h3 className="text-lg font-black text-slate-900">Attempt ended</h3>
             <p className="text-sm text-slate-500">
               {guesses.length === 0
                 ? "No guesses submitted this attempt."
@@ -115,7 +116,7 @@ export function AttemptExpiredModal({
               className="w-full py-4 rounded-2xl font-bold text-white text-sm active:scale-[0.98] transition-all"
               style={{ backgroundColor: theme.accentColor }}
             >
-              Unlock 3 More Attempts
+              {retryLabel ?? "Unlock more attempts"}
             </button>
             <button
               onClick={onDismiss}

@@ -2,6 +2,7 @@
 // Core game logic — runs server-side only. Never imported by client components.
 
 import { createHash, randomBytes } from "crypto";
+import { keccak256, encodePacked, type Hex } from "viem";
 import {
   type FeedbackResult,
   type GuessFeedback,
@@ -38,6 +39,66 @@ export function generateCode(entropySource: string): [number, number, number, nu
     combined[2] % 6,
     combined[3] % 6,
   ];
+}
+
+// ── Fairness commitment ───────────────────────────────────────────
+
+export const COMMITMENT_ALGORITHM =
+  'keccak256(abi.encodePacked("CRACKPOT_SECRET_V1", chainId, contractAddress, contractVersion, expiresAt, secretSalt, secretCode))';
+
+/**
+ * Compute the on-chain secretCommitment for a cycle.
+ *
+ * Mirrors the algorithm documented in CrackPot.sol and in CycleReveal so users
+ * can independently verify:
+ *
+ *   keccak256(abi.encodePacked(
+ *     "CRACKPOT_SECRET_V1",      // string  (UTF-8, no length prefix via encodePacked)
+ *     chainId,                   // uint256
+ *     contractAddress,           // address
+ *     contractVersion,           // uint8   (0 = MILES, 1 = USDT)
+ *     expiresAt,                 // uint64  (unix seconds)
+ *     secretSalt,                // bytes32
+ *     secretCode,                // bytes4  (4 × 1-byte symbol index)
+ *   ))
+ *
+ * @param chainId           e.g. 42220 (Celo)
+ * @param contractAddress   CrackPot proxy address (checksummed or lowercase)
+ * @param contractVersion   0 (MILES) or 1 (USDT)
+ * @param expiresAt         Cycle expiry as a Date
+ * @param secretSalt        64-char hex string (32 bytes, no 0x prefix)
+ * @param secretCode        Four symbol indices 0–5
+ */
+export function computeSecretCommitment(params: {
+  chainId:          number;
+  contractAddress:  Hex;
+  contractVersion:  number;
+  expiresAt:        Date;
+  secretSalt:       string;   // 64-char hex, no 0x prefix
+  secretCode:       [number, number, number, number];
+}): Hex {
+  const {
+    chainId,
+    contractAddress,
+    contractVersion,
+    expiresAt,
+    secretSalt,
+    secretCode,
+  } = params;
+
+  const expiresAtSec = BigInt(Math.floor(expiresAt.getTime() / 1000));
+
+  // Encode the 4 symbol indices as a packed bytes4 (one byte per symbol).
+  const codeHex = secretCode
+    .map((n) => n.toString(16).padStart(2, "0"))
+    .join("") as Hex;
+
+  return keccak256(
+    encodePacked(
+      ["string",  "uint256",         "address",        "uint8",           "uint64",       "bytes32",              "bytes4"],
+      ["CRACKPOT_SECRET_V1", BigInt(chainId), contractAddress, contractVersion, expiresAtSec, `0x${secretSalt}` as Hex, `0x${codeHex}` as Hex],
+    ),
+  );
 }
 
 // ── Mastermind feedback ───────────────────────────────────────────
@@ -93,6 +154,9 @@ export function computeFeedback(
  *
  * Deterministic per (cycleId, playerAddress, guessNumber, position)
  * so the same player always sees the same result on refresh.
+ *
+ * For USDT cycles, noise is NOT applied (truthful feedback for fairness).
+ * Call `applyNoiseForVersion` which enforces this policy.
  */
 export function applyNoise(
   feedback: GuessFeedback,
@@ -121,7 +185,35 @@ export function applyNoise(
   }) as GuessFeedback;
 }
 
+/**
+ * Version-aware noise gate:
+ *   MILES / base_miles  — applies noise (anti-solver, lower stakes).
+ *   USDT  / base_usdc   — truthful feedback, no noise.
+ *
+ * This is the function callers should use instead of applyNoise directly.
+ */
+export function applyNoiseForVersion(
+  feedback: GuessFeedback,
+  version: CrackPotVersion,
+  cycleId: string,
+  playerAddress: string,
+  guessNumber: number,
+): GuessFeedback {
+  const isMiles = version === "miles" || version === "base_miles";
+  if (!isMiles) return feedback; // USDT: truthful, no noise
+  return applyNoise(feedback, cycleId, playerAddress, guessNumber);
+}
+
 // ── Cycle helpers ─────────────────────────────────────────────────
+
+const MIN_FRESH_CYCLE_MS = 15 * 60 * 1000;
+
+function ensureMinimumCycleLifetime(candidate: Date, intervalMs: number, now: Date): Date {
+  if (candidate.getTime() - now.getTime() >= MIN_FRESH_CYCLE_MS) {
+    return candidate;
+  }
+  return new Date(candidate.getTime() + intervalMs);
+}
 
 export function getCycleExpiresAt(version: CrackPotVersion): Date {
   const now = new Date();
@@ -130,7 +222,7 @@ export function getCycleExpiresAt(version: CrackPotVersion): Date {
     const next = new Date(now);
     next.setUTCMinutes(0, 0, 0);
     next.setUTCHours(next.getUTCHours() + 1);
-    return next;
+    return ensureMinimumCycleLifetime(next, 60 * 60 * 1000, now);
   }
   // usdt / base_usdc: 12-hour cycles aligned to 00:00 / 12:00 EAT (UTC+3)
   const EAT_OFFSET = 3 * 60 * 60 * 1000;
@@ -139,7 +231,8 @@ export function getCycleExpiresAt(version: CrackPotVersion): Date {
   const nextBoundary = eatHour < 12 ? 12 : 24;
   const eatMidnight = new Date(eatNow);
   eatMidnight.setUTCHours(0, 0, 0, 0);
-  return new Date(eatMidnight.getTime() + nextBoundary * 3_600_000 - EAT_OFFSET);
+  const next = new Date(eatMidnight.getTime() + nextBoundary * 3_600_000 - EAT_OFFSET);
+  return ensureMinimumCycleLifetime(next, 12 * 60 * 60 * 1000, now);
 }
 
 export function getThemeForCycle(createdAt: Date): ThemeName {

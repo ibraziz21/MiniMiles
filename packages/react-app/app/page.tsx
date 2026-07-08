@@ -26,9 +26,9 @@ import {
   laptop,
   jbl,
   bag,
-  docking, camera, washmachine, chair, usdtround, Dice
+  docking, camera, washmachine, chair, usdtround
 } from "@/lib/img";
-import { akibaMilesSymbol, akibaMilesSymbolAlt, RefreshSvg, usdtSymbol } from "@/lib/svg";
+import { akibaMilesSymbol, akibaMilesSymbolAlt, RefreshSvg } from "@/lib/svg";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -151,50 +151,54 @@ export type SpendRaffle = {
   requirements?: RaffleRequirementsResult | null;
 };
 
-function RewardFarkleBanner() {
+function CrackPotLaunchBanner() {
   return (
     <section className="mx-4 mt-4">
       <Link
-        href="/games/farkle?mode=reward"
-        className="group block overflow-hidden rounded-2xl bg-[#061A1D] shadow-lg active:scale-[0.99] transition-transform"
-        aria-label="Play Farkle Reward Duel"
+        href="/crackpot"
+        className="group block overflow-hidden rounded-2xl bg-[#062329] shadow-lg transition-transform active:scale-[0.99]"
+        aria-label="Play CrackPot"
       >
-        <div className="relative min-h-[216px] overflow-hidden">
-          <Image
-            src={Dice}
-            alt=""
-            fill
-            priority
-            className="object-cover opacity-25 scale-110 transition-transform duration-500 group-hover:scale-105"
-          />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_20%,rgba(52,211,153,0.35),transparent_28%),linear-gradient(135deg,rgba(6,26,29,0.96),rgba(10,92,78,0.86)_52%,rgba(16,24,39,0.92))]" />
+        <div className="relative min-h-[218px] overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_20%,rgba(45,169,184,0.42),transparent_30%),linear-gradient(135deg,#062329,#0B5661_56%,#0D2B30)]" />
+          <div className="absolute -right-8 top-5 h-32 w-32 rounded-full border border-white/10 bg-white/5" />
+          <div className="absolute right-4 top-8 grid grid-cols-2 gap-2">
+            {["?", "?", "?", "?"].map((symbol, index) => (
+              <span
+                key={index}
+                className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-xl font-black text-white shadow-sm backdrop-blur"
+              >
+                {symbol}
+              </span>
+            ))}
+          </div>
 
-          <div className="relative flex min-h-[216px] flex-col justify-end p-4">
-            <div className="absolute right-4 top-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20 backdrop-blur">
-              <Image src={usdtSymbol} alt="USDT" width={34} height={34} />
+          <div className="relative flex min-h-[218px] flex-col justify-end p-4">
+            <div className="absolute right-4 bottom-4 hidden h-16 w-16 items-center justify-center rounded-2xl border border-[#83E8F2]/30 bg-[#0B3E46] text-3xl font-black text-[#83E8F2] sm:flex">
+              $
             </div>
 
-            <span className="inline-flex items-center gap-1.5 self-start rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-white ring-1 ring-white/20">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
-              Real PvP
+            <span className="inline-flex items-center gap-1.5 self-start rounded-full bg-[#83E8F2]/15 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-[#D9FCFF] ring-1 ring-[#83E8F2]/25">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#83E8F2]" />
+              Live jackpot
             </span>
 
-            <h2 className="mt-2 max-w-[230px] text-2xl font-extrabold leading-tight text-white">
-              Farkle Reward Duel
+            <h2 className="mt-2 max-w-[245px] text-2xl font-extrabold leading-tight text-white">
+              Crack the pot before the timer runs out
             </h2>
 
-            <p className="mt-1.5 max-w-[280px] text-[13px] leading-snug text-white/80 font-poppins">
-              Play against another real player. Bank points, race to 2,500, and win claimable USDT.
+            <p className="mt-1.5 max-w-[285px] text-[13px] leading-snug text-white/80 font-poppins">
+              Pick the 4-symbol code. Play Miles or USDT, get two guesses per entry, and chase the live pot.
             </p>
 
             <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold">
-              <span className="rounded-full bg-white/10 px-2.5 py-1 text-white ring-1 ring-white/15">1v1 live match</span>
-              <span className="rounded-full bg-emerald-300 px-2.5 py-1 text-[#062019]">$0.15 winner reward</span>
-              <span className="rounded-full bg-white/10 px-2.5 py-1 text-white ring-1 ring-white/15">1 credit entry</span>
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-white ring-1 ring-white/15">60 seconds</span>
+              <span className="rounded-full bg-[#83E8F2] px-2.5 py-1 text-[#062329]">2 guesses</span>
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-white ring-1 ring-white/15">Miles + USDT</span>
             </div>
 
-            <span className="mt-3 inline-flex h-11 items-center justify-center rounded-xl bg-white px-4 text-sm font-extrabold text-[#0A6B7A] shadow-md">
-              Play Reward Duel
+            <span className="mt-3 inline-flex h-11 items-center justify-center rounded-xl bg-white px-4 text-sm font-extrabold text-[#0B5661] shadow-md">
+              Play CrackPot
             </span>
           </div>
         </div>
@@ -711,7 +715,7 @@ const badgeButtonLabel =
         />
       )}
 
-      {!featuredRaffle && <RewardFarkleBanner />}
+      {!featuredRaffle && <CrackPotLaunchBanner />}
 
       {/* Daily challenges — the daily check-in lives here, promoted near the top */}
       <div className="mx-4 mt-6 gap-1">

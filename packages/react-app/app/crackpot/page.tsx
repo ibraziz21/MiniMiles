@@ -1,7 +1,15 @@
 import Link from "next/link";
 import { ArrowLeft, LockKey } from "@phosphor-icons/react/dist/ssr";
+import { CrackPotGamePage } from "@/components/crackpot/CrackPotGamePage";
 
-export default function CrackPotComingSoonPage() {
+const CRACKPOT_LIVE = process.env.CRACKPOT_LIVE === "true";
+
+export default function CrackPotPage() {
+  if (CRACKPOT_LIVE) {
+    return <CrackPotGamePage />;
+  }
+
+  // Feature-flag fallback for emergency disablement.
   return (
     <main className="min-h-screen bg-[#F7FAFA] pb-28 font-sterling">
       <div className="px-4 pt-8 pb-2 flex items-center gap-3">
@@ -22,14 +30,14 @@ export default function CrackPotComingSoonPage() {
           </div>
 
           <p className="mt-5 text-[11px] font-semibold uppercase tracking-wide text-[#6E7C80]">
-            Coming soon
+            Temporarily offline
           </p>
           <h2 className="mt-1 text-2xl font-bold text-[#0D2B30]">
-            CrackPot is being stabilized
+            CrackPot is paused
           </h2>
           <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-[#667579] font-poppins">
-            We are keeping CrackPot locked while the live game logic is hardened.
-            Farkle Reward Duel and the other games remain available.
+            CrackPot is temporarily unavailable. Farkle Reward Duel and the
+            other games remain available.
           </p>
 
           <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">

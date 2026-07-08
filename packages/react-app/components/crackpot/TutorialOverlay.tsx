@@ -48,7 +48,7 @@ function buildSteps(theme: ThemeConfig): Step[] {
           <span className="font-semibold text-slate-800">
             First player to guess it wins the entire pot.
           </span>{" "}
-          You have 2 minutes per attempt.
+          You have 60 seconds per attempt.
         </>
       ),
     },
@@ -75,7 +75,7 @@ function buildSteps(theme: ThemeConfig): Step[] {
             ))}
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            Tip: Close and Miss have a small amount of noise — use multiple guesses to confirm.
+            Tip: Miles feedback can include small Close/Miss noise. USDT feedback is exact.
           </p>
         </div>
       ),
@@ -110,7 +110,7 @@ function buildSteps(theme: ThemeConfig): Step[] {
             </p>
           </div>
           <p className="text-xs text-slate-400">
-            You get 3 free attempts per cycle. Each attempt = 2 minutes, ~8 guesses.
+            You get 2 free attempts per cycle. Each attempt = 60 seconds, 2 guesses.
           </p>
         </div>
       ),
