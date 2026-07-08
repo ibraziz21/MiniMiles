@@ -143,6 +143,7 @@ function isNonceOrGasRace(err: any): boolean {
   const m = [err?.shortMessage, err?.message, err?.cause?.shortMessage, err?.cause?.message]
     .filter(Boolean).join("\n").toLowerCase();
   return (
+    m.includes("nonce has already been used") ||
     m.includes("nonce too low") ||
     m.includes("lower than the current nonce") ||
     m.includes("current nonce") ||
