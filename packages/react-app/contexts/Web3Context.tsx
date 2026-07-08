@@ -548,7 +548,6 @@ function useWeb3Logic() {
   }, []);
 
   const approveUsdtForCrackPot = useCallback(async (amountUsd: number) => {
-    if (isMiniPayProvider()) throw new Error("CrackPot USDT mode is not available in MiniPay.");
     if (!walletClient || !address) throw new Error("Wallet not connected");
     const chainId = await walletClient.getChainId();
     if (chainId !== celo.id) throw new Error("Wrong network");
