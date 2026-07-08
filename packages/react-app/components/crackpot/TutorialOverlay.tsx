@@ -110,7 +110,7 @@ function buildSteps(theme: ThemeConfig): Step[] {
             </p>
           </div>
           <p className="text-xs text-slate-400">
-            You get 2 free attempts per cycle. Each attempt = 60 seconds, 2 guesses.
+            Each paid entry gives you 60 seconds and 2 guesses.
           </p>
         </div>
       ),

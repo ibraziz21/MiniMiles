@@ -7,7 +7,6 @@ import { type GuessView, type ThemeConfig } from "@/lib/crackpotTypes";
 type AttemptExpiredModalProps = {
   guesses: GuessView[];
   theme: ThemeConfig;
-  freeAttemptsLeft: number;
   retryLabel?: string;
   onTryAgain: () => void;
   onDismiss: () => void;
@@ -21,7 +20,7 @@ const FEEDBACK_BG: Record<string, string> = {
 const FEEDBACK_ICON: Record<string, string> = { locked: "✓", close: "~", miss: "✕" };
 
 export function AttemptExpiredModal({
-  guesses, theme, freeAttemptsLeft, retryLabel, onTryAgain, onDismiss,
+  guesses, theme, retryLabel, onTryAgain, onDismiss,
 }: AttemptExpiredModalProps) {
   const [visible, setVisible] = useState(false);
 
@@ -101,31 +100,21 @@ export function AttemptExpiredModal({
         )}
 
         {/* CTA */}
-        {freeAttemptsLeft > 0 ? (
+        <div className="space-y-2">
           <button
             onClick={onTryAgain}
-            className="w-full py-4 rounded-2xl font-bold text-white text-sm shadow-lg active:scale-[0.98] transition-all"
+            className="w-full py-4 rounded-2xl font-bold text-white text-sm active:scale-[0.98] transition-all"
             style={{ backgroundColor: theme.accentColor }}
           >
-            Try Again — {freeAttemptsLeft} free attempt{freeAttemptsLeft > 1 ? "s" : ""} left
+            {retryLabel ?? "Enter again"}
           </button>
-        ) : (
-          <div className="space-y-2">
-            <button
-              onClick={onTryAgain}
-              className="w-full py-4 rounded-2xl font-bold text-white text-sm active:scale-[0.98] transition-all"
-              style={{ backgroundColor: theme.accentColor }}
-            >
-              {retryLabel ?? "Unlock more attempts"}
-            </button>
-            <button
-              onClick={onDismiss}
-              className="w-full py-3 rounded-2xl font-semibold text-slate-500 text-sm bg-slate-100 active:scale-[0.98]"
-            >
-              Wait for next cycle
-            </button>
-          </div>
-        )}
+          <button
+            onClick={onDismiss}
+            className="w-full py-3 rounded-2xl font-semibold text-slate-500 text-sm bg-slate-100 active:scale-[0.98]"
+          >
+            Wait for next cycle
+          </button>
+        </div>
       </motion.div>
     </div>
   );

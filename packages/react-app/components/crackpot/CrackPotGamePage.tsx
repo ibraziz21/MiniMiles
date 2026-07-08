@@ -8,8 +8,9 @@ import {
   type AttemptView,
   type GuessView,
   type CrackPotVersion,
+  ENTRY_FEE_MILES,
   ENTRY_FEE_USDT,
-  FREE_ATTEMPTS_PER_CYCLE,
+  GUESSES_PER_ENTRY,
 } from "@/lib/crackpotTypes";
 import { CrackPotHeader }        from "./CrackPotHeader";
 import { PotDisplay }            from "./PotDisplay";
@@ -58,12 +59,14 @@ function startStepLabel(step: StartStep, version: PlayVersion, hasPendingTx: boo
   if (step === "syncing") return "Checking live cycle...";
   if (step === "approving") return `Approving $${ENTRY_FEE_USDT.toFixed(2)} USDT...`;
   if (step === "entering") return "Entering on-chain...";
-  if (step === "opening") return hasPendingTx && version === "usdt" ? "Recovering paid attempt..." : "Opening attempt...";
+  if (step === "opening") return hasPendingTx ? "Recovering paid entry..." : "Opening attempt...";
   return version === "usdt"
     ? hasPendingTx
       ? "Recover Paid Attempt"
       : `Approve + Enter - $${ENTRY_FEE_USDT.toFixed(2)}`
-    : `Start Attempt - ${FREE_ATTEMPTS_PER_CYCLE} Free`;
+    : hasPendingTx
+      ? "Recover Paid Attempt"
+      : `Pay ${ENTRY_FEE_MILES} AkibaMiles`;
 }
 
 function shuffleOrder(): number[] {
@@ -96,7 +99,7 @@ export function CrackPotGamePage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [startStep, setStartStep] = useState<StartStep>("idle");
-  const [pendingUsdtTxHash, setPendingUsdtTxHash] = useState<string | null>(null);
+  const [pendingEntryTxHash, setPendingEntryTxHash] = useState<string | null>(null);
   const [cooldown, setCooldown]   = useState(0);
   const [symbolOrder]             = useState<number[]>(shuffleOrder);
   const [showTutorial, setShowTutorial] = useState(false);
@@ -138,6 +141,7 @@ export function CrackPotGamePage() {
     setErrorMsg(null);
     setCooldown(0);
     setStartStep("idle");
+    setPendingEntryTxHash(null);
   }, [version]);
 
   // ── Attempt expire timer ─────────────────────────────────────────────────
@@ -188,20 +192,22 @@ export function CrackPotGamePage() {
         return;
       }
 
-      let txHash = pendingUsdtTxHash;
-      if (version === "usdt" && !txHash) {
-        setStartStep("approving");
-        await approveUsdtForCrackPot(ENTRY_FEE_USDT);
+      let txHash = pendingEntryTxHash;
+      if (!txHash) {
+        if (version === "usdt") {
+          setStartStep("approving");
+          await approveUsdtForCrackPot(ENTRY_FEE_USDT);
+        }
         setStartStep("entering");
-        txHash = await enterCrackPotGame(1);
-        setPendingUsdtTxHash(txHash);
+        txHash = await enterCrackPotGame(version === "usdt" ? 1 : 0);
+        setPendingEntryTxHash(txHash);
       }
 
       setStartStep("opening");
       const res = await fetch("/api/crackpot/attempt/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ version, txHash: version === "usdt" ? txHash : undefined }),
+        body: JSON.stringify({ version, txHash }),
       });
       const data = await res.json().catch(() => ({}));
 
@@ -225,7 +231,7 @@ export function CrackPotGamePage() {
 
       const attemptView: AttemptView = data;
       setAttempt(attemptView);
-      if (version === "usdt") setPendingUsdtTxHash(null);
+      setPendingEntryTxHash(null);
 
       // If this attempt already has a correct guess (page refresh after win)
       if (attemptView.status === "won") {
@@ -413,8 +419,11 @@ export function CrackPotGamePage() {
         <AttemptExpiredModal
           guesses={attempt.guesses}
           theme={cycle.themeConfig}
-          freeAttemptsLeft={version === "miles" ? Math.max(0, FREE_ATTEMPTS_PER_CYCLE - attempt.freeAttemptsUsed) : 0}
-          retryLabel={version === "usdt" ? `Pay $${ENTRY_FEE_USDT.toFixed(2)} for another attempt` : "Unlock more attempts"}
+          retryLabel={
+            version === "usdt"
+              ? `Pay $${ENTRY_FEE_USDT.toFixed(2)} for another entry`
+              : `Pay ${ENTRY_FEE_MILES} AkibaMiles for another entry`
+          }
           onTryAgain={tryAgain}
           onDismiss={() => setPhase("browsing")}
         />
@@ -506,16 +515,16 @@ export function CrackPotGamePage() {
                 {phase === "starting" ? (
                   <>
                     <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                    {startStepLabel(startStep, version, !!pendingUsdtTxHash)}
+                    {startStepLabel(startStep, version, !!pendingEntryTxHash)}
                   </>
                 ) : (
-                  startStepLabel("idle", version, !!pendingUsdtTxHash)
+                  startStepLabel("idle", version, !!pendingEntryTxHash)
                 )}
               </button>
               <p className="text-center text-xs text-slate-400">
                 {version === "usdt"
-                  ? `60 seconds · 2 guesses per attempt · exact feedback · $${ENTRY_FEE_USDT.toFixed(2)} per entry`
-                  : `60 seconds · 2 guesses per attempt · ${FREE_ATTEMPTS_PER_CYCLE} free attempts per cycle`}
+                  ? `60 seconds · ${GUESSES_PER_ENTRY} guesses per entry · exact feedback · $${ENTRY_FEE_USDT.toFixed(2)} entry · $0.05 to pot`
+                  : `60 seconds · ${GUESSES_PER_ENTRY} guesses per entry · ${ENTRY_FEE_MILES} AkibaMiles entry · full entry to pot`}
               </p>
             </div>
           )}

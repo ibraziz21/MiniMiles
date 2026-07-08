@@ -2,20 +2,20 @@
  * CrackPot USDT payment / start-route hardening — unit tests.
  *
  * Coverage:
- *   1.  verifyUsdtEntry — happy path: valid receipt, player, cycle → ok.
- *   2.  verifyUsdtEntry — failed receipt (status !== "success") is rejected.
- *   3.  verifyUsdtEntry — tx sent to a different contract is rejected.
- *   4.  verifyUsdtEntry — EntryRecorded player ≠ session wallet is rejected.
- *   5.  verifyUsdtEntry — EntryRecorded cycleId ≠ active cycle is rejected.
- *   6.  verifyUsdtEntry — no EntryRecorded event in receipt is rejected.
- *   7.  verifyUsdtEntry — cycle with no chain fields fails closed.
+ *   1.  verifyCrackPotEntry — happy path: valid receipt, player, cycle → ok.
+ *   2.  verifyCrackPotEntry — failed receipt (status !== "success") is rejected.
+ *   3.  verifyCrackPotEntry — tx sent to a different contract is rejected.
+ *   4.  verifyCrackPotEntry — EntryRecorded player ≠ session wallet is rejected.
+ *   5.  verifyCrackPotEntry — EntryRecorded cycleId ≠ active cycle is rejected.
+ *   6.  verifyCrackPotEntry — no EntryRecorded event in receipt is rejected.
+ *   7.  verifyCrackPotEntry — cycle with no chain fields fails closed.
  *   8.  Retrying the same tx hash returns the existing attempt (idempotency).
  *   9.  findAttemptByTxHash scopes by chain_id + tx hash.
  *  10.  getAttemptForPlayer scopes by attempt id AND player wallet.
  *  11.  getAttemptForPlayer returns null for a different player's attempt.
  *  12.  Guess route rejects unauthenticated request (no session).
  *  13.  Guess route returns 404 for another player's attempt (auth scope).
- *  14.  API response for verifyUsdtEntry never exposes secret_code.
+ *  14.  API response for verifyCrackPotEntry never exposes secret_code.
  */
 
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
@@ -136,7 +136,7 @@ process.env.NEXT_PUBLIC_CRACKPOT_ADDRESS = CRACKPOT_ADDR;
 
 // ── Import modules AFTER mocks are hoisted and env var is set ─────────────────
 
-const { verifyUsdtEntry } = await import("@/lib/server/crackpotEntryVerifier");
+const { verifyUsdtEntry, verifyCrackPotEntry } = await import("@/lib/server/crackpotEntryVerifier");
 const {
   findAttemptByTxHash,
   getAttemptForPlayer,
@@ -169,6 +169,41 @@ describe("verifyUsdtEntry — happy path", () => {
       expect(result.entryAmount).toBe(100_000n);
       expect(Number(result.cycleId)).toBe(CONTRACT_CYCLE_ID);
     }
+  });
+});
+
+describe("verifyCrackPotEntry — Miles entry", () => {
+  it("accepts a 10 AkibaMiles EntryRecorded event for a Miles cycle", async () => {
+    mockGetReceipt.mockResolvedValue(makeReceipt({ entryAmount: 10_000_000_000_000_000_000n }));
+
+    const result = await verifyCrackPotEntry(
+      STUB_TX_HASH,
+      SESSION_WALLET,
+      makeActiveCycle({ contract_version: 0 }),
+      CHAIN_ID,
+      "miles",
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.entryAmount).toBe(10_000_000_000_000_000_000n);
+      expect(Number(result.cycleId)).toBe(CONTRACT_CYCLE_ID);
+    }
+  });
+
+  it("rejects a Miles entry below 10 AkibaMiles", async () => {
+    mockGetReceipt.mockResolvedValue(makeReceipt({ entryAmount: 100_000n }));
+
+    const result = await verifyCrackPotEntry(
+      STUB_TX_HASH,
+      SESSION_WALLET,
+      makeActiveCycle({ contract_version: 0 }),
+      CHAIN_ID,
+      "miles",
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("entry_amount_too_low");
   });
 });
 
@@ -277,6 +312,19 @@ describe("verifyUsdtEntry — cycle with no chain fields", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("chain_id_mismatch");
   });
+
+  it("returns reason=contract_version_mismatch when DB cycle version does not match request", async () => {
+    const result = await verifyCrackPotEntry(
+      STUB_TX_HASH,
+      SESSION_WALLET,
+      makeActiveCycle({ contract_version: 0 }),
+      CHAIN_ID,
+      "usdt",
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("contract_version_mismatch");
+  });
 });
 
 describe("Idempotency — retrying the same tx returns the existing attempt", () => {
@@ -363,7 +411,7 @@ describe("Auth scope — getAttemptForPlayer", () => {
 });
 
 describe("API response safety — no secret_code exposure", () => {
-  it("verifyUsdtEntry result does not contain secret_code or secret_salt", async () => {
+  it("verifyCrackPotEntry result does not contain secret_code or secret_salt", async () => {
     mockGetReceipt.mockResolvedValue(makeReceipt());
 
     const result = await verifyUsdtEntry(STUB_TX_HASH, SESSION_WALLET, makeActiveCycle(), CHAIN_ID);

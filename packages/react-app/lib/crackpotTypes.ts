@@ -220,12 +220,12 @@ export type CrackPotAttempt = {
   id: string;
   cycle_id: string;
   player_address: string;
-  attempt_number: number;    // 1, 2, 3 (free); 4–6+ (paid)
+  attempt_number: number;    // 1-indexed paid entry number within the cycle
   started_at: string;
   expires_at: string;        // started_at + 60 seconds
   status: AttemptStatus;
   guesses_used: number;
-  is_paid: boolean;          // true for attempts 4+
+  is_paid: boolean;          // all live CrackPot entries are paid on-chain
 };
 
 export type AttemptView = {
@@ -271,7 +271,7 @@ export type GuessView = {
 export type PlayerCycleState = {
   hasActiveAttempt: boolean;
   activeAttempt: AttemptView | null;
-  freeAttemptsUsed: number;    // max 2 free per cycle
+  freeAttemptsUsed: number;    // legacy field; live paid flow should be 0
   totalAttemptsUsed: number;
   hasWonThisCycle: boolean;
   bestGuessCount: number | null;  // lowest locked count across all guesses
@@ -283,14 +283,11 @@ export type CrackPotVersion = "miles" | "usdt" | "base_miles" | "base_usdc";
 
 // ── Version A (Miles) constants ───────────────────────────────────
 
-export const FREE_ATTEMPTS_PER_CYCLE = 2;
-export const UPSELL_ATTEMPTS_PER_PURCHASE = 3;
+export const GUESSES_PER_ENTRY = 2;
 export const ENTRY_FEE_MILES = 10;
 export const SEED_MILES = 200;
 export const POT_CAP_MILES = 10_000;
 export const CYCLE_DURATION_HOURS_MILES = 1;  // Hourly cycles
-// Phase 1 upsell stand-in: 30 Miles per pack (replaces $0.05 until payment provider wired)
-export const UPSELL_COST_MILES = 30;
 
 // ── Version B (USDT) constants ────────────────────────────────────
 
@@ -298,7 +295,6 @@ export const ENTRY_FEE_USDT = 0.10;           // USD per attempt
 export const SEED_USDT = 2.00;                // USD seed per cycle
 export const POT_CAP_USDT = 50.00;            // USD cap
 export const HOUSE_RAKE_USDT = 0.50;          // 50% of entry to house
-export const UPSELL_COST_USDT = 0.10;         // USD per pack of 3 extra attempts
 export const CYCLE_DURATION_HOURS_USDT = 12;  // 2 cycles per day
 
 // ── Shared constants ──────────────────────────────────────────────

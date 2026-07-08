@@ -1,6 +1,6 @@
 // lib/server/crackpotEntryVerifier.ts
 //
-// Verifies that a submitted tx hash represents a valid USDT `enterGame` call
+// Verifies that a submitted tx hash represents a valid CrackPot `enterGame` call
 // on the active CrackPot cycle, made by the authenticated session wallet.
 //
 // Security properties enforced:
@@ -9,20 +9,19 @@
 //   3. Logs must contain EntryRecorded from the CrackPot proxy address.
 //   4. Decoded `player` must equal the session wallet (case-insensitive).
 //   5. Decoded `cycleId` must match the DB cycle's contract_cycle_id.
-//   6. entryAmount must meet the configured minimum entry fee.
+//   6. entryAmount must meet the configured minimum entry fee for the version.
 //   7. DB cycle must have chain fields set (fail closed if missing).
 //   8. DB cycle chain_id must match the expected chain.
+//   9. DB cycle contract_version must match the requested version.
 //
 // The public client is accepted as an injectable parameter so callers can
 // pass a mock in unit tests without patching module-level state.
 
 import { createPublicClient, decodeEventLog, http, parseAbi, type PublicClient } from "viem";
 import { celo, base } from "viem/chains";
-import { ENTRY_FEE_USDT } from "@/lib/crackpotTypes";
+import { ENTRY_FEE_MILES, ENTRY_FEE_USDT, type CrackPotVersion } from "@/lib/crackpotTypes";
 
-// Minimum USDT entry fee in micro-USDT (6-dec). The contract enforces this
-// server-side too; we check here as belt-and-suspenders.
-const ENTRY_FEE_MICRO = BigInt(Math.round(ENTRY_FEE_USDT * 1_000_000)); // 100_000n
+type PlayVersion = Extract<CrackPotVersion, "miles" | "usdt">;
 
 // ABI fragment — only what we need for decoding.
 export const ENTRY_RECORDED_ABI = parseAbi([
@@ -60,28 +59,48 @@ export type EntryVerifyResult =
 
 // ── Verifier ──────────────────────────────────────────────────────────────────
 
+function contractVersionFor(version: PlayVersion): number {
+  return version === "usdt" ? 1 : 0;
+}
+
+function minimumEntryAmount(version: PlayVersion): bigint {
+  if (version === "usdt") {
+    return BigInt(Math.round(ENTRY_FEE_USDT * 1_000_000)); // 6-dec USDT
+  }
+  return BigInt(ENTRY_FEE_MILES) * 10n ** 18n; // 18-dec AkibaMiles
+}
+
 /**
- * Verify a submitted USDT entry tx against the active CrackPot cycle.
+ * Verify a submitted CrackPot entry tx against the active CrackPot cycle.
  *
  * @param txHash        Hex tx hash from the player client.
  * @param sessionWallet Authenticated wallet address (from iron-session).
  * @param activeCycle   Active DB cycle record (must have chain fields from migration 024).
  * @param chainId       Expected chain (e.g. 42220 for Celo).
+ * @param version       CrackPot version being entered.
  * @param client        Optional public client — inject a mock in tests.
  */
-export async function verifyUsdtEntry(
+export async function verifyCrackPotEntry(
   txHash: string,
   sessionWallet: string,
   activeCycle: ActiveCycleRef,
   chainId: number,
+  version: PlayVersion,
   client?: PublicClient,
 ): Promise<EntryVerifyResult> {
   // Fail closed: cycle must have chain fields from migration 024.
-  if (activeCycle.contract_cycle_id == null || activeCycle.chain_id == null) {
+  if (
+    activeCycle.contract_cycle_id == null ||
+    activeCycle.chain_id == null ||
+    activeCycle.contract_version == null
+  ) {
     return { ok: false, reason: "cycle_no_chain_fields" };
   }
   if (activeCycle.chain_id !== chainId) {
     return { ok: false, reason: "chain_id_mismatch" };
+  }
+  if (activeCycle.contract_version !== contractVersionFor(version)) {
+    return { ok: false, reason: "contract_version_mismatch" };
   }
 
   const contractAddr = CRACKPOT_ADDRESS[chainId] ?? "";
@@ -139,7 +158,7 @@ export async function verifyUsdtEntry(
     }
 
     // ── Entry amount sanity check ───────────────────────────────────────────
-    if (entryAmount < ENTRY_FEE_MICRO) {
+    if (entryAmount < minimumEntryAmount(version)) {
       return { ok: false, reason: "entry_amount_too_low" };
     }
 
@@ -148,4 +167,14 @@ export async function verifyUsdtEntry(
   }
 
   return { ok: false, reason: "no_entry_recorded_event" };
+}
+
+export function verifyUsdtEntry(
+  txHash: string,
+  sessionWallet: string,
+  activeCycle: ActiveCycleRef,
+  chainId: number,
+  client?: PublicClient,
+): Promise<EntryVerifyResult> {
+  return verifyCrackPotEntry(txHash, sessionWallet, activeCycle, chainId, "usdt", client);
 }

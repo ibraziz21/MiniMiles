@@ -19,7 +19,7 @@ import {
 } from "@/lib/server/crackpotEngine";
 import { enqueuePayoutJob } from "@/lib/server/crackpotPayoutWorker";
 import {
-  FREE_ATTEMPTS_PER_CYCLE,
+  GUESSES_PER_ENTRY,
   THEMES,
   type AttemptStatus,
   type AttemptView,
@@ -29,7 +29,7 @@ import {
   type CrackPotVersion,
 } from "@/lib/crackpotTypes";
 
-const MAX_GUESSES_PER_ATTEMPT = 2;
+const MAX_GUESSES_PER_ATTEMPT = GUESSES_PER_ENTRY;
 
 // ── Raw DB shapes ─────────────────────────────────────────────────────────────
 
@@ -94,7 +94,7 @@ export function buildAttemptView(
     guesses:           guesses.map((g) => buildGuessView(g, theme)),
     freeAttemptsUsed,
     totalAttemptsUsed,
-    canUpsell:         freeAttemptsUsed >= FREE_ATTEMPTS_PER_CYCLE,
+    canUpsell:         true,
   };
 }
 
