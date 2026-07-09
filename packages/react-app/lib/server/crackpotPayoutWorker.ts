@@ -23,7 +23,7 @@
 import { supabase } from "@/lib/supabaseClient";
 import {
   contractDeclareWinner,
-  contractGetActiveCycle,
+  contractFindCycleCracked,
   ContractVersion,
   type ContractVersionType,
 } from "@/lib/server/crackpotContract";
@@ -75,6 +75,7 @@ export type EnqueuePayoutParams = {
 
 const MAX_ATTEMPTS    = 5;
 const RETRY_DELAY_MS  = 30_000; // 30 s between retries
+const STALE_LEASE_MS  = 6 * 60_000; // longer than the route maxDuration
 
 // ── Enqueue ───────────────────────────────────────────────────────────────────
 
@@ -150,30 +151,48 @@ export async function leaseNextPayoutJob(
   leaseOwner: string = "worker",
 ): Promise<RawPayoutJob | null> {
   // Find the oldest runnable job.
-  const { data: candidate } = await supabase
+  const { data: runnable } = await supabase
     .from("crackpot_payout_jobs")
-    .select("id")
+    .select("id, status")
     .in("status", ["queued", "failed"])
     .lte("next_attempt_at", new Date().toISOString())
     .order("next_attempt_at", { ascending: true })
     .limit(1)
     .maybeSingle();
 
+  const staleBefore = new Date(Date.now() - STALE_LEASE_MS).toISOString();
+  const { data: stale } = runnable
+    ? { data: null }
+    : await supabase
+        .from("crackpot_payout_jobs")
+        .select("id, status")
+        .eq("status", "processing")
+        .lte("leased_at", staleBefore)
+        .order("leased_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+  const candidate = runnable ?? stale;
   if (!candidate) return null;
 
   // CAS claim: only succeeds if the row is still in a runnable state.
   const now = new Date().toISOString();
-  const { data, error } = await supabase
+  let query = supabase
     .from("crackpot_payout_jobs")
     .update({
       status:      "processing",
       leased_at:   now,
       lease_owner: leaseOwner,
     })
-    .eq("id", candidate.id)
-    .in("status", ["queued", "failed"])
-    .select("*")
-    .maybeSingle();
+    .eq("id", candidate.id);
+
+  if (candidate.status === "processing") {
+    query = query.eq("status", "processing").lte("leased_at", staleBefore);
+  } else {
+    query = query.in("status", ["queued", "failed"]);
+  }
+
+  const { data, error } = await query.select("*").maybeSingle();
 
   if (error) {
     console.warn("[crackpotPayoutWorker] lease CAS failed:", error.message);
@@ -228,7 +247,9 @@ export async function processPayoutJob(job: RawPayoutJob): Promise<ProcessPayout
     const errMsg = String(err?.shortMessage ?? err?.message ?? "unknown error");
 
     // If the chain says NoCycleActive, the cycle may already have been cracked
-    // by a prior worker attempt — check and finalise.
+    // by a prior worker attempt — recover ONLY from an on-chain CycleCracked
+    // event. An expired-unpaid cycle also reads as "no active cycle" and must
+    // fall through to failed/manual_review, never fake success.
     if (/NoCycleActive|no active cycle/i.test(errMsg)) {
       const recovered = await recoverAlreadyCrackedCycle(job, dbVersion);
       if (recovered) return { status: "succeeded" };
@@ -250,7 +271,9 @@ async function finalizePayoutJob(
 ): Promise<void> {
   const now = new Date().toISOString();
 
-  // Update cycle: cracked.
+  // Update cycle: cracked. Also covers 'dead' — a settling cycle that expired
+  // before its payout job succeeded gets corrected once the CycleCracked
+  // event (or a late declareWinner) proves the winner was paid.
   await supabase
     .from("crackpot_cycles")
     .update({
@@ -260,7 +283,7 @@ async function finalizePayoutJob(
       cracked_at:     now,
     })
     .eq("id", cycleId)
-    .eq("status", "settling");
+    .in("status", ["settling", "dead"]);
 
   // Update job: succeeded.
   await supabase
@@ -304,47 +327,36 @@ async function failPayoutJob(
 // ── Race recovery ─────────────────────────────────────────────────────────────
 
 /**
- * If declareWinner reverts with NoCycleActive it means a prior attempt
- * already sent the tx.  Try to recover by checking the chain cycle status.
- * Returns true if we successfully finalised from on-chain data.
+ * If declareWinner reverts with NoCycleActive, the cycle is no longer active
+ * on-chain — either a prior attempt already cracked it, or it EXPIRED with the
+ * winner unpaid. Only the CycleCracked event distinguishes the two.
+ *
+ * Recovery finalises exclusively from a CycleCracked event whose winner
+ * matches the job (using the event's real payout and tx hash). When no event
+ * is found — expired-unpaid, or the log query failed — this returns false and
+ * the job proceeds to failed/manual_review, so an unpaid winner can never be
+ * recorded as paid.
  */
 async function recoverAlreadyCrackedCycle(
   job:       RawPayoutJob,
   dbVersion: CrackPotVersion,
 ): Promise<boolean> {
   try {
-    const version: ContractVersionType =
-      job.contract_version === ContractVersion.USDT ? ContractVersion.USDT : ContractVersion.MILES;
+    const found = await contractFindCycleCracked(job.contract_cycle_id, job.chain_id);
+    if (!found) return false;
 
-    // activeCycleId = 0 when the cycle is cracked (cleared in declareWinner).
-    const onChain = await contractGetActiveCycle(version, job.chain_id);
-    if (onChain && Number(onChain.id) === job.contract_cycle_id) {
-      // Cycle still active — not a recovery situation.
+    const { txHash, cycleCracked } = found;
+
+    if (cycleCracked.winner.toLowerCase() !== job.winner_address.toLowerCase()) {
+      console.error(
+        `[crackpotPayoutWorker] CycleCracked winner mismatch during recovery: ` +
+        `on-chain ${cycleCracked.winner}, job ${job.winner_address} (cycle ${job.contract_cycle_id})`,
+      );
       return false;
     }
 
-    // Cycle no longer active — treat as already cracked.  We lack the exact
-    // payout amount here (cycle.potBalance is 0 post-cracking), so mark the
-    // job succeeded with the winner we know and leave payout_amount null.
-    const now = new Date().toISOString();
-
-    await supabase
-      .from("crackpot_cycles")
-      .update({
-        status:     "cracked",
-        cracked_at: now,
-      })
-      .eq("id", job.cycle_id)
-      .eq("status", "settling");
-
-    await supabase
-      .from("crackpot_payout_jobs")
-      .update({
-        status:     "succeeded",
-        last_error: "recovered: cycle already cracked on-chain",
-      })
-      .eq("id", job.id);
-
+    const payoutDb = chainPotToDb(cycleCracked.payout, dbVersion);
+    await finalizePayoutJob(job.id, job.cycle_id, txHash, payoutDb, cycleCracked.winner);
     return true;
   } catch {
     return false;

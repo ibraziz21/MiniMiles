@@ -19,7 +19,7 @@ const CELO_CRACKPOT  = (process.env.NEXT_PUBLIC_CRACKPOT_ADDRESS      ?? "") as 
 const BASE_CRACKPOT  = (process.env.NEXT_PUBLIC_BASE_CRACKPOT_ADDRESS  ?? "") as `0x${string}`;
 const CELO_RPC       = process.env.CELO_RPC_URL ?? "https://forno.celo.org";
 const BASE_RPC       = process.env.BASE_RPC_URL  ?? "https://mainnet.base.org";
-const RELAYER_PK     = (process.env.PRIVATE_KEY ?? "").replace(/^0x/, "");
+const RELAYER_PK     = (process.env.CRACKPOT_RELAYER_PK ?? "").replace(/^0x/, "");
 
 function chainParams(chainId: number = celo.id) {
   if (chainId === base.id) {
@@ -110,7 +110,7 @@ function getPublicClient(chainId?: number) {
 }
 
 function getClients(chainId?: number) {
-  if (!RELAYER_PK || RELAYER_PK.length < 10) throw new Error("PRIVATE_KEY not configured");
+  if (!RELAYER_PK || RELAYER_PK.length < 10) throw new Error("CRACKPOT_RELAYER_PK not configured");
   const { chain, rpc, address } = chainParams(chainId);
   if (!address) throw new Error(`CrackPot address not configured for chain ${chainId ?? celo.id}`);
   const account      = privateKeyToAccount(`0x${RELAYER_PK}` as `0x${string}`, { nonceManager });
@@ -283,6 +283,73 @@ export async function contractGetActiveCycle(
   } catch (err: any) {
     if (isKnownCycleRace(err, /no active cycle|NoCycleActive/i, [ERROR_SELECTOR.NoCycleActive])) return null;
     throw err;
+  }
+}
+
+// Public RPCs (Forno) cap eth_getLogs at 5000 blocks per query, so the
+// CycleCracked lookup scans in chunks, newest block first (recent cracks are
+// the common case, so the scan usually ends after one or two requests).
+const LOG_SCAN_CHUNK_BLOCKS    = 4_999n;
+const LOG_SCAN_DEFAULT_LOOKBACK = 200_000n; // ~2.3 days of 1s Celo blocks
+
+/**
+ * Look up the CycleCracked event for a specific cycle id (bounded lookback).
+ *
+ * This is the only trustworthy way to distinguish "cycle already cracked by a
+ * prior declareWinner" from "cycle expired unpaid" once the cycle is no longer
+ * active on-chain. Returns null when no event exists in the window or the log
+ * query fails — callers must treat null as NOT-cracked and fail safe.
+ */
+export async function contractFindCycleCracked(
+  contractCycleId: number,
+  chainId?: number,
+  lookbackBlocks: bigint = LOG_SCAN_DEFAULT_LOOKBACK,
+): Promise<{ txHash: `0x${string}`; cycleCracked: CycleCrackedEvent } | null> {
+  const publicClient = getPublicClient(chainId);
+  const { address } = chainParams(chainId);
+
+  try {
+    const latest = await publicClient.getBlockNumber();
+    const floor  = latest > lookbackBlocks ? latest - lookbackBlocks : 0n;
+
+    let toBlock = latest;
+    while (toBlock >= floor) {
+      const fromBlock = toBlock >= floor + LOG_SCAN_CHUNK_BLOCKS
+        ? toBlock - LOG_SCAN_CHUNK_BLOCKS
+        : floor;
+
+      const logs = await publicClient.getLogs({
+        address,
+        event: CYCLE_CRACKED_ABI[0],
+        args: { cycleId: BigInt(contractCycleId) },
+        fromBlock,
+        toBlock,
+      });
+
+      if (logs.length > 0) {
+        const log = logs[logs.length - 1];
+        const { cycleId, winner, payout, guesses } = log.args as {
+          cycleId: bigint;
+          winner: `0x${string}`;
+          payout: bigint;
+          guesses: bigint;
+        };
+        return {
+          txHash: log.transactionHash,
+          cycleCracked: { cycleId, winner, payout, guesses },
+        };
+      }
+
+      if (fromBlock === floor) break;
+      toBlock = fromBlock - 1n;
+    }
+    return null;
+  } catch (err: any) {
+    console.warn(
+      "[crackpotContract] CycleCracked lookup failed:",
+      err?.shortMessage ?? err?.message,
+    );
+    return null;
   }
 }
 

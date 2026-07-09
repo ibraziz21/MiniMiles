@@ -20,9 +20,10 @@
 //           Includes `feedbackIsNoiseless: boolean` so the UI can inform players
 //           whether feedback is exact (USDT) or probabilistically noisy (Miles).
 
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { crackPotComingSoonResponse, isCrackPotLive } from "@/lib/server/crackpotComingSoon";
 import { requireSession } from "@/lib/auth";
+import { drainCrackPotPayoutQueue } from "@/lib/server/crackpotPayoutProcessor";
 import {
   getAttemptForPlayer,
   getGuessesForAttempt,
@@ -145,6 +146,12 @@ export async function POST(req: Request) {
       if (!enqueued) {
         return NextResponse.json({ error: "settlement_not_enqueued" }, { status: 500 });
       }
+      after(async () => {
+        await drainCrackPotPayoutQueue({
+          limit: 1,
+          leaseOwner: "crackpot-guess-route",
+        });
+      });
     } else {
       console.error("[guess/route] getCycleChainRef returned null for cycle", attempt.cycle_id);
       return NextResponse.json({ error: "settlement_not_enqueued" }, { status: 500 });

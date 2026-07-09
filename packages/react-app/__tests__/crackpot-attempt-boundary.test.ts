@@ -17,6 +17,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ── Shared mocks ──────────────────────────────────────────────────────────────
 
+const mockAfter = vi.fn<(...a: any[]) => void>();
+
+vi.mock("next/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next/server")>();
+  return {
+    ...actual,
+    after: (...a: any[]) => mockAfter(...a),
+  };
+});
+
 vi.mock("@/lib/server/crackpotComingSoon", () => ({
   isCrackPotLive: () => true,
   crackPotComingSoonResponse: () =>
@@ -50,6 +60,9 @@ vi.mock("@/lib/server/crackpotEntryVerifier", () => ({
 const mockCreateAttempt       = vi.fn<(...a: any[]) => Promise<any>>();
 const mockGetAttemptForPlayer = vi.fn<(...a: any[]) => Promise<any>>();
 const mockGetCycleSecret      = vi.fn<(...a: any[]) => Promise<any>>();
+const mockGetCycleChainRef    = vi.fn<(...a: any[]) => Promise<any>>();
+const mockSubmitGuess         = vi.fn<(...a: any[]) => Promise<any>>();
+const mockSettleWinningCycle  = vi.fn<(...a: any[]) => Promise<any>>();
 
 vi.mock("@/lib/server/crackpotAttemptHelpers", () => ({
   findAttemptByTxHash:     vi.fn().mockResolvedValue(null),
@@ -60,9 +73,15 @@ vi.mock("@/lib/server/crackpotAttemptHelpers", () => ({
   buildAttemptView:        vi.fn().mockReturnValue({ attemptId: "attempt-1", status: "active" }),
   getCycleSecret:          (...a: any[]) => mockGetCycleSecret(...a),
   getAttemptForPlayer:     (...a: any[]) => mockGetAttemptForPlayer(...a),
-  getCycleChainRef:        vi.fn().mockResolvedValue(null),
-  submitGuess:             vi.fn(),
-  settleWinningCycle:      vi.fn(),
+  getCycleChainRef:        (...a: any[]) => mockGetCycleChainRef(...a),
+  submitGuess:             (...a: any[]) => mockSubmitGuess(...a),
+  settleWinningCycle:      (...a: any[]) => mockSettleWinningCycle(...a),
+}));
+
+const mockDrainPayoutQueue = vi.fn<(...a: any[]) => Promise<any>>();
+
+vi.mock("@/lib/server/crackpotPayoutProcessor", () => ({
+  drainCrackPotPayoutQueue: (...a: any[]) => mockDrainPayoutQueue(...a),
 }));
 
 const mockRecordOrphan = vi.fn<(...a: any[]) => Promise<void>>();
@@ -124,6 +143,11 @@ beforeEach(() => {
   mockCreateAttempt.mockReset();
   mockGetAttemptForPlayer.mockReset();
   mockGetCycleSecret.mockReset();
+  mockGetCycleChainRef.mockReset();
+  mockSubmitGuess.mockReset();
+  mockSettleWinningCycle.mockReset();
+  mockDrainPayoutQueue.mockReset();
+  mockAfter.mockReset();
   mockRecordOrphan.mockReset();
   mockRecordOrphan.mockResolvedValue(undefined);
   mockGetCycleSecret.mockResolvedValue({
@@ -133,6 +157,9 @@ beforeEach(() => {
     status: "active",
     expiresAt: new Date(Date.now() + 1_800_000).toISOString(),
   });
+  mockGetCycleChainRef.mockResolvedValue(null);
+  mockSettleWinningCycle.mockResolvedValue(true);
+  mockDrainPayoutQueue.mockResolvedValue({ processed: [], processedCount: 0, rotations: [] });
 });
 
 // ── attempt/start boundary ────────────────────────────────────────────────────
@@ -270,5 +297,46 @@ describe("POST /api/crackpot/guess — cycle liveness", () => {
 
     expect(res.status).toBe(410);
     expect(body.error).toBe("cycle_expired");
+  });
+
+  it("schedules payout processing after a correct guess is enqueued", async () => {
+    mockSubmitGuess.mockResolvedValue({
+      guessView: {
+        guessNumber: 1,
+        symbols: [0, 1, 2, 3],
+        symbolLabels: ["A", "B", "C", "D"],
+        feedback: ["locked", "locked", "locked", "locked"],
+        isCorrect: true,
+        createdAt: new Date().toISOString(),
+      },
+      isCorrect: true,
+      newStatus: "won",
+    });
+    mockGetCycleChainRef.mockResolvedValue({
+      id: "cycle-db-id",
+      chain_id: 42220,
+      contract_cycle_id: 12,
+      contract_version: 0,
+    });
+
+    const res = await POST(guessRequest());
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.isCorrect).toBe(true);
+    expect(mockSettleWinningCycle).toHaveBeenCalledWith(
+      expect.objectContaining({ contract_cycle_id: 12 }),
+      PLAYER,
+      1,
+    );
+    expect(mockAfter).toHaveBeenCalledOnce();
+
+    const afterTask = mockAfter.mock.calls[0][0];
+    await afterTask();
+
+    expect(mockDrainPayoutQueue).toHaveBeenCalledWith({
+      limit: 1,
+      leaseOwner: "crackpot-guess-route",
+    });
   });
 });

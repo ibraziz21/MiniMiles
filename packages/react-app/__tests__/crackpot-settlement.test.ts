@@ -100,15 +100,17 @@ vi.mock("@supabase/supabase-js", () => ({
 
 // ── contractDeclareWinner / contractGetActiveCycle mocks ─────────────────────
 
-const mockDeclareWinner  = vi.fn<(...args: any[]) => Promise<any>>();
-const mockGetActiveCycle = vi.fn<(...args: any[]) => Promise<any>>();
+const mockDeclareWinner    = vi.fn<(...args: any[]) => Promise<any>>();
+const mockGetActiveCycle   = vi.fn<(...args: any[]) => Promise<any>>();
+const mockFindCycleCracked = vi.fn<(...args: any[]) => Promise<any>>();
 
 vi.mock("@/lib/server/crackpotContract", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/server/crackpotContract")>();
   return {
     ...actual,
-    contractDeclareWinner:  mockDeclareWinner,
-    contractGetActiveCycle: mockGetActiveCycle,
+    contractDeclareWinner:    mockDeclareWinner,
+    contractGetActiveCycle:   mockGetActiveCycle,
+    contractFindCycleCracked: mockFindCycleCracked,
   };
 });
 
@@ -163,6 +165,8 @@ beforeEach(() => {
   mockFrom.mockImplementation((table: string) => makeQueryBuilder(table));
   mockDeclareWinner.mockReset();
   mockGetActiveCycle.mockReset();
+  mockFindCycleCracked.mockReset();
+  mockFindCycleCracked.mockResolvedValue(null);
   resetLogs();
   cycleRowOverride = null;
   jobRowOverride   = null;
@@ -252,6 +256,32 @@ describe("leaseNextPayoutJob", () => {
 
     const result = await leaseNextPayoutJob("worker-2");
     expect(result).toBeNull();
+  });
+
+  it("reclaims a stale processing job", async () => {
+    let callCount = 0;
+    const staleJob = {
+      ...BASE_JOB,
+      status: "processing" as const,
+      leased_at: new Date(Date.now() - 10 * 60_000).toISOString(),
+      lease_owner: "dead-worker",
+    };
+
+    mockFrom.mockImplementation((table: string) => {
+      const q = makeQueryBuilder(table);
+      q.maybeSingle = () => {
+        callCount++;
+        if (callCount === 1) return Promise.resolve({ data: null, error: null });
+        if (callCount === 2) return Promise.resolve({ data: { id: staleJob.id, status: "processing" }, error: null });
+        return Promise.resolve({ data: staleJob, error: null });
+      };
+      return q;
+    });
+
+    const result = await leaseNextPayoutJob("worker-3");
+
+    expect(result?.id).toBe(staleJob.id);
+    expect(callCount).toBe(3);
   });
 });
 
@@ -352,10 +382,18 @@ describe("processPayoutJob — failure paths", () => {
     expect(jobUpdate?.data.status).toBe("manual_review");
   });
 
-  it("recovers when NoCycleActive and chain shows a different active cycle", async () => {
+  it("recovers when NoCycleActive and a matching CycleCracked event exists on-chain", async () => {
     mockDeclareWinner.mockRejectedValue(new Error("NoCycleActive (version=1)"));
-    // A different cycle is active → our cycle was already cracked.
-    mockGetActiveCycle.mockResolvedValue({ id: BigInt(CONTRACT_CYCLE_ID + 99) });
+    // A prior declareWinner already landed — the event is the proof of payment.
+    mockFindCycleCracked.mockResolvedValue({
+      txHash: "0xrecovered",
+      cycleCracked: {
+        cycleId: BigInt(CONTRACT_CYCLE_ID),
+        winner:  WINNER,
+        payout:  25_000_000n, // $25 in 6-dec USDT
+        guesses: 4n,
+      },
+    });
 
     const result = await processPayoutJob(BASE_JOB);
 
@@ -363,9 +401,43 @@ describe("processPayoutJob — failure paths", () => {
 
     const cycleUpdate = updateLog.find((u) => u.table === "crackpot_cycles" && u.data.status === "cracked");
     expect(cycleUpdate).toBeDefined();
+    // Recovery records the REAL payout and tx hash from the event.
+    expect(cycleUpdate?.data.payout_amount).toBe(2500); // cents
+    expect(cycleUpdate?.data.winner_tx_hash).toBe("0xrecovered");
 
     const jobUpdate = updateLog.find((u) => u.table === "crackpot_payout_jobs" && u.data.status === "succeeded");
     expect(jobUpdate).toBeDefined();
+    expect(jobUpdate?.data.payout_amount).toBe(2500);
+  });
+
+  it("does NOT fake success when the cycle expired unpaid (no CycleCracked event)", async () => {
+    mockDeclareWinner.mockRejectedValue(new Error("NoCycleActive (version=1)"));
+    // Cycle gone from chain but never cracked — it expired with the winner unpaid.
+    mockFindCycleCracked.mockResolvedValue(null);
+
+    const result = await processPayoutJob(BASE_JOB);
+
+    expect(result.status).toBe("failed"); // retryable — NOT succeeded
+    expect(updateLog.find((u) => u.table === "crackpot_cycles" && u.data.status === "cracked")).toBeUndefined();
+    expect(updateLog.find((u) => u.table === "crackpot_payout_jobs" && u.data.status === "succeeded")).toBeUndefined();
+  });
+
+  it("does NOT recover from a CycleCracked event with a different winner", async () => {
+    mockDeclareWinner.mockRejectedValue(new Error("NoCycleActive (version=1)"));
+    mockFindCycleCracked.mockResolvedValue({
+      txHash: "0xother",
+      cycleCracked: {
+        cycleId: BigInt(CONTRACT_CYCLE_ID),
+        winner:  "0x9999999999999999999999999999999999999999",
+        payout:  25_000_000n,
+        guesses: 2n,
+      },
+    });
+
+    const result = await processPayoutJob(BASE_JOB);
+
+    expect(result.status).toBe("failed");
+    expect(updateLog.find((u) => u.table === "crackpot_payout_jobs" && u.data.status === "succeeded")).toBeUndefined();
   });
 });
 
