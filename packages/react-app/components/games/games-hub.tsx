@@ -34,6 +34,37 @@ type HubGame = {
 
 const GAMES: HubGame[] = [
   {
+    key: "farkle",
+    name: "PvP Farkle",
+    tagline: "Queue up for a live dice duel and bank before you bust.",
+    category: "PvP",
+    stats: [
+      "1 ticket entry",
+      "Reward duel mode",
+    ],
+    route: "/games/farkle",
+    status: "live",
+    accent: "#238D9D",
+    surface: "#EAF7F8",
+    icon: DiceSix,
+  },
+  {
+    key: "crackpot",
+    name: "CrackPot",
+    tagline: "Crack the code for a live Miles or USDT jackpot.",
+    category: "Jackpot",
+    stats: [
+      "60s attempts",
+      "2 guesses",
+      "Miles + USDT",
+    ],
+    route: "/crackpot",
+    status: "live",
+    accent: "#176B76",
+    surface: "#E8F3F4",
+    icon: LockKey,
+  },
+  {
     key: "rule_tap",
     name: "Rule Tap",
     tagline: "Read the rule, tap the right tiles fast.",
@@ -74,37 +105,6 @@ const GAMES: HubGame[] = [
     accent: "#2BA9B8",
     surface: "#E7F8FA",
     icon: Gift,
-  },
-  {
-    key: "farkle",
-    name: "PvP Farkle",
-    tagline: "Queue up for a live dice duel and bank before you bust.",
-    category: "PvP",
-    stats: [
-      "1 ticket entry",
-      "Reward duel mode",
-    ],
-    route: "/games/farkle",
-    status: "live",
-    accent: "#238D9D",
-    surface: "#EAF7F8",
-    icon: DiceSix,
-  },
-  {
-    key: "crackpot",
-    name: "CrackPot",
-    tagline: "Crack the code for a live Miles or USDT jackpot.",
-    category: "Jackpot",
-    stats: [
-      "60s attempts",
-      "2 guesses",
-      "Miles + USDT",
-    ],
-    route: "/crackpot",
-    status: "live",
-    accent: "#176B76",
-    surface: "#E8F3F4",
-    icon: LockKey,
   },
 ];
 

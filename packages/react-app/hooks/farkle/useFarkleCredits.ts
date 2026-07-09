@@ -12,11 +12,15 @@ import {
 
 type BuyStep = "idle" | "approving" | "buying" | "syncing";
 
+type ExpectedCreditPack = {
+  creditAmount: number;
+  usdtAmount: bigint | string | number;
+};
+
 /**
  * Reward Duel credits are bought with USDT via GameCreditVault.buyCredits(packId).
- * Pack 0 = 5 credits for $0.50 USDT. Pack 1 is intended for Pro Duel:
- * 10 credits for $1.00 USDT. The vault pulls USDT with transferFrom, so we approve
- * first when the allowance is short, then buy, then sync the off-chain ledger.
+ * The vault pulls USDT with transferFrom, so we approve first when the allowance
+ * is short, then buy, then sync the off-chain ledger.
  */
 export function useFarkleCredits(address: string | null | undefined) {
   const [buying,     setBuying]     = useState(false);
@@ -26,7 +30,10 @@ export function useFarkleCredits(address: string | null | undefined) {
   const [syncFailed, setSyncFailed] = useState(false);
   const [retrying,   setRetrying]   = useState(false);
 
-  const buyCreditPack = useCallback(async (packId = 0): Promise<boolean> => {
+  const buyCreditPack = useCallback(async (
+    packId = 0,
+    expected?: ExpectedCreditPack,
+  ): Promise<boolean> => {
     if (!address || !GAME_CREDIT_VAULT_ADDRESS) {
       setBuyError("Wallet not connected or contract not configured");
       return false;
@@ -53,11 +60,20 @@ export function useFarkleCredits(address: string | null | undefined) {
         functionName: "creditPacks",
         args: [BigInt(packId)],
       })) as readonly [bigint, bigint, bigint, boolean];
-      const usdtAmount = pack[1];
-      const active     = pack[3];
+      const usdtAmount   = pack[1];
+      const creditAmount = pack[2];
+      const active       = pack[3];
       if (!active || usdtAmount === 0n) {
         setBuyError("This credit pack is unavailable");
         return false;
+      }
+      if (expected) {
+        const expectedCredits = BigInt(expected.creditAmount);
+        const expectedUsdt    = BigInt(expected.usdtAmount);
+        if (creditAmount !== expectedCredits || usdtAmount !== expectedUsdt) {
+          setBuyError("This credit pack is not updated yet. Please try again later.");
+          return false;
+        }
       }
 
       // Balance guard so the user doesn't pay gas to revert

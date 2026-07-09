@@ -48,17 +48,48 @@ const QUICK_DUEL_MODE: FarkleMode = "FARKLE_QUICK_1500_AKIBA";
 const REWARD_DUEL_MODE: FarkleMode = "FARKLE_REWARD_3000_USDT";
 const PRO_DUEL_MODE: FarkleMode = "FARKLE_PRO_5000_USDT";
 const CREDIT_MODE_KEYS = new Set<FarkleMode>([REWARD_DUEL_MODE, PRO_DUEL_MODE]);
+const PRO_DUEL_ENTRY_CREDITS = 5;
+const PRO_DUEL_WIN_CENTS = 85;
+type FarkleCreditPack = {
+  packId: number;
+  credits: number;
+  priceLabel: string;
+  usdtBaseUnits: string;
+  badge?: string;
+  note: string;
+};
+const FARKLE_CREDIT_PACKS: readonly FarkleCreditPack[] = [
+  {
+    packId: 0,
+    credits: 1,
+    priceLabel: "$0.10",
+    usdtBaseUnits: "100000",
+    note: "One Reward Duel",
+  },
+  {
+    packId: 1,
+    credits: 5,
+    priceLabel: "$0.50",
+    usdtBaseUnits: "500000",
+    badge: "Popular",
+    note: "One Pro Duel",
+  },
+  {
+    packId: 2,
+    credits: 50,
+    priceLabel: "$4.90",
+    usdtBaseUnits: "4900000",
+    badge: "Bulk",
+    note: "10 Pro Duels",
+  },
+] as const;
 
 function isCreditFarkleMode(mode: FarkleMode) {
   return CREDIT_MODE_KEYS.has(mode);
 }
 
 function creditEntryAmount(mode: FarkleMode) {
-  return mode === PRO_DUEL_MODE ? 10 : mode === REWARD_DUEL_MODE ? 1 : 0;
-}
-
-function creditPackIdForMode(mode: FarkleMode) {
-  return mode === PRO_DUEL_MODE ? 1 : 0;
+  return mode === PRO_DUEL_MODE ? PRO_DUEL_ENTRY_CREDITS : mode === REWARD_DUEL_MODE ? 1 : 0;
 }
 
 function modeDisplayLabel(mode: FarkleMode) {
@@ -854,6 +885,7 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onFindLobby, onChall
   const { buyCreditPack, buying: buyingCredits, buyError: creditError, step } = useFarkleCredits(address);
   const { claimable, claimEnabled, claiming, claimError, claim } = useFarkleClaim(address);
   const [showRules,        setShowRules]        = useState(false);
+  const [showCreditPacks,  setShowCreditPacks]  = useState(false);
   const [showGameNights,   setShowGameNights]   = useState(false);
   const [showLeaderboard,  setShowLeaderboard]  = useState(false);
   const [justBought,       setJustBought]       = useState(false);
@@ -925,7 +957,21 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onFindLobby, onChall
     }
   }
   const handleBuy        = () => runBuy(buyPack, buyingTickets);
-  const handleBuyCredits = () => runBuy(() => buyCreditPack(creditPackIdForMode(selectedMode)), buyingCredits);
+  const handleBuyCredits = () => setShowCreditPacks(true);
+  async function handleBuyCreditPack(pack: FarkleCreditPack) {
+    if (buyingCredits) return false;
+    const ok = await buyCreditPack(pack.packId, {
+      creditAmount: pack.credits,
+      usdtAmount:   pack.usdtBaseUnits,
+    });
+    if (ok) {
+      onBalanceRefresh();
+      setJustBought(true);
+      setTimeout(() => setJustBought(false), 2200);
+      celebrate();
+    }
+    return ok;
+  }
 
   // Everything the hero + CTA need, derived from the selected mode's currency
   const need = isCreditMode
@@ -937,15 +983,15 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onFindLobby, onChall
         busy:     buyingCredits,
         error:    creditError,
         busyLabel: step === "approving" ? "Approving…" : step === "syncing" ? "Confirming…" : "Buying…",
-        costNode: isProMode ? <>+10 · $1.00</> : <>+5 · $0.50</>,
-        perMatch: isProMode ? "10 credits per match" : "1 credit per match",
-        emptyHint: isProMode ? "Buy 10 credits with USDT to enter Pro Duel" : "Buy credits with USDT to enter",
-        addedMsg:  isProMode ? "✓ Added 10 credits!" : "✓ Added 5 credits!",
+        costNode: <>Buy</>,
+        perMatch: isProMode ? `${PRO_DUEL_ENTRY_CREDITS} credits per match` : "1 credit per match",
+        emptyHint: isProMode ? `Buy ${PRO_DUEL_ENTRY_CREDITS} credits with USDT to enter Pro Duel` : "Buy credits with USDT to enter",
+        addedMsg:  "✓ Credits added!",
         icon:      <TokenIcon token="usdt" size={26} className="drop-shadow-sm" />,
         heroBg:    "bg-gradient-to-br from-[#1A4A2A] to-[#2A7040] border border-white/10",
         accentBtn: "bg-white/15 text-white border border-white/20",
         ctaIcon:   <TokenIcon token="usdt" size={16} />,
-        ctaLabel:  isProMode ? "Buy 10 credits to play" : "Buy credits to play",
+        ctaLabel:  "Buy USDT credits",
       }
     : {
         balance:  tickets,
@@ -1008,11 +1054,11 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onFindLobby, onChall
     {
       key:        PRO_DUEL_MODE,
       tabLabel:   "Pro",
-      tabMeta:    "$1.85",
+      tabMeta:    `$${(PRO_DUEL_WIN_CENTS / 100).toFixed(2)}`,
       label:      "Pro Duel",
       target:     "5,000 pts",
-      entry:      "10 credits",
-      reward:     <span>$1.85 USDT</span>,
+      entry:      `${PRO_DUEL_ENTRY_CREDITS} credits`,
+      reward:     <span>${(PRO_DUEL_WIN_CENTS / 100).toFixed(2)} USDT</span>,
       token:      "usdt",
       panelClass: "bg-[#FFF7E6] border-amber-300",
       badgeClass: "bg-amber-400/25 text-amber-800",
@@ -1050,6 +1096,19 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onFindLobby, onChall
           loading={lbLoading}
           error={lbError}
           onRetry={fetchLeaderboard}
+        />
+      )}
+    </AnimatePresence>
+    <AnimatePresence>
+      {showCreditPacks && (
+        <FarkleCreditPackSheet
+          currentCredits={credits}
+          selectedMode={selectedMode}
+          buying={buyingCredits}
+          busyLabel={need.busyLabel}
+          buyError={creditError}
+          onBuyPack={handleBuyCreditPack}
+          onClose={() => setShowCreditPacks(false)}
         />
       )}
     </AnimatePresence>
@@ -1291,6 +1350,167 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onFindLobby, onChall
       )}
     </div>
     </>
+  );
+}
+
+function FarkleCreditPackSheet({
+  currentCredits,
+  selectedMode,
+  buying,
+  busyLabel,
+  buyError,
+  onBuyPack,
+  onClose,
+}: {
+  currentCredits: number;
+  selectedMode: FarkleMode;
+  buying: boolean;
+  busyLabel: string;
+  buyError: string | null;
+  onBuyPack: (pack: FarkleCreditPack) => Promise<boolean>;
+  onClose: () => void;
+}) {
+  const defaultPack = selectedMode === PRO_DUEL_MODE
+    ? FARKLE_CREDIT_PACKS[1]
+    : FARKLE_CREDIT_PACKS[0];
+  const [selectedPackId, setSelectedPackId] = useState<number>(defaultPack.packId);
+  const [purchasedPack, setPurchasedPack] = useState<FarkleCreditPack | null>(null);
+  const [localBalanceAfterPurchase, setLocalBalanceAfterPurchase] = useState<number | null>(null);
+
+  const selectedPack = FARKLE_CREDIT_PACKS.find((pack) => pack.packId === selectedPackId) ?? defaultPack;
+  const isProMode = selectedMode === PRO_DUEL_MODE;
+
+  async function handleBuy() {
+    if (buying) return;
+    const ok = await onBuyPack(selectedPack);
+    if (ok) {
+      setPurchasedPack(selectedPack);
+      setLocalBalanceAfterPurchase(currentCredits + selectedPack.credits);
+    }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-end justify-center"
+    >
+      <button type="button" aria-label="Close credit packs" className="absolute inset-0 bg-black/60" onClick={onClose} />
+
+      <motion.div
+        initial={{ y: 28 }}
+        animate={{ y: 0 }}
+        exit={{ y: 28 }}
+        className="relative w-full max-w-md rounded-t-3xl bg-white px-5 pt-5 pb-8 shadow-2xl"
+        style={{ paddingBottom: "max(2rem, env(safe-area-inset-bottom))" }}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-extrabold text-[#1A1A1A]">Buy USDT credits</h2>
+          <button type="button" onClick={onClose} className="rounded-full p-1 transition-colors hover:bg-gray-100">
+            <X size={20} weight="bold" className="text-[#717171]" />
+          </button>
+        </div>
+
+        {purchasedPack ? (
+          <div className="pb-1 pt-6 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#2A7040]/10">
+              <TokenIcon token="usdt" size={34} />
+            </div>
+            <h3 className="text-xl font-extrabold text-[#1A1A1A]">Credits added</h3>
+            <p className="mt-1 text-sm text-[#717171] font-poppins">
+              {purchasedPack.credits} credit{purchasedPack.credits !== 1 ? "s" : ""} added to your Farkle balance.
+            </p>
+            <div className="mt-5 rounded-2xl bg-[#EEF8EF] p-4">
+              <p className="text-3xl font-black text-[#1A1A1A]">{localBalanceAfterPurchase ?? currentCredits}</p>
+              <p className="mt-1 text-xs text-[#2A7040] font-poppins">credits available</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="mt-5 w-full rounded-2xl bg-[#238D9D] py-3.5 text-sm font-bold text-white transition-all active:scale-[0.98]"
+            >
+              Done
+            </button>
+          </div>
+        ) : (
+          <>
+            <p className="mt-1 text-sm text-[#717171] font-poppins">
+              1 credit is $0.10 USDT. Pro Duel uses {PRO_DUEL_ENTRY_CREDITS} credits and pays ${(PRO_DUEL_WIN_CENTS / 100).toFixed(2)} to the winner.
+            </p>
+
+            <div className="mt-4 rounded-2xl bg-gray-50 p-3 text-center">
+              <p className="text-2xl font-black text-[#1A1A1A]">{currentCredits}</p>
+              <p className="text-xs text-[#717171] font-poppins">credits left</p>
+            </div>
+
+            <p className="mb-2 mt-5 text-xs font-extrabold uppercase tracking-wider text-[#A0A0A0]">
+              Choose a pack
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {FARKLE_CREDIT_PACKS.map((pack) => {
+                const selected = selectedPackId === pack.packId;
+                return (
+                  <button
+                    key={pack.packId}
+                    type="button"
+                    onClick={() => setSelectedPackId(pack.packId)}
+                    className={[
+                      "relative rounded-2xl border-2 p-3 text-left transition-all",
+                      selected
+                        ? "border-[#238D9D] bg-[#E8F7F9]"
+                        : "border-gray-100 bg-gray-50 active:border-gray-200",
+                    ].join(" ")}
+                  >
+                    {pack.badge && (
+                      <span className="absolute right-2 top-2 rounded-full bg-[#238D9D]/10 px-1.5 py-0.5 text-[9px] font-extrabold uppercase leading-tight text-[#238D9D]">
+                        {pack.badge}
+                      </span>
+                    )}
+                    <p className="text-xl font-black text-[#1A1A1A]">{pack.credits}</p>
+                    <p className="text-xs text-[#717171] font-poppins">credit{pack.credits !== 1 ? "s" : ""}</p>
+                    <p className="mt-2 text-sm font-extrabold text-[#2A7040]">{pack.priceLabel}</p>
+                    <p className="mt-0.5 text-[10px] text-[#A0A0A0] font-poppins">{pack.note}</p>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 rounded-2xl bg-[#FFF7E6] border border-amber-200 px-3 py-2.5">
+              <p className="text-xs font-semibold text-amber-900">
+                {isProMode
+                  ? "The 5-credit pack enters one Pro Duel. The 50-credit pack enters 10."
+                  : "Reward Duel spends 1 credit per match. Larger packs carry over."}
+              </p>
+            </div>
+
+            {buyError && (
+              <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2.5">
+                <WarningCircle size={14} className="mt-0.5 shrink-0 text-red-500" />
+                <p className="text-xs leading-relaxed text-red-600">{buyError}</p>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleBuy}
+              disabled={buying}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#238D9D] py-3.5 text-sm font-bold text-white transition-all disabled:opacity-40 active:scale-[0.98]"
+            >
+              {buying ? (
+                <><SpinnerGap size={16} className="animate-spin" /> {busyLabel}</>
+              ) : (
+                <>Buy {selectedPack.credits} credit{selectedPack.credits !== 1 ? "s" : ""} · {selectedPack.priceLabel}</>
+              )}
+            </button>
+
+            <p className="mt-3 text-center text-[10px] text-gray-400">
+              Credits are purchased with USDT on Celo and only used for Farkle Reward and Pro duels.
+            </p>
+          </>
+        )}
+      </motion.div>
+    </motion.div>
   );
 }
 
