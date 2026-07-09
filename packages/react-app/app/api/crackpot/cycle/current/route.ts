@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { crackPotComingSoonResponse, isCrackPotLive } from "@/lib/server/crackpotComingSoon";
-import { getOrSyncActiveCycle } from "@/lib/server/crackpotCycleSync";
+import { getOrSyncActiveCycle, CycleRotatingError } from "@/lib/server/crackpotCycleSync";
 import { supabase } from "@/lib/supabaseClient";
 import {
   THEMES,
@@ -61,12 +61,32 @@ export async function GET(req: Request) {
   try {
     const cycle = await getOrSyncActiveCycle(version);
     return NextResponse.json(buildCycleView(cycle, version));
-  } catch (err) {
-    console.error("[crackpot/cycle/current]", err);
+  } catch (err: any) {
+    const msg = String(err?.message ?? "");
+    // Orphaned chain cycle — on-chain commitment exists but the DB preimage is gone.
+    // Cannot safely reconstruct the secret; treat this version as temporarily unavailable
+    // until the cycle expires naturally and the server opens a fresh one.
+    if (msg.includes("no DB preimage")) {
+      console.warn(`[crackpot/cycle/current] orphaned ${version} cycle — returning maintenance response`);
+      return crackPotComingSoonResponse();
+    }
+    if (!(err instanceof CycleRotatingError)) {
+      console.error("[crackpot/cycle/current]", err);
+    }
     const fallback = await getFallbackDbCycle(version);
     if (fallback) {
       return NextResponse.json(fallback, {
         headers: { "x-crackpot-sync": "fallback" },
+      });
+    }
+    if (err instanceof CycleRotatingError) {
+      // Not an error from the client's perspective: the round is rotating.
+      // 200 + status:"rotating" so the UI shows a "new round opening" state
+      // and keeps polling instead of an error screen.
+      return NextResponse.json({
+        status:            "rotating",
+        version,
+        retryAfterSeconds: err.retryAfterSeconds,
       });
     }
     return NextResponse.json(

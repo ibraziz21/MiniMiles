@@ -175,7 +175,7 @@ async function sendTx(chainId: number | undefined, fn: () => Promise<`0x${string
     await publicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 90_000 });
   } catch (err: any) {
     const m = String(err?.message ?? "");
-    if (/(block.*out of range|header not found|query timeout)/i.test(m)) {
+    if (/(block.*out of range|header not found|query timeout|timed out|timeout)/i.test(m)) {
       console.warn("[crackpotContract] receipt timeout — proceeding:", hash);
     } else {
       throw err;

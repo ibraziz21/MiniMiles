@@ -94,6 +94,28 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "cycle_not_found" }, { status: 500 });
   }
 
+  // ── Cycle must still be live ──────────────────────────────────────────────
+  // Attempts are clamped to the cycle end at creation, but legacy attempts
+  // (and clock skew) could otherwise straddle a rotation: a "win" against an
+  // expired/settling cycle would enqueue a declareWinner() that reverts.
+  if (cycleData.status !== "active") {
+    return NextResponse.json(
+      { error: "cycle_not_active", status: cycleData.status },
+      { status: 409 },
+    );
+  }
+  if (cycleData.expiresAt && new Date(cycleData.expiresAt) < new Date()) {
+    // Mark the attempt expired (fire-and-forget — next request will also see it).
+    void import("@/lib/supabaseClient").then(({ supabase }) =>
+      supabase
+        .from("crackpot_attempts")
+        .update({ status: "expired" })
+        .eq("id", attempt.id)
+        .eq("player_address", playerWallet),
+    );
+    return NextResponse.json({ error: "cycle_expired" }, { status: 410 });
+  }
+
   // ── Count existing guesses for this attempt ───────────────────────────────
   const existingGuesses = await getGuessesForAttempt(attempt.id, playerWallet);
   const guessNumber     = existingGuesses.length + 1;

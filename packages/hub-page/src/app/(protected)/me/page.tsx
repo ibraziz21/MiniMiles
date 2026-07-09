@@ -5,6 +5,7 @@ import { LinkedWallets } from "./LinkedWallets";
 import { SignOutButton } from "./SignOutButton";
 import { WalletPickerModal } from "./WalletPickerModal";
 import { AkibaPassCard } from "./AkibaPassCard";
+import { SetPasswordForm } from "./SetPasswordForm";
 import { ProfileQuickActions } from "./ProfileQuickActions";
 import { ActivityFeed } from "./ActivityFeed";
 import { getRecentActivity, getLedgerBalance } from "@/lib/akiba/activity";
@@ -246,6 +247,7 @@ export default async function MePage() {
                 variant="sheet"
               />
             }
+            securitySlot={<SetPasswordForm />}
           />
         </div>
 

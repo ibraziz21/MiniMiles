@@ -83,6 +83,7 @@ export function buildAttemptView(
   theme: ThemeName,
   freeAttemptsUsed: number,
   totalAttemptsUsed: number,
+  priorGuesses: RawGuess[] = [],
 ): AttemptView {
   return {
     attemptId:         attempt.id,
@@ -92,6 +93,12 @@ export function buildAttemptView(
     guessesUsed:       attempt.guesses_used,
     status:            attempt.status as AttemptStatus,
     guesses:           guesses.map((g) => buildGuessView(g, theme)),
+    // Renumber prior tries sequentially (1..N) — their per-attempt guess_numbers
+    // repeat across entries and would collide as React keys / labels.
+    priorGuesses:      priorGuesses.map((g, i) => ({
+      ...buildGuessView(g, theme),
+      guessNumber: i + 1,
+    })),
     freeAttemptsUsed,
     totalAttemptsUsed,
     canUpsell:         true,
@@ -141,6 +148,31 @@ export async function getAttemptForPlayer(
 /**
  * Find the currently active (non-expired) attempt for a player in a cycle.
  */
+/**
+ * DB-only lookup of the live cycle for a version. Used by restore paths that
+ * must stay fast and available even while the chain-backed sync is rotating —
+ * no chain reads, no transactions.
+ */
+export async function findLiveDbCycle(
+  version: CrackPotVersion,
+): Promise<{ id: string; theme: ThemeName; expires_at: string } | null> {
+  const { data, error } = await supabase
+    .from("crackpot_cycles")
+    .select("id, theme, expires_at")
+    .eq("version", version)
+    .eq("status", "active")
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.warn("[crackpotAttempts] findLiveDbCycle failed:", error.message);
+    return null;
+  }
+  return (data as { id: string; theme: ThemeName; expires_at: string } | null) ?? null;
+}
+
 export async function getActiveAttemptForPlayer(
   cycleId: string,
   playerWallet: string,
@@ -190,11 +222,23 @@ export type CreateAttemptParams = {
   chainId:      number | null;
   txHash:       string | null;
   logIndex:     number | null;
+  /** Hard ceiling for the attempt window (the cycle's own expiry). */
+  maxExpiresAt?: Date | null;
 };
 
 export async function createAttempt(params: CreateAttemptParams): Promise<RawAttempt> {
   const now      = new Date();
-  const expiresAt = buildAttemptExpiresAt(now);
+  let expiresAt  = buildAttemptExpiresAt(now);
+
+  // Clamp the attempt window to the cycle end so an attempt can never
+  // straddle a rotation (guessing into an already-expired cycle).
+  if (
+    params.maxExpiresAt &&
+    Number.isFinite(params.maxExpiresAt.getTime()) &&
+    params.maxExpiresAt < expiresAt
+  ) {
+    expiresAt = params.maxExpiresAt;
+  }
 
   const { data, error } = await supabase
     .from("crackpot_attempts")
@@ -232,6 +276,25 @@ export async function getGuessesForAttempt(
     .order("guess_number", { ascending: true });
 
   if (error) throw new Error(`[crackpotAttempts] getGuesses: ${error.message}`);
+  return (data ?? []) as RawGuess[];
+}
+
+/**
+ * All of a player's guesses across every entry in a cycle, oldest first.
+ * Used to build the read-only "prior tries" history shown on later entries.
+ */
+export async function getGuessesForCycle(
+  cycleId: string,
+  playerWallet: string,
+): Promise<RawGuess[]> {
+  const { data, error } = await supabase
+    .from("crackpot_guesses")
+    .select("*")
+    .eq("cycle_id", cycleId)
+    .eq("player_address", playerWallet.toLowerCase()) // auth scope
+    .order("created_at", { ascending: true });
+
+  if (error) throw new Error(`[crackpotAttempts] getGuessesForCycle: ${error.message}`);
   return (data ?? []) as RawGuess[];
 }
 
@@ -378,21 +441,25 @@ export async function settleWinningCycle(
 export async function getCycleSecret(
   cycleId: string,
 ): Promise<{
-  secret:  [number, number, number, number];
-  theme:   ThemeName;
-  version: CrackPotVersion;
+  secret:    [number, number, number, number];
+  theme:     ThemeName;
+  version:   CrackPotVersion;
+  status:    string;
+  expiresAt: string | null;
 } | null> {
   const { data, error } = await supabase
     .from("crackpot_cycles")
-    .select("secret_code, theme, version")
+    .select("secret_code, theme, version, status, expires_at")
     .eq("id", cycleId)
     .single();
 
   if (error) return null;
   return {
-    secret:  data.secret_code as [number, number, number, number],
-    theme:   data.theme       as ThemeName,
-    version: data.version     as CrackPotVersion,
+    secret:    data.secret_code as [number, number, number, number],
+    theme:     data.theme       as ThemeName,
+    version:   data.version     as CrackPotVersion,
+    status:    data.status      as string,
+    expiresAt: (data.expires_at as string | null) ?? null,
   };
 }
 

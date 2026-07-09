@@ -2,14 +2,22 @@
  * CrackPot chain-first cycle sync — unit tests.
  *
  * Coverage:
- *   1. openCycle failure does not create an active Supabase cycle.
- *   2. Successful open creates row with chain_id, contract_cycle_id,
- *      contract_version, and secret_commitment.
- *   3. CycleAlreadyActive race re-reads chain and uses the existing DB row.
- *   4. Expired on-chain cycle is expired on-chain before DB is marked dead.
- *   5. Active chain cycle with missing DB row fails closed.
- *   6. API surface never exposes secret_code or secret_salt.
- *   7. chainPotToDb unit conversions (Miles / USDT).
+ *   1.  openCycle failure leaves only a reusable 'pending' row (never active).
+ *   2.  Successful open inserts a pending row BEFORE the tx and promotes it
+ *       to active (with chain fields) after the tx confirms.
+ *   3.  CycleAlreadyActive race adopts the existing DB row and retires the
+ *       local pending row.
+ *   4.  Expired on-chain cycle is expired on-chain and marked dead in the DB
+ *       before the next cycle is opened.
+ *   5.  Active chain cycle with no DB preimage fails closed (read path).
+ *   6.  API surface never exposes secret_code or secret_salt.
+ *   7.  Read path defers to the cron during the post-expiry grace window
+ *       (CycleRotatingError, no transactions).
+ *   8.  Read path recovers an orphaned chain cycle by promoting the pending
+ *       row whose commitment matches the on-chain commitment.
+ *   9.  Rotation lock unavailable → no transactions, CycleRotatingError.
+ *   10. A pending row from a failed open is reused (same expiry+commitment).
+ *   11. chainPotToDb unit conversions (Miles / USDT).
  */
 
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
@@ -52,9 +60,13 @@ vi.mock("@/lib/server/crackpotEngine", async (importOriginal) => {
 // ── Supabase mock ─────────────────────────────────────────────────────────────
 
 const mockFrom = vi.fn();
+const mockRpc  = vi.fn<(...args: any[]) => Promise<any>>();
 
 vi.mock("@supabase/supabase-js", () => ({
-  createClient: () => ({ from: mockFrom }),
+  createClient: () => ({
+    from: (...a: any[]) => mockFrom(...a),
+    rpc:  (...a: any[]) => mockRpc(...a),
+  }),
 }));
 
 // ── Default Supabase chain factory ────────────────────────────────────────────
@@ -95,6 +107,7 @@ const FUTURE_EXP = BigInt(NOW_SEC + 7200);
 const PAST_EXP   = BigInt(NOW_SEC - 120);
 const STUB_TX    = "0xdeadbeef00000000000000000000000000000000000000000000000000000000";
 const STUB_ID    = "aaaabbbb-0000-0000-0000-000000000001";
+const OTHER_COMMITMENT = ("0x" + "cd".repeat(32)) as `0x${string}`;
 
 function makeChainCycle(overrides: Record<string, any> = {}) {
   return {
@@ -109,7 +122,28 @@ function makeChainCycle(overrides: Record<string, any> = {}) {
     expiresAt:    FUTURE_EXP,
     winner:       "0x0000000000000000000000000000000000000000" as `0x${string}`,
     winnerGuesses: 0n,
+    secretCommitment: OTHER_COMMITMENT,
     ...overrides,
+  };
+}
+
+function makePublicRow(id: string = STUB_ID, contractCycleId: number = 1) {
+  return {
+    id,
+    version:           "miles",
+    theme:             "bank-vault",
+    status:            "active",
+    pot_balance:       200,
+    pot_cap:           10000,
+    seed_amount:       200,
+    expires_at:        new Date(Date.now() + 3_600_000).toISOString(),
+    winner_address:    null,
+    winner_guesses:    null,
+    created_at:        new Date().toISOString(),
+    chain_id:          CHAIN_ID,
+    contract_cycle_id: contractCycleId,
+    contract_version:  0,
+    secret_commitment: "abc",
   };
 }
 
@@ -123,8 +157,10 @@ beforeEach(() => {
   mockOpenCycle.mockReset();
   mockExpireCycle.mockReset();
   mockFrom.mockReset();
-  // Restore default: returns an empty-resolving chain.
+  mockRpc.mockReset();
+  // Restore defaults: empty-resolving query chain; lock always granted.
   mockFrom.mockImplementation(() => buildChain());
+  mockRpc.mockResolvedValue({ data: true, error: null });
   // Set env vars required by crackpotAddr() / computeSecretCommitment.
   process.env.NEXT_PUBLIC_CRACKPOT_ADDRESS      = STUB_CONTRACT_ADDR;
   process.env.NEXT_PUBLIC_BASE_CRACKPOT_ADDRESS = STUB_CONTRACT_ADDR;
@@ -132,8 +168,13 @@ beforeEach(() => {
 
 // ── Import module AFTER mocks are hoisted ─────────────────────────────────────
 
-const { getOrSyncActiveCycle, chainPotToDb, generateSecretWithCommitment } =
-  await import("@/lib/server/crackpotCycleSync");
+const {
+  getOrSyncActiveCycle,
+  rotateActiveCycle,
+  chainPotToDb,
+  generateSecretWithCommitment,
+  CycleRotatingError,
+} = await import("@/lib/server/crackpotCycleSync");
 
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -170,155 +211,201 @@ describe("generateSecretWithCommitment", () => {
 
 // ── Test 1 ────────────────────────────────────────────────────────────────────
 
-describe("Test 1 — openCycle failure does not create a DB cycle", () => {
-  beforeEach(() => {
+describe("Test 1 — openCycle failure leaves only a reusable pending row", () => {
+  it("inserts the pending row BEFORE openCycle, re-throws, and never promotes", async () => {
     mockGetActiveCycle.mockResolvedValue(null);
-    mockOpenCycle.mockRejectedValue(new Error("insufficient USDT seed"));
-  });
 
-  it("re-throws the chain error and does not call supabase.from at all", async () => {
-    await expect(getOrSyncActiveCycle("miles")).rejects.toThrow("insufficient USDT seed");
-    // We reach step 3, call openCycle, it throws → we never touch the DB.
-    expect(mockFrom).not.toHaveBeenCalled();
+    const insertedRows: any[] = [];
+    const updateCalls:  any[] = [];
+    const callOrder:    string[] = [];
+
+    mockOpenCycle.mockImplementation(async () => {
+      callOrder.push("open");
+      throw new Error("insufficient USDT seed");
+    });
+
+    mockFrom.mockImplementation(() =>
+      buildChain({
+        insert: (row: any) => {
+          insertedRows.push(row);
+          callOrder.push("insert");
+          return buildChain({ single: () => Promise.resolve({ data: { id: STUB_ID }, error: null }) });
+        },
+        update: (row: any) => { updateCalls.push(row); return buildChain(); },
+      })
+    );
+
+    await expect(rotateActiveCycle("miles")).rejects.toThrow("insufficient USDT seed");
+
+    expect(insertedRows).toHaveLength(1);
+    expect(insertedRows[0].status).toBe("pending");
+    expect(callOrder).toEqual(["insert", "open"]);
+    // Never promoted to active, never marked anything dead.
+    expect(updateCalls.some((r) => r.status === "active")).toBe(false);
   });
 });
 
 // ── Test 2 ────────────────────────────────────────────────────────────────────
 
-describe("Test 2 — successful open creates/upserts row with chain fields", () => {
-  const chainCycle = makeChainCycle({ id: 1n });
+describe("Test 2 — successful open persists pending row then promotes it", () => {
+  it("pending row carries chain_id/contract_version/commitment; promotion adds contract_cycle_id", async () => {
+    let capturedCommitment: string | null = null;
+    let reads = 0;
 
-  beforeEach(() => {
-    // First read: no cycle. Second read (after open): active cycle.
-    mockGetActiveCycle
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(chainCycle);
-    mockOpenCycle.mockResolvedValue(STUB_TX);
-  });
+    mockOpenCycle.mockImplementation(async (_v: any, _exp: any, commitment: any) => {
+      capturedCommitment = commitment;
+      return STUB_TX;
+    });
+    mockGetActiveCycle.mockImplementation(async () => {
+      reads += 1;
+      if (reads === 1) return null; // rotateLocked initial read
+      return makeChainCycle({ id: 1n, secretCommitment: capturedCommitment });
+    });
 
-  it("calls contractGetActiveCycle twice and contractOpenCycle once", async () => {
     const insertedRows: any[] = [];
+    const updateCalls:  any[] = [];
 
     mockFrom.mockImplementation(() =>
       buildChain({
-        insert:      (row: any) => { insertedRows.push(row); return buildChain({ single: () => Promise.resolve({ data: { id: STUB_ID }, error: null }) }); },
-        maybeSingle: () => Promise.resolve({ data: null, error: null }),
-        single:      () => Promise.resolve({ data: { id: STUB_ID, status: "active", pot_balance: 200, pot_cap: 10000, seed_amount: 200, expires_at: new Date(Date.now() + 3600_000).toISOString(), winner_address: null, winner_guesses: null, version: "miles", theme: "bank-vault", created_at: new Date().toISOString(), chain_id: CHAIN_ID, contract_cycle_id: 1, contract_version: 0, secret_commitment: "abc" }, error: null }),
+        insert: (row: any) => {
+          insertedRows.push(row);
+          return buildChain({ single: () => Promise.resolve({ data: { id: STUB_ID }, error: null }) });
+        },
+        update: (row: any) => { updateCalls.push(row); return buildChain(); },
+        single: () => Promise.resolve({ data: makePublicRow(), error: null }),
       })
     );
 
-    await getOrSyncActiveCycle("miles");
+    const result = await rotateActiveCycle("miles");
 
     expect(mockOpenCycle).toHaveBeenCalledOnce();
-    expect(mockGetActiveCycle).toHaveBeenCalledTimes(2);
-  });
-
-  it("DB row contains chain_id, contract_cycle_id, contract_version, secret_commitment", async () => {
-    const insertedRows: any[] = [];
-
-    mockFrom.mockImplementation(() => {
-      const insertChain: any = buildChain({
-        single: () => Promise.resolve({ data: { id: STUB_ID }, error: null }),
-      });
-      return buildChain({
-        insert:      (row: any) => { insertedRows.push(row); return insertChain; },
-        maybeSingle: () => Promise.resolve({ data: null, error: null }),
-        single:      () => Promise.resolve({ data: { id: STUB_ID, pot_balance: 200, pot_cap: 10000, seed_amount: 200, status: "active", expires_at: new Date().toISOString(), version: "miles", theme: "bank-vault", winner_address: null, winner_guesses: null, created_at: new Date().toISOString(), chain_id: CHAIN_ID, contract_cycle_id: 1, contract_version: 0, secret_commitment: "abc" }, error: null }),
-      });
-    });
-
-    await getOrSyncActiveCycle("miles");
-
-    expect(insertedRows.length).toBeGreaterThan(0);
+    expect(insertedRows).toHaveLength(1);
     const row = insertedRows[0];
+    expect(row.status).toBe("pending");
     expect(row.chain_id).toBe(CHAIN_ID);
-    expect(row.contract_cycle_id).toBe(1);
     expect(row.contract_version).toBe(0);
     expect(row.secret_commitment).toMatch(/^0x[0-9a-f]{64}$/i);
-    // secret_code and secret_salt exist in DB row but are not returned to callers
+    // secret_code and secret_salt exist in the DB row but are not returned to callers
     expect(row.secret_code).toBeDefined();
     expect(row.secret_salt).toBeDefined();
+
+    const promote = updateCalls.find((r) => r.status === "active");
+    expect(promote).toBeDefined();
+    expect(promote.contract_cycle_id).toBe(1);
+    expect(promote.open_tx_hash).toBe(STUB_TX);
+
+    expect(result.id).toBe(STUB_ID);
   });
 });
 
 // ── Test 3 ────────────────────────────────────────────────────────────────────
 
-describe("Test 3 — CycleAlreadyActive race re-reads chain and uses existing DB row", () => {
-  const raceChainCycle = makeChainCycle({ id: 99n });
+describe("Test 3 — CycleAlreadyActive race adopts the existing DB row", () => {
+  const raceChainCycle = makeChainCycle({ id: 99n }); // foreign commitment
 
   beforeEach(() => {
     mockGetActiveCycle
-      .mockResolvedValueOnce(null)          // first read: no cycle
-      .mockResolvedValueOnce(raceChainCycle); // second read after race
+      .mockResolvedValueOnce(null)            // rotateLocked read: no cycle
+      .mockResolvedValueOnce(raceChainCycle); // re-read after race
 
     const raceErr: any = new Error("CycleAlreadyActive");
     raceErr.shortMessage = "CycleAlreadyActive";
     mockOpenCycle.mockRejectedValue(raceErr);
   });
 
-  it("does not rethrow CycleAlreadyActive when the DB row already exists", async () => {
+  it("uses the other worker's row and retires the local pending row", async () => {
     const insertedRows: any[] = [];
+    const updateCalls:  any[] = [];
+    let maybeSingleCalls = 0;
 
     mockFrom.mockImplementation(() =>
       buildChain({
-        insert:      (row: any) => { insertedRows.push(row); return buildChain({ single: () => Promise.resolve({ data: { id: STUB_ID }, error: null }) }); },
-        maybeSingle: () => Promise.resolve({ data: { id: STUB_ID, status: "active" }, error: null }),
-        single:      () => Promise.resolve({ data: { id: STUB_ID, pot_balance: 200, pot_cap: 10000, seed_amount: 200, status: "active", expires_at: new Date().toISOString(), version: "miles", theme: "bank-vault", winner_address: null, winner_guesses: null, created_at: new Date().toISOString(), chain_id: CHAIN_ID, contract_cycle_id: 99, contract_version: 0, secret_commitment: "abc" }, error: null }),
+        insert: (row: any) => {
+          insertedRows.push(row);
+          return buildChain({ single: () => Promise.resolve({ data: { id: STUB_ID }, error: null }) });
+        },
+        update: (row: any) => { updateCalls.push(row); return buildChain(); },
+        maybeSingle: () => {
+          maybeSingleCalls += 1;
+          // 1st: findPendingRow (none). Later: findDbRowByContractCycle → other worker's row.
+          if (maybeSingleCalls === 1) return Promise.resolve({ data: null, error: null });
+          return Promise.resolve({ data: { id: "other-worker-row", status: "active" }, error: null });
+        },
+        single: () => Promise.resolve({ data: makePublicRow("other-worker-row", 99), error: null }),
       })
     );
 
-    await expect(getOrSyncActiveCycle("miles")).resolves.not.toThrow();
-    expect(insertedRows).toHaveLength(0);
+    const result = await rotateActiveCycle("miles");
+
+    expect(result.id).toBe("other-worker-row");
+    expect(insertedRows).toHaveLength(1);            // only our pending row
+    expect(insertedRows[0].status).toBe("pending");
+    // Our pending row was retired; nothing was promoted.
+    expect(updateCalls.some((r) => r.status === "dead")).toBe(true);
+    expect(updateCalls.some((r) => r.status === "active")).toBe(false);
   });
 
-  it("fails closed when the race cycle has no DB preimage", async () => {
+  it("fails closed when the race cycle has no DB preimage anywhere", async () => {
     const insertedRows: any[] = [];
 
     mockFrom.mockImplementation(() =>
       buildChain({
-        insert:      (row: any) => { insertedRows.push(row); return buildChain({ single: () => Promise.resolve({ data: { id: STUB_ID }, error: null }) }); },
+        insert: (row: any) => {
+          insertedRows.push(row);
+          return buildChain({ single: () => Promise.resolve({ data: { id: STUB_ID }, error: null }) });
+        },
         maybeSingle: () => Promise.resolve({ data: null, error: null }),
-        single:      () => Promise.resolve({ data: { id: STUB_ID, pot_balance: 200, pot_cap: 10000, seed_amount: 200, status: "active", expires_at: new Date().toISOString(), version: "miles", theme: "bank-vault", winner_address: null, winner_guesses: null, created_at: new Date().toISOString(), chain_id: CHAIN_ID, contract_cycle_id: 99, contract_version: 0, secret_commitment: "abc" }, error: null }),
       })
     );
 
-    await expect(getOrSyncActiveCycle("miles")).rejects.toThrow(/no DB preimage/);
-    expect(insertedRows).toHaveLength(0);
+    await expect(rotateActiveCycle("miles")).rejects.toThrow(/no DB preimage/);
+    // Our pending row exists but must not be promoted for a foreign commitment.
+    expect(insertedRows).toHaveLength(1);
+    expect(insertedRows[0].status).toBe("pending");
   });
 });
 
 // ── Test 4 ────────────────────────────────────────────────────────────────────
 
-describe("Test 4 — expired on-chain cycle is expired on-chain before DB is marked dead", () => {
-  // expired cycle → expire on chain → open new → read new cycle
+describe("Test 4 — expired on-chain cycle is expired and marked dead before opening", () => {
+  // expired cycle → expire on chain → confirm no active → open new → read new cycle
   const expiredCycle = makeChainCycle({ id: 7n, expiresAt: PAST_EXP });
-  const freshCycle   = makeChainCycle({ id: 8n, expiresAt: FUTURE_EXP });
+
+  let capturedCommitment: string | null;
 
   beforeEach(() => {
-    // Two reads: expired cycle first, then fresh cycle after open.
-    // (There is no intermediate re-read between expire and open in the implementation.)
-    mockGetActiveCycle
-      .mockResolvedValueOnce(expiredCycle)
-      .mockResolvedValueOnce(freshCycle);
+    capturedCommitment = null;
+    let reads = 0;
+    mockGetActiveCycle.mockImplementation(async () => {
+      reads += 1;
+      if (reads === 1) return expiredCycle; // rotateLocked read
+      if (reads === 2) return null;         // after expireCycle
+      return makeChainCycle({ id: 8n, secretCommitment: capturedCommitment }); // after open
+    });
     mockExpireCycle.mockResolvedValue(STUB_TX);
-    mockOpenCycle.mockResolvedValue(STUB_TX);
+    mockOpenCycle.mockImplementation(async (_v: any, _exp: any, commitment: any) => {
+      capturedCommitment = commitment;
+      return STUB_TX;
+    });
   });
 
   it("calls contractExpireCycle before contractOpenCycle", async () => {
     const callOrder: string[] = [];
     mockExpireCycle.mockImplementation(async () => { callOrder.push("expire"); return STUB_TX; });
-    mockOpenCycle.mockImplementation(async ()   => { callOrder.push("open");   return STUB_TX; });
+    mockOpenCycle.mockImplementation(async (_v: any, _exp: any, commitment: any) => {
+      callOrder.push("open");
+      capturedCommitment = commitment;
+      return STUB_TX;
+    });
 
-    const insertChain = buildChain({ single: () => Promise.resolve({ data: { id: STUB_ID }, error: null }) });
     mockFrom.mockImplementation(() =>
       buildChain({
-        insert:      () => insertChain,
-        maybeSingle: () => Promise.resolve({ data: null, error: null }),
-        single:      () => Promise.resolve({ data: { id: STUB_ID, pot_balance: 200, pot_cap: 10000, seed_amount: 200, status: "active", expires_at: new Date().toISOString(), version: "miles", theme: "bank-vault", winner_address: null, winner_guesses: null, created_at: new Date().toISOString(), chain_id: CHAIN_ID, contract_cycle_id: 8, contract_version: 0, secret_commitment: "abc" }, error: null }),
+        insert: () => buildChain({ single: () => Promise.resolve({ data: { id: STUB_ID }, error: null }) }),
+        single: () => Promise.resolve({ data: makePublicRow(STUB_ID, 8), error: null }),
       })
     );
 
-    await getOrSyncActiveCycle("miles");
+    await rotateActiveCycle("miles");
 
     expect(callOrder[0]).toBe("expire");
     expect(callOrder[1]).toBe("open");
@@ -328,23 +415,21 @@ describe("Test 4 — expired on-chain cycle is expired on-chain before DB is mar
     const updateCalls: any[] = [];
     const openCallsAfterUpdate: number[] = [];
 
-    mockExpireCycle.mockImplementation(async () => STUB_TX);
-    mockOpenCycle.mockImplementation(async () => {
+    mockOpenCycle.mockImplementation(async (_v: any, _exp: any, commitment: any) => {
       openCallsAfterUpdate.push(updateCalls.length);
+      capturedCommitment = commitment;
       return STUB_TX;
     });
 
-    const insertChain = buildChain({ single: () => Promise.resolve({ data: { id: STUB_ID }, error: null }) });
     mockFrom.mockImplementation(() =>
       buildChain({
-        update:      (row: any) => { updateCalls.push(row); return buildChain(); },
-        insert:      () => insertChain,
-        maybeSingle: () => Promise.resolve({ data: null, error: null }),
-        single:      () => Promise.resolve({ data: { id: STUB_ID, pot_balance: 200, pot_cap: 10000, seed_amount: 200, status: "active", expires_at: new Date().toISOString(), version: "miles", theme: "bank-vault", winner_address: null, winner_guesses: null, created_at: new Date().toISOString(), chain_id: CHAIN_ID, contract_cycle_id: 8, contract_version: 0, secret_commitment: "abc" }, error: null }),
+        update: (row: any) => { updateCalls.push(row); return buildChain(); },
+        insert: () => buildChain({ single: () => Promise.resolve({ data: { id: STUB_ID }, error: null }) }),
+        single: () => Promise.resolve({ data: makePublicRow(STUB_ID, 8), error: null }),
       })
     );
 
-    await getOrSyncActiveCycle("miles");
+    await rotateActiveCycle("miles");
 
     // An update to status:"dead" must have happened
     expect(updateCalls.some(r => r.status === "dead")).toBe(true);
@@ -357,7 +442,7 @@ describe("Test 4 — expired on-chain cycle is expired on-chain before DB is mar
 
 // ── Test 5 ────────────────────────────────────────────────────────────────────
 
-describe("Test 5 — active chain cycle with no DB row fails closed", () => {
+describe("Test 5 — active chain cycle with no DB preimage fails closed (read path)", () => {
   const chainCycle = makeChainCycle({ id: 42n });
 
   beforeEach(() => {
@@ -366,15 +451,6 @@ describe("Test 5 — active chain cycle with no DB row fails closed", () => {
   });
 
   it("does not call openCycle or expireCycle", async () => {
-    const insertChain = buildChain({ single: () => Promise.resolve({ data: { id: STUB_ID }, error: null }) });
-    mockFrom.mockImplementation(() =>
-      buildChain({
-        insert:      () => insertChain,
-        maybeSingle: () => Promise.resolve({ data: null, error: null }),
-        single:      () => Promise.resolve({ data: { id: STUB_ID, pot_balance: 200, pot_cap: 10000, seed_amount: 200, status: "active", expires_at: new Date().toISOString(), version: "miles", theme: "bank-vault", winner_address: null, winner_guesses: null, created_at: new Date().toISOString(), chain_id: CHAIN_ID, contract_cycle_id: 42, contract_version: 0, secret_commitment: "abc" }, error: null }),
-      })
-    );
-
     await expect(getOrSyncActiveCycle("miles")).rejects.toThrow(/no DB preimage/);
 
     expect(mockOpenCycle).not.toHaveBeenCalled();
@@ -383,12 +459,12 @@ describe("Test 5 — active chain cycle with no DB row fails closed", () => {
 
   it("does not insert an unverifiable repair row", async () => {
     const insertedRows: any[] = [];
-    const insertChain = buildChain({ single: () => Promise.resolve({ data: { id: STUB_ID }, error: null }) });
     mockFrom.mockImplementation(() =>
       buildChain({
-        insert:      (row: any) => { insertedRows.push(row); return insertChain; },
-        maybeSingle: () => Promise.resolve({ data: null, error: null }),
-        single:      () => Promise.resolve({ data: { id: STUB_ID, pot_balance: 200, pot_cap: 10000, seed_amount: 200, status: "active", expires_at: new Date().toISOString(), version: "miles", theme: "bank-vault", winner_address: null, winner_guesses: null, created_at: new Date().toISOString(), chain_id: CHAIN_ID, contract_cycle_id: 42, contract_version: 0, secret_commitment: "abc" }, error: null }),
+        insert: (row: any) => {
+          insertedRows.push(row);
+          return buildChain({ single: () => Promise.resolve({ data: { id: STUB_ID }, error: null }) });
+        },
       })
     );
 
@@ -407,20 +483,7 @@ describe("Test 6 — return value and API surface never expose secrets", () => {
 
     // The SELECT in fetchFullDbRow deliberately omits secret_code and secret_salt.
     const publicRow = {
-      id:                STUB_ID,
-      version:           "miles",
-      theme:             "bank-vault",
-      status:            "active",
-      pot_balance:       200,
-      pot_cap:           10000,
-      seed_amount:       200,
-      expires_at:        new Date(Date.now() + 3_600_000).toISOString(),
-      winner_address:    null,
-      winner_guesses:    null,
-      created_at:        new Date().toISOString(),
-      chain_id:          CHAIN_ID,
-      contract_cycle_id: 5,
-      contract_version:  0,
+      ...makePublicRow(STUB_ID, 5),
       secret_commitment: "c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00",
       // Intentionally absent: secret_code, secret_salt
     };
@@ -463,5 +526,140 @@ describe("Test 6 — return value and API surface never expose secrets", () => {
     expect(cycleView).not.toHaveProperty("secret_commitment");
     expect(cycleView).not.toHaveProperty("contract_cycle_id");
     expect(cycleView).not.toHaveProperty("chain_id");
+  });
+});
+
+// ── Test 7 ────────────────────────────────────────────────────────────────────
+
+describe("Test 7 — read path defers to the cron inside the post-expiry grace window", () => {
+  it("throws CycleRotatingError and sends no transactions", async () => {
+    const justExpired = makeChainCycle({ id: 7n, expiresAt: BigInt(NOW_SEC - 30) });
+    mockGetActiveCycle.mockResolvedValue(justExpired);
+
+    await expect(getOrSyncActiveCycle("miles")).rejects.toBeInstanceOf(CycleRotatingError);
+
+    expect(mockExpireCycle).not.toHaveBeenCalled();
+    expect(mockOpenCycle).not.toHaveBeenCalled();
+    // Never even tried to take the rotation lock.
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+});
+
+// ── Test 8 ────────────────────────────────────────────────────────────────────
+
+describe("Test 8 — read path promotes an orphaned pending row by commitment", () => {
+  it("recovers a chain cycle whose opener crashed before promotion", async () => {
+    const PENDING_ID = "pending-row-0000-0000-000000000009";
+    const COMMITMENT = ("0x" + "ee".repeat(32)) as `0x${string}`;
+    const chainCycle = makeChainCycle({ id: 12n, secretCommitment: COMMITMENT });
+    mockGetActiveCycle.mockResolvedValue(chainCycle);
+
+    const updateCalls: any[] = [];
+
+    // Call order inside ensureDbRowForChainCycle:
+    //   1. findDbRowByContractCycle → no row
+    //   2. findPendingRow           → orphaned pending row, matching commitment
+    //   3. promotePendingRow        → update
+    //   4. fetchFullDbRow           → promoted row
+    mockFrom
+      .mockImplementationOnce(() => buildChain())
+      .mockImplementationOnce(() => buildChain({
+        maybeSingle: () => Promise.resolve({
+          data: {
+            id: PENDING_ID,
+            expires_at: new Date(Date.now() + 3_000_000).toISOString(),
+            secret_commitment: COMMITMENT,
+          },
+          error: null,
+        }),
+      }))
+      .mockImplementationOnce(() => buildChain({
+        update: (row: any) => { updateCalls.push(row); return buildChain(); },
+      }))
+      .mockImplementationOnce(() => buildChain({
+        single: () => Promise.resolve({ data: makePublicRow(PENDING_ID, 12), error: null }),
+      }));
+
+    const result = await getOrSyncActiveCycle("miles");
+
+    expect(result.id).toBe(PENDING_ID);
+    const promote = updateCalls.find((r) => r.status === "active");
+    expect(promote).toBeDefined();
+    expect(promote.contract_cycle_id).toBe(12);
+    expect(mockOpenCycle).not.toHaveBeenCalled();
+    expect(mockExpireCycle).not.toHaveBeenCalled();
+  });
+});
+
+// ── Test 9 ────────────────────────────────────────────────────────────────────
+
+describe("Test 9 — rotation lock unavailable", () => {
+  it("sends no transactions and surfaces CycleRotatingError", async () => {
+    mockGetActiveCycle.mockResolvedValue(null); // nothing on-chain
+    mockRpc.mockResolvedValue({ data: false, error: null }); // lock held elsewhere
+
+    await expect(rotateActiveCycle("miles")).rejects.toBeInstanceOf(CycleRotatingError);
+
+    expect(mockOpenCycle).not.toHaveBeenCalled();
+    expect(mockExpireCycle).not.toHaveBeenCalled();
+  });
+});
+
+// ── Test 10 ───────────────────────────────────────────────────────────────────
+
+describe("Test 10 — a pending row from a failed open is reused", () => {
+  it("re-sends openCycle with the stored expiry and commitment, without a new insert", async () => {
+    const PENDING_ID = "pending-row-0000-0000-000000000010";
+    const COMMITMENT = ("0x" + "ff".repeat(32)) as `0x${string}`;
+    const storedExpiry = new Date(Date.now() + 3_600_000);
+    storedExpiry.setMilliseconds(0);
+
+    let reads = 0;
+    mockGetActiveCycle.mockImplementation(async () => {
+      reads += 1;
+      if (reads === 1) return null; // rotateLocked read
+      return makeChainCycle({ id: 3n, secretCommitment: COMMITMENT });
+    });
+    mockOpenCycle.mockResolvedValue(STUB_TX);
+
+    const insertedRows: any[] = [];
+    const updateCalls:  any[] = [];
+
+    // Call order inside openNewCycle:
+    //   1. findPendingRow           → reusable pending row
+    //   2. findDbRowByContractCycle → no row yet
+    //   3. promotePendingRow        → update
+    //   4. fetchFullDbRow           → promoted row
+    mockFrom
+      .mockImplementationOnce(() => buildChain({
+        maybeSingle: () => Promise.resolve({
+          data: {
+            id: PENDING_ID,
+            expires_at: storedExpiry.toISOString(),
+            secret_commitment: COMMITMENT,
+          },
+          error: null,
+        }),
+        insert: (row: any) => { insertedRows.push(row); return buildChain(); },
+      }))
+      .mockImplementationOnce(() => buildChain())
+      .mockImplementationOnce(() => buildChain({
+        update: (row: any) => { updateCalls.push(row); return buildChain(); },
+      }))
+      .mockImplementationOnce(() => buildChain({
+        single: () => Promise.resolve({ data: makePublicRow(PENDING_ID, 3), error: null }),
+      }));
+
+    const result = await rotateActiveCycle("miles");
+
+    expect(insertedRows).toHaveLength(0);
+    expect(mockOpenCycle).toHaveBeenCalledOnce();
+    const [version, expiryArg, commitmentArg] = mockOpenCycle.mock.calls[0];
+    expect(version).toBe(0);
+    expect((expiryArg as Date).getTime()).toBe(storedExpiry.getTime());
+    expect(commitmentArg).toBe(COMMITMENT);
+
+    expect(result.id).toBe(PENDING_ID);
+    expect(updateCalls.some((r) => r.status === "active")).toBe(true);
   });
 });

@@ -26,6 +26,15 @@ function timeAgo(iso: string): string {
   return `${Math.floor(secs / 60)}m ago`;
 }
 
+// Stable hue from any display label (works for usernames and addresses alike).
+function labelHue(label: string): number {
+  let hash = 0;
+  for (let i = 0; i < label.length; i++) {
+    hash = (hash * 31 + label.charCodeAt(i)) & 0xffff;
+  }
+  return hash % 360;
+}
+
 export function LiveFeed({ version, accentColor, onWinnerDetected }: LiveFeedProps) {
   const [data, setData] = useState<FeedData | null>(null);
   const [newEntryKey, setNewEntryKey] = useState<string | null>(null);
@@ -112,10 +121,10 @@ export function LiveFeed({ version, accentColor, onWinnerDetected }: LiveFeedPro
                       <div
                         className="w-5 h-5 rounded-full shrink-0"
                         style={{
-                          background: `hsl(${parseInt(entry.address.slice(2, 4), 16) * 1.4}deg 60% 65%)`,
+                          background: `hsl(${labelHue(entry.address)}deg 60% 65%)`,
                         }}
                       />
-                      <span className="text-xs font-mono text-slate-600">{entry.address}</span>
+                      <span className="text-xs font-medium text-slate-600 truncate max-w-[140px]">{entry.address}</span>
                       {entry.attemptNumber > 1 && (
                         <span className="text-[9px] bg-slate-100 text-slate-400 rounded-full px-1.5 py-0.5 font-medium">
                           attempt {entry.attemptNumber}

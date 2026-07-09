@@ -6,11 +6,8 @@
 import { NextResponse } from "next/server";
 import { crackPotComingSoonResponse, isCrackPotLive } from "@/lib/server/crackpotComingSoon";
 import { supabase } from "@/lib/supabaseClient";
+import { resolveDisplayNames, shortenAddress } from "@/lib/server/resolveUsernames";
 import type { CrackPotVersion } from "@/lib/crackpotTypes";
-
-function shortenAddress(addr: string): string {
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-}
 
 export async function GET(req: Request) {
   if (!isCrackPotLive()) return crackPotComingSoonResponse();
@@ -46,8 +43,17 @@ export async function GET(req: Request) {
     .order("started_at", { ascending: false })
     .limit(20);
 
+  // Resolve usernames for everyone shown in the feed (entries + winner).
+  const feedAddresses = [
+    ...(attempts ?? []).map((a: any) => a.player_address as string),
+    ...(cycle.winner_address ? [cycle.winner_address as string] : []),
+  ];
+  const nameMap = await resolveDisplayNames(feedAddresses);
+  const nameFor = (addr: string) =>
+    nameMap[addr.toLowerCase()] ?? shortenAddress(addr);
+
   const entries = (attempts ?? []).map((a: any) => ({
-    address:      shortenAddress(a.player_address),
+    address:      nameFor(a.player_address),
     startedAt:    a.started_at,
     attemptNumber: a.attempt_number,
   }));
@@ -81,7 +87,7 @@ export async function GET(req: Request) {
   // Last winner (from cycle metadata)
   const lastWinner = cycle.winner_address
     ? {
-        address:    shortenAddress(cycle.winner_address),
+        address:    nameFor(cycle.winner_address),
         guesses:    cycle.winner_guesses ?? 0,
         potBalance: cycle.pot_balance ?? 0,
       }

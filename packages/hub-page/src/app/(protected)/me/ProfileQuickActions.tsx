@@ -7,24 +7,28 @@ import {
   Ticket,
   Sparkles,
   ShoppingBag,
+  Lock,
   X,
 } from "lucide-react";
 
-type SheetKey = "pass" | "wallets";
+type SheetKey = "pass" | "wallets" | "security";
 
 type Props = {
   /** Rendered inside the "Pass" sheet (AkibaPassCard) — omit to hide the button */
   passSlot?: ReactNode;
   /** Rendered inside the "Wallets" sheet (LinkedWallets) */
   walletsSlot: ReactNode;
+  /** Rendered inside the "Security" sheet (SetPasswordForm) */
+  securitySlot?: ReactNode;
 };
 
 const SHEET_TITLES: Record<SheetKey, string> = {
   pass: "Your Akiba Pass",
   wallets: "Linked wallets",
+  security: "Security",
 };
 
-export function ProfileQuickActions({ passSlot, walletsSlot }: Props) {
+export function ProfileQuickActions({ passSlot, walletsSlot, securitySlot }: Props) {
   const [open, setOpen] = useState<SheetKey | null>(null);
 
   // Lock body scroll while a sheet is open
@@ -76,6 +80,14 @@ export function ProfileQuickActions({ passSlot, walletsSlot }: Props) {
       label: "Shop",
       href: "/shop",
     },
+    ...(securitySlot
+      ? [{
+          key: "security",
+          icon: <Lock className="h-5 w-5 text-akiba-teal" />,
+          label: "Security",
+          onClick: () => setOpen("security"),
+        }]
+      : []),
   ];
 
   return (
@@ -132,7 +144,7 @@ export function ProfileQuickActions({ passSlot, walletsSlot }: Props) {
               </button>
             </div>
             <div className="overflow-y-auto px-4 pb-6 sm:px-5">
-              {open === "pass" ? passSlot : walletsSlot}
+              {open === "pass" ? passSlot : open === "security" ? securitySlot : walletsSlot}
             </div>
           </div>
         </div>

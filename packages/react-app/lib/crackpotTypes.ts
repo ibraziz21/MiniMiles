@@ -149,8 +149,19 @@ export function getPotState(balance: number, cap: number, status: CycleSatus): P
 
 // ── Cycle ────────────────────────────────────────────────────────
 
+// Returned by /api/crackpot/cycle/current (HTTP 200) between rounds, while
+// the cron rotates the cycle. Clients show a "new round opening" state and
+// keep polling instead of treating the gap as an error.
+export type RotatingCycleView = {
+  status: "rotating";
+  version: CrackPotVersion;
+  retryAfterSeconds: number;
+};
+
+// `pending`  = secret preimage persisted, openCycle() tx not yet confirmed;
+//              never returned by the cycle APIs (promoted to 'active' or retired to 'dead').
 // `settling` = correct guess recorded, declareWinner() tx pending on-chain.
-export type CycleSatus = "active" | "settling" | "cracked" | "dead";
+export type CycleSatus = "pending" | "active" | "settling" | "cracked" | "dead";
 
 export type CrackPotCycle = {
   id: string;
@@ -236,6 +247,9 @@ export type AttemptView = {
   guessesUsed: number;
   status: AttemptStatus;
   guesses: GuessView[];
+  // Guesses from the player's earlier entries in this same cycle (read-only
+  // history). Lets a player on their 2nd+ entry still see prior tries.
+  priorGuesses: GuessView[];
   freeAttemptsUsed: number;
   totalAttemptsUsed: number;
   canUpsell: boolean;
@@ -301,6 +315,13 @@ export const CYCLE_DURATION_HOURS_USDT = 12;  // 2 cycles per day
 
 export const ATTEMPT_DURATION_SECONDS = 60;
 export const GUESS_COOLDOWN_SECONDS = 15;
+
+// Entry boundary protection: the client refuses new paid entries in the last
+// ENTRY_BUFFER_SECONDS of a cycle; the server refuses to open an attempt with
+// fewer than MIN_PLAYABLE_WINDOW_SECONDS left (the paid entry is then logged
+// as orphaned for credit instead of being silently rejected).
+export const ENTRY_BUFFER_SECONDS = 90;
+export const MIN_PLAYABLE_WINDOW_SECONDS = 15;
 
 // ── Noise injection constants ─────────────────────────────────────
 // Applied server-side only. LOCKED is always truthful.

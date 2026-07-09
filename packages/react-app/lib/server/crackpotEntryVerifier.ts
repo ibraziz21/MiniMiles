@@ -55,7 +55,14 @@ export type ActiveCycleRef = {
 
 export type EntryVerifyResult =
   | { ok: true;  logIndex: number; cycleId: bigint; entryAmount: bigint }
-  | { ok: false; reason: string };
+  | {
+      ok: false;
+      reason: string;
+      /** Set for cycle_mismatch: the cycle the entry actually recorded into. */
+      txCycleId?: bigint;
+      entryAmount?: bigint;
+      logIndex?: number;
+    };
 
 // ── Verifier ──────────────────────────────────────────────────────────────────
 
@@ -153,8 +160,17 @@ export async function verifyCrackPotEntry(
     }
 
     // ── Cycle ID must match the active DB cycle ─────────────────────────────
+    // On mismatch, return the decoded details so the caller can distinguish
+    // "entry landed in the previous cycle" (orphaned — log for credit) from
+    // a genuinely invalid tx.
     if (Number(cycleId) !== activeCycle.contract_cycle_id) {
-      return { ok: false, reason: "cycle_mismatch" };
+      return {
+        ok: false,
+        reason: "cycle_mismatch",
+        txCycleId: cycleId,
+        entryAmount,
+        logIndex: log.logIndex ?? receipt.logs.indexOf(log),
+      };
     }
 
     // ── Entry amount sanity check ───────────────────────────────────────────
