@@ -60,6 +60,10 @@ export type RawPayoutJob = {
   updated_at:         string;
 };
 
+export type ProcessPayoutJobResult = {
+  status: Extract<PayoutJobStatus, "succeeded" | "failed" | "manual_review">;
+};
+
 export type EnqueuePayoutParams = {
   cycleId:          string;   // DB UUID
   chainId:          number;
@@ -189,7 +193,7 @@ export async function leaseNextPayoutJob(
  *
  * On any error, marks the job failed/retrying or manual_review.
  */
-export async function processPayoutJob(job: RawPayoutJob): Promise<void> {
+export async function processPayoutJob(job: RawPayoutJob): Promise<ProcessPayoutJobResult> {
   const version: ContractVersionType =
     job.contract_version === ContractVersion.USDT ? ContractVersion.USDT : ContractVersion.MILES;
 
@@ -219,6 +223,7 @@ export async function processPayoutJob(job: RawPayoutJob): Promise<void> {
     const payoutDb = chainPotToDb(cycleCracked.payout, dbVersion);
 
     await finalizePayoutJob(job.id, job.cycle_id, txHash, payoutDb, cycleCracked.winner);
+    return { status: "succeeded" };
   } catch (err: any) {
     const errMsg = String(err?.shortMessage ?? err?.message ?? "unknown error");
 
@@ -226,10 +231,11 @@ export async function processPayoutJob(job: RawPayoutJob): Promise<void> {
     // by a prior worker attempt — check and finalise.
     if (/NoCycleActive|no active cycle/i.test(errMsg)) {
       const recovered = await recoverAlreadyCrackedCycle(job, dbVersion);
-      if (recovered) return;
+      if (recovered) return { status: "succeeded" };
     }
 
-    await failPayoutJob(job.id, errMsg, job.attempts + 1);
+    const status = await failPayoutJob(job.id, errMsg, job.attempts + 1);
+    return { status };
   }
 }
 
@@ -273,8 +279,8 @@ async function failPayoutJob(
   jobId:     string,
   errMsg:    string,
   attempts:  number,
-): Promise<void> {
-  const newStatus: PayoutJobStatus =
+): Promise<Extract<PayoutJobStatus, "failed" | "manual_review">> {
+  const newStatus: Extract<PayoutJobStatus, "failed" | "manual_review"> =
     attempts >= MAX_ATTEMPTS ? "manual_review" : "failed";
 
   const backoffMs  = Math.min(RETRY_DELAY_MS * 2 ** (attempts - 1), 5 * 60_000);
@@ -291,6 +297,8 @@ async function failPayoutJob(
       next_attempt_at: newStatus === "failed" ? nextTry : undefined,
     })
     .eq("id", jobId);
+
+  return newStatus;
 }
 
 // ── Race recovery ─────────────────────────────────────────────────────────────

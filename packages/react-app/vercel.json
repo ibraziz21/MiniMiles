@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/crackpot/payout/process",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/crackpot/cycle/expire",
       "schedule": "* * * * *"
     }

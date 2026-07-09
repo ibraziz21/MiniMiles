@@ -272,7 +272,9 @@ describe("processPayoutJob — success path", () => {
       },
     });
 
-    await processPayoutJob(BASE_JOB);
+    const result = await processPayoutJob(BASE_JOB);
+
+    expect(result.status).toBe("succeeded");
 
     const cycleUpdate = updateLog.find((u) => u.table === "crackpot_cycles" && u.data.status === "cracked");
     expect(cycleUpdate).toBeDefined();
@@ -312,9 +314,10 @@ describe("processPayoutJob — success path", () => {
       });
     });
 
-    await processPayoutJob(BASE_JOB);
+    const result = await processPayoutJob(BASE_JOB);
 
     expect(cycleMarkedCrackedEarly).toBe(false);
+    expect(result.status).toBe("succeeded");
   });
 });
 
@@ -326,7 +329,9 @@ describe("processPayoutJob — failure paths", () => {
   it("marks job failed and does NOT mark cycle cracked on chain error", async () => {
     mockDeclareWinner.mockRejectedValue(new Error("RPC timeout"));
 
-    await processPayoutJob({ ...BASE_JOB, attempts: 0 });
+    const result = await processPayoutJob({ ...BASE_JOB, attempts: 0 });
+
+    expect(result.status).toBe("failed");
 
     const jobUpdate = updateLog.find((u) => u.table === "crackpot_payout_jobs" && u.data.status === "failed");
     expect(jobUpdate).toBeDefined();
@@ -339,7 +344,9 @@ describe("processPayoutJob — failure paths", () => {
     mockDeclareWinner.mockRejectedValue(new Error("persistent RPC failure"));
 
     // attempts=5 → next = 6 → 6 >= MAX_ATTEMPTS(5) → manual_review
-    await processPayoutJob({ ...BASE_JOB, attempts: 5 });
+    const result = await processPayoutJob({ ...BASE_JOB, attempts: 5 });
+
+    expect(result.status).toBe("manual_review");
 
     const jobUpdate = updateLog.find((u) => u.table === "crackpot_payout_jobs");
     expect(jobUpdate?.data.status).toBe("manual_review");
@@ -350,7 +357,9 @@ describe("processPayoutJob — failure paths", () => {
     // A different cycle is active → our cycle was already cracked.
     mockGetActiveCycle.mockResolvedValue({ id: BigInt(CONTRACT_CYCLE_ID + 99) });
 
-    await processPayoutJob(BASE_JOB);
+    const result = await processPayoutJob(BASE_JOB);
+
+    expect(result.status).toBe("succeeded");
 
     const cycleUpdate = updateLog.find((u) => u.table === "crackpot_cycles" && u.data.status === "cracked");
     expect(cycleUpdate).toBeDefined();
