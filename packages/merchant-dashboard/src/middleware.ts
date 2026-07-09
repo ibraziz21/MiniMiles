@@ -20,6 +20,18 @@ const PUBLIC_PATHS = [
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // ── Deprecation (Phase 5): hard-redirect UI to the consolidated Platform
+  // dashboard once MIGRATION_REDIRECT=1. API routes and internal webhooks
+  // keep working until their callers are repointed.
+  const newDashboardUrl = process.env.NEXT_PUBLIC_NEW_DASHBOARD_URL;
+  if (
+    process.env.MIGRATION_REDIRECT === "1" &&
+    newDashboardUrl &&
+    !pathname.startsWith("/api/")
+  ) {
+    return NextResponse.redirect(new URL(pathname, newDashboardUrl), 308);
+  }
+
   // Allow public paths
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
