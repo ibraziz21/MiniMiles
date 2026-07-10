@@ -22,10 +22,11 @@
 
 import { after, NextResponse } from "next/server";
 import { crackPotComingSoonResponse, isCrackPotLive } from "@/lib/server/crackpotComingSoon";
-import { CRACKPOT_PEGS } from "@/lib/crackpotTypes";
+import { CRACKPOT_PEGS, GUESSES_PER_ENTRY } from "@/lib/crackpotTypes";
 import { requireSession } from "@/lib/auth";
 import { drainCrackPotPayoutQueue } from "@/lib/server/crackpotPayoutProcessor";
 import {
+  CrackPotGuessConflictError,
   getAttemptForPlayer,
   getGuessesForAttempt,
   getCycleSecret,
@@ -120,22 +121,40 @@ export async function POST(req: Request) {
 
   // ── Count existing guesses for this attempt ───────────────────────────────
   const existingGuesses = await getGuessesForAttempt(attempt.id, playerWallet);
+  if (existingGuesses.length >= GUESSES_PER_ENTRY || attempt.guesses_used >= GUESSES_PER_ENTRY) {
+    void import("@/lib/supabaseClient").then(({ supabase }) =>
+      supabase
+        .from("crackpot_attempts")
+        .update({ status: "lost", guesses_used: Math.max(existingGuesses.length, attempt.guesses_used) })
+        .eq("id", attempt.id)
+        .eq("player_address", playerWallet),
+    );
+    return NextResponse.json({ error: "guess_limit_reached" }, { status: 409 });
+  }
   const guessNumber     = existingGuesses.length + 1;
 
   // ── Submit guess ──────────────────────────────────────────────────────────
-  const result = await submitGuess(
-    {
-      attemptId:    attempt.id,
-      cycleId:      attempt.cycle_id,
-      playerWallet,
-      guessNumber,
-      symbols:      symbolArr,
-      secret:       cycleData.secret,
-      version:      cycleData.version, // governs noise policy
-    },
-    attempt,
-    cycleData.theme,
-  );
+  let result;
+  try {
+    result = await submitGuess(
+      {
+        attemptId:    attempt.id,
+        cycleId:      attempt.cycle_id,
+        playerWallet,
+        guessNumber,
+        symbols:      symbolArr,
+        secret:       cycleData.secret,
+        version:      cycleData.version, // governs noise policy
+      },
+      attempt,
+      cycleData.theme,
+    );
+  } catch (err) {
+    if (err instanceof CrackPotGuessConflictError) {
+      return NextResponse.json({ error: "guess_conflict" }, { status: 409 });
+    }
+    throw err;
+  }
 
   // ── Settlement: enqueue payout job if correct ─────────────────────────────
   // The cycle is NOT marked 'cracked' here.  The worker calls declareWinner()

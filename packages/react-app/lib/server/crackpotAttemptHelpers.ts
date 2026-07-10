@@ -32,6 +32,13 @@ import {
 
 const MAX_GUESSES_PER_ATTEMPT = GUESSES_PER_ENTRY;
 
+export class CrackPotGuessConflictError extends Error {
+  constructor(message = "A guess is already being processed for this attempt") {
+    super(message);
+    this.name = "CrackPotGuessConflictError";
+  }
+}
+
 // ── Raw DB shapes ─────────────────────────────────────────────────────────────
 
 export type RawAttempt = {
@@ -335,8 +342,10 @@ export async function submitGuess(
   const lockedCount = feedback.filter((f) => f === "locked").length;
   const isCorrect   = lockedCount === params.secret.length;
 
-  // Insert guess — DB enforces (attempt_id, guess_number) uniqueness.
-  await supabase.from("crackpot_guesses").insert({
+  // Insert guess before any settlement decision. The DB's
+  // (attempt_id, guess_number) uniqueness is the concurrency guard: only the
+  // request that actually persists a guess is allowed to affect payout state.
+  const { error: insertError } = await supabase.from("crackpot_guesses").insert({
     attempt_id:     params.attemptId,
     cycle_id:       params.cycleId,
     player_address: params.playerWallet.toLowerCase(),
@@ -346,6 +355,12 @@ export async function submitGuess(
     locked_count:   lockedCount,
     is_correct:     isCorrect,
   });
+  if (insertError) {
+    if (insertError.code === "23505") {
+      throw new CrackPotGuessConflictError();
+    }
+    throw new Error(`[crackpotAttempts] insertGuess: ${insertError.message}`);
+  }
 
   // Determine new attempt status.
   const guessesUsed = attempt.guesses_used + 1;
@@ -357,11 +372,14 @@ export async function submitGuess(
   }
 
   // Update attempt.
-  await supabase
+  const { error: updateError } = await supabase
     .from("crackpot_attempts")
     .update({ guesses_used: guessesUsed, status: newStatus })
     .eq("id", params.attemptId)
     .eq("player_address", params.playerWallet.toLowerCase()); // auth scope on write too
+  if (updateError) {
+    throw new Error(`[crackpotAttempts] updateAttemptAfterGuess: ${updateError.message}`);
+  }
 
   const guessView = buildGuessView(
     {

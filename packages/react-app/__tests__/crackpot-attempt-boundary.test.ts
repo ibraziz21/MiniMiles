@@ -59,17 +59,27 @@ vi.mock("@/lib/server/crackpotEntryVerifier", () => ({
 
 const mockCreateAttempt       = vi.fn<(...a: any[]) => Promise<any>>();
 const mockGetAttemptForPlayer = vi.fn<(...a: any[]) => Promise<any>>();
+const mockGetGuessesForAttempt = vi.fn<(...a: any[]) => Promise<any>>();
+const mockGetGuessesForCycle   = vi.fn<(...a: any[]) => Promise<any>>();
 const mockGetCycleSecret      = vi.fn<(...a: any[]) => Promise<any>>();
 const mockGetCycleChainRef    = vi.fn<(...a: any[]) => Promise<any>>();
 const mockSubmitGuess         = vi.fn<(...a: any[]) => Promise<any>>();
 const mockSettleWinningCycle  = vi.fn<(...a: any[]) => Promise<any>>();
 
+class MockCrackPotGuessConflictError extends Error {
+  constructor() {
+    super("A guess is already being processed for this attempt");
+    this.name = "CrackPotGuessConflictError";
+  }
+}
+
 vi.mock("@/lib/server/crackpotAttemptHelpers", () => ({
+  CrackPotGuessConflictError: MockCrackPotGuessConflictError,
   findAttemptByTxHash:     vi.fn().mockResolvedValue(null),
   countAttemptsForPlayer:  vi.fn().mockResolvedValue({ total: 0, free: 0 }),
   createAttempt:           (...a: any[]) => mockCreateAttempt(...a),
-  getGuessesForAttempt:    vi.fn().mockResolvedValue([]),
-  getGuessesForCycle:      vi.fn().mockResolvedValue([]),
+  getGuessesForAttempt:    (...a: any[]) => mockGetGuessesForAttempt(...a),
+  getGuessesForCycle:      (...a: any[]) => mockGetGuessesForCycle(...a),
   buildAttemptView:        vi.fn().mockReturnValue({ attemptId: "attempt-1", status: "active" }),
   getCycleSecret:          (...a: any[]) => mockGetCycleSecret(...a),
   getAttemptForPlayer:     (...a: any[]) => mockGetAttemptForPlayer(...a),
@@ -142,6 +152,8 @@ beforeEach(() => {
   mockVerify.mockReset();
   mockCreateAttempt.mockReset();
   mockGetAttemptForPlayer.mockReset();
+  mockGetGuessesForAttempt.mockReset();
+  mockGetGuessesForCycle.mockReset();
   mockGetCycleSecret.mockReset();
   mockGetCycleChainRef.mockReset();
   mockSubmitGuess.mockReset();
@@ -150,6 +162,8 @@ beforeEach(() => {
   mockAfter.mockReset();
   mockRecordOrphan.mockReset();
   mockRecordOrphan.mockResolvedValue(undefined);
+  mockGetGuessesForAttempt.mockResolvedValue([]);
+  mockGetGuessesForCycle.mockResolvedValue([]);
   mockGetCycleSecret.mockResolvedValue({
     secret: [1, 2, 3, 4],
     theme: "bank-vault",
@@ -338,5 +352,40 @@ describe("POST /api/crackpot/guess — cycle liveness", () => {
       limit: 1,
       leaseOwner: "crackpot-guess-route",
     });
+  });
+
+  it("returns 409 and does not settle when a concurrent duplicate guess loses the DB insert", async () => {
+    mockSubmitGuess.mockRejectedValue(new MockCrackPotGuessConflictError());
+
+    const res = await POST(guessRequest());
+    const body = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(body.error).toBe("guess_conflict");
+    expect(mockSettleWinningCycle).not.toHaveBeenCalled();
+    expect(mockAfter).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 when an active attempt already has all allowed guesses", async () => {
+    mockGetAttemptForPlayer.mockResolvedValue({
+      id: "attempt-1",
+      cycle_id: "cycle-db-id",
+      player_address: PLAYER,
+      status: "active",
+      expires_at: new Date(Date.now() + 45_000).toISOString(),
+      guesses_used: 2,
+    });
+    mockGetGuessesForAttempt.mockResolvedValue([
+      { id: "g1", attempt_id: "attempt-1", guess_number: 1 },
+      { id: "g2", attempt_id: "attempt-1", guess_number: 2 },
+    ]);
+
+    const res = await POST(guessRequest());
+    const body = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(body.error).toBe("guess_limit_reached");
+    expect(mockSubmitGuess).not.toHaveBeenCalled();
+    expect(mockSettleWinningCycle).not.toHaveBeenCalled();
   });
 });
