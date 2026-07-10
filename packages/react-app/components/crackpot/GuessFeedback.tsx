@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { type GuessView, type FeedbackResult, type ThemeConfig } from "@/lib/crackpotTypes";
+import { type GuessView, type FeedbackResult, type ThemeConfig, CRACKPOT_PEGS } from "@/lib/crackpotTypes";
 
 type GuessFeedbackProps = {
   guesses: GuessView[];
@@ -53,7 +53,7 @@ function GuessRow({ guess, theme, isNew, colIndex }: {
   const lockedCount = guess.feedback.filter((f) => f === "locked").length;
   const rowBg = guess.isCorrect
     ? "bg-yellow-50 border-yellow-300"
-    : lockedCount >= 3
+    : lockedCount >= CRACKPOT_PEGS - 1
     ? "bg-amber-50/50 border-amber-200"
     : "bg-white border-slate-100";
 
@@ -62,12 +62,13 @@ function GuessRow({ guess, theme, isNew, colIndex }: {
       initial={isNew ? { opacity: 0, x: -6 } : false}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.18 }}
-      className={`grid grid-cols-[20px_1fr_1fr_1fr_1fr_28px] items-center gap-1.5 px-2 py-2 rounded-xl border ${rowBg}`}
+      style={{ gridTemplateColumns: `20px repeat(${CRACKPOT_PEGS}, 1fr) 28px` }}
+      className={`grid items-center gap-1.5 px-2 py-2 rounded-xl border ${rowBg}`}
     >
       {/* Row number */}
       <span className="text-[10px] font-bold text-slate-300 text-center">#{guess.guessNumber}</span>
 
-      {/* 4 symbol+dot columns */}
+      {/* CRACKPOT_PEGS symbol+dot columns */}
       {guess.symbols.map((idx, pos) => (
         <div key={pos} className="flex flex-col items-center gap-1">
           <motion.span
@@ -92,9 +93,9 @@ function GuessRow({ guess, theme, isNew, colIndex }: {
 
       {/* Locked badge */}
       <div className={`text-center text-[10px] font-bold leading-tight ${
-        lockedCount === 4 ? "text-yellow-600" : lockedCount >= 3 ? "text-amber-500" : "text-slate-300"
+        lockedCount === CRACKPOT_PEGS ? "text-yellow-600" : lockedCount >= CRACKPOT_PEGS - 1 ? "text-amber-500" : "text-slate-300"
       }`}>
-        {lockedCount}/4
+        {lockedCount}/{CRACKPOT_PEGS}
       </div>
     </motion.div>
   );
@@ -103,9 +104,12 @@ function GuessRow({ guess, theme, isNew, colIndex }: {
 // Column headers — aligned to the grid
 function GridHeader({ theme }: { theme: ThemeConfig }) {
   return (
-    <div className="grid grid-cols-[20px_1fr_1fr_1fr_1fr_28px] items-center gap-1.5 px-2 mb-0.5">
+    <div
+      style={{ gridTemplateColumns: `20px repeat(${CRACKPOT_PEGS}, 1fr) 28px` }}
+      className="grid items-center gap-1.5 px-2 mb-0.5"
+    >
       <span />
-      {([0, 1, 2, 3] as const).map((pos) => (
+      {Array.from({ length: CRACKPOT_PEGS }, (_, pos) => (
         <span key={pos} className="text-[9px] text-slate-300 text-center font-medium uppercase tracking-wide">
           P{pos + 1}
         </span>

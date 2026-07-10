@@ -165,6 +165,7 @@ beforeEach(() => {
   mockFrom.mockImplementation((table: string) => makeQueryBuilder(table));
   mockDeclareWinner.mockReset();
   mockGetActiveCycle.mockReset();
+  mockGetActiveCycle.mockResolvedValue({ id: BigInt(CONTRACT_CYCLE_ID) });
   mockFindCycleCracked.mockReset();
   mockFindCycleCracked.mockResolvedValue(null);
   resetLogs();
@@ -439,6 +440,19 @@ describe("processPayoutJob — failure paths", () => {
     expect(result.status).toBe("failed");
     expect(updateLog.find((u) => u.table === "crackpot_payout_jobs" && u.data.status === "succeeded")).toBeUndefined();
   });
+
+  it("does not send declareWinner when the active chain cycle has moved on", async () => {
+    mockGetActiveCycle.mockResolvedValue({ id: BigInt(CONTRACT_CYCLE_ID + 1) });
+
+    const result = await processPayoutJob({ ...BASE_JOB, attempts: 0 });
+
+    expect(result.status).toBe("manual_review");
+    expect(mockDeclareWinner).not.toHaveBeenCalled();
+
+    const jobUpdate = updateLog.find((u) => u.table === "crackpot_payout_jobs");
+    expect(jobUpdate?.data.status).toBe("manual_review");
+    expect(jobUpdate?.data.last_error).toContain("stale payout job");
+  });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -446,25 +460,17 @@ describe("processPayoutJob — failure paths", () => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 describe("Fairness — version-aware feedback noise", () => {
-  const secret: [number, number, number, number] = [1, 3, 5, 2];
-
-  it("USDT feedback is identical to raw computeFeedback (no noise)", () => {
-    const guess: [number, number, number, number] = [1, 0, 5, 0];
-    const raw = computeFeedback(secret, guess);
-
-    expect(applyNoiseForVersion(raw, "usdt",      "c-1", "0xplayer", 1)).toEqual(raw);
-    expect(applyNoiseForVersion(raw, "base_usdc", "c-1", "0xplayer", 1)).toEqual(raw);
-  });
+  const secret = [1, 3, 5, 2, 4];
 
   it("USDT: locked positions always stay locked (truthful)", () => {
-    const guess: [number, number, number, number] = [1, 3, 5, 2]; // exact match
+    const guess = [1, 3, 5, 2, 4]; // exact match
     const raw = computeFeedback(secret, guess);
     const out = applyNoiseForVersion(raw, "usdt", "c-x", "0xaddr", 1);
     out.forEach((f) => expect(f).toBe("locked"));
   });
 
   it("Miles feedback MAY differ from raw computeFeedback (noise can flip close↔miss)", () => {
-    const guess: [number, number, number, number] = [0, 3, 0, 2]; // miss, locked, miss, locked
+    const guess = [0, 3, 0, 2, 1]; // miss, locked, miss, locked, close
     let foundDifference = false;
     for (let g = 1; g <= 200; g++) {
       const raw   = computeFeedback(secret, guess);
@@ -472,6 +478,33 @@ describe("Fairness — version-aware feedback noise", () => {
       if (JSON.stringify(raw) !== JSON.stringify(noisy)) { foundDifference = true; break; }
     }
     expect(foundDifference).toBe(true);
+  });
+
+  it("USDT feedback MAY differ from raw computeFeedback too (light noise, not truthful)", () => {
+    const guess = [0, 3, 0, 2, 1]; // miss, locked, miss, locked, close
+    let foundDifference = false;
+    for (let g = 1; g <= 200; g++) {
+      const raw   = computeFeedback(secret, guess);
+      const noisy = applyNoiseForVersion(raw, "usdt", `cycle-${g}`, "0xplayer", g);
+      if (JSON.stringify(raw) !== JSON.stringify(noisy)) { foundDifference = true; break; }
+    }
+    expect(foundDifference).toBe(true);
+  });
+
+  it("USDT noise is lighter than Miles noise (fewer flips across many trials)", () => {
+    const guess = [0, 3, 0, 2, 1];
+    let usdtFlips = 0;
+    let milesFlips = 0;
+    const trials = 2000;
+    for (let g = 1; g <= trials; g++) {
+      const raw = computeFeedback(secret, guess);
+      const usdtOut  = applyNoiseForVersion(raw, "usdt",  `cycle-${g}`, "0xplayer", g);
+      const milesOut = applyNoiseForVersion(raw, "miles", `cycle-${g}`, "0xplayer", g);
+      if (JSON.stringify(raw) !== JSON.stringify(usdtOut))  usdtFlips++;
+      if (JSON.stringify(raw) !== JSON.stringify(milesOut)) milesFlips++;
+    }
+    expect(usdtFlips).toBeGreaterThan(0);
+    expect(usdtFlips).toBeLessThan(milesFlips);
   });
 });
 
@@ -523,7 +556,7 @@ describe("revealCycleSecret", () => {
       chain_id:             CHAIN_ID,
       contract_version:     1,
       contract_cycle_id:    CONTRACT_CYCLE_ID,
-      secret_code:          [1, 2, 3, 4],
+      secret_code:          [1, 2, 3, 4, 5],
       secret_salt:          "ab".repeat(32),
       secret_commitment:    "0x" + "cc".repeat(32),
       commitment_algorithm: "keccak256(abi.encodePacked(...))",
@@ -544,7 +577,7 @@ describe("revealCycleSecret", () => {
     const reveal = await revealCycleSecret(CYCLE_DB_ID);
 
     expect(reveal).not.toBeNull();
-    expect(reveal!.secretCode).toEqual([1, 2, 3, 4]);
+    expect(reveal!.secretCode).toEqual([1, 2, 3, 4, 5]);
     expect(reveal!.secretSalt).toBe("ab".repeat(32));
     expect(reveal!.secretCommitment).toBe("0x" + "cc".repeat(32));
     expect(reveal!.commitmentAlgorithm).toBeTruthy();
@@ -569,7 +602,7 @@ describe("revealCycleSecret", () => {
 describe("computeSecretCommitment", () => {
   const CONTRACT_ADDR = "0x32e2ebd9b502563a3b8fa59207f0542709456906" as Hex;
   const SALT          = "ab".repeat(32);
-  const CODE: [number, number, number, number] = [1, 2, 3, 4];
+  const CODE          = [1, 2, 3, 4, 5];
   const EXPIRES_AT    = new Date("2025-12-31T12:00:00Z");
 
   function referenceKeccak() {
@@ -577,7 +610,7 @@ describe("computeSecretCommitment", () => {
     const codeHex = CODE.map((n) => n.toString(16).padStart(2, "0")).join("") as Hex;
     return keccak256(
       encodePacked(
-        ["string",  "uint256",          "address",       "uint8", "uint64",       "bytes32",            "bytes4"],
+        ["string",  "uint256",          "address",       "uint8", "uint64",       "bytes32",            "bytes5"],
         ["CRACKPOT_SECRET_V1", BigInt(CHAIN_ID), CONTRACT_ADDR, 1, expiresAtSec, `0x${SALT}` as Hex, `0x${codeHex}` as Hex],
       ),
     );
@@ -604,7 +637,7 @@ describe("computeSecretCommitment", () => {
       chainId: CHAIN_ID, contractAddress: CONTRACT_ADDR, contractVersion: 1,
       expiresAt: EXPIRES_AT, secretSalt: SALT, secretCode: CODE,
     });
-    expect(computeSecretCommitment({ chainId: CHAIN_ID, contractAddress: CONTRACT_ADDR, contractVersion: 1, expiresAt: EXPIRES_AT, secretSalt: SALT, secretCode: [0,0,0,0] })).not.toBe(base);
+    expect(computeSecretCommitment({ chainId: CHAIN_ID, contractAddress: CONTRACT_ADDR, contractVersion: 1, expiresAt: EXPIRES_AT, secretSalt: SALT, secretCode: [0,0,0,0,0] })).not.toBe(base);
     expect(computeSecretCommitment({ chainId: CHAIN_ID, contractAddress: CONTRACT_ADDR, contractVersion: 1, expiresAt: EXPIRES_AT, secretSalt: "cd".repeat(32), secretCode: CODE })).not.toBe(base);
     expect(computeSecretCommitment({ chainId: CHAIN_ID, contractAddress: CONTRACT_ADDR, contractVersion: 0, expiresAt: EXPIRES_AT, secretSalt: SALT, secretCode: CODE })).not.toBe(base);
   });
@@ -620,7 +653,7 @@ describe("computeSecretCommitment", () => {
     const codeHex = CODE.map((n) => n.toString(16).padStart(2, "0")).join("") as Hex;
     const playerCommitment = keccak256(
       encodePacked(
-        ["string", "uint256", "address", "uint8", "uint64", "bytes32", "bytes4"],
+        ["string", "uint256", "address", "uint8", "uint64", "bytes32", "bytes5"],
         ["CRACKPOT_SECRET_V1", BigInt(CHAIN_ID), CONTRACT_ADDR, 1, expiresAtSec, `0x${SALT}` as Hex, `0x${codeHex}` as Hex],
       ),
     );

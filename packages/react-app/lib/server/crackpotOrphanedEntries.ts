@@ -9,7 +9,7 @@
 
 import { supabase } from "@/lib/supabaseClient";
 
-export type OrphanedEntryReason = "cycle_rotated" | "entry_too_late";
+export type OrphanedEntryReason = "cycle_rotated" | "entry_too_late" | "attempt_limit_reached";
 
 export type OrphanedEntryParams = {
   chainId:         number;

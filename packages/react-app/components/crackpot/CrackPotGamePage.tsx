@@ -409,7 +409,7 @@ export function CrackPotGamePage() {
   }
 
   // ── Submit guess ─────────────────────────────────────────────────────────
-  async function submitGuess(symbols: [number, number, number, number]) {
+  async function submitGuess(symbols: number[]) {
     if (!attempt || isSubmitting) return;
     setIsSubmitting(true);
     try {

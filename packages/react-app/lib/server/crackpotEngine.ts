@@ -9,8 +9,11 @@ import {
   type ThemeName,
   type CrackPotVersion,
   THEME_NAMES,
+  CRACKPOT_PEGS,
   NOISE_CLOSE_TO_MISS,
   NOISE_MISS_TO_CLOSE,
+  NOISE_CLOSE_TO_MISS_USDT,
+  NOISE_MISS_TO_CLOSE_USDT,
   ATTEMPT_DURATION_SECONDS,
   GUESS_COOLDOWN_SECONDS,
   SEED_MILES,
@@ -22,23 +25,18 @@ import {
 // ── Code generation ───────────────────────────────────────────────
 
 /**
- * Generate a cryptographically secure 4-symbol code (indices 0–5).
+ * Generate a cryptographically secure CRACKPOT_PEGS-symbol code (indices 0–5).
  * Mixes CSPRNG bytes with an external entropy source (e.g. BTC block hash)
  * so the output is unpredictable even if the CSPRNG seed leaks.
  */
-export function generateCode(entropySource: string): [number, number, number, number] {
+export function generateCode(entropySource: string): number[] {
   const rngBytes = randomBytes(32);
   const combined = createHash("sha256")
     .update(rngBytes)
     .update(entropySource)
     .digest();
 
-  return [
-    combined[0] % 6,
-    combined[1] % 6,
-    combined[2] % 6,
-    combined[3] % 6,
-  ];
+  return Array.from({ length: CRACKPOT_PEGS }, (_, i) => combined[i] % 6);
 }
 
 // ── Fairness commitment ───────────────────────────────────────────
@@ -59,15 +57,19 @@ export const COMMITMENT_ALGORITHM =
  *     contractVersion,           // uint8   (0 = MILES, 1 = USDT)
  *     expiresAt,                 // uint64  (unix seconds)
  *     secretSalt,                // bytes32
- *     secretCode,                // bytes4  (4 × 1-byte symbol index)
+ *     secretCode,                // bytesN  (CRACKPOT_PEGS × 1-byte symbol index)
  *   ))
+ *
+ * The contract only ever stores/compares the resulting bytes32 hash — it has
+ * no opinion on the preimage shape, so the peg count can change here without
+ * any contract redeploy.
  *
  * @param chainId           e.g. 42220 (Celo)
  * @param contractAddress   CrackPot proxy address (checksummed or lowercase)
  * @param contractVersion   0 (MILES) or 1 (USDT)
  * @param expiresAt         Cycle expiry as a Date
  * @param secretSalt        64-char hex string (32 bytes, no 0x prefix)
- * @param secretCode        Four symbol indices 0–5
+ * @param secretCode        CRACKPOT_PEGS symbol indices 0–5
  */
 export function computeSecretCommitment(params: {
   chainId:          number;
@@ -75,7 +77,7 @@ export function computeSecretCommitment(params: {
   contractVersion:  number;
   expiresAt:        Date;
   secretSalt:       string;   // 64-char hex, no 0x prefix
-  secretCode:       [number, number, number, number];
+  secretCode:       number[];
 }): Hex {
   const {
     chainId,
@@ -88,14 +90,15 @@ export function computeSecretCommitment(params: {
 
   const expiresAtSec = BigInt(Math.floor(expiresAt.getTime() / 1000));
 
-  // Encode the 4 symbol indices as a packed bytes4 (one byte per symbol).
+  // Encode the symbol indices as a packed bytesN (one byte per symbol).
   const codeHex = secretCode
     .map((n) => n.toString(16).padStart(2, "0"))
     .join("") as Hex;
+  const bytesType = `bytes${secretCode.length}` as "bytes5";
 
   return keccak256(
     encodePacked(
-      ["string",  "uint256",         "address",        "uint8",           "uint64",       "bytes32",              "bytes4"],
+      ["string",  "uint256",         "address",        "uint8",           "uint64",       "bytes32",              bytesType],
       ["CRACKPOT_SECRET_V1", BigInt(chainId), contractAddress, contractVersion, expiresAtSec, `0x${secretSalt}` as Hex, `0x${codeHex}` as Hex],
     ),
   );
@@ -108,15 +111,16 @@ export function computeSecretCommitment(params: {
  * No noise applied here — noise is injected in applyNoise().
  */
 export function computeFeedback(
-  secret: [number, number, number, number],
-  guess: [number, number, number, number],
+  secret: number[],
+  guess: number[],
 ): GuessFeedback {
-  const feedback: FeedbackResult[] = ["miss", "miss", "miss", "miss"];
-  const secretUsed = [false, false, false, false];
-  const guessUsed = [false, false, false, false];
+  const n = secret.length;
+  const feedback: FeedbackResult[] = new Array(n).fill("miss");
+  const secretUsed = new Array(n).fill(false);
+  const guessUsed = new Array(n).fill(false);
 
   // Pass 1: locked positions
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < n; i++) {
     if (guess[i] === secret[i]) {
       feedback[i] = "locked";
       secretUsed[i] = true;
@@ -125,9 +129,9 @@ export function computeFeedback(
   }
 
   // Pass 2: close positions
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < n; i++) {
     if (guessUsed[i]) continue;
-    for (let j = 0; j < 4; j++) {
+    for (let j = 0; j < n; j++) {
       if (secretUsed[j]) continue;
       if (guess[i] === secret[j]) {
         feedback[i] = "close";
@@ -146,28 +150,31 @@ export function computeFeedback(
  * Inject noise into CLOSE/MISS feedback positions.
  * LOCKED is always truthful.
  *
- * Noise scales down as the player gets closer to the solution:
- *   - 0 locked: full noise (anti-AI protection)
- *   - 1 locked: 75% of base noise
- *   - 2 locked: 40% of base noise
- *   - 3 locked: 0% noise (endgame must be solvable by deduction)
+ * Noise scales down as the player gets closer to the solution, based on how
+ * many positions remain unlocked (pegs - lockedCount):
+ *   - >=4 remaining: full noise (anti-solver protection)
+ *   - 3 remaining:   75% of base noise
+ *   - 2 remaining:   40% of base noise
+ *   - <=1 remaining: 0% noise (endgame must be solvable by deduction)
  *
  * Deterministic per (cycleId, playerAddress, guessNumber, position)
  * so the same player always sees the same result on refresh.
  *
- * For USDT cycles, noise is NOT applied (truthful feedback for fairness).
- * Call `applyNoiseForVersion` which enforces this policy.
+ * `closeToMiss`/`missToClose` let callers dial noise intensity per version —
+ * see `applyNoiseForVersion`.
  */
 export function applyNoise(
   feedback: GuessFeedback,
   cycleId: string,
   playerAddress: string,
   guessNumber: number,
+  closeToMiss: number = NOISE_CLOSE_TO_MISS,
+  missToClose: number = NOISE_MISS_TO_CLOSE,
 ): GuessFeedback {
   const lockedCount = feedback.filter((f) => f === "locked").length;
+  const remaining = feedback.length - lockedCount;
 
-  // Scale factor: no noise at 3 locked, full noise at 0 locked
-  const scale = lockedCount >= 3 ? 0 : lockedCount === 2 ? 0.4 : lockedCount === 1 ? 0.75 : 1.0;
+  const scale = remaining <= 1 ? 0 : remaining === 2 ? 0.4 : remaining === 3 ? 0.75 : 1.0;
 
   if (scale === 0) return feedback;
 
@@ -179,16 +186,19 @@ export function applyNoise(
       .digest();
     const rand = seed[0] / 255;
 
-    if (result === "close" && rand < NOISE_CLOSE_TO_MISS * scale) return "miss";
-    if (result === "miss" && rand < NOISE_MISS_TO_CLOSE * scale) return "close";
+    if (result === "close" && rand < closeToMiss * scale) return "miss";
+    if (result === "miss" && rand < missToClose * scale) return "close";
     return result;
   }) as GuessFeedback;
 }
 
 /**
  * Version-aware noise gate:
- *   MILES / base_miles  — applies noise (anti-solver, lower stakes).
- *   USDT  / base_usdc   — truthful feedback, no noise.
+ *   MILES / base_miles  — full noise (anti-solver, lower stakes).
+ *   USDT  / base_usdc   — light noise (real money, but unlimited-retry +
+ *                         truthful feedback makes the code solvable for
+ *                         pennies against a much larger pot — see
+ *                         NOISE_*_USDT for the tuned rates).
  *
  * This is the function callers should use instead of applyNoise directly.
  */
@@ -200,8 +210,9 @@ export function applyNoiseForVersion(
   guessNumber: number,
 ): GuessFeedback {
   const isMiles = version === "miles" || version === "base_miles";
-  if (!isMiles) return feedback; // USDT: truthful, no noise
-  return applyNoise(feedback, cycleId, playerAddress, guessNumber);
+  const closeToMiss = isMiles ? NOISE_CLOSE_TO_MISS : NOISE_CLOSE_TO_MISS_USDT;
+  const missToClose = isMiles ? NOISE_MISS_TO_CLOSE : NOISE_MISS_TO_CLOSE_USDT;
+  return applyNoise(feedback, cycleId, playerAddress, guessNumber, closeToMiss, missToClose);
 }
 
 // ── Cycle helpers ─────────────────────────────────────────────────

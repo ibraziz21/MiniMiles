@@ -133,7 +133,7 @@ function guessRequest() {
   return new Request("http://localhost/api/crackpot/guess", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ attemptId: "attempt-1", symbols: [0, 1, 2, 3] }),
+    body: JSON.stringify({ attemptId: "attempt-1", symbols: [0, 1, 2, 3, 4] }),
   });
 }
 
@@ -303,9 +303,9 @@ describe("POST /api/crackpot/guess — cycle liveness", () => {
     mockSubmitGuess.mockResolvedValue({
       guessView: {
         guessNumber: 1,
-        symbols: [0, 1, 2, 3],
-        symbolLabels: ["A", "B", "C", "D"],
-        feedback: ["locked", "locked", "locked", "locked"],
+        symbols: [0, 1, 2, 3, 4],
+        symbolLabels: ["A", "B", "C", "D", "E"],
+        feedback: ["locked", "locked", "locked", "locked", "locked"],
         isCorrect: true,
         createdAt: new Date().toISOString(),
       },

@@ -2,10 +2,13 @@
 
 // ── Feedback ─────────────────────────────────────────────────────
 
+/** Number of code positions ("pegs") in a CrackPot secret. */
+export const CRACKPOT_PEGS = 5;
+
 /** Raw feedback from the server (after noise injection on close/miss) */
 export type FeedbackResult = "locked" | "close" | "miss";
 
-export type GuessFeedback = [FeedbackResult, FeedbackResult, FeedbackResult, FeedbackResult];
+export type GuessFeedback = FeedbackResult[];
 
 // ── Themes ───────────────────────────────────────────────────────
 
@@ -212,7 +215,7 @@ export type CycleView = {
 // Lets anyone recompute the on-chain commitment and verify the secret was fixed.
 export type CycleReveal = {
   cycleId: string;
-  secretCode: [number, number, number, number];
+  secretCode: number[];
   secretSalt: string;           // 32-byte hex, no 0x prefix
   secretCommitment: string;     // on-chain bytes32 (0x-prefixed)
   commitmentAlgorithm: string;  // human-readable algorithm description
@@ -263,7 +266,7 @@ export type CrackPotGuess = {
   cycle_id: string;
   player_address: string;
   guess_number: number;      // 1-indexed within the attempt
-  symbols: [number, number, number, number]; // 0–5 indices into theme symbol array
+  symbols: number[]; // CRACKPOT_PEGS indices (0–5) into theme symbol array
   // Noisy feedback stored as returned (not ground truth)
   feedback: GuessFeedback;
   locked_count: number;
@@ -273,8 +276,8 @@ export type CrackPotGuess = {
 
 export type GuessView = {
   guessNumber: number;
-  symbols: [number, number, number, number];
-  symbolLabels: [string, string, string, string];
+  symbols: number[];
+  symbolLabels: string[];
   feedback: GuessFeedback;
   isCorrect: boolean;
   createdAt: string;
@@ -298,6 +301,10 @@ export type CrackPotVersion = "miles" | "usdt" | "base_miles" | "base_usdc";
 // ── Version A (Miles) constants ───────────────────────────────────
 
 export const GUESSES_PER_ENTRY = 2;
+// Anti-solver: caps how many paid entries a wallet can buy per cycle. Without
+// this, unlimited re-entry + only-light noise lets a scripted optimal solver
+// grind the code down for a few cents against a much larger pot.
+export const MAX_ATTEMPTS_PER_CYCLE = 3;
 export const ENTRY_FEE_MILES = 10;
 export const SEED_MILES = 200;
 export const POT_CAP_MILES = 10_000;
@@ -325,7 +332,10 @@ export const MIN_PLAYABLE_WINDOW_SECONDS = 15;
 
 // ── Noise injection constants ─────────────────────────────────────
 // Applied server-side only. LOCKED is always truthful.
-// CLOSE → MISS with 20% probability
-// MISS → CLOSE with 15% probability
+// Miles: CLOSE → MISS 20%, MISS → CLOSE 15% (heavier — lower stakes).
+// USDT: lighter noise — real money, but still enough to blunt a scripted
+// optimal solver without making the feedback feel untrustworthy.
 export const NOISE_CLOSE_TO_MISS = 0.20;
 export const NOISE_MISS_TO_CLOSE = 0.15;
+export const NOISE_CLOSE_TO_MISS_USDT = 0.08;
+export const NOISE_MISS_TO_CLOSE_USDT = 0.05;

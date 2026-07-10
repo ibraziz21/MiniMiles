@@ -24,6 +24,7 @@ import { supabase } from "@/lib/supabaseClient";
 import {
   contractDeclareWinner,
   contractFindCycleCracked,
+  contractGetActiveCycle,
   ContractVersion,
   type ContractVersionType,
 } from "@/lib/server/crackpotContract";
@@ -220,6 +221,24 @@ export async function processPayoutJob(job: RawPayoutJob): Promise<ProcessPayout
     job.contract_version === ContractVersion.USDT ? "usdt" : "miles";
 
   try {
+    const activeCycle = await contractGetActiveCycle(version, job.chain_id);
+    const activeCycleId = activeCycle ? Number(activeCycle.id) : null;
+
+    // declareWinner(version, winner, guesses) settles the currently active
+    // on-chain cycle for that version. Never send it for a stale DB job.
+    if (activeCycleId !== job.contract_cycle_id) {
+      const recovered = await recoverAlreadyCrackedCycle(job, dbVersion);
+      if (recovered) return { status: "succeeded" };
+
+      const reason =
+        activeCycleId == null
+          ? `[crackpotPayoutWorker] stale payout job: no active on-chain cycle for expected ${job.contract_cycle_id}`
+          : `[crackpotPayoutWorker] stale payout job: active on-chain cycle ${activeCycleId}, expected ${job.contract_cycle_id}`;
+
+      const status = await failPayoutJob(job.id, reason, MAX_ATTEMPTS);
+      return { status };
+    }
+
     const { txHash, cycleCracked } = await contractDeclareWinner(
       version,
       job.winner_address as `0x${string}`,
@@ -250,7 +269,7 @@ export async function processPayoutJob(job: RawPayoutJob): Promise<ProcessPayout
     // by a prior worker attempt — recover ONLY from an on-chain CycleCracked
     // event. An expired-unpaid cycle also reads as "no active cycle" and must
     // fall through to failed/manual_review, never fake success.
-    if (/NoCycleActive|no active cycle/i.test(errMsg)) {
+    if (/NoCycleActive|no active cycle|receipt.*not.*found|CycleCracked event not found/i.test(errMsg)) {
       const recovered = await recoverAlreadyCrackedCycle(job, dbVersion);
       if (recovered) return { status: "succeeded" };
     }
@@ -371,7 +390,7 @@ async function recoverAlreadyCrackedCycle(
  * Returns null if the cycle does not exist or is still active.
  */
 export async function revealCycleSecret(cycleId: string): Promise<{
-  secretCode:          [number, number, number, number];
+  secretCode:          number[];
   secretSalt:          string;
   secretCommitment:    string;
   commitmentAlgorithm: string;
@@ -406,7 +425,7 @@ export async function revealCycleSecret(cycleId: string): Promise<{
       : (process.env.NEXT_PUBLIC_CRACKPOT_ADDRESS ?? "");
 
   return {
-    secretCode:          row.secret_code as [number, number, number, number],
+    secretCode:          row.secret_code as number[],
     secretSalt:          row.secret_salt as string,
     secretCommitment:    row.secret_commitment as string,
     commitmentAlgorithm: row.commitment_algorithm ?? "",

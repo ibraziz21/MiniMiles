@@ -57,10 +57,16 @@ function getMilesExpiresAt(): Date {
   return next;
 }
 
-function generateCode(entropy: string): [number, number, number, number] {
+// Must match CRACKPOT_PEGS in packages/react-app/lib/crackpotTypes.ts — the
+// contract only stores the opaque commitment hash, so this script and the
+// app must independently agree on the preimage shape or a manually-opened
+// cycle will silently mismatch the guess API's peg count.
+const CRACKPOT_PEGS = 5;
+
+function generateCode(entropy: string): number[] {
   const rng = crypto.randomBytes(32);
   const combined = crypto.createHash("sha256").update(rng).update(entropy).digest();
-  return [combined[0] % 6, combined[1] % 6, combined[2] % 6, combined[3] % 6];
+  return Array.from({ length: CRACKPOT_PEGS }, (_, i) => combined[i] % 6);
 }
 
 function computeCommitment(
@@ -69,11 +75,11 @@ function computeCommitment(
   contractVersion: number,
   expiresAtSec: bigint,
   salt: string,           // 64-char hex, no 0x
-  code: [number, number, number, number],
+  code: number[],
 ): string {
   const codeHex = code.map(n => n.toString(16).padStart(2, "0")).join("");
   return ethers.solidityPackedKeccak256(
-    ["string", "uint256", "address", "uint8", "uint64", "bytes32", "bytes4"],
+    ["string", "uint256", "address", "uint8", "uint64", "bytes32", `bytes${code.length}`],
     [
       "CRACKPOT_SECRET_V1",
       chainId,

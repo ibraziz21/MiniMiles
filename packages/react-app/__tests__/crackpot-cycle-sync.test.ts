@@ -50,7 +50,7 @@ vi.mock("@/lib/server/crackpotEngine", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/server/crackpotEngine")>();
   return {
     ...actual,
-    generateCode:      vi.fn().mockReturnValue([1, 2, 3, 4]),
+    generateCode:      vi.fn().mockReturnValue([1, 2, 3, 4, 5]),
     getCycleExpiresAt: vi.fn().mockReturnValue(new Date(Date.now() + 3_600_000)),
     getThemeForCycle:  vi.fn().mockReturnValue("bank-vault"),
     // computeSecretCommitment and COMMITMENT_ALGORITHM: use real implementations
@@ -192,10 +192,10 @@ describe("chainPotToDb", () => {
 });
 
 describe("generateSecretWithCommitment", () => {
-  it("returns a 4-element secret, a 64-char hex salt, and a 64-char hex commitment", () => {
+  it("returns a CRACKPOT_PEGS-element secret, a 64-char hex salt, and a 64-char hex commitment", () => {
     const expiry = new Date(Date.now() + 3_600_000);
     const { secret, salt, commitment } = generateSecretWithCommitment("e", 42220, 0, expiry, STUB_CONTRACT_ADDR as `0x${string}`);
-    expect(secret).toHaveLength(4);
+    expect(secret).toHaveLength(5);
     expect(salt).toMatch(/^[0-9a-f]{64}$/);
     expect(commitment).toMatch(/^0x[0-9a-f]{64}$/i);
   });
@@ -588,6 +588,78 @@ describe("Test 8 — read path promotes an orphaned pending row by commitment", 
     expect(promote.contract_cycle_id).toBe(12);
     expect(mockOpenCycle).not.toHaveBeenCalled();
     expect(mockExpireCycle).not.toHaveBeenCalled();
+  });
+
+  it("retires a stale live DB row and retries promotion when the live-row index blocks it", async () => {
+    const PENDING_ID = "pending-row-0000-0000-000000000109";
+    const STALE_ID = "stale-live-0000-0000-000000000109";
+    const COMMITMENT = ("0x" + "ab".repeat(32)) as `0x${string}`;
+    const chainCycle = makeChainCycle({ id: 195n, secretCommitment: COMMITMENT });
+    mockGetActiveCycle.mockResolvedValue(chainCycle);
+
+    const updateCalls: any[] = [];
+
+    mockFrom
+      // findDbRowByContractCycle -> no row
+      .mockImplementationOnce(() => buildChain())
+      // findPendingRow -> matching pending row
+      .mockImplementationOnce(() => buildChain({
+        maybeSingle: () => Promise.resolve({
+          data: {
+            id: PENDING_ID,
+            expires_at: new Date(Date.now() + 3_000_000).toISOString(),
+            secret_commitment: COMMITMENT,
+          },
+          error: null,
+        }),
+      }))
+      // first promotePendingRow -> unique live-row violation
+      .mockImplementationOnce(() => buildChain({
+        update: (row: any) => {
+          updateCalls.push(row);
+          return buildChain({
+            then: (resolve: (v: any) => any) =>
+              Promise.resolve({
+                data: null,
+                error: {
+                  code: "23505",
+                  message: 'duplicate key value violates unique constraint "crackpot_cycles_one_live_per_version"',
+                },
+              }).then(resolve),
+          });
+        },
+      }))
+      // findLiveRowByVersion -> stale blocker
+      .mockImplementationOnce(() => buildChain({
+        maybeSingle: () => Promise.resolve({
+          data: {
+            id: STALE_ID,
+            status: "settling",
+            chain_id: CHAIN_ID,
+            contract_version: 0,
+            contract_cycle_id: 189,
+          },
+          error: null,
+        }),
+      }))
+      // retire stale row
+      .mockImplementationOnce(() => buildChain({
+        update: (row: any) => { updateCalls.push(row); return buildChain(); },
+      }))
+      // retry promotePendingRow -> success
+      .mockImplementationOnce(() => buildChain({
+        update: (row: any) => { updateCalls.push(row); return buildChain(); },
+      }))
+      // fetchFullDbRow
+      .mockImplementationOnce(() => buildChain({
+        single: () => Promise.resolve({ data: makePublicRow(PENDING_ID, 195), error: null }),
+      }));
+
+    const result = await getOrSyncActiveCycle("miles");
+
+    expect(result.id).toBe(PENDING_ID);
+    expect(updateCalls.some((r) => r.status === "dead")).toBe(true);
+    expect(updateCalls.filter((r) => r.status === "active")).toHaveLength(2);
   });
 });
 

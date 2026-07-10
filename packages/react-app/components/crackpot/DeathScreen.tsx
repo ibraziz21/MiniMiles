@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { type ThemeConfig, type CrackPotVersion } from "@/lib/crackpotTypes";
+import { type ThemeConfig, type CrackPotVersion, CRACKPOT_PEGS } from "@/lib/crackpotTypes";
 import { TokenAmount } from "./TokenAmount";
 
 type DeathScreenProps = {
@@ -37,7 +37,7 @@ export function DeathScreen({ potLost, version, theme, bestLockedCount, communit
     return () => { clearTimeout(t); clearTimeout(s); };
   }, []);
 
-  const nearMiss = bestLockedCount !== null && bestLockedCount >= 3;
+  const nearMiss = bestLockedCount !== null && bestLockedCount >= CRACKPOT_PEGS - 1;
   const lostDisplay = isUsdt ? `$${(potLost / 100).toFixed(2)}` : potLost.toLocaleString();
 
   return (
@@ -91,7 +91,7 @@ export function DeathScreen({ potLost, version, theme, bestLockedCount, communit
                 : "border-slate-700 bg-slate-800"}`}
             >
               <div className={`text-3xl font-black ${nearMiss ? "text-amber-400" : "text-slate-300"}`}>
-                {bestLockedCount}/4
+                {bestLockedCount}/{CRACKPOT_PEGS}
               </div>
               <div className="text-xs text-slate-500 mt-1">
                 {nearMiss ? "SO CLOSE — one position away" : "best positions locked"}
@@ -117,8 +117,8 @@ export function DeathScreen({ potLost, version, theme, bestLockedCount, communit
               </p>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-slate-300">Closest anyone got</span>
-                <span className={`text-lg font-black ${communityBestLocked >= 3 ? "text-amber-400" : "text-slate-400"}`}>
-                  {communityBestLocked}/4 🔒
+                <span className={`text-lg font-black ${communityBestLocked >= CRACKPOT_PEGS - 1 ? "text-amber-400" : "text-slate-400"}`}>
+                  {communityBestLocked}/{CRACKPOT_PEGS} 🔒
                 </span>
               </div>
               {/* Community bar */}
@@ -126,7 +126,7 @@ export function DeathScreen({ potLost, version, theme, bestLockedCount, communit
                 <motion.div
                   className="h-full rounded-full bg-amber-400"
                   initial={{ width: 0 }}
-                  animate={{ width: `${(communityBestLocked / 4) * 100}%` }}
+                  animate={{ width: `${(communityBestLocked / CRACKPOT_PEGS) * 100}%` }}
                   transition={{ delay: 0.7, duration: 0.5 }}
                 />
               </div>
@@ -135,10 +135,10 @@ export function DeathScreen({ potLost, version, theme, bestLockedCount, communit
                   ? "Nobody found a single lock. The code was brutal."
                   : communityBestLocked === 1
                   ? "Only 1 position cracked across everyone. Tough cycle."
-                  : communityBestLocked === 2
-                  ? "Halfway there, but no one finished. Come back tomorrow."
-                  : communityBestLocked === 3
-                  ? "Someone had 3/4 and couldn't close. So close it hurts."
+                  : communityBestLocked < CRACKPOT_PEGS - 1
+                  ? "Progress, but no one finished. Come back tomorrow."
+                  : communityBestLocked === CRACKPOT_PEGS - 1
+                  ? `Someone had ${CRACKPOT_PEGS - 1}/${CRACKPOT_PEGS} and couldn't close. So close it hurts.`
                   : "Someone had it all locked — ran out of time."}
               </p>
             </motion.div>

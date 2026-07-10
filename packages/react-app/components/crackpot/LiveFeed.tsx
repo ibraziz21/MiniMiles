@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { type CrackPotVersion } from "@/lib/crackpotTypes";
+import { type CrackPotVersion, CRACKPOT_PEGS } from "@/lib/crackpotTypes";
 
 type FeedData = {
   entries: { address: string; startedAt: string; attemptNumber: number }[];
@@ -92,7 +92,7 @@ export function LiveFeed({ version, accentColor, onWinnerDetected }: LiveFeedPro
         )}
         {bestLocked !== null && bestLocked > 0 && (
           <span className="ml-auto font-medium" style={{ color: bestLocked >= 3 ? "#f59e0b" : undefined }}>
-            Best: {bestLocked}/4 🔒
+            Best: {bestLocked}/{CRACKPOT_PEGS} 🔒
           </span>
         )}
       </div>

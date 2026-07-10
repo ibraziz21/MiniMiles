@@ -2,13 +2,15 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { type ThemeConfig } from "@/lib/crackpotTypes";
+import { type ThemeConfig, CRACKPOT_PEGS } from "@/lib/crackpotTypes";
 import { SymbolPicker } from "./SymbolPicker";
+
+const EMPTY_SLOTS: (number | null)[] = new Array(CRACKPOT_PEGS).fill(null);
 
 type GuessBoardProps = {
   theme: ThemeConfig;
   symbolOrder: number[];
-  onSubmit: (symbols: [number, number, number, number]) => void;
+  onSubmit: (symbols: number[]) => void;
   isSubmitting: boolean;
   cooldownSeconds: number;
   disabled: boolean;
@@ -50,9 +52,9 @@ export function GuessBoard({
   cooldownSeconds,
   disabled,
 }: GuessBoardProps) {
-  const [slots, setSlots] = useState<(number | null)[]>([null, null, null, null]);
+  const [slots, setSlots] = useState<(number | null)[]>(EMPTY_SLOTS);
   const [activeSlot, setActiveSlot] = useState<number | null>(0);
-  const prevSlotsRef = useRef<(number | null)[]>([null, null, null, null]);
+  const prevSlotsRef = useRef<(number | null)[]>(EMPTY_SLOTS);
 
   const allFilled = slots.every((s) => s !== null);
   const inCooldown = cooldownSeconds > 0;
@@ -61,7 +63,7 @@ export function GuessBoard({
   // Reset board when a new attempt starts (all slots null coming from disabled→enabled)
   useEffect(() => {
     if (!disabled) {
-      setSlots([null, null, null, null]);
+      setSlots(EMPTY_SLOTS);
       setActiveSlot(0);
     }
   }, [disabled]);
@@ -92,8 +94,8 @@ export function GuessBoard({
 
   function handleSubmit() {
     if (!canSubmit) return;
-    onSubmit(slots as [number, number, number, number]);
-    setSlots([null, null, null, null]);
+    onSubmit(slots as number[]);
+    setSlots(EMPTY_SLOTS);
     setActiveSlot(0);
   }
 
@@ -134,13 +136,13 @@ export function GuessBoard({
 
     if (key === "Tab" || key === "ArrowRight") {
       e.preventDefault();
-      setActiveSlot((prev) => (prev === null ? 0 : Math.min(3, prev + 1)));
+      setActiveSlot((prev) => (prev === null ? 0 : Math.min(CRACKPOT_PEGS - 1, prev + 1)));
       return;
     }
 
     if (key === "ArrowLeft") {
       e.preventDefault();
-      setActiveSlot((prev) => (prev === null ? 3 : Math.max(0, prev - 1)));
+      setActiveSlot((prev) => (prev === null ? CRACKPOT_PEGS - 1 : Math.max(0, prev - 1)));
       return;
     }
 
@@ -168,7 +170,7 @@ export function GuessBoard({
 
   return (
     <div className="flex flex-col gap-4 w-full">
-      {/* 4 symbol slots */}
+      {/* CRACKPOT_PEGS symbol slots */}
       <div className="flex gap-2 justify-center">
         {slots.map((sym, i) => {
           const isActive = activeSlot === i;
@@ -286,7 +288,7 @@ export function GuessBoard({
         ) : buttonState === "ready" ? (
           "Submit Guess →"
         ) : (
-          "Fill all 4 positions"
+          `Fill all ${CRACKPOT_PEGS} positions`
         )}
       </motion.button>
     </div>

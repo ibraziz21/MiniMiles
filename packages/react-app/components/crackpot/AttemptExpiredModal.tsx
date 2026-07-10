@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { type GuessView, type ThemeConfig } from "@/lib/crackpotTypes";
+import { type GuessView, type ThemeConfig, CRACKPOT_PEGS } from "@/lib/crackpotTypes";
 
 type AttemptExpiredModalProps = {
   guesses: GuessView[];
@@ -71,7 +71,7 @@ export function AttemptExpiredModal({
         {bestGuess && (
           <div className="mb-4">
             <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-              Your best guess — {bestLocked}/4 locked
+              Your best guess — {bestLocked}/{CRACKPOT_PEGS} locked
             </p>
             <div className="flex items-center gap-2 p-3 rounded-2xl bg-slate-50 border border-slate-100">
               {bestGuess.symbols.map((idx, pos) => (
@@ -88,13 +88,13 @@ export function AttemptExpiredModal({
             <div className="mt-2 h-1.5 bg-slate-100 rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full bg-yellow-400 transition-all"
-                style={{ width: `${(bestLocked / 4) * 100}%` }}
+                style={{ width: `${(bestLocked / CRACKPOT_PEGS) * 100}%` }}
               />
             </div>
             <p className="text-[10px] text-slate-400 mt-1 text-right">
-              {bestLocked === 3 ? "So close! One more position to find." :
-               bestLocked === 2 ? "Halfway there — keep deducing." :
-               bestLocked <= 1 ? "Use each guess to eliminate symbols." : ""}
+              {bestLocked === CRACKPOT_PEGS - 1 ? "So close! One more position to find." :
+               bestLocked >= Math.floor(CRACKPOT_PEGS / 2) ? "Halfway there — keep deducing." :
+               "Use each guess to eliminate symbols."}
             </p>
           </div>
         )}

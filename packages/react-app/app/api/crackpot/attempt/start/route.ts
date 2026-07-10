@@ -31,6 +31,7 @@ import { recordOrphanedEntry } from "@/lib/server/crackpotOrphanedEntries";
 import { secondsUntil } from "@/lib/server/crackpotEngine";
 import {
   MIN_PLAYABLE_WINDOW_SECONDS,
+  MAX_ATTEMPTS_PER_CYCLE,
   type CrackPotVersion,
 } from "@/lib/crackpotTypes";
 
@@ -165,6 +166,30 @@ export async function POST(req: Request) {
   }
 
   const { total } = await countAttemptsForPlayer(activeCycle.id, playerWallet);
+
+  // Anti-solver: cap paid entries per player per cycle. The fee already
+  // landed on-chain, so log it for credit/refund rather than discarding it.
+  if (total >= MAX_ATTEMPTS_PER_CYCLE) {
+    await recordOrphanedEntry({
+      chainId:         CELO_CHAIN_ID,
+      txHash,
+      logIndex:        verified.logIndex,
+      playerAddress:   playerWallet,
+      version,
+      contractCycleId: activeCycle.contract_cycle_id,
+      entryAmount:     verified.entryAmount.toString(),
+      reason:          "attempt_limit_reached",
+    });
+    return NextResponse.json(
+      {
+        error: "attempt_limit_reached",
+        message:
+          `You've used all ${MAX_ATTEMPTS_PER_CYCLE} entries for this round. Your payment has been logged for a credit.`,
+      },
+      { status: 409 },
+    );
+  }
+
   const attempt = await createAttempt({
     cycleId:       activeCycle.id,
     playerWallet,

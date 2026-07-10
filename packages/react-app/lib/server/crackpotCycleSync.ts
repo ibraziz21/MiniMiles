@@ -90,6 +90,14 @@ type PendingRow = {
   secret_commitment: string;
 };
 
+type LiveRow = {
+  id: string;
+  status: "active" | "settling";
+  chain_id: number | null;
+  contract_version: number | null;
+  contract_cycle_id: number | null;
+};
+
 /** Thrown on the READ path while a rotation is in flight (or imminently due). */
 export class CycleRotatingError extends Error {
   readonly retryAfterSeconds: number;
@@ -155,7 +163,7 @@ export function generateSecretWithCommitment(
   expiresAt: Date,
   contractAddress: Hex,
 ): {
-  secret:     [number, number, number, number];
+  secret:     number[];
   salt:       string;   // 64-char hex, no 0x prefix
   commitment: Hex;      // 0x-prefixed bytes32 keccak256
 } {
@@ -216,6 +224,20 @@ async function findPendingRow(version: PlayVersion): Promise<PendingRow | null> 
 
   if (error) throw new Error(`[crackpotCycleSync] pending lookup failed: ${error.message}`);
   return (data as PendingRow | null) ?? null;
+}
+
+async function findLiveRowByVersion(version: PlayVersion): Promise<LiveRow | null> {
+  const { data, error } = await supabase
+    .from("crackpot_cycles")
+    .select("id, status, chain_id, contract_version, contract_cycle_id")
+    .eq("version", version)
+    .in("status", ["active", "settling"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(`[crackpotCycleSync] live row lookup failed: ${error.message}`);
+  return (data as LiveRow | null) ?? null;
 }
 
 /**
@@ -288,7 +310,7 @@ async function promotePendingRow(
   chainCycle: ContractCycle,
   version: PlayVersion,
   openTxHash: string | null,
-): Promise<void> {
+): Promise<boolean> {
   const update: Record<string, unknown> = {
     status:            "active",
     contract_cycle_id: Number(chainCycle.id),
@@ -305,7 +327,89 @@ async function promotePendingRow(
     .eq("id", pendingId)
     .eq("status", "pending");
 
-  if (error) throw new Error(`[crackpotCycleSync] pending promote failed: ${error.message}`);
+  if (error) {
+    const duplicateLive =
+      error.code === "23505" &&
+      String(error.message ?? "").includes("crackpot_cycles_one_live_per_version");
+    if (duplicateLive) return false;
+    throw new Error(`[crackpotCycleSync] pending promote failed: ${error.message}`);
+  }
+
+  return true;
+}
+
+async function retireStaleLiveRowBeforePromotion(
+  version: PlayVersion,
+  chainId: number,
+  contractVersion: ContractVersionType,
+  contractCycleId: number,
+): Promise<string | null> {
+  const live = await findLiveRowByVersion(version);
+  if (!live) return null;
+
+  if (
+    live.chain_id === chainId &&
+    live.contract_version === contractVersion &&
+    live.contract_cycle_id === contractCycleId
+  ) {
+    return live.id;
+  }
+
+  const staleSameContract =
+    live.chain_id === chainId &&
+    live.contract_version === contractVersion &&
+    typeof live.contract_cycle_id === "number" &&
+    live.contract_cycle_id < contractCycleId;
+
+  if (!staleSameContract) {
+    throw new Error(
+      `[crackpotCycleSync] live ${version} row ${live.id} ` +
+      `(status=${live.status}, cycle=${live.contract_cycle_id ?? "null"}) ` +
+      `blocks promotion for chain cycle ${contractCycleId}`,
+    );
+  }
+
+  console.warn(
+    `[crackpotCycleSync] retiring stale ${version} ${live.status} row ${live.id} ` +
+    `(cycle ${live.contract_cycle_id}) before promoting chain cycle ${contractCycleId}`,
+  );
+
+  const { error } = await supabase
+    .from("crackpot_cycles")
+    .update({ status: "dead" })
+    .eq("id", live.id)
+    .in("status", ["active", "settling"]);
+
+  if (error) throw new Error(`[crackpotCycleSync] stale live row retire failed: ${error.message}`);
+  return null;
+}
+
+async function promotePendingRowOrResolveLiveConflict(
+  pendingId: string,
+  chainCycle: ContractCycle,
+  version: PlayVersion,
+  openTxHash: string | null,
+  chainId: number,
+  contractVersion: ContractVersionType,
+): Promise<string> {
+  const promoted = await promotePendingRow(pendingId, chainCycle, version, openTxHash);
+  if (promoted) return pendingId;
+
+  const contractCycleId = Number(chainCycle.id);
+  const existingId = await retireStaleLiveRowBeforePromotion(
+    version,
+    chainId,
+    contractVersion,
+    contractCycleId,
+  );
+  if (existingId) return existingId;
+
+  const promotedAfterRetire = await promotePendingRow(pendingId, chainCycle, version, openTxHash);
+  if (promotedAfterRetire) return pendingId;
+
+  throw new Error(
+    `[crackpotCycleSync] pending promote still blocked after stale live row reconciliation`,
+  );
 }
 
 /** Retire a pending row that can no longer be opened (stale expiry / lost race). */
@@ -438,8 +542,15 @@ async function ensureDbRowForChainCycle(
   if (chainCommitment) {
     const pending = await findPendingRow(version);
     if (pending && pending.secret_commitment?.toLowerCase() === chainCommitment) {
-      await promotePendingRow(pending.id, chainCycle, version, null);
-      return fetchFullDbRow(pending.id);
+      const rowId = await promotePendingRowOrResolveLiveConflict(
+        pending.id,
+        chainCycle,
+        version,
+        null,
+        chainId,
+        contractVersion,
+      );
+      return fetchFullDbRow(rowId);
     }
   }
 
@@ -477,8 +588,15 @@ async function adoptChainCycle(
     chainCycle.secretCommitment.toLowerCase() === pending.secret_commitment?.toLowerCase();
 
   if (ours) {
-    await promotePendingRow(pending.id, chainCycle, version, openTxHash);
-    return fetchFullDbRow(pending.id);
+    const rowId = await promotePendingRowOrResolveLiveConflict(
+      pending.id,
+      chainCycle,
+      version,
+      openTxHash,
+      chainId,
+      contractVersion,
+    );
+    return fetchFullDbRow(rowId);
   }
 
   // The live chain cycle carries someone else's commitment — only that worker

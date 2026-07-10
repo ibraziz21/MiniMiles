@@ -7,8 +7,9 @@
 // if they supply the correct attempt UUID.
 //
 // Fairness:
-//   USDT cycles use truthful (noiseless) feedback.
-//   Miles cycles use the standard noise injection for anti-solver protection.
+//   Miles cycles use full noise injection (anti-solver protection).
+//   USDT cycles use light noise — real money, but unlimited retry + truthful
+//   feedback made the code solvable for pennies; see applyNoiseForVersion.
 
 import { supabase } from "@/lib/supabaseClient";
 import {
@@ -56,7 +57,7 @@ export type RawGuess = {
   cycle_id: string;
   player_address: string;
   guess_number: number;
-  symbols: [number, number, number, number];
+  symbols: number[];
   feedback: GuessFeedback;
   locked_count: number;
   is_correct: boolean;
@@ -305,8 +306,8 @@ export type SubmitGuessParams = {
   cycleId:      string;
   playerWallet: string;
   guessNumber:  number;
-  symbols:      [number, number, number, number];
-  secret:       [number, number, number, number];
+  symbols:      number[];
+  secret:       number[];
   version:      CrackPotVersion; // controls noise application
 };
 
@@ -323,7 +324,7 @@ export async function submitGuess(
   theme: ThemeName,
 ): Promise<SubmitGuessResult> {
   const rawFeedback = computeFeedback(params.secret, params.symbols);
-  // USDT: truthful feedback (no noise). Miles: noise injected.
+  // Miles: full noise. USDT: light noise. See applyNoiseForVersion.
   const feedback    = applyNoiseForVersion(
     rawFeedback,
     params.version,
@@ -332,7 +333,7 @@ export async function submitGuess(
     params.guessNumber,
   );
   const lockedCount = feedback.filter((f) => f === "locked").length;
-  const isCorrect   = lockedCount === 4;
+  const isCorrect   = lockedCount === params.secret.length;
 
   // Insert guess — DB enforces (attempt_id, guess_number) uniqueness.
   await supabase.from("crackpot_guesses").insert({
@@ -441,7 +442,7 @@ export async function settleWinningCycle(
 export async function getCycleSecret(
   cycleId: string,
 ): Promise<{
-  secret:    [number, number, number, number];
+  secret:    number[];
   theme:     ThemeName;
   version:   CrackPotVersion;
   status:    string;
@@ -455,7 +456,7 @@ export async function getCycleSecret(
 
   if (error) return null;
   return {
-    secret:    data.secret_code as [number, number, number, number],
+    secret:    data.secret_code as number[],
     theme:     data.theme       as ThemeName,
     version:   data.version     as CrackPotVersion,
     status:    data.status      as string,

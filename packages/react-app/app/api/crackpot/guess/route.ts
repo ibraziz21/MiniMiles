@@ -7,7 +7,7 @@
 //        `.eq("player_address", sessionWallet)` so one session cannot read or
 //        mutate another player's attempts.
 //
-// Body: { attemptId: string, symbols: [number, number, number, number] }
+// Body: { attemptId: string, symbols: number[] }  (CRACKPOT_PEGS entries)
 //       symbols are 0–5 indices into the active cycle theme's symbol array.
 //
 // On correct guess:
@@ -17,11 +17,12 @@
 //     is finalised.  The client is notified via isCorrect + newStatus.
 //
 // Response: GuessView — feedback without secret_code or secret_salt.
-//           Includes `feedbackIsNoiseless: boolean` so the UI can inform players
-//           whether feedback is exact (USDT) or probabilistically noisy (Miles).
+//           Includes `feedbackIsNoiseless: boolean` (currently always false —
+//           every version now has noise applied, Miles full / USDT light).
 
 import { after, NextResponse } from "next/server";
 import { crackPotComingSoonResponse, isCrackPotLive } from "@/lib/server/crackpotComingSoon";
+import { CRACKPOT_PEGS } from "@/lib/crackpotTypes";
 import { requireSession } from "@/lib/auth";
 import { drainCrackPotPayoutQueue } from "@/lib/server/crackpotPayoutProcessor";
 import {
@@ -56,15 +57,15 @@ export async function POST(req: Request) {
   }
   if (
     !Array.isArray(symbols) ||
-    symbols.length !== 4 ||
+    symbols.length !== CRACKPOT_PEGS ||
     symbols.some((s) => typeof s !== "number" || s < 0 || s > 5)
   ) {
     return NextResponse.json(
-      { error: "invalid_symbols", message: "symbols must be an array of 4 integers 0–5" },
+      { error: "invalid_symbols", message: `symbols must be an array of ${CRACKPOT_PEGS} integers 0–5` },
       { status: 400 },
     );
   }
-  const symbolArr = symbols as [number, number, number, number];
+  const symbolArr = symbols as number[];
 
   // ── Load attempt — scoped to session wallet ───────────────────────────────
   const attempt = await getAttemptForPlayer(attemptId, playerWallet);
@@ -160,7 +161,9 @@ export async function POST(req: Request) {
 
   // ── Response — no secret_code, no secret_salt ─────────────────────────────
   // feedbackIsNoiseless tells the UI whether it can treat feedback as exact.
-  const feedbackIsNoiseless = cycleData.version === "usdt" || cycleData.version === "base_usdc";
+  // Every version now has noise applied (Miles: full, USDT: light — see
+  // applyNoiseForVersion) so feedback is never truthful anymore.
+  const feedbackIsNoiseless = false;
 
   return NextResponse.json({
     guessView:          result.guessView,
