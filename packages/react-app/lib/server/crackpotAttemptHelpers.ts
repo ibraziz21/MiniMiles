@@ -71,7 +71,7 @@ export function buildGuessView(g: RawGuess, theme: ThemeName): GuessView {
   return {
     guessNumber:  g.guess_number,
     symbols:      g.symbols,
-    symbolLabels: g.symbols.map((i) => themeConfig.symbolLabels[i]) as [string, string, string, string],
+    symbolLabels: g.symbols.map((i) => themeConfig.symbolLabels[i] ?? `#${i}`),
     feedback:     g.feedback,
     isCorrect:    g.is_correct,
     createdAt:    g.created_at,

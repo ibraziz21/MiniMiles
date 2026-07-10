@@ -18,6 +18,8 @@ const FEEDBACK_BG: Record<string, string> = {
   miss:   "bg-slate-100 border-slate-300 text-slate-400",
 };
 const FEEDBACK_ICON: Record<string, string> = { locked: "✓", close: "~", miss: "✕" };
+const UNKNOWN_FEEDBACK_BG = "bg-slate-50 border-slate-200 text-slate-300";
+const UNKNOWN_FEEDBACK_ICON = "·";
 
 export function AttemptExpiredModal({
   guesses, theme, retryLabel, onTryAgain, onDismiss,
@@ -74,14 +76,19 @@ export function AttemptExpiredModal({
               Your best guess — {bestLocked}/{CRACKPOT_PEGS} locked
             </p>
             <div className="flex items-center gap-2 p-3 rounded-2xl bg-slate-50 border border-slate-100">
-              {bestGuess.symbols.map((idx, pos) => (
-                <div key={pos} className="flex flex-col items-center gap-1 flex-1">
-                  <span className="text-2xl leading-none">{theme.symbols[idx]}</span>
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-[9px] font-bold ${FEEDBACK_BG[bestGuess.feedback[pos]]}`}>
-                    {FEEDBACK_ICON[bestGuess.feedback[pos]]}
+              {Array.from({ length: CRACKPOT_PEGS }, (_, pos) => {
+                const idx = bestGuess.symbols[pos];
+                const symbol = typeof idx === "number" ? theme.symbols[idx] : undefined;
+                const feedback = bestGuess.feedback[pos];
+                return (
+                  <div key={pos} className="flex flex-col items-center gap-1 flex-1">
+                    <span className={`text-2xl leading-none ${symbol ? "" : "text-slate-300"}`}>{symbol ?? "?"}</span>
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-[9px] font-bold ${feedback ? FEEDBACK_BG[feedback] ?? UNKNOWN_FEEDBACK_BG : UNKNOWN_FEEDBACK_BG}`}>
+                      {feedback ? FEEDBACK_ICON[feedback] ?? UNKNOWN_FEEDBACK_ICON : UNKNOWN_FEEDBACK_ICON}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Progress bar */}

@@ -16,10 +16,17 @@ const FEEDBACK_CONFIG: Record<FeedbackResult, { bg: string; border: string; icon
   miss:   { bg: "bg-slate-100",   border: "border-slate-300",  icon: "✕", label: "Miss",   textColor: "text-slate-400" },
 };
 
+const UNKNOWN_FEEDBACK_CONFIG = {
+  bg: "bg-slate-50",
+  border: "border-slate-200",
+  icon: "·",
+  textColor: "text-slate-300",
+};
+
 function FeedbackDot({ result, delay = 0, animate: shouldAnimate = false }: {
-  result: FeedbackResult; delay?: number; animate?: boolean;
+  result?: FeedbackResult; delay?: number; animate?: boolean;
 }) {
-  const cfg = FEEDBACK_CONFIG[result];
+  const cfg = result ? FEEDBACK_CONFIG[result] ?? UNKNOWN_FEEDBACK_CONFIG : UNKNOWN_FEEDBACK_CONFIG;
   if (!shouldAnimate) {
     return (
       <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center text-[9px] font-bold ${cfg.bg} ${cfg.border} ${cfg.textColor}`}>
@@ -69,27 +76,31 @@ function GuessRow({ guess, theme, isNew, colIndex }: {
       <span className="text-[10px] font-bold text-slate-300 text-center">#{guess.guessNumber}</span>
 
       {/* CRACKPOT_PEGS symbol+dot columns */}
-      {guess.symbols.map((idx, pos) => (
-        <div key={pos} className="flex flex-col items-center gap-1">
-          <motion.span
-            className="text-lg leading-none"
-            initial={isNew ? { scale: 0.6, opacity: 0 } : false}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: pos * 0.04, duration: 0.16, ease: "backOut" }}
-          >
-            {theme.symbols[idx]}
-          </motion.span>
-          {revealed ? (
-            <FeedbackDot
-              result={guess.feedback[pos]}
-              delay={isNew ? pos * 0.1 : 0}
-              animate={isNew}
-            />
-          ) : (
-            <div className="w-4 h-4 rounded-full bg-slate-100 border-2 border-slate-200 animate-pulse" />
-          )}
-        </div>
-      ))}
+      {Array.from({ length: CRACKPOT_PEGS }, (_, pos) => {
+        const idx = guess.symbols[pos];
+        const symbol = typeof idx === "number" ? theme.symbols[idx] : undefined;
+        return (
+          <div key={pos} className="flex flex-col items-center gap-1">
+            <motion.span
+              className={`text-lg leading-none ${symbol ? "" : "text-slate-300"}`}
+              initial={isNew ? { scale: 0.6, opacity: 0 } : false}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: pos * 0.04, duration: 0.16, ease: "backOut" }}
+            >
+              {symbol ?? "?"}
+            </motion.span>
+            {revealed ? (
+              <FeedbackDot
+                result={guess.feedback[pos]}
+                delay={isNew ? pos * 0.1 : 0}
+                animate={isNew}
+              />
+            ) : (
+              <div className="w-4 h-4 rounded-full bg-slate-100 border-2 border-slate-200 animate-pulse" />
+            )}
+          </div>
+        );
+      })}
 
       {/* Locked badge */}
       <div className={`text-center text-[10px] font-bold leading-tight ${
