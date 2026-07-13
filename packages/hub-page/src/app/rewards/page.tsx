@@ -1,6 +1,6 @@
 import { Sparkles, ExternalLink, Clock, Coins } from "lucide-react";
 
-export const metadata = { title: "Rewards & Offers — Akiba Hub" };
+export const metadata = { title: "Rewards & Offers — Akiba Pass" };
 
 // Fetch from Akiba-Platform; graceful fallback to empty
 async function getRewards() {

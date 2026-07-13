@@ -25,7 +25,7 @@ export const viewport = {
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: "Akiba Hub | Shop, Earn, Rewards & Quests",
+  title: "Akiba Pass | Shop, Earn, Rewards & Quests",
   description: "Shop from merchants, earn AkibaMiles, claim rewards, and complete quests.",
   appleWebApp: {
     capable: true,
@@ -33,9 +33,9 @@ export const metadata: Metadata = {
     title: "Akiba",
   },
   openGraph: {
-    title: "Akiba Hub | Shop, Earn, Rewards & Quests",
+    title: "Akiba Pass | Shop, Earn, Rewards & Quests",
     description: "Shop from merchants, earn AkibaMiles, claim rewards, and complete quests.",
-    url: siteUrl, siteName: "Akiba Hub", locale: "en_US", type: "website",
+    url: siteUrl, siteName: "Akiba Pass", locale: "en_US", type: "website",
   },
 };
 

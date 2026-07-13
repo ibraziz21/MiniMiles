@@ -1,8 +1,9 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { VoucherTabs } from "./VoucherTabs";
+import { HIDDEN_PARTNER_FILTER, isHiddenPartner } from "@/lib/akiba/hidden-partners";
 
-export const metadata = { title: "Vouchers — Akiba Hub" };
+export const metadata = { title: "Vouchers — Akiba Pass" };
 export const revalidate = 60;
 
 type VoucherTemplate = {
@@ -32,6 +33,7 @@ async function getAllTemplates(): Promise<VoucherTemplate[]> {
       partners ( id, slug, name, image_url )
     `)
     .eq("active", true)
+    .not("partner_id", "in", HIDDEN_PARTNER_FILTER)
     .order("miles_cost", { ascending: true });
 
   return ((data ?? []) as unknown[]).map((item) => {

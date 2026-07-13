@@ -35,7 +35,7 @@ export function Logo({ dark = false }: { dark?: boolean }) {
       )}
     >
       <AkibaMark />
-      <span className="font-sterling text-xl font-semibold leading-none">Akiba Hub</span>
+      <span className="font-sterling text-xl font-semibold leading-none">Akiba Pass</span>
     </Link>
   );
 }

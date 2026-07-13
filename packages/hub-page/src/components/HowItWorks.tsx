@@ -5,8 +5,8 @@ import { AKIBA_HUB_APP_URL } from "@/constants/links";
 const steps = [
   {
     number: "01",
-    title: "Open Akiba Hub",
-    description: "Visit hub.akibamiles.com or open the Akiba Hub app on your device.",
+    title: "Open Akiba Pass",
+    description: "Visit hub.akibamiles.com or open the Akiba Pass app on your device.",
   },
   {
     number: "02",
@@ -44,7 +44,7 @@ export function HowItWorks() {
     <section id="how-it-works" className="bg-white px-4 py-16 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
         <SectionHeader
-          eyebrow="How Akiba Hub Works"
+          eyebrow="How Akiba Pass Works"
           title="From public discovery to personalized rewards"
           body="This page shows you what's possible. The app makes it personal. Here's how to go from browsing to earning."
           align="center"
@@ -69,7 +69,7 @@ export function HowItWorks() {
         </div>
 
         <div className="mt-12 text-center">
-          <ButtonLink href={AKIBA_HUB_APP_URL}>Open Akiba Hub App</ButtonLink>
+          <ButtonLink href={AKIBA_HUB_APP_URL}>Open Akiba Pass App</ButtonLink>
         </div>
       </div>
     </section>

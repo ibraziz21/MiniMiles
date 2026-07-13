@@ -32,7 +32,7 @@ export function FeaturedCampaigns() {
             rel="noopener noreferrer"
             className="mt-3 inline-block text-sm font-semibold text-akiba-teal no-underline hover:underline"
           >
-            Open Akiba Hub App →
+            Open Akiba Pass App →
           </a>
         </div>
       </div>

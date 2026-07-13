@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-// PWA manifest — makes Akiba Hub installable from Android Chrome
+// PWA manifest — makes Akiba Pass installable from Android Chrome
 // ("Add to Home screen") with the Akiba logo, standalone display, and
 // brand theming. No native app required.
 export default function manifest(): MetadataRoute.Manifest {

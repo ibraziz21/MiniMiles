@@ -15,7 +15,7 @@ export function FooterCTA() {
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <ButtonLink href={AKIBA_HUB_APP_URL} className="w-full sm:w-auto">
-            Open Akiba Hub App
+            Open Akiba Pass App
           </ButtonLink>
           <a
             href="#featured"

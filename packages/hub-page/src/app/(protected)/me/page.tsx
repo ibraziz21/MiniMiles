@@ -12,7 +12,7 @@ import { getRecentActivity, getLedgerBalance } from "@/lib/akiba/activity";
 import { ArrowUpRight, MapPin, Tag } from "lucide-react";
 import { MilesIcon } from "@/components/MilesIcon";
 
-export const metadata = { title: "My Profile — Akiba Hub" };
+export const metadata = { title: "My Profile — Akiba Pass" };
 
 const MINIPOINTS = process.env.MINIPOINTS_ADDRESS;
 const CELO_RPC = process.env.CELO_RPC_URL ?? "https://forno.celo.org";

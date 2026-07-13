@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ShoppingBag, Sparkles, Zap, ArrowRight, Coins } from "lucide-react";
+import { HIDDEN_PARTNER_FILTER, isHiddenPartner } from "@/lib/akiba/hidden-partners";
 
 async function getFeaturedMerchants() {
   try {
@@ -8,6 +9,7 @@ async function getFeaturedMerchants() {
       .from("partners")
       .select("id, slug, name, image_url, partner_settings!inner(store_active, logo_url)")
       .eq("partner_settings.store_active", true)
+      .not("id", "in", HIDDEN_PARTNER_FILTER)
       .limit(4);
     return (data ?? []).map((p) => {
       const s = Array.isArray(p.partner_settings) ? p.partner_settings[0] : p.partner_settings;

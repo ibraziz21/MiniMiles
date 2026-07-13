@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { voucherLabel } from "@/lib/pricing";
 import { ShoppingBag, Tag, MapPin, Mail, ArrowLeft } from "lucide-react";
 import { AddToCart } from "./AddToCart";
+import { HIDDEN_PARTNER_FILTER, isHiddenPartner } from "@/lib/akiba/hidden-partners";
 
 export const revalidate = 60;
 
@@ -55,6 +56,7 @@ async function getMerchantPage(slug: string): Promise<{
     .maybeSingle();
 
   if (!partner) return null;
+  if (isHiddenPartner(partner.id)) return null; // test/legacy merchant — hidden
 
   const s = Array.isArray(partner.partner_settings)
     ? partner.partner_settings[0]
@@ -96,7 +98,7 @@ async function getMerchantPage(slug: string): Promise<{
 
 export async function generateMetadata({ params }: { params: { slug: string } }) {
   const data = await getMerchantPage(params.slug);
-  return { title: data ? `${data.merchant.name} — Akiba Hub` : "Shop — Akiba Hub" };
+  return { title: data ? `${data.merchant.name} — Akiba Pass` : "Shop — Akiba Pass" };
 }
 
 const CATEGORY_LABELS: Record<string, string> = {

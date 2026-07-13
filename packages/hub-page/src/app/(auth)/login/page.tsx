@@ -92,7 +92,7 @@ export default function LoginPage() {
 
         <div className="rounded-2xl border border-akiba-line bg-white p-8 shadow-soft">
           <h1 className="font-sterling text-2xl font-semibold text-akiba-ink">
-            Sign in to Akiba Hub
+            Sign in to Akiba Pass
           </h1>
           <p className="mt-1 text-sm text-akiba-muted">
             Earn miles, redeem vouchers, and track your rewards.

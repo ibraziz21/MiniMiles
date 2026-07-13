@@ -53,6 +53,7 @@
     "claw:sessions": "hardhat run --no-compile scripts/find-claw-sessions.ts --network celo",
     "claw:settle": "hardhat run --no-compile scripts/settle-claw-session.ts --network celo",
     "claw:set-legendary-burns": "hardhat run --no-compile scripts/set-claw-legendary-burns-half-cap.ts --network celo",
+    "farkle:set-credit-packs": "hardhat run --no-compile scripts/set-farkle-pro-credit-pack.ts --network celo",
     "prettier": "prettier --write 'contracts/**/*.sol' '**/*.ts'"
   }
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { HIDDEN_PARTNER_FILTER, isHiddenPartner } from "@/lib/akiba/hidden-partners";
 
 export const revalidate = 60;
 
@@ -20,6 +21,10 @@ export async function GET(
     `)
     .eq("slug", params.slug)
     .maybeSingle();
+
+  if (partner && isHiddenPartner(partner.id)) {
+    return NextResponse.json({ error: "Merchant not found" }, { status: 404 });
+  }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!partner) return NextResponse.json({ error: "Not found" }, { status: 404 });

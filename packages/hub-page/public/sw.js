@@ -1,5 +1,5 @@
 /**
- * Akiba Hub service worker.
+ * Akiba Pass service worker.
  *
  * Goal: the Akiba Pass QR on /me must render at the till even with no signal.
  *
@@ -90,7 +90,7 @@ self.addEventListener("fetch", (event) => {
             if (fallback) return fallback;
           }
           return new Response(
-            "<html><body style='font-family:sans-serif;text-align:center;padding:40px'><h2>You're offline</h2><p>Reconnect to load Akiba Hub.</p></body></html>",
+            "<html><body style='font-family:sans-serif;text-align:center;padding:40px'><h2>You're offline</h2><p>Reconnect to load Akiba Pass.</p></body></html>",
             { status: 503, headers: { "Content-Type": "text/html" } },
           );
         }

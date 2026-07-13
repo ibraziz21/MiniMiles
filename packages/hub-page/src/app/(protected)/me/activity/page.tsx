@@ -5,7 +5,7 @@ import { getRecentActivity } from "@/lib/akiba/activity";
 import { ActivityFeed } from "../ActivityFeed";
 import { ArrowLeft } from "lucide-react";
 
-export const metadata = { title: "Activity — Akiba Hub" };
+export const metadata = { title: "Activity — Akiba Pass" };
 
 export default async function ActivityPage() {
   const supabase = await createClient();

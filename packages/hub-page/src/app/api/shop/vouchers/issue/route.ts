@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildIssueMessage, isTimestampFresh } from "@/lib/vouchers/codes";
 import { issueVoucher } from "@/lib/vouchers/issuance";
+import { HIDDEN_PARTNER_FILTER, isHiddenPartner } from "@/lib/akiba/hidden-partners";
 
 const AKIBA_API = process.env.AKIBA_API_URL ?? "";
 
@@ -91,7 +92,7 @@ export async function POST(request: Request) {
     .eq("id", template_id)
     .maybeSingle();
 
-  if (!template) {
+  if (!template || isHiddenPartner(template.partner_id)) {
     return NextResponse.json({ error: "Template not found or inactive" }, { status: 404 });
   }
 

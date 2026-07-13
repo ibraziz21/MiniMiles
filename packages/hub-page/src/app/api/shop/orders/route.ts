@@ -20,6 +20,7 @@ import { claimVoucher, releaseVoucher } from "@/lib/vouchers/redemption";
 import type { VoucherForPricing } from "@/lib/pricing";
 import type { RulesSnapshot } from "@/lib/vouchers/types";
 import { sendPurchaseEvent } from "@/lib/akiba/purchase-events";
+import { HIDDEN_PARTNER_FILTER, isHiddenPartner } from "@/lib/akiba/hidden-partners";
 
 const CELO_RPC = process.env.CELO_RPC_URL ?? "https://forno.celo.org";
 
@@ -117,7 +118,9 @@ export async function POST(request: Request) {
     .eq("active", true)
     .maybeSingle();
 
-  if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
+  if (!product || isHiddenPartner(product.merchant_id)) {
+    return NextResponse.json({ error: "Product not found" }, { status: 404 });
+  }
 
   const { data: settings } = await admin
     .from("partner_settings")

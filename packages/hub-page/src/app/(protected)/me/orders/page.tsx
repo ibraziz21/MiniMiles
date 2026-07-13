@@ -5,7 +5,7 @@ import { ShoppingBag, Clock, CheckCircle2, Truck, Package, ArrowLeft, Coins } fr
 import { getPurchaseEventForOrder } from "@/lib/akiba/purchase-events";
 import type { OrderRewardStatus } from "@/lib/akiba/purchase-events";
 
-export const metadata = { title: "My Orders — Akiba Hub" };
+export const metadata = { title: "My Orders — Akiba Pass" };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   placed: {

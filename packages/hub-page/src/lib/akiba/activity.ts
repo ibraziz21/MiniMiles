@@ -249,6 +249,7 @@ export async function getRecentActivity(opts: {
           .from("miles_ledger")
           .select("id, amount, direction, source_type, partner_id, note, created_at, partners ( name )")
           .in("canonical_id", canonicalIds)
+          .neq("source_type", "reversal") // internal bookkeeping (bridge), not user activity
           .order("created_at", { ascending: false })
           .limit(limit);
 

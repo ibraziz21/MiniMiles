@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { HIDDEN_PARTNER_FILTER, isHiddenPartner } from "@/lib/akiba/hidden-partners";
 
 export const revalidate = 60;
 
@@ -23,6 +24,7 @@ export async function GET() {
       )
     `)
     .eq("partner_settings.store_active", true)
+    .not("id", "in", HIDDEN_PARTNER_FILTER)
     .order("name");
 
   if (error) {

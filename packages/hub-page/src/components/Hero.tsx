@@ -17,7 +17,7 @@ export function Hero() {
         <div className="mx-auto max-w-4xl text-center">
           <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-akiba-tint px-4 py-2 text-sm font-semibold text-akiba-teal">
             <AkibaMark className="h-4 w-4" />
-            <span>Akiba Hub — Public Discovery</span>
+            <span>Akiba Pass — Public Discovery</span>
           </div>
 
           <h1 className="font-sterling text-5xl font-medium leading-[1.02] text-akiba-ink sm:text-6xl lg:text-7xl">
@@ -25,14 +25,14 @@ export function Hero() {
           </h1>
 
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-akiba-muted sm:text-xl">
-            Akiba Hub helps you explore live campaigns, partner quests, games, raffles, promos, and
+            Akiba Pass helps you explore live campaigns, partner quests, games, raffles, promos, and
             merchant vouchers. Open the app to connect your wallets, choose your interests, and see
             personalized rewards you qualify for.
           </p>
 
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <ButtonLink href={AKIBA_HUB_APP_URL} className="w-full sm:w-auto animate-pulse-glow">
-              Open Akiba Hub App
+              Open Akiba Pass App
             </ButtonLink>
             <ButtonLink
               href={PARTNER_WITH_AKIBA_URL}

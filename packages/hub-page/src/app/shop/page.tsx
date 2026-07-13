@@ -2,8 +2,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ShoppingBag, Tag, Truck } from "lucide-react";
 import { ShopFilters } from "./ShopFilters";
 import Link from "next/link";
+import { HIDDEN_PARTNER_FILTER, isHiddenPartner } from "@/lib/akiba/hidden-partners";
 
-export const metadata = { title: "Shop & Earn — Akiba Hub" };
+export const metadata = { title: "Shop & Earn — Akiba Pass" };
 export const revalidate = 60;
 
 type Merchant = {
@@ -25,6 +26,7 @@ async function getMerchants(): Promise<Merchant[]> {
     .from("partners")
     .select(`id, slug, name, country, image_url, partner_settings!inner(store_active, logo_url, delivery_cities)`)
     .eq("partner_settings.store_active", true)
+    .not("id", "in", HIDDEN_PARTNER_FILTER)
     .order("name");
 
   if (!partners?.length) return [];

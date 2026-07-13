@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { QuestCard } from "./QuestCard";
 import type { Quest, ChainMeta } from "./QuestCard";
 
-export const metadata = { title: "Partner Quests — Akiba Hub" };
+export const metadata = { title: "Partner Quests — Akiba Pass" };
 
 // ── Chain metadata ────────────────────────────────────────────────────────────
 //

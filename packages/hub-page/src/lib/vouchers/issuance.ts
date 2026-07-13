@@ -12,7 +12,7 @@ import { generateSecureCode } from "./codes";
 import type { IssueVoucherResult, RulesSnapshot } from "./types";
 
 const AKIBA_API = process.env.AKIBA_API_URL ?? "";
-// Service key issued to the Akiba Hub by Akiba internal ops.
+// Service key issued to the Akiba Pass by Akiba internal ops.
 // This is a platform_service credential, not a merchant key.
 const AKIBA_API_KEY = process.env.AKIBA_API_KEY ?? "";
 
