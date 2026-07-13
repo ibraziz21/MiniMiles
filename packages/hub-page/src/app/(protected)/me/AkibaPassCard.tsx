@@ -252,7 +252,7 @@ export function AkibaPassCard({ initialPassId, email, displayLabel }: Props) {
           </p>
         ) : (
           <p className="mt-3 flex items-center gap-1.5 text-xs font-medium text-amber-600">
-            <WifiOff className="h-3.5 w-3.5" /> Offline code — works, refreshes when you're back online
+            <WifiOff className="h-3.5 w-3.5" /> Offline code — works, refreshes when you&apos;re back online
           </p>
         )}
 
