@@ -5,6 +5,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { BottomNav } from "@/components/NavLinks";
 import { CartProvider } from "@/lib/cart";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import { InstallPrompt } from "@/components/InstallPrompt";
 
 const sterling = localFont({
   src: [
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <SiteHeader />
           <div className="pb-16 sm:pb-0">{children}</div>
           <BottomNav />
+          <InstallPrompt />
         </CartProvider>
       </body>
     </html>
