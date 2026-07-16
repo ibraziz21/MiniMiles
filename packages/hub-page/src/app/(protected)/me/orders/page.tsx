@@ -158,12 +158,12 @@ export default async function OrdersPage() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="font-medium text-akiba-ink truncate">{order.item_name}</p>
+                    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="font-medium text-akiba-ink break-words">{order.item_name}</p>
                         <p className="text-sm text-akiba-muted">{partner?.name}</p>
                       </div>
-                      <span className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${cfg.color}`}>
+                      <span className={`inline-flex w-fit shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${cfg.color}`}>
                         {cfg.icon} {cfg.label}
                       </span>
                     </div>
