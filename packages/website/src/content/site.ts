@@ -1,9 +1,11 @@
 export const siteConfig = {
   name: "AkibaMiles",
-  title: "AkibaMiles | Turn Everyday Wallet Activity Into Real Rewards",
+  title: "Akiba | Shopping Should Be Rewarding",
   description:
-    "AkibaMiles is a loyalty and engagement platform with 300K users. Earn miles through daily activity, quests, and stablecoin activity — then spend them on raffles, vouchers, and real prizes.",
+    "Akiba turns everyday shopping into rewards. Earn Miles every time you spend at an Akiba merchant, then redeem vouchers, discounts and rewards across the whole network. Merchants launch loyalty in days — no hardware.",
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "https://app.akibamiles.com",
+  passUrl: process.env.NEXT_PUBLIC_PASS_URL ?? "https://pass.akibamiles.com",
+  merchantUrl: process.env.NEXT_PUBLIC_MERCHANT_URL ?? "https://merchant.akibamiles.com",
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.akibamiles.com",
   email: "hello@akibamiles.com",
   xUrl: "https://x.com/Akibamiles",
@@ -11,103 +13,115 @@ export const siteConfig = {
 };
 
 export const navLinks = [
-  { label: "Hub", href: "/hub" },
-  { label: "Rewards", href: "/rewards" },
-  { label: "Partners", href: "/partners" },
-  { label: "Merchants", href: "/merchants" },
+  { label: "How it works", href: "/#how-it-works" },
+  { label: "For Merchants", href: "/merchants" },
   { label: "About", href: "/about" },
 ];
 
 export const homeContent = {
   hero: {
-    eyebrow: "300K users. 20K active every week.",
-    title: "Turn everyday wallet activity into real rewards.",
+    eyebrow: "Loyalty for everyday shopping",
+    title: "Shopping should be rewarding.",
     body:
-      "AkibaMiles is a loyalty and engagement platform for stablecoin users. Every transfer, quest, and daily challenge earns miles — spend them on raffles, vouchers, and prizes you actually want.",
-    primaryCta: "Start Earning",
-    secondaryCta: "Partner with us",
+      "Earn Miles every time you spend at an Akiba merchant — then turn them into vouchers, discounts na zawadi. Free to join. 30 seconds to register.",
+    primaryCta: "Get your Akiba Pass",
+    secondaryCta: "I'm a merchant",
   },
-  audiences: {
-    eyebrow: "Three audiences, one ecosystem",
-    title: "Built for users, merchants, and projects.",
-    body: "AkibaMiles connects an active user base with the businesses and projects that want to reach them — through rewards, campaigns, and real incentives.",
-    cards: [
+  howItWorks: {
+    eyebrow: "How it works",
+    title: "Shop. Earn. Redeem.",
+    body: "No points math, no punch cards, no expiry. Just the shopping you already do.",
+    steps: [
       {
-        audience: "For users",
-        title: "Earn from what you already do.",
-        body: "Daily activity, stablecoin transfers, partner quests, streaks, and vault deposits all generate AkibaMiles. Spend them on raffles, games, and real prizes — nothing purchased.",
-        cta: "See rewards",
-        href: "/rewards",
+        step: "01",
+        title: "Shop like you always do",
+        body: "Pay at any Akiba merchant — electronics, groceries, fuel, pharmacy, repairs. Nothing extra to do at the counter.",
       },
       {
-        audience: "For merchants",
-        title: "List products. Get customers. Get paid.",
-        body: "The complete commerce service. Get customers delivered through games and rewards, fulfil orders from one dashboard, and receive automatic monthly payouts. From $20/mo + 2%.",
-        cta: "Merchant details",
-        href: "/merchants",
+        step: "02",
+        title: "Earn Miles instantly",
+        body: "The merchant scans your Akiba Pass and Miles land before you leave the shop. Every shilling you spend counts.",
       },
       {
-        audience: "For projects",
-        title: "Behavior, not just completions.",
-        body: "Run quest campaigns and sponsored raffles that build repeat on-chain activity — not one-time farms. Start with a $100 7-day Growth Test. Scale on signal.",
-        cta: "Campaign details",
-        href: "/partners#projects",
+        step: "03",
+        title: "Redeem real rewards",
+        body: "Turn Miles into vouchers and discounts at any merchant in the network — not just the one where you earned them.",
       },
     ],
   },
-  platform: {
-    eyebrow: "One loop, many surfaces",
-    title: "Earn, spend, and return.",
+  merchantBand: {
+    eyebrow: "For merchants",
+    title: "Your customers shop with you today. Akiba brings them back tomorrow.",
     body:
-      "AkibaMiles is built around repeat participation. Users earn through meaningful daily behavior, spend on rewards they want, and come back for the next opportunity.",
+      "Launch a loyalty program in days — no hardware, no POS integration. Set your reward rate, scan to award, and watch repeat visits grow. You only pay on completed sales.",
+    cta: "Become an Akiba merchant",
   },
-  productCards: [
-    {
-      title: "Earn Miles",
-      body: "Send stablecoins, hit daily streaks, complete partner quests, deposit into the Akiba Vault, or join community campaigns — every action builds your balance.",
-      image: "/webflow/earn-miles.png",
-      alt: "AkibaMiles earn screen mockup",
-    },
-    {
-      title: "Spend Miles",
-      body: "Enter stablecoin prize pools, unlock merchant vouchers, and play games like Akiba Dice. Every spend is powered by miles you earned — nothing purchased.",
-      image: "/webflow/spend-miles.png",
-      alt: "AkibaMiles spend and rewards mockups",
-    },
-    {
-      title: "Get Rewarded",
-      body: "Win cUSD, smartphones, laptops, PS5 consoles, home appliances, and more. Prize pools are funded by real partner campaigns — not a marketing gimmick.",
-      image: "/webflow/get-rewarded.png",
-      alt: "AkibaMiles reward pop-up mockup",
-    },
+  miniApp: {
+    eyebrow: "Akiba Mini-App on MiniPay",
+    title: "Already on MiniPay? Play on.",
+    body:
+      "The Akiba Mini-App is where 300K users complete quests, enter raffles, and win real prizes — smartphones, laptops, cUSD and more. Your Miles work there too.",
+    cta: "Open Mini-App",
+  },
+  proofStats: [
+    { value: "300K", label: "Lifetime users" },
+    { value: "20K", label: "Active every week" },
+    { value: "1.39M+", label: "Rewards claimed" },
   ],
-  partnerBand: {
-    eyebrow: "Merchants and projects",
-    title: "Two ways to work with AkibaMiles.",
-    body:
-      "Merchants subscribe to list products and receive customers through games and rewards. Projects run performance campaigns to move KPIs on a pay-per-action model.",
-  },
 };
+
+export const faqs = [
+  {
+    question: "What is Akiba?",
+    answer:
+      "Akiba is a loyalty network for everyday shopping in Kenya. You earn Miles every time you spend at a participating merchant, and redeem them for vouchers, discounts and rewards — at any merchant in the network, not just one store.",
+  },
+  {
+    question: "How do I start earning?",
+    answer:
+      "Get your Akiba Pass — it takes about 30 seconds. Then shop at any Akiba merchant, have them scan your Pass at the counter, and Miles land instantly. Hakuna app ya lazima, hakuna forms ndefu.",
+  },
+  {
+    question: "What can I redeem Miles for?",
+    answer:
+      "Merchant vouchers and discounts on your next purchase, plus rewards from network campaigns. Miles are portable — earn at one shop, spend at another.",
+  },
+  {
+    question: "Do Miles expire?",
+    answer:
+      "No. Your Miles stay yours until you spend them, and your balance grows across every Akiba merchant you shop at.",
+  },
+  {
+    question: "How does it work for merchants?",
+    answer:
+      "You set a reward rate, scan customer passes at the point of sale, and Akiba handles the rest — issuance, redemption, and a dashboard showing repeat-customer behaviour. No hardware, no integration project, and you only pay on completed sales.",
+  },
+  {
+    question: "Is Akiba operated by MiniPay or Opera?",
+    answer:
+      "No. Akiba is built and operated by Akiba Ecosystems Ltd, independently of MiniPay and Opera. The Akiba Mini-App runs on MiniPay as a distribution surface, but it is not affiliated with or operated by them.",
+  },
+];
 
 export const rewardContent = {
   hero: {
     eyebrow: "Consumer rewards",
-    title: "Your daily activity is finally worth something.",
+    title: "Every purchase earns something back.",
     body:
-      "AkibaMiles rewards the behaviors that strengthen the ecosystem — sending money, completing challenges, holding stablecoins. Turn that activity into entries for prizes you can actually use.",
+      "Akiba issues instant, merchant-funded Miles every time you spend at an Akiba merchant — no points math, no expiry, no minimum. Spend Miles across the whole network on rewards you actually want.",
   },
   steps: [
     {
-      title: "Do what you already do",
-      body: "Daily transfers, stablecoin activity, partner quests, social challenges, and streak bonuses all generate AkibaMiles. No extra steps — just use MiniPay.",
+      title: "Shop at Akiba merchants",
+      body: "Every qualifying purchase at a participating merchant — grocery, fuel, pharmacy, airtime, fast food — issues instant Miles. Nothing extra to do.",
     },
     {
-      title: "Stack your miles",
-      body: "Miles accumulate over time. Deposit USDT into the Akiba Vault to earn daily on your balance. The more you participate, the more opportunities you create.",
+      title: "Stack your Miles",
+      body: "Miles accumulate and are portable across the whole network. Also earn through partner quests, daily challenges, and streaks in the Mini-App.",
     },
     {
       title: "Win real things",
-      body: "Spend your miles on raffle entries, merchant vouchers, and game sessions. Raffles and campaigns reset regularly — there is always a next chance.",
+      body: "Spend Miles on raffle entries, merchant vouchers, and game sessions. Prize pools are funded by real merchant campaigns — cUSD, smartphones, laptops, and more.",
     },
   ],
   featureBlocks: [
@@ -117,11 +131,11 @@ export const rewardContent = {
     },
     {
       title: "Games with Miles",
-      body: "Akiba Dice and other game surfaces turn your miles into repeatable reward moments. Simple enough for first-timers, engaging enough to keep you coming back.",
+      body: "Akiba Dice and other game surfaces turn your Miles into repeatable reward moments. Simple enough for first-timers, engaging enough to keep you coming back.",
     },
     {
       title: "Akiba Vault",
-      body: "Deposit USDT and earn AkibaMiles daily based on your vault balance. A passive earning layer on top of your existing stablecoin activity.",
+      body: "Deposit USDT and earn Miles daily based on your vault balance. A passive earning layer on top of your existing stablecoin activity.",
     },
     {
       title: "Badges and progress",
@@ -147,9 +161,9 @@ export const rewardContent = {
 export const partnerContent = {
   hero: {
     eyebrow: "Merchants and growth partners",
-    title: "Sell more. Run campaigns. Reach our users.",
+    title: "Run loyalty. Drive campaigns. Reach our users.",
     body:
-      "Two ways to work with AkibaMiles. Merchants list products and get customers delivered through games and rewards. Projects run performance campaigns to move real KPIs.",
+      "Two ways to work with Akiba. Merchants fund instant rewards on everyday purchases and pay only when transactions happen. Projects run performance campaigns to move real KPIs against 300K users.",
   },
   audienceStats: [
     { value: "300K", label: "Total lifetime users" },
@@ -158,15 +172,15 @@ export const partnerContent = {
 
   merchant: {
     eyebrow: "For merchants",
-    title: "Sell more. Get paid your way.",
-    body: "The complete commerce service for merchants. List your products, get customers delivered through games and rewards, fulfil orders, and receive automatic monthly payouts.",
+    title: "Loyalty that brings them back.",
+    body: "Akiba Scan & Award rewards your customers instantly on every purchase. Set your reward rate, scan at the counter, and track repeat spend from one dashboard — no hardware, no integration project.",
     pricing: {
       note: "Flat & simple pricing",
       plans: [
         {
           tier: "Starter",
           name: "Listing",
-          price: "$20",
+          price: "Ksh 2,500",
           fee: "+ 2% of completed sales",
           features: [
             "Full store & product listing",
@@ -179,7 +193,7 @@ export const partnerContent = {
         {
           tier: "Most popular",
           name: "Growth",
-          price: "$50",
+          price: "Ksh 5,000",
           fee: "+ 2% of completed sales",
           features: [
             "Everything in Listing, plus:",
@@ -193,7 +207,7 @@ export const partnerContent = {
         {
           tier: "Scale",
           name: "Commerce",
-          price: "$120",
+          price: "Ksh 10,000",
           fee: "+ 1.5% on sales",
           features: [
             "Everything in Growth, plus:",
@@ -208,11 +222,11 @@ export const partnerContent = {
       footnote: "Your payout = completed sales − fees. The service fee only applies to orders that complete.",
     },
     howItWorks: [
-      { step: "01", title: "Pick a plan and set up your store", body: "Choose your subscription tier, list your products, and configure your first vouchers from the merchant dashboard." },
-      { step: "02", title: "Get customers from games and rewards", body: "Users win your vouchers through the Claw Game and raffle campaigns. Motivated buyers arrive at your store ready to purchase." },
-      { step: "03", title: "Fulfil and get paid monthly", body: "Accept, pack, and dispatch orders from one dashboard. Automatic monthly payouts to your crypto wallet, bank, or M-Pesa." },
+      { step: "01", title: "Set your reward rate", body: "Onboard via the merchant dashboard, configure your qualifying spend categories, and set the reward rate you want to offer customers. No hardware to install." },
+      { step: "02", title: "Scan to award", body: "Customer pays, you scan their Akiba Pass — Miles land in their account before they leave the counter. Works with M-Pesa and connected payment methods." },
+      { step: "03", title: "Watch them come back", body: "Your dashboard shows repeat-customer rate, spend per visit, and full settlement reporting. You only pay for transactions that actually happened." },
     ],
-    payoutMethods: ["Crypto wallet (cUSD)", "Bank transfer", "M-Pesa"],
+    payoutMethods: ["M-Pesa", "Bank transfer", "Crypto wallet (cUSD)"],
   },
 
   project: {
@@ -309,72 +323,39 @@ export const partnerContent = {
 
 export const aboutContent = {
   hero: {
-    eyebrow: "About AkibaMiles",
-    title: "A loyalty layer built on real user behavior.",
+    eyebrow: "About Akiba",
+    title: "Kenya's first native onchain loyalty network.",
     body:
-      "AkibaMiles was built to make digital activity worth something. With 300K users and 20K active every week, we connect an engaged user base with the merchants and projects that want to reach them.",
+      "Akiba is merchant-funded, mobile-money-embedded rewards — portable across every merchant in the network. Lower settlement cost means more value handed back to customers. We win on the two things legacy points programs can't do: relationship depth and interoperability.",
   },
   principles: [
     {
-      title: "Miles are earned, never sold",
-      body: "Every AkibaMile in circulation came from a user doing something in the ecosystem — a transfer, a quest, a streak. We do not sell points.",
+      title: "Miles come from real spend",
+      body: "Every Mile in circulation was funded by a merchant against a real purchase event. We don't manufacture engagement to generate Miles — frequency comes from transactions, not tricks.",
     },
     {
-      title: "Partners see real results",
-      body: "Campaigns connect to real behavior — not impressions. Every voucher has a redemption. Every quest has a completion. Partners see exactly what happened.",
+      title: "Portability is the product",
+      body: "A loyalty program where miles only work at one merchant is a discount scheme. Miles that work everywhere turn individual merchant relationships into a network. That's what we're building.",
     },
     {
-      title: "The loop stays honest",
-      body: "Earn, spend, win, return. Simple enough for a first-time user. Deep enough to reward consistent participation over time.",
+      title: "The economics are honest",
+      body: "Merchants pay to defend share-of-wallet. Customers get back value from their own spend. The onchain ledger is immutable and auditable. Nothing is hidden.",
     },
   ],
   builtBy: {
-    title: "Built by EcoLabs.",
-    body: "AkibaMiles is a loyalty and engagement platform with 300K users earning and spending miles across quests, raffles, games, merchant campaigns, and partner activations. We built the engagement layer — rewarding activity, driving retention, and giving merchants and projects a real way to reach an active audience.",
+    title: "Built by Akiba Ecosystems Ltd.",
+    body: "Akiba is Kenya's onchain loyalty network — 300K users, merchant-funded rewards on everyday spend, and a platform API that lets any app or fintech embed the full loyalty stack. We started with engagement mechanics on MiniPay, learned what drives retention, and are now building the infrastructure the thesis actually requires.",
   },
   surfaces: [
-    "Daily Quests",
-    "Stablecoin Vault",
-    "Raffles",
-    "Games",
-    "Partner Campaigns",
+    "Scan & Award",
+    "Akiba Pass",
     "Merchant Dashboard",
-    "Badges & Profiles",
-    "Community Challenges",
+    "Platform API",
+    "Onchain Ledger",
+    "Partner Quests",
+    "Raffles & Games",
+    "MiniPay Mini-App",
   ],
   disclaimer:
-    "AkibaMiles is built by EcoLabs and is not operated by MiniPay or Opera.",
+    "Akiba is built by Akiba Ecosystems Ltd and is not operated by MiniPay or Opera.",
 };
-
-export const faqs = [
-  {
-    question: "What is AkibaMiles?",
-    answer:
-      "AkibaMiles is a loyalty and engagement platform built on top of MiniPay. Users earn miles through daily stablecoin activity and spend them on raffles, merchant vouchers, games, and real prizes.",
-  },
-  {
-    question: "How do I earn AkibaMiles?",
-    answer:
-      "You earn through daily transfers, stablecoin activity, partner quests, streaks, and community challenges. You can also deposit USDT into the Akiba Vault to earn miles daily on your balance.",
-  },
-  {
-    question: "What can I win?",
-    answer:
-      "Prize pools include cUSD, USDT, smartphones, laptops, PlayStation 5, smart TVs, JBL speakers, cameras, home appliances, and merchant-sponsored products. New campaigns launch regularly.",
-  },
-  {
-    question: "Are AkibaMiles ever sold?",
-    answer:
-      "No. AkibaMiles are earned through participation — never purchased. Every mile in circulation was generated by real user activity in the ecosystem.",
-  },
-  {
-    question: "What can merchants do with AkibaMiles?",
-    answer:
-      "Merchants get a dedicated dashboard to create voucher campaigns — free items, percentage discounts, or fixed deals. They set redemption costs in miles, manage team access, and track orders and campaign performance in real time.",
-  },
-  {
-    question: "Is AkibaMiles operated by MiniPay or Opera?",
-    answer:
-      "No. AkibaMiles is built and operated by EcoLabs, independently of MiniPay and Opera. The product is designed specifically for the MiniPay user base.",
-  },
-];

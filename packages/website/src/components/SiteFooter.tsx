@@ -1,22 +1,30 @@
 import Link from "next/link";
 import { Mail, Send, Twitter } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { navLinks, siteConfig } from "@/content/site";
+import { siteConfig } from "@/content/site";
 
 export function SiteFooter() {
   return (
     <footer className="border-t border-akiba-line bg-white">
-      <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1fr_auto_auto] lg:px-8">
+      <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1fr_auto_auto_auto] lg:px-8">
         <div className="max-w-md">
           <Logo />
           <p className="mt-5 text-sm leading-6 text-akiba-muted">
-            AkibaMiles is built by EcoLabs and is not operated by MiniPay or Opera.
+            Shopping should be rewarding. Earn Miles on everyday spend at Akiba merchants and redeem across the whole network.
+          </p>
+          <p className="mt-3 text-xs text-akiba-muted/60">
+            Built by Akiba Ecosystems Ltd. Not operated by MiniPay or Opera.
           </p>
         </div>
         <div>
-          <h2 className="font-sterling text-lg font-medium text-akiba-ink">Explore</h2>
+          <h2 className="font-sterling text-lg font-medium text-akiba-ink">Platform</h2>
           <div className="mt-4 flex flex-col gap-3">
-            {navLinks.map((item) => (
+            {[
+              { label: "Get Akiba Pass", href: siteConfig.passUrl },
+              { label: "For Merchants", href: "/merchants" },
+              { label: "Mini-App", href: siteConfig.appUrl },
+              { label: "About", href: "/about" },
+            ].map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -28,7 +36,27 @@ export function SiteFooter() {
           </div>
         </div>
         <div>
-          <h2 className="font-sterling text-lg font-medium text-akiba-ink">Follow Us</h2>
+          <h2 className="font-sterling text-lg font-medium text-akiba-ink">Developers</h2>
+          <div className="mt-4 flex flex-col gap-3">
+            {[
+              { label: "API Overview", href: "/developers" },
+              { label: "Authentication", href: "/developers#auth" },
+              { label: "API Capabilities", href: "/developers#capabilities" },
+              { label: "Rate Limits", href: "/developers#pricing" },
+              { label: "Get API Access", href: "/developers#contact" },
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="text-sm text-akiba-muted no-underline hover:text-akiba-teal"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+        <div>
+          <h2 className="font-sterling text-lg font-medium text-akiba-ink">Connect</h2>
           <div className="mt-4 flex flex-col gap-3">
             <a
               href={siteConfig.xUrl}

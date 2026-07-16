@@ -9,19 +9,20 @@ import { partnerContent, siteConfig } from "@/content/site";
 export const metadata: Metadata = {
   title: "Merchants",
   description:
-    "List your products on AkibaMiles. Get customers delivered through games and rewards. Fulfil orders from one dashboard. Get paid monthly via crypto, bank, or M-Pesa. From $20/mo.",
+    "Fund instant cashback on everyday spend. AkibaMiles gives your customers merchant-funded miles on every qualifying purchase — grocery, fuel, pharmacy, airtime. Pay only for real transactions.",
 };
 
 const merchantPartners = [
-  { name: "Leshan", sub: "Retail partner" },
+  { name: "Leshan Group", sub: "Electronics, accessories & repairs" },
 ];
 
 const merchantIntentOptions = [
-  "Listing plan",
-  "Growth plan",
-  "Commerce plan",
-  "Voucher campaign",
-  "Need help choosing",
+  "Grocery / supermarket",
+  "Fuel / petrol station",
+  "Pharmacy / health",
+  "Fast food / restaurant",
+  "Airtime / telecom",
+  "Other retail",
 ];
 
 export default function MerchantsPage() {
@@ -36,21 +37,21 @@ export default function MerchantsPage() {
             {merchant.eyebrow}
           </div>
           <h1 className="mt-6 font-sterling text-5xl font-medium leading-[1.02] text-akiba-ink sm:text-6xl">
-            Sell more.<br />
-            <span className="text-akiba-teal">Get paid your way.</span>
+            Turn every sale<br />
+            <span className="text-akiba-teal">into the next visit.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-akiba-muted">
-            {merchant.body}
+            Akiba Scan &amp; Award gives your customers instant Miles on every purchase — no hardware, no POS integration. Set your reward rate, scan at the counter, and watch repeat spend grow. You only pay on completed sales.
           </p>
           <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <ButtonLink href="/merchants#contact">
-              Become a merchant partner
+            <ButtonLink href={siteConfig.merchantUrl}>
+              Get started
             </ButtonLink>
             <Link
-              href="/merchants#pricing"
+              href="/merchants#contact"
               className="inline-flex items-center gap-2 text-sm font-semibold text-akiba-muted hover:text-akiba-ink"
             >
-              See pricing plans <ArrowRight className="h-4 w-4" />
+              Talk to us first <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </div>
@@ -81,9 +82,9 @@ export default function MerchantsPage() {
       <section id="how-it-works" className="scroll-mt-20 bg-akiba-paper px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <SectionHeader
-            eyebrow="One service. Three ways we bring you customers."
-            title="We bring the customers. You keep the margin."
-            body="190K+ active wallets already engage with AkibaMiles. Games and vouchers send them to your products — no cold acquisition, no ad spend."
+            eyebrow="How Scan & Award works"
+            title="Their purchase becomes their reward. Instantly."
+            body="Every qualifying purchase at your store earns the customer Miles the moment you scan their Akiba Pass — funded by you, delivered instantly, visible on their Pass before they leave the counter."
           />
           <div className="mt-10 grid gap-5 md:grid-cols-3">
             {merchant.howItWorks.map((item) => (
@@ -102,25 +103,25 @@ export default function MerchantsPage() {
         <div className="mx-auto max-w-7xl">
           <SectionHeader
             eyebrow="Why merchants sign up"
-            title="You control the offer. We handle the rest."
+            title="Loyalty that pays for itself."
           />
           <div className="mt-10 grid gap-5 md:grid-cols-2">
             {[
               {
-                title: "A customer base, ready-made",
-                body: "190K+ wallets already engage with AkibaMiles. Vouchers and the Claw Game send motivated buyers to your products — no ad spend, no cold acquisition.",
+                title: "300K users already in the network",
+                body: "Your cashback rewards appear in wallets your customers already use daily. No new app to download, no new account to create — they're already here.",
               },
               {
-                title: "You control the offer",
-                body: "Set your own pricing, discounts, and supply. Run promotions when it suits you. No forced markdowns, no race to the bottom.",
+                title: "You set the rate. You control the cost.",
+                body: "Define your reward rate, set qualifying spend thresholds, and cap your reward pool. Your loyalty budget is predictable — you pay per transaction, never a flat fee that doesn't scale.",
               },
               {
-                title: "Fulfilment, handled",
-                body: "Accept, pack, dispatch, and deliver from one dashboard — with status tracking, timestamps, and full audit trails built in.",
+                title: "Portability builds the habit",
+                body: "Miles earned at your store can be spent anywhere in the Akiba network. That portability is what makes customers choose you over a competitor — they're building a balance, not just chasing a one-time deal.",
               },
               {
-                title: "Get paid, your way",
-                body: "Automatic monthly payouts to a crypto wallet, your bank, or M-Pesa — with full receipts and order exports for your books.",
+                title: "Every reward accounted for.",
+                body: "Every Mile issued and every redemption is recorded on a tamper-proof ledger. Your dashboard shows exactly what was issued, when, and against which sale — no black box.",
               },
             ].map((item) => (
               <article key={item.title} className="rounded-lg border border-akiba-line p-6">
@@ -160,10 +161,21 @@ export default function MerchantsPage() {
                     <p className={`mt-1 font-sterling text-2xl font-medium ${isPopular ? "text-white" : "text-akiba-ink"}`}>
                       {plan.name}
                     </p>
-                    <div className="mt-4 flex items-baseline gap-1">
-                      <span className={`font-sterling text-5xl font-semibold ${isPopular ? "text-white" : "text-akiba-ink"}`}>
-                        {plan.price}
-                      </span>
+                    <div className="mt-4 flex items-baseline gap-1.5">
+                      {plan.price.startsWith("Ksh ") ? (
+                        <>
+                          <span className={`font-sterling text-xl font-medium ${isPopular ? "text-white/70" : "text-akiba-muted"}`}>
+                            Ksh
+                          </span>
+                          <span className={`font-sterling text-5xl font-semibold ${isPopular ? "text-white" : "text-akiba-ink"}`}>
+                            {plan.price.replace("Ksh ", "")}
+                          </span>
+                        </>
+                      ) : (
+                        <span className={`font-sterling text-5xl font-semibold ${isPopular ? "text-white" : "text-akiba-ink"}`}>
+                          {plan.price}
+                        </span>
+                      )}
                       <span className={`text-sm ${isPopular ? "text-white/60" : "text-akiba-muted"}`}>/mo</span>
                     </div>
                     <div className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-medium ${isPopular ? "bg-white/10 text-white/80" : "bg-akiba-tint text-akiba-teal"}`}>
@@ -193,6 +205,10 @@ export default function MerchantsPage() {
               </span>
             ))}
           </div>
+
+          <div className="mt-10 flex justify-center">
+            <ButtonLink href={siteConfig.merchantUrl}>Start onboarding</ButtonLink>
+          </div>
         </div>
       </section>
 
@@ -204,17 +220,16 @@ export default function MerchantsPage() {
               Merchant intake
             </p>
             <h2 className="mt-3 font-sterling text-4xl font-medium leading-[1.08]">
-              List your products. Get customers. Grow.
+              Reward your customers. Drive repeat spend.
             </h2>
             <p className="mt-4 max-w-xl text-lg leading-8 text-white/65">
-              Pick a plan and set up your store. We&apos;ll handle the customer
-              pipeline through games, vouchers, and rewards.
+              Tell us your category, transaction volume, and loyalty goals. We&apos;ll come back with a clear setup path and what to expect from week one.
             </p>
             <ul className="mt-7 space-y-3">
               {[
-                "Product listing and voucher setup",
-                "Order management and fulfilment dashboard",
-                "Monthly payouts to crypto, bank, or M-Pesa",
+                "Scan & Award setup and dashboard onboarding",
+                "M-Pesa and mobile-money purchase event integration",
+                "Analytics, repeat-customer insights, and settlement reporting",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2.5 text-sm text-white/75">
                   <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#74D4DF]" />
@@ -230,16 +245,16 @@ export default function MerchantsPage() {
             </p>
           </div>
           <PartnerLeadForm
-            eyebrow="Lead generation"
-            title="Become a merchant partner"
-            body="Share your store details and we will help you choose a plan, voucher setup, and launch path."
+            eyebrow="Merchant intake"
+            title="Set up loyalty for your store"
+            body="Share your store details and we will come back within 2 business days with a setup path, reward rate guidance, and onboarding options."
             source="website_merchants_page"
-            intentLabel="Plan or offer type"
+            intentLabel="Business type"
             intentOptions={merchantIntentOptions}
-            messageLabel="Store brief"
-            messagePlaceholder="Example: We sell electronics in Nairobi and want to list products, run voucher campaigns, or drive repeat purchases. Include product categories, fulfilment coverage, and timing."
-            submitLabel="Request merchant setup"
-            successMessage="Thanks. We will review your merchant inquiry and follow up."
+            messageLabel="Tell us about your store"
+            messagePlaceholder="Example: We run a pharmacy chain in Nairobi with 3 locations. We process ~500 M-Pesa transactions per day and want to offer cashback to repeat customers. Include your transaction volume, category, and timing."
+            submitLabel="Request merchant onboarding"
+            successMessage="Thanks. We will review your details and follow up within 2 business days."
             className="shadow-none"
           />
         </div>

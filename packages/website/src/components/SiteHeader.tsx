@@ -18,8 +18,16 @@ export function SiteHeader() {
             </a>
           ))}
         </nav>
-        <ButtonLink href={siteConfig.appUrl} className="px-4 sm:px-5">
-          Web App
+        <div className="hidden items-center gap-3 sm:flex">
+          <ButtonLink href="/merchants" variant="secondary" className="px-4">
+            For Merchants
+          </ButtonLink>
+          <ButtonLink href={siteConfig.passUrl} className="px-4 sm:px-5">
+            Get Akiba Pass
+          </ButtonLink>
+        </div>
+        <ButtonLink href={siteConfig.passUrl} className="px-4 sm:hidden">
+          Get Akiba Pass
         </ButtonLink>
       </div>
       <nav

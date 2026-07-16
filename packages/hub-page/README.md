@@ -1,18 +1,31 @@
-# Akiba Hub Page
+# Akiba Hub
 
-Public discovery landing page for [hub.akibamiles.com](https://hub.akibamiles.com).
+The Akiba Hub app at [hub.akibamiles.com](https://hub.akibamiles.com) — where shoppers earn AkibaMiles, manage their Akiba Pass, shop from merchants, and redeem vouchers.
 
-## Purpose
+> **Note:** This package started as a static public discovery page and has since grown into the full Hub app with auth, payments, and voucher redemption.
 
-This is the **public** Akiba Hub discovery page. It lets anyone:
+## What it does
 
-- Browse live and upcoming AkibaMiles campaigns, raffles, games, and partner quests
-- Understand how the personalized Akiba Hub app works
-- Discover reward categories (MiniPay, Base, Games, Vouchers, etc.)
-- Learn about connecting wallets for personalized rewards
-- Explore partnership opportunities
+**Public (no login):**
 
-**This page contains no personalization, eligibility checks, or login.** Those features live inside the Akiba Hub app.
+- Landing page with featured merchants, rewards overview, and how-it-works
+- `/shop` — browse verified merchants and products
+- `/rewards` — active campaigns (MiniPay, Base, Celo, etc.)
+- `/quests` — partner quests fetched from Akiba-Platform
+
+**Authenticated (`/me`, via Supabase auth):**
+
+- Akiba Pass — stable pass ID + QR for in-store Scan & Award
+- Miles balance — on-chain ERC-20 balance (Celo) + Platform ledger balance (unclaimed in-store Miles)
+- Linked wallets (MiniPay ecosystem), wallet picker for multi-wallet emails
+- Activity feed — merchant scan awards + engagement earnings
+- Orders and vouchers (`/my-vouchers`)
+
+**Commerce & rewards flow:**
+
+- Checkout with stablecoins or M-Pesa (Daraja STK push: `initiate` → `callback` → `status`)
+- Verified purchases are forwarded to Akiba-Platform as purchase events (`src/lib/akiba/purchase-events.ts`); Platform decides Miles awards
+- Voucher lifecycle: issue → claim (atomic DB RPC) → redeem, plus raffle, grant, and clawback admin routes
 
 ## Running locally
 
@@ -24,52 +37,51 @@ pnpm --filter @akibamiles/hub-page dev
 pnpm dev
 ```
 
-The dev server starts on **port 3003** at [http://localhost:3003](http://localhost:3003).
+Dev server prefers port **3003** → [http://localhost:3003](http://localhost:3003).
 
-## Building
+Copy `.env.local.example` to `.env.local` and fill in Supabase, Platform (`AKIBA_API_URL` / `AKIBA_API_KEY`), M-Pesa, and chain (`MINIPOINTS_ADDRESS`, `CELO_RPC_URL`) values.
+
+## Testing
 
 ```bash
-pnpm --filter @akibamiles/hub-page build
-pnpm --filter @akibamiles/hub-page start
+pnpm test               # unit tests (vitest)
+pnpm test:integration   # integration tests (vitest.config.integration.ts)
 ```
 
-## Key files
+## Key directories
 
-| File | Purpose |
+| Path | Purpose |
 |------|---------|
-| `src/app/page.tsx` | Main page — assembles all sections |
-| `src/app/layout.tsx` | Root layout with SEO metadata and fonts |
-| `src/data/campaigns.ts` | Campaign card data (update to add/edit campaigns) |
-| `src/data/categories.ts` | Category grid data |
-| `src/constants/links.ts` | CTA URLs — update with real URLs when ready |
-| `src/components/` | All page section components |
+| `src/app/page.tsx` | Public landing page |
+| `src/app/(protected)/me/` | Profile, Pass, wallets, activity |
+| `src/app/shop/` | Merchant browsing, product pages, checkout |
+| `src/app/api/payments/mpesa/` | M-Pesa STK push flow |
+| `src/app/api/shop/` | Merchants, orders, voucher issue/redeem |
+| `src/app/api/vouchers/` | Programs, grants, raffles, clawback |
+| `src/lib/akiba/` | Platform adapters (purchase events, activity, ledger) |
+| `src/lib/vouchers/` | Issuance, claim/redemption (atomic RPCs), programs |
+| `src/lib/mpesa.ts` | Daraja client |
+| `src/lib/pass-token.ts` | Signed pass tokens |
+| `src/lib/supabase/` | Client/server/admin Supabase clients |
 
-## Updating campaign data
+## Conventions
 
-Edit `src/data/campaigns.ts` to add, remove, or update campaign cards. Each campaign has:
-
-- `status`: `"live"` | `"starting-soon"` | `"upcoming"`
-- `category`: one of the defined category types
-- `cta` / `ctaHref`: button label and destination URL
-
-## Updating links
-
-All CTA URLs are centralized in `src/constants/links.ts`. Update these when real URLs are confirmed:
-
-- `AKIBA_HUB_APP_URL` — the main app URL
-- `PARTNER_WITH_AKIBA_URL` — partner onboarding URL
+- **No PII in logs.** Do not `console.log` emails, user IDs, wallet addresses, or phone numbers. `console.error`/`warn` for operational failures only.
+- Brand name is always **Akiba** (capital A); points are **AkibaMiles** / **Miles**.
+- CTA URLs are centralized in `src/constants/links.ts`.
 
 ## Tech stack
 
 - **Framework:** Next.js 14 (App Router)
+- **Auth & DB:** Supabase (`@supabase/ssr`)
+- **Chain:** viem, Celo Mainnet (Miles are an ERC-20)
+- **Payments:** M-Pesa Daraja, stablecoins
 - **Styling:** Tailwind CSS with Akiba brand tokens
-- **Fonts:** Sterling (local, from `/public/fonts/sterling/`) + DM Sans (Google Fonts)
+- **Fonts:** Sterling (local) + DM Sans
 - **Icons:** Lucide React
-- **Language:** TypeScript
+- **Tests:** Vitest
 
 ## Design tokens
-
-The page uses the Akiba brand palette defined in `tailwind.config.ts`:
 
 | Token | Value | Usage |
 |-------|-------|-------|
