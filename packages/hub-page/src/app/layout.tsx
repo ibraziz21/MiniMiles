@@ -22,6 +22,7 @@ const siteUrl = "https://hub.akibamiles.com";
 
 export const viewport = {
   themeColor: "#238D9D",
+  viewportFit: "cover" as const,
 };
 
 export const metadata: Metadata = {
@@ -47,7 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <CartProvider>
           <ServiceWorkerRegister />
           <SiteHeader />
-          <div className="pb-16 sm:pb-0">{children}</div>
+          <div className="pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0">{children}</div>
           <BottomNav />
           <InstallPrompt />
         </CartProvider>

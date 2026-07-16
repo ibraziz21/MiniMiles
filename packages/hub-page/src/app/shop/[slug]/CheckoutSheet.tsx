@@ -247,7 +247,7 @@ export function CheckoutSheet({
 
       {/* Sheet overlay */}
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+        <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center">
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
@@ -255,7 +255,7 @@ export function CheckoutSheet({
           />
 
           {/* Sheet */}
-          <div className="relative z-10 w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:rounded-2xl max-h-[90vh]">
+          <div className="relative z-10 w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:rounded-2xl max-h-[90vh] pb-[env(safe-area-inset-bottom)]">
             {/* Handle */}
             <div className="mx-auto mt-3 h-1 w-10 rounded-full bg-akiba-line sm:hidden" />
 

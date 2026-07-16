@@ -5,8 +5,6 @@ import {
   QrCode,
   Wallet,
   Ticket,
-  Sparkles,
-  ShoppingBag,
   Lock,
   X,
 } from "lucide-react";
@@ -68,18 +66,6 @@ export function ProfileQuickActions({ passSlot, walletsSlot, securitySlot }: Pro
       label: "Orders",
       href: "/me/orders",
     },
-    {
-      key: "rewards",
-      icon: <Sparkles className="h-5 w-5 text-akiba-teal" />,
-      label: "Rewards",
-      href: "/rewards",
-    },
-    {
-      key: "shop",
-      icon: <ShoppingBag className="h-5 w-5 text-akiba-teal" />,
-      label: "Shop",
-      href: "/shop",
-    },
     ...(securitySlot
       ? [{
           key: "security",
@@ -120,7 +106,7 @@ export function ProfileQuickActions({ passSlot, walletsSlot, securitySlot }: Pro
       {/* Bottom sheet (mobile) / centered modal (desktop) */}
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:px-4"
+          className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:px-4"
           role="dialog"
           aria-modal="true"
           aria-label={SHEET_TITLES[open]}
@@ -143,7 +129,7 @@ export function ProfileQuickActions({ passSlot, walletsSlot, securitySlot }: Pro
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="overflow-y-auto px-4 pb-6 sm:px-5">
+            <div className="overflow-y-auto px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-5 sm:pb-6">
               {open === "pass" ? passSlot : open === "security" ? securitySlot : walletsSlot}
             </div>
           </div>

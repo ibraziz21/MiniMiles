@@ -67,7 +67,9 @@ export function BottomNav() {
       className={clsx(
         "fixed inset-x-0 bottom-0 z-50 sm:hidden",
         // overflow-visible so the elevated centre button can float above the border
-        "overflow-visible border-t border-akiba-line bg-white/95 backdrop-blur-sm"
+        "overflow-visible border-t border-akiba-line bg-white/95 backdrop-blur-sm",
+        // reserve the home-indicator area on installed/standalone PWAs
+        "pb-[env(safe-area-inset-bottom)]"
       )}
     >
       <div className="flex h-16">
