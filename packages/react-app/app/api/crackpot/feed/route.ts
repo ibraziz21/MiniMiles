@@ -10,11 +10,11 @@ import { resolveDisplayNames, shortenAddress } from "@/lib/server/resolveUsernam
 import type { CrackPotVersion } from "@/lib/crackpotTypes";
 
 export async function GET(req: Request) {
-  if (!isCrackPotLive()) return crackPotComingSoonResponse();
-
   const url = new URL(req.url);
   const rawVersion = url.searchParams.get("version") ?? "miles";
   const version: CrackPotVersion = rawVersion === "usdt" ? "usdt" : "miles";
+
+  if (!isCrackPotLive(version)) return crackPotComingSoonResponse(version);
 
   // Fetch the current active/settling cycle for this version
   const { data: cycle } = await supabase

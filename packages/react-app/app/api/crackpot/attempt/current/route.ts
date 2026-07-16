@@ -27,17 +27,17 @@ import type { CrackPotVersion } from "@/lib/crackpotTypes";
 type PlayVersion = Extract<CrackPotVersion, "miles" | "usdt">;
 
 export async function GET(req: Request) {
-  if (!isCrackPotLive()) return crackPotComingSoonResponse();
+  const url = new URL(req.url);
+  const rawVersion = url.searchParams.get("version") ?? "miles";
+  const version: PlayVersion = rawVersion === "usdt" ? "usdt" : "miles";
+
+  if (!isCrackPotLive(version)) return crackPotComingSoonResponse(version);
 
   const appSession = await requireSession();
   if (!appSession) {
     return NextResponse.json({ error: "authentication_required" }, { status: 401 });
   }
   const playerWallet = appSession.walletAddress.toLowerCase();
-
-  const url = new URL(req.url);
-  const rawVersion = url.searchParams.get("version") ?? "miles";
-  const version: PlayVersion = rawVersion === "usdt" ? "usdt" : "miles";
 
   const activeCycle = await findLiveDbCycle(version);
   if (!activeCycle) {

@@ -63,6 +63,10 @@ async function handle(req: Request) {
   }> = [];
 
   for (const version of requestedVersions(req)) {
+    if (!isCrackPotLive(version)) {
+      results.push({ version, ok: true, status: "locked" });
+      continue;
+    }
     try {
       const cycle = await rotateActiveCycle(version);
       results.push({

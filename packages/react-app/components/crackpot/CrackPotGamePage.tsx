@@ -81,7 +81,7 @@ function shuffleOrder(): number[] {
   return arr;
 }
 
-export function CrackPotGamePage() {
+export function CrackPotGamePage({ usdtEnabled = true }: { usdtEnabled?: boolean }) {
   const router = useRouter();
   const {
     address,
@@ -493,6 +493,12 @@ export function CrackPotGamePage() {
     phase === "attempt_expired" ||
     isSubmitting;
 
+  // Force back to Miles if USDT gets locked out from under an active tab
+  // selection (e.g. server config change mid-session).
+  useEffect(() => {
+    if (!usdtEnabled && version === "usdt") setVersion("miles");
+  }, [usdtEnabled, version]);
+
   // ── Won ──────────────────────────────────────────────────────────────────
   if (phase === "won" && cycle && attempt) {
     return (
@@ -536,12 +542,14 @@ export function CrackPotGamePage() {
         <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-white p-1">
           {(["miles", "usdt"] as PlayVersion[]).map((v) => {
             const selected = version === v;
+            const locked = v === "usdt" && !usdtEnabled;
             return (
               <button
                 key={v}
                 type="button"
-                disabled={versionSwitchDisabled}
+                disabled={versionSwitchDisabled || locked}
                 onClick={() => setVersion(v)}
+                title={locked ? "USDT is locked — Miles only for now" : undefined}
                 className={[
                   "rounded-lg px-3 py-2 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-60",
                   selected
@@ -549,7 +557,7 @@ export function CrackPotGamePage() {
                     : "bg-transparent text-slate-500 hover:bg-slate-50",
                 ].join(" ")}
               >
-                {v === "miles" ? "Miles" : "USDT"}
+                {v === "miles" ? "Miles" : locked ? "USDT 🔒" : "USDT"}
               </button>
             );
           })}

@@ -19,10 +19,9 @@ const CELO_RPC = process.env.CELO_RPC_URL ?? "https://forno.celo.org";
 
 async function readBalance(address: string): Promise<number> {
   if (!MINIPOINTS) {
-    console.log("[me] readBalance: MINIPOINTS_ADDRESS not set, returning 0");
+    console.warn("[me] readBalance: MINIPOINTS_ADDRESS not set, returning 0");
     return 0;
   }
-  console.log(`[me] readBalance: calling balanceOf(${address}) on ${MINIPOINTS} via ${CELO_RPC}`);
   try {
     const data =
       "0x70a08231" + address.replace("0x", "").toLowerCase().padStart(64, "0");
@@ -37,14 +36,8 @@ async function readBalance(address: string): Promise<number> {
       cache: "no-store",
     });
     const json = await res.json();
-    console.log("[me] readBalance: raw RPC result →", json.result);
-    if (!json.result || json.result === "0x") {
-      console.log("[me] readBalance: empty result, balance = 0");
-      return 0;
-    }
-    const balance = Number(BigInt(json.result) / BigInt(1e18));
-    console.log(`[me] readBalance: parsed balance = ${balance} miles`);
-    return balance;
+    if (!json.result || json.result === "0x") return 0;
+    return Number(BigInt(json.result) / BigInt(1e18));
   } catch (err) {
     console.error("[me] readBalance: RPC call failed →", err);
     return 0;
@@ -61,12 +54,9 @@ export default async function MePage() {
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) redirect("/login?next=/me");
 
-  console.log(`[me] session user: id=${user.id} email=${user.email}`);
-
   const admin = createAdminClient();
 
   // 1. Check if user has already made a wallet choice (saved in hub_user_wallets)
-  console.log(`[me] checking hub_user_wallets for saved choice (user_id=${user.id})`);
   const { data: savedWallet } = await admin
     .from("hub_user_wallets")
     .select("address")
@@ -74,10 +64,7 @@ export default async function MePage() {
     .eq("ecosystem", "minipay")
     .maybeSingle();
 
-  console.log(`[me] saved wallet choice: ${savedWallet?.address ?? "none"}`);
-
   // 2. Query users table by email — fetch all rows (email is not unique)
-  console.log(`[me] querying users WHERE email = '${user.email}'`);
   const { data: userRows, error: dbError } = await admin
     .from("users")
     .select("user_address, username, full_name, avatar_url, country, interests, is_member, phone, created_at")
@@ -86,11 +73,6 @@ export default async function MePage() {
 
   if (dbError) {
     console.error("[me] users query error →", dbError.message);
-  } else {
-    console.log(`[me] found ${userRows?.length ?? 0} row(s) in users for this email`);
-    userRows?.forEach((r, i) =>
-      console.log(`[me]   [${i}] user_address=${r.user_address} username=${r.username} created_at=${r.created_at}`)
-    );
   }
 
   const rows = userRows ?? [];
@@ -101,7 +83,6 @@ export default async function MePage() {
   if (!activeRow && rows.length === 1) {
     // Single wallet — use it automatically and save the preference
     activeRow = rows[0];
-    console.log(`[me] single wallet found, auto-saving: ${activeRow.user_address}`);
     await admin.from("hub_user_wallets").upsert(
       { user_id: user.id, ecosystem: "minipay", address: activeRow.user_address.toLowerCase() },
       { onConflict: "user_id,ecosystem", ignoreDuplicates: true }
@@ -109,10 +90,7 @@ export default async function MePage() {
   }
 
   const needsPicker = rows.length > 1 && !activeRow;
-  console.log(`[me] needsPicker=${needsPicker} activeRow=${activeRow?.user_address ?? "none"}`);
-
   const walletAddress = activeRow?.user_address ?? null;
-  console.log(`[me] wallet address to use: ${walletAddress ?? "none"}`);
 
   // One number: on-chain (claimed) + Platform ledger (unclaimed in-store Miles).
   // Email-only users have no wallet but can still hold ledger Miles from scans.
@@ -122,7 +100,6 @@ export default async function MePage() {
   ]);
   const balance = chainBalance + ledgerBalance;
   const hasBalance = walletAddress !== null || ledgerBalance > 0;
-  console.log(`[me] balance: chain=${chainBalance} ledger=${ledgerBalance} total=${balance}`);
 
   const displayName = activeRow?.full_name ?? activeRow?.username ?? user.email ?? "You";
   const initials = displayName.slice(0, 2).toUpperCase();

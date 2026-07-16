@@ -53,6 +53,9 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const rawVersion = typeof body.version === "string" ? body.version : "miles";
   const version: PlayVersion = rawVersion === "usdt" ? "usdt" : "miles";
+
+  if (!isCrackPotLive(version)) return crackPotComingSoonResponse(version);
+
   const txHash: string | null =
     typeof body.txHash === "string" && HASH_RE.test(body.txHash.trim())
       ? body.txHash.trim().toLowerCase()

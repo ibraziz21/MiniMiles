@@ -5,7 +5,7 @@ import { isCrackPotLive } from "@/lib/server/crackpotComingSoon";
 
 export default function CrackPotPage() {
   if (isCrackPotLive()) {
-    return <CrackPotGamePage />;
+    return <CrackPotGamePage usdtEnabled={isCrackPotLive("usdt")} />;
   }
 
   // Feature-flag fallback for emergency disablement.

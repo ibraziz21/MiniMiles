@@ -9,7 +9,7 @@ export function CrackPotHomeWidget() {
             CrackPot · Live
           </p>
           <p className="mt-0.5 text-sm font-bold text-[#0D2B30]">
-            Crack the code for the live Miles or USDT pot.
+            Crack the code for the live Miles pot.
           </p>
         </div>
         <Link

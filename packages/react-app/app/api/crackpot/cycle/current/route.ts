@@ -51,12 +51,12 @@ async function getFallbackDbCycle(version: CrackPotVersion): Promise<CycleView |
 }
 
 export async function GET(req: Request) {
-  if (!isCrackPotLive()) return crackPotComingSoonResponse();
-
   const url      = new URL(req.url);
   const raw      = url.searchParams.get("version") ?? "miles";
   const version: CrackPotVersion =
     raw === "usdt" ? "usdt" : "miles";
+
+  if (!isCrackPotLive(version)) return crackPotComingSoonResponse(version);
 
   try {
     const cycle = await getOrSyncActiveCycle(version);

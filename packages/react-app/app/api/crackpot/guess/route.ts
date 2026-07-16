@@ -97,6 +97,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "cycle_not_found" }, { status: 500 });
   }
 
+  if (!isCrackPotLive(cycleData.version)) return crackPotComingSoonResponse(cycleData.version);
+
   // ── Cycle must still be live ──────────────────────────────────────────────
   // Attempts are clamped to the cycle end at creation, but legacy attempts
   // (and clock skew) could otherwise straddle a rotation: a "win" against an
