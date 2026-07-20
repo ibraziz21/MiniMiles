@@ -1,5 +1,5 @@
 import type React from "react";
-import { Lightning, Brain, Trophy } from "@phosphor-icons/react";
+import { Lightning, Brain } from "@phosphor-icons/react";
 import type { GameConfig } from "@/lib/games/types";
 
 const GAME_THEMES: Record<string, {
@@ -88,12 +88,6 @@ export function SkillGameCard({
           {/* Info rows */}
           <div className="space-y-1 mb-4">
             <p className="text-sm text-white/80">1 play entry · Win up to {config.maxRewardMiles} AkibaMiles</p>
-            {config.weeklyPrizeUsd > 0 && (
-              <div className="flex items-center gap-1.5 text-sm text-white/70">
-                <Trophy size={13} weight="fill" className="text-yellow-300 flex-shrink-0" />
-                <span>Weekly top 3 share ${config.weeklyPrizeUsd}</span>
-              </div>
-            )}
             {personalBest != null && personalBest > 0 && (
               <p className="text-sm text-white/60">Your best: {personalBest} pts</p>
             )}

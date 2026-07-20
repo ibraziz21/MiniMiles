@@ -20,6 +20,7 @@ import { claimVoucher, releaseVoucher } from "@/lib/vouchers/redemption";
 import type { VoucherForPricing } from "@/lib/pricing";
 import type { RulesSnapshot } from "@/lib/vouchers/types";
 import { sendPurchaseEvent } from "@/lib/akiba/purchase-events";
+import { emitQuestActions } from "@/lib/akiba/quest-events";
 import { HIDDEN_PARTNER_FILTER, isHiddenPartner } from "@/lib/akiba/hidden-partners";
 
 const CELO_RPC = process.env.CELO_RPC_URL ?? "https://forno.celo.org";
@@ -542,6 +543,40 @@ export async function POST(request: Request) {
       rewardResult.error
     );
   }
+
+  // Report quest actions for this completed order (fire-and-forget; one-time
+  // quests dedupe on Platform, so emitting first_purchase every order is safe).
+  await emitQuestActions([
+    {
+      actionName: "first_purchase",
+      userId: user.id,
+      walletAddress: primaryWallet,
+      idempotencyKey: `quest-first_purchase-${user.id}`,
+      metadata: { orderId: placeRow.order_id, email: user.email ?? null },
+    },
+    {
+      actionName: "purchase_completed",
+      userId: user.id,
+      walletAddress: primaryWallet,
+      idempotencyKey: `quest-purchase_completed-${placeRow.order_id}`,
+      metadata: { orderId: placeRow.order_id, email: user.email ?? null },
+    },
+    ...(resolvedVoucherId
+      ? [
+          {
+            actionName: "first_voucher_redeemed" as const,
+            userId: user.id,
+            walletAddress: primaryWallet,
+            idempotencyKey: `quest-first_voucher_redeemed-${user.id}`,
+            metadata: {
+              orderId: placeRow.order_id,
+              voucherId: resolvedVoucherId,
+              email: user.email ?? null,
+            },
+          },
+        ]
+      : []),
+  ]);
 
   const rewardResponse = rewardResult.ok
     ? {

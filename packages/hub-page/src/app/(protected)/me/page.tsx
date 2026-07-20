@@ -9,6 +9,7 @@ import { SetPasswordForm } from "./SetPasswordForm";
 import { ProfileQuickActions } from "./ProfileQuickActions";
 import { ActivityFeed } from "./ActivityFeed";
 import { getRecentActivity, getLedgerBalance } from "@/lib/akiba/activity";
+import { emitQuestAction } from "@/lib/akiba/quest-events";
 import { ArrowUpRight, MapPin, Tag } from "lucide-react";
 import { MilesIcon } from "@/components/MilesIcon";
 
@@ -120,6 +121,17 @@ export default async function MePage() {
         .select("public_pass_id")
         .single();
       passRow = inserted;
+
+      // Report the pass-signup quest action (fire-and-forget, deduped on Platform).
+      if (passRow?.public_pass_id) {
+        await emitQuestAction({
+          actionName: "pass_signup",
+          userId: user.id,
+          walletAddress,
+          idempotencyKey: `quest-pass_signup-${user.id}`,
+          metadata: { email: user.email },
+        });
+      }
     }
 
     publicPassId = passRow?.public_pass_id ?? null;

@@ -1,0 +1,11 @@
+{
+  "remoteName": "origin",
+  "projects": [
+    {
+      "id": "prj_pJk6Ost6NN5d13sEn8ReRDFHQ931",
+      "name": "mini-miles-001",
+      "directory": "packages/react-app",
+      "orgId": "team_32I5oFv2MpFuydFOy4wPkK31"
+    }
+  ]
+}

@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { useLeaderboard } from "@/hooks/games/useLeaderboard";
 import { useWeeklyLeaderboard } from "@/hooks/games/useWeeklyLeaderboard";
 import { useWeb3 } from "@/contexts/useWeb3";
-import { GAME_CONFIGS } from "@/lib/games/config";
 import type { GameType, LeaderboardEntry } from "@/lib/games/types";
 import { Trophy, Medal, CalendarBlank, Gift, Timer } from "@phosphor-icons/react";
 
@@ -44,8 +43,6 @@ const RANK_ICONS = [
   <Medal key="3" size={13} weight="fill" className="text-orange-400" />,
 ];
 
-const WEEKLY_PRIZES: Record<number, string> = { 1: "$5", 2: "$3", 3: "$2" };
-
 function shortAddress(addr: string) {
   if (!addr || addr.length < 10) return addr;
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
@@ -70,16 +67,12 @@ function avatarBg(addr: string) {
 function EntryRow({
   entry,
   rank,
-  isWeekly,
   isYou,
 }: {
   entry:    LeaderboardEntry;
   rank:     number;
-  isWeekly: boolean;
   isYou:    boolean;
 }) {
-  const prize = isWeekly ? WEEKLY_PRIZES[rank] : null;
-
   return (
     <div className={`flex items-center gap-3 px-4 py-3 ${isYou ? "bg-[#F0FDFF]" : ""}`}>
       <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#F5F5F5]">
@@ -103,11 +96,6 @@ function EntryRow({
       </div>
       <div className="text-right flex-shrink-0">
         <p className="text-sm font-bold text-[#238D9D]">{entry.score} pts</p>
-        {prize && (
-          <span className="inline-flex items-center gap-0.5 mt-0.5 border border-dashed border-[#B7791F55] rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-[#B7791F]">
-            est. {prize}
-          </span>
-        )}
       </div>
     </div>
   );
@@ -119,7 +107,6 @@ export function LeaderboardCard({ gameType }: { gameType: GameType }) {
   const weekCountdown = useWeekCountdown();
   const daily  = useLeaderboard(gameType);
   const weekly = useWeeklyLeaderboard(gameType);
-  const config = GAME_CONFIGS[gameType];
 
   const isLoading = tab === "daily" ? daily.isLoading : weekly.isLoading;
   const entries   = tab === "daily" ? daily.entries   : weekly.entries;
@@ -157,14 +144,13 @@ export function LeaderboardCard({ gameType }: { gameType: GameType }) {
         </div>
       </div>
 
-      {/* Weekly prize header */}
-      {tab === "weekly" && config.weeklyPrizeUsd > 0 && (
+      {/* Weekly countdown header */}
+      {tab === "weekly" && (
         <div className="mx-4 mt-3 mb-1 rounded-xl bg-gradient-to-r from-[#FFF6D8] to-[#FFF0C0] border border-[#B7791F22] px-3 py-2.5">
           <div className="flex items-center gap-2">
             <Gift size={15} weight="fill" className="text-amber-500 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-[#B7791F]">Weekly prize pool — ${config.weeklyPrizeUsd}</p>
-              <p className="text-xs text-[#B7791F]/80">1st $5 · 2nd $3 · 3rd $2</p>
+              <p className="text-xs font-semibold text-[#B7791F]">This week's leaderboard</p>
             </div>
             <div className="flex items-center gap-1 flex-shrink-0 bg-[#B7791F18] rounded-full px-2 py-1">
               <Timer size={10} weight="fill" className="text-[#B7791F]" />
@@ -181,7 +167,6 @@ export function LeaderboardCard({ gameType }: { gameType: GameType }) {
             key={`${entry.rank}-${entry.walletAddress}`}
             entry={entry}
             rank={entry.rank}
-            isWeekly={tab === "weekly"}
             isYou={!!address && entry.walletAddress.toLowerCase() === address.toLowerCase()}
           />
         ))}

@@ -2,11 +2,9 @@
 
 import Link from "next/link";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { Trophy, ArrowCounterClockwise, Star, XCircle, CheckCircle, CircleNotch, Medal } from "@phosphor-icons/react";
+import { Trophy, ArrowCounterClockwise, Star, XCircle, CheckCircle, CircleNotch } from "@phosphor-icons/react";
 import type { GameResult } from "@/lib/games/types";
 import { MilesAmount } from "./miles-amount";
-
-const PRIZE_BY_RANK: Record<number, string> = { 1: "$5", 2: "$3", 3: "$2" };
 
 function SettlementBadge({ status }: { status: "idle" | "submitting" | "queued" | "settled" | "rejected" | "error" }) {
   if (status === "submitting") {
@@ -69,7 +67,6 @@ export function GameResultSheet({
 }) {
   const hasReward    = result && (result.rewardMiles || result.rewardStable);
   const isTopThree   = weeklyRank != null && weeklyRank >= 1 && weeklyRank <= 3;
-  const estimatedPrize = isTopThree ? PRIZE_BY_RANK[weeklyRank!] : null;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -132,15 +129,6 @@ export function GameResultSheet({
                   </p>
                   <p className="text-base font-bold text-[#1A1A1A] mt-0.5">#{weeklyRank}</p>
                 </div>
-                {isTopThree && estimatedPrize && (
-                  <div className="text-right">
-                    <p className="text-xs text-[#B7791F] font-poppins">Estimated prize</p>
-                    <div className="flex items-center gap-1 justify-end mt-0.5">
-                      <Medal size={14} weight="fill" className="text-amber-500" />
-                      <p className="text-base font-bold text-[#B7791F]">{estimatedPrize}</p>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 

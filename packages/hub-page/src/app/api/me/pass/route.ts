@@ -12,6 +12,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { emitQuestAction } from "@/lib/akiba/quest-events";
 
 export async function GET() {
   const supabase = await createClient();
@@ -39,6 +40,16 @@ export async function GET() {
       .select("public_pass_id")
       .single();
     passRow = inserted;
+
+    // Report the pass-signup quest action (fire-and-forget, deduped on Platform).
+    if (passRow?.public_pass_id) {
+      await emitQuestAction({
+        actionName: "pass_signup",
+        userId: user.id,
+        idempotencyKey: `quest-pass_signup-${user.id}`,
+        metadata: { email: user.email },
+      });
+    }
   }
 
   if (!passRow?.public_pass_id) {
