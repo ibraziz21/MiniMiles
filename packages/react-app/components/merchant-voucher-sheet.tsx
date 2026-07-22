@@ -43,6 +43,8 @@ type Props = {
   merchant: MerchantForVoucher | null;
   /** Pre-loaded templates — if omitted the sheet fetches them itself. */
   templates?: VoucherTemplate[];
+  /** Fired once a voucher has actually been issued (Miles burned). */
+  onIssued?: (template: VoucherTemplate) => void;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -80,6 +82,7 @@ export default function MerchantVoucherSheet({
   onOpenChange,
   merchant,
   templates: propTemplates,
+  onIssued,
 }: Props) {
   const { address, getakibaMilesBalance } = useWeb3();
 
@@ -173,6 +176,7 @@ export default function MerchantVoucherSheet({
       // Refresh balance display
       getakibaMilesBalance().then((b) => setBalance(Number(b))).catch(() => {});
       window.dispatchEvent(new Event("akiba:miles:refresh"));
+      onIssued?.(selected);
       setScreen("success");
     } catch (err: any) {
       const msg: string = err?.message ?? "";

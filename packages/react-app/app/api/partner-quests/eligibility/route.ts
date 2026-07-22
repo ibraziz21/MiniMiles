@@ -11,11 +11,75 @@ import { requireSession } from "@/lib/auth";
 import { isBlacklisted } from "@/lib/blacklist";
 import { issueClaimToken } from "@/lib/partnerAttestation";
 import { checkStableHoldRequirement } from "@/lib/stableHoldGate";
+import { isoWeek, weekRange } from "@/lib/games/week";
+import {
+  QUEST_SPONSORED_LEADERBOARD,
+  QUEST_COMPLETE_PROFILE,
+  QUEST_REDEEM_VOUCHER,
+} from "@/lib/merchantDiscoveryQuests";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_KEY!
 );
+
+// ── Merchant-discovery quest-specific eligibility hooks ──────────────────────
+// Returns a reason string when NOT eligible, or null when the quest-specific
+// condition is satisfied (the generic already-claimed check still applies).
+async function checkMerchantDiscoveryQuest(
+  questId: string,
+  userLc: string,
+): Promise<string | null> {
+  if (questId === QUEST_SPONSORED_LEADERBOARD) {
+    const week = isoWeek();
+    const { from, to } = weekRange(week);
+
+    const { data: alreadyThisWeek } = await supabase
+      .from("partner_quest_weekly_claims")
+      .select("iso_week")
+      .eq("user_address", userLc)
+      .eq("partner_quest_id", questId)
+      .eq("iso_week", week)
+      .maybeSingle();
+    if (alreadyThisWeek) return "already-claimed-this-week";
+
+    const { data: session } = await supabase
+      .from("skill_game_sessions")
+      .select("session_id")
+      .eq("wallet_address", userLc)
+      .eq("accepted", true)
+      .gte("created_at", from)
+      .lt("created_at", to)
+      .limit(1)
+      .maybeSingle();
+    if (!session) return "no-accepted-session-this-week";
+    return null;
+  }
+
+  if (questId === QUEST_COMPLETE_PROFILE) {
+    const { data: user } = await supabase
+      .from("users")
+      .select("country")
+      .eq("user_address", userLc)
+      .maybeSingle();
+    if (!user?.country) return "country-not-set";
+    return null;
+  }
+
+  if (questId === QUEST_REDEEM_VOUCHER) {
+    const { data: redeemed } = await supabase
+      .from("issued_vouchers")
+      .select("id")
+      .eq("user_address", userLc)
+      .eq("status", "redeemed")
+      .limit(1)
+      .maybeSingle();
+    if (!redeemed) return "no-redeemed-voucher";
+    return null;
+  }
+
+  return null;
+}
 
 export async function GET(req: NextRequest) {
   const session = await requireSession();
@@ -58,25 +122,28 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Quest not found" }, { status: 404 });
   }
 
-  // Check if already claimed
-  const { data: existing } = await supabase
-    .from("partner_engagements")
-    .select("id")
-    .eq("user_address", userLc)
-    .eq("partner_quest_id", questId)
-    .limit(1);
+  // Check if already claimed. "Play the sponsored leaderboard" resets weekly,
+  // so it tracks completion in partner_quest_weekly_claims instead — the
+  // once-ever partner_engagements check doesn't apply to it.
+  if (questId !== QUEST_SPONSORED_LEADERBOARD) {
+    const { data: existing } = await supabase
+      .from("partner_engagements")
+      .select("id")
+      .eq("user_address", userLc)
+      .eq("partner_quest_id", questId)
+      .limit(1);
 
-  if (existing && existing.length > 0) {
-    return NextResponse.json({ eligible: false, reason: "already-claimed" });
+    if (existing && existing.length > 0) {
+      return NextResponse.json({ eligible: false, reason: "already-claimed" });
+    }
   }
 
   // ── Quest-specific eligibility hooks ─────────────────────────────────────
+  const merchantQuestReason = await checkMerchantDiscoveryQuest(questId, userLc);
+  if (merchantQuestReason) {
+    return NextResponse.json({ eligible: false, reason: merchantQuestReason });
+  }
   // Add per-quest checks here as quests require on-chain or partner verification.
-  // Example:
-  //   if (questId === KILN_QUEST_ID) {
-  //     const balance = await getKilnBalance(userLc);
-  //     if (balance < MIN_KILN_HOLD) return NextResponse.json({ eligible: false, reason: "insufficient-balance" });
-  //   }
   // ─────────────────────────────────────────────────────────────────────────
 
   // Issue a one-time attestation token the /claim endpoint will verify

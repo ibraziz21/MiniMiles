@@ -4,11 +4,23 @@ import React, { useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { Sheet, SheetContent } from './ui/sheet';
 import Image from 'next/image';
+import posthog from 'posthog-js';
 import { claimPartnerQuest } from '@/helpers/partnerQuests';
 import { useWeb3 } from '@/contexts/useWeb3';
 import { akibaMilesSymbol } from '@/lib/svg';
 import { Input } from './ui/input';
 import type { Quest } from './partner-quests';
+import {
+  QUEST_SPONSORED_LEADERBOARD,
+  QUEST_COMPLETE_PROFILE,
+  QUEST_REDEEM_VOUCHER,
+} from '@/lib/merchantDiscoveryQuests';
+
+const SERVER_VERIFIED_QUEST_IDS = new Set([
+  QUEST_SPONSORED_LEADERBOARD,
+  QUEST_COMPLETE_PROFILE,
+  QUEST_REDEEM_VOUCHER,
+]);
 
 interface PartnerQuestSheetProps {
   open: boolean;
@@ -191,6 +203,10 @@ const EarnPartnerQuestSheet = ({
         if (claimError) {
           throw new Error(claimError);
         }
+        posthog.capture('quest_claim', {
+          quest_id: quest.id,
+          verified: SERVER_VERIFIED_QUEST_IDS.has(quest.id),
+        });
       }
 
       setOpenSuccess?.(true);

@@ -20,15 +20,11 @@ import { celo } from "viem/chains";
 import StableTokenABI from "@/contexts/cusd-abi.json";
 import MiniMilesAbi from "@/contexts/minimiles.json";
 import raffleAbi from "@/contexts/miniraffle.json";
-import diceAbi from "@/contexts/akibadice.json";
 import clawAbi from "@/contexts/akibaClawGame.json";
 import vaultAbi from "@/contexts/vault.json";
 import posthog from "posthog-js";
-import { USD_TIERS } from "@/lib/diceTypes";
-import type { DiceTier, DiceSlot, DiceRoundStateName, DiceRoundView } from "@/lib/diceTypes";
 import { isMiniPayProvider } from "@/lib/minipay";
 
-const DICE_ADDRESS = "0xf77e7395Aa5c89BcC8d6e23F67a9c7914AB9702a" as const;
 /** USDT on Celo mainnet */
 const USDT_ADDRESS = (
   process.env.NEXT_PUBLIC_USDT_ADDRESS ??
@@ -42,7 +38,6 @@ const VAULT_ADDRESS = (
   process.env.NEXT_PUBLIC_VAULT_ADDRESS ??
   "0xe44326FA2ea736A4c973Fa98892d0487246e8D2D"
 ) as `0x${string}`;
-const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
 const CLAW_GAME_ADDRESS = (
   process.env.NEXT_PUBLIC_CLAW_GAME_ADDRESS ??
   "0x32cd4449A49786f8e9C68A5466d46E4dbC5197B3"
@@ -314,96 +309,6 @@ function useWeb3Logic() {
     [address, publicClient],
   );
 
-  function getDiceReadContract() {
-    return getContract({ abi: diceAbi.abi, address: DICE_ADDRESS, client: publicClient });
-  }
-
-  const fetchDiceRound = useCallback(
-    async (tier: DiceTier): Promise<DiceRoundView> => {
-      const dice = getDiceReadContract();
-      const roundId: bigint = (await dice.read.getActiveRoundId([BigInt(tier)])) as bigint;
-
-      const usdTier = (USD_TIERS as readonly number[]).includes(Number(tier));
-
-      if (roundId === 0n) {
-        return {
-          tier, roundId, filledSlots: 0, winnerSelected: false,
-          winningNumber: null, randomBlock: 0n, winner: null,
-          slots: Array.from({ length: 6 }, (_, i) => ({ number: i + 1, player: null })),
-          myNumber: null, state: "none", isUsdTier: usdTier,
-        };
-      }
-
-      const [tierOnChain, filledSlots, winnerSelected, winningNumber, randomBlock, winner] =
-        (await dice.read.getRoundInfo([roundId])) as [bigint, number, boolean, number, bigint, `0x${string}`];
-
-      const [players, numbers] = (await dice.read.getRoundSlots([roundId])) as [`0x${string}`[], number[]];
-      const rawState = (await dice.read.getRoundState([roundId])) as bigint | number | string;
-      const stateNum = Number(rawState);
-
-      let myNumber: number | null = null;
-      if (address) {
-        const [joined, rid, num] = (await dice.read.getMyActiveEntryForTier([
-          BigInt(tier),
-          address as `0x${string}`,
-        ])) as [boolean, bigint, number];
-        if (joined && rid === roundId) myNumber = Number(num);
-      }
-
-      const slots: DiceSlot[] = numbers.map((n, idx) => ({
-        number: Number(n),
-        player:
-          players[idx] && players[idx].toLowerCase() !== "0x0000000000000000000000000000000000000000"
-            ? (players[idx] as `0x${string}`)
-            : null,
-      }));
-
-      const state: DiceRoundStateName =
-        stateNum === 1 ? "open"
-        : stateNum === 2 ? "fullWaiting"
-        : stateNum === 3 ? "ready"
-        : stateNum === 4 ? "resolved"
-        : "none";
-
-      return {
-        tier: Number(tierOnChain), roundId, filledSlots: Number(filledSlots),
-        winnerSelected, winningNumber: winningNumber === 0 ? null : Number(winningNumber),
-        randomBlock,
-        winner: winner && winner.toLowerCase() !== "0x0000000000000000000000000000000000000000"
-          ? (winner as `0x${string}`) : null,
-        slots, myNumber, state, isUsdTier: usdTier,
-      };
-    },
-    [address, publicClient]
-  );
-
-  const getDiceTierStats = useCallback(
-    async (tier: DiceTier) => {
-      const dice = getDiceReadContract();
-      const [roundsCreated, roundsResolved, totalStaked, totalPayout] =
-        (await dice.read.getTierStats([BigInt(tier)])) as [bigint, bigint, bigint, bigint];
-      return {
-        roundsCreated: Number(roundsCreated),
-        roundsResolved: Number(roundsResolved),
-        totalStaked,
-        totalPayout,
-      };
-    },
-    [publicClient]
-  );
-
-  const getDicePlayerStats = useCallback(
-    async (player?: string) => {
-      const target = (player || address) as `0x${string}` | null;
-      if (!target) throw new Error("No player address");
-      const dice = getDiceReadContract();
-      const [roundsJoined, roundsWon, totalStaked, totalWon] =
-        (await dice.read.getPlayerStats([target])) as [bigint, bigint, bigint, bigint];
-      return { roundsJoined: Number(roundsJoined), roundsWon: Number(roundsWon), totalStaked, totalWon };
-    },
-    [publicClient, address]
-  );
-
   const getStablecoinBalance = useCallback(async () => {
     if (!address) return "0";
     const bal = await publicClient.readContract({
@@ -610,68 +515,6 @@ function useWeb3Logic() {
     return hash;
   }, [walletClient, address, publicClient, requireCrackPotAddress]);
 
-  /** Approve USDT spending for the Dice contract. Call before joinDice on USD tiers. */
-  const approveUsdtForDice = useCallback(async (amount: bigint) => {
-    if (isMiniPayProvider()) throw new Error("USDT Dice is not available in MiniPay.");
-    if (!walletClient || !address) throw new Error("Wallet not connected");
-    const chainId = await walletClient.getChainId();
-    if (chainId !== celo.id) throw new Error("Wrong network");
-
-    const hash = await walletClient.writeContract({
-      chain: walletClient.chain,
-      address: USDT_ADDRESS,
-      abi: [{ name: "approve", type: "function", stateMutability: "nonpayable", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }] }],
-      functionName: "approve",
-      account: address as `0x${string}`,
-      args: [DICE_ADDRESS, amount],
-    });
-
-    try {
-      await publicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 120_000 });
-    } catch (err: any) {
-      const m = String(err?.message || "");
-      if (/(block.*out of range|header not found|query timeout)/i.test(m)) {
-        console.warn("Ignoring provider range error while waiting for approve receipt:", err);
-      } else {
-        throw err;
-      }
-    }
-    return hash;
-  }, [walletClient, address, publicClient]);
-
-  const joinDice = useCallback(
-    async (tier: DiceTier, chosenNumber: number) => {
-      if (!walletClient || !address) throw new Error("Wallet not connected");
-      if (isMiniPayProvider() && (USD_TIERS as readonly number[]).includes(Number(tier))) {
-        throw new Error("USDT Dice is not available in MiniPay.");
-      }
-      const chainId = await walletClient.getChainId();
-      if (chainId !== celo.id) throw new Error("Wrong network");
-
-      const hash = await walletClient.writeContract({
-        chain: walletClient.chain,
-        address: DICE_ADDRESS,
-        abi: diceAbi.abi,
-        functionName: "joinTier",
-        account: address as `0x${string}`,
-        args: [BigInt(tier), chosenNumber],
-      });
-
-      try {
-        await publicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 120_000 });
-      } catch (err: any) {
-        const m = String(err?.message || "");
-        if (/(block.*out of range|header not found|query timeout)/i.test(m)) {
-          console.warn("Ignoring provider range error while waiting for receipt:", err);
-        } else {
-          throw err;
-        }
-      }
-      return hash;
-    },
-    [walletClient, address, publicClient]
-  );
-
   const startClawGame = useCallback(async (tierId: number) => {
     if (!walletClient || !address) throw new Error("Wallet not connected");
     const { request } = await writePublicClient.simulateContract({
@@ -735,54 +578,6 @@ function useWeb3Logic() {
     return hash;
   }, [walletClient, address, writePublicClient]);
 
-  const getDiceBonusPool = useCallback(async (): Promise<bigint> => {
-    const dice = getDiceReadContract();
-    return (await dice.read.bonusPool([])) as bigint;
-  }, [publicClient]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const getLastResolvedRoundForPlayer = useCallback(
-    async (tier: DiceTier, player?: `0x${string}`) => {
-      const p = (player as `0x${string}`) || (address as `0x${string}`) || null;
-      if (!p) return null;
-
-      const dice = getDiceReadContract();
-      const activeId = (await dice.read.getActiveRoundId([BigInt(tier)])) as bigint;
-      if (activeId === 0n) return null;
-
-      const candidates: bigint[] = [activeId];
-      if (activeId > 1n) candidates.push(activeId - 1n);
-
-      for (const rid of candidates) {
-        if (rid === 0n) continue;
-
-        const [tierOnChain, filledSlots, winnerSelected, winningNumber, randomBlock, winner] =
-          (await dice.read.getRoundInfo([rid])) as [bigint, number, boolean, number, bigint, `0x${string}`];
-
-        if (!winnerSelected || winningNumber === 0 || !winner || winner.toLowerCase() === ZERO_ADDR) continue;
-
-        const [joined, myNum] = (await dice.read.getMyNumberInRound([rid, p])) as [boolean, number];
-        if (!joined) continue;
-
-        const [players, numbers] = (await dice.read.getRoundSlots([rid])) as [`0x${string}`[], number[]];
-        const slots: DiceSlot[] = numbers.map((n, idx) => ({
-          number: Number(n),
-          player: players[idx] && players[idx].toLowerCase() !== ZERO_ADDR
-            ? (players[idx] as `0x${string}`) : null,
-        }));
-
-        return {
-          tier: Number(tierOnChain), roundId: rid, filledSlots: Number(filledSlots),
-          winnerSelected, winningNumber: Number(winningNumber), randomBlock,
-          winner: winner && winner.toLowerCase() !== ZERO_ADDR ? (winner as `0x${string}`) : null,
-          slots, myNumber: joined ? Number(myNum) : null, state: "resolved" as DiceRoundStateName,
-          isUsdTier: (USD_TIERS as readonly number[]).includes(Number(tierOnChain)),
-        };
-      }
-      return null;
-    },
-    [address, publicClient]
-  );
-
   /**
    * Waits until the session is established (or the timeout elapses).
    * Call this at the top of any claim handler to absorb the brief startup gap.
@@ -813,11 +608,8 @@ function useWeb3Logic() {
     sendCUSD,
     joinRaffle,
     getUserRaffleTickets,
-    fetchDiceRound,
-    joinDice,
     startClawGame,
     burnClawVoucherReward,
-    approveUsdtForDice,
     approveUsdtForCrackPot,
     enterCrackPotGame,
     getStablecoinBalance,
@@ -828,10 +620,6 @@ function useWeb3Logic() {
     deposit,
     withdraw,
     hasAllowance,
-    getDiceTierStats,
-    getDicePlayerStats,
-    getDiceBonusPool,
-    getLastResolvedRoundForPlayer,
   };
 }
 

@@ -30,12 +30,12 @@ export const BottomNav = () => {
       <Link
         href="/games"
         className={`flex flex-col items-center gap-0.5 text-xs transition-colors ${
-          isActive("/games") || isActive("/dice") ? "text-[#238D9D]" : "text-[#A0A0A0]"
+          isActive("/games") ? "text-[#238D9D]" : "text-[#A0A0A0]"
         }`}
       >
-        <Gamepad2 className={`h-5 w-5 ${isActive("/games") || isActive("/dice") ? "stroke-[#238D9D]" : ""}`} />
-        <span className={`font-medium ${isActive("/games") || isActive("/dice") ? "font-bold" : ""}`}>Games</span>
-        {(isActive("/games") || isActive("/dice")) && <span className="h-1 w-1 rounded-full bg-[#238D9D]" />}
+        <Gamepad2 className={`h-5 w-5 ${isActive("/games") ? "stroke-[#238D9D]" : ""}`} />
+        <span className={`font-medium ${isActive("/games") ? "font-bold" : ""}`}>Games</span>
+        {(isActive("/games")) && <span className="h-1 w-1 rounded-full bg-[#238D9D]" />}
       </Link>
 
       {/* Home — center focal point */}

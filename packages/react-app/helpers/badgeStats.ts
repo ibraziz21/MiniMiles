@@ -25,8 +25,6 @@ const GAME_LIFETIME_BADGE_THRESHOLDS = [100, 1000, 10000];
  * 👉 TODO: update with your actual quest IDs (dice, coinflip, etc.).
  */
 const GAME_QUEST_IDS = [
-  "dice_daily",
-  "dice_win",
   "coinflip_play",
   "coinflip_win",
   "games_streak",

@@ -30,7 +30,8 @@ export default function ProfileCtaCard({
   let rewardAmount: 50 | 100 | null = null;
 
   if (safeCompletion < 50) {
-    body = `${safeCompletion}% done • unlock at 50%`;
+    title = "Add your country";
+    body = `Get prizes you can actually use • ${safeCompletion}% done`;
     buttonLabel = "Complete";
     rewardAmount = 50;
   } else if (!milestone50Claimed) {

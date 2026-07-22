@@ -315,6 +315,71 @@ export async function claimQueuedPartnerReward(opts: {
   };
 }
 
+/**
+ * Weekly-repeatable sibling of claimQueuedPartnerReward — uniqueness is
+ * (user_address, partner_quest_id, iso_week) instead of once-ever, for
+ * quests like "Play the sponsored leaderboard" that reset every ISO week.
+ */
+export async function claimQueuedPartnerWeeklyReward(opts: {
+  userAddress: string;
+  questId: string;
+  points: number;
+  isoWeek: string;
+  reason: string;
+}) {
+  const { userAddress, questId, points, isoWeek, reason } = opts;
+  const userLc = userAddress.toLowerCase();
+
+  const { data: existing, error: checkError } = await supabase
+    .from("partner_quest_weekly_claims")
+    .select("iso_week")
+    .eq("user_address", userLc)
+    .eq("partner_quest_id", questId)
+    .eq("iso_week", isoWeek)
+    .maybeSingle();
+
+  if (checkError) throw checkError;
+  if (existing) return { ok: false as const, code: "already" as const };
+
+  const { error: insertError } = await supabase
+    .from("partner_quest_weekly_claims")
+    .insert({ user_address: userLc, partner_quest_id: questId, iso_week: isoWeek });
+
+  if (insertError) {
+    if (isDuplicateError(insertError)) return { ok: false as const, code: "already" as const };
+    throw insertError;
+  }
+
+  const idempotencyKey = `partner-weekly:${questId}:${userLc}:${isoWeek}`;
+  const reward = await computeQuestReward(userLc, points);
+
+  await ensureMintJob({
+    idempotencyKey,
+    userAddress: userLc,
+    points: reward.awardedPoints,
+    reason,
+    payload: {
+      kind: "partner_engagement",
+      userAddress: userLc,
+      questId,
+      claimedAt: new Date().toISOString(),
+      pointsAwarded: reward.awardedPoints,
+      basePoints: reward.basePoints,
+      vaultBoost: reward.vaultBoost,
+    },
+  });
+
+  return {
+    ok: true as const,
+    queued: true,
+    txHash: undefined,
+    minted: reward.awardedPoints,
+    points: reward.awardedPoints,
+    basePoints: reward.basePoints,
+    vaultBoost: reward.vaultBoost,
+  };
+}
+
 export async function enqueueSimpleMint(opts: {
   idempotencyKey: string;
   userAddress: string;

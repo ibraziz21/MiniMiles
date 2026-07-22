@@ -14,10 +14,26 @@ import { RewardClass } from "@/lib/clawTypes";
 
 const VoucherOrderSheet = dynamic(() => import("@/components/voucher-order-sheet"), { ssr: false });
 
+import { BurnVoucherSheet, type BurnableVoucher } from "@/components/vouchers/BurnVoucherSheet";
+
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+type WinMeta = {
+  game_type: string;
+  week: string;
+  rank: number;
+  label: string;
+  discount_percent: number;
+  spend_cap_kes: number;
+  marketplace_miles: number;
+  burn_pct: number;
+};
 
 type VoucherWithMeta = IssuedVoucher & {
   created_at: string;
+  acquisition_source?: string | null;
+  win_meta?: WinMeta | null;
+  expires_at?: string | null;
   spend_voucher_templates: {
     id: string;
     title: string;
@@ -26,6 +42,19 @@ type VoucherWithMeta = IssuedVoucher & {
   } | null;
 };
 
+const WIN_GAME_LABELS: Record<string, string> = {
+  rule_tap: "Rule Tap",
+  memory_flip: "Memory Flip",
+};
+
+const WIN_RANK_LABELS: Record<number, string> = { 1: "🏆 1st", 2: "🥈 2nd", 3: "🥉 3rd" };
+
+function daysLeft(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const ms = new Date(iso).getTime() - Date.now();
+  return ms > 0 ? Math.ceil(ms / 86_400_000) : 0;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const STATUS_STYLE: Record<string, string> = {
@@ -33,6 +62,7 @@ const STATUS_STYLE: Record<string, string> = {
   redeemed: "bg-gray-100 text-gray-500",
   expired: "bg-red-50 text-red-400",
   void: "bg-gray-100 text-gray-400",
+  burned: "bg-orange-50 text-orange-400",
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -40,6 +70,7 @@ const STATUS_LABEL: Record<string, string> = {
   redeemed: "Used",
   expired: "Expired",
   void: "Void",
+  burned: "Burned for Miles",
 };
 
 function discountLabel(rules: IssuedVoucher["rules_snapshot"] | null | undefined): string {
@@ -67,13 +98,18 @@ function formatDate(iso: string) {
 function VoucherCard({
   voucher,
   onOrder,
+  onBurn,
 }: {
   voucher: VoucherWithMeta;
   onOrder: (v: IssuedVoucher, m: SpendMerchant) => void;
+  onBurn?: (v: VoucherWithMeta) => void;
 }) {
   const merchant = voucher.spend_voucher_templates?.spend_merchants ?? null;
   const templateName = voucher.spend_voucher_templates?.title ?? "Voucher";
   const isActive = voucher.status === "issued";
+  const win = voucher.acquisition_source === "leaderboard_win" ? voucher.win_meta ?? null : null;
+  const expiry = isActive && win ? daysLeft(voucher.expires_at) : null;
+  const burnValue = win ? Math.round(win.marketplace_miles * (win.burn_pct ?? 0.8)) : 0;
 
   return (
     <div
@@ -83,15 +119,31 @@ function VoucherCard({
     >
       {/* Header row */}
       <div className="flex items-center justify-between mb-2">
-        <span
-          className={`text-xs rounded-full px-2.5 py-0.5 font-medium ${
-            STATUS_STYLE[voucher.status] ?? "bg-gray-100 text-gray-400"
-          }`}
-        >
-          {STATUS_LABEL[voucher.status] ?? voucher.status}
-        </span>
-        <span className="text-xs text-gray-400">{formatDate(voucher.created_at)}</span>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span
+            className={`text-xs rounded-full px-2.5 py-0.5 font-medium ${
+              STATUS_STYLE[voucher.status] ?? "bg-gray-100 text-gray-400"
+            }`}
+          >
+            {STATUS_LABEL[voucher.status] ?? voucher.status}
+          </span>
+          {win && (
+            <span className="text-xs rounded-full px-2 py-0.5 font-semibold bg-amber-50 text-amber-600 truncate">
+              Won · {WIN_RANK_LABELS[win.rank] ?? `#${win.rank}`} · {WIN_GAME_LABELS[win.game_type] ?? win.game_type}
+            </span>
+          )}
+        </div>
+        <span className="text-xs text-gray-400 shrink-0">{formatDate(voucher.created_at)}</span>
       </div>
+
+      {/* Expiry countdown for won vouchers */}
+      {expiry !== null && (
+        <p className="mb-2 text-[11px] font-medium text-orange-500">
+          {expiry > 0
+            ? `${expiry} day${expiry === 1 ? "" : "s"} left — auto-burns for ${Math.round((voucher.win_meta?.marketplace_miles ?? 0) * 0.5)} Miles if unused`
+            : "Expiring — will auto-burn for Miles"}
+        </p>
+      )}
 
       {/* Merchant + template */}
       <div className="flex items-center gap-2 mb-2">
@@ -148,15 +200,26 @@ function VoucherCard({
         </button>
       </div>
 
-      {/* Action */}
+      {/* Actions */}
       {isActive && merchant && (
-        <button
-          onClick={() => onOrder(voucher, merchant)}
-          className="w-full bg-[#238D9D] text-white rounded-xl h-10 text-sm font-medium flex items-center justify-center gap-1.5"
-        >
-          <ShoppingBag size={15} />
-          {voucher.linked_product_id ? "Use voucher" : "Order goods"}
-        </button>
+        <div className="space-y-2">
+          <button
+            onClick={() => onOrder(voucher, merchant)}
+            className="w-full bg-[#238D9D] text-white rounded-xl h-10 text-sm font-medium flex items-center justify-center gap-1.5"
+          >
+            <ShoppingBag size={15} />
+            {voucher.linked_product_id ? "Use voucher" : "Order goods"}
+          </button>
+          {win && onBurn && (
+            <button
+              onClick={() => onBurn(voucher)}
+              className="w-full rounded-xl h-10 text-sm font-medium border border-[#238D9D44] text-[#238D9D] flex items-center justify-center gap-1.5"
+            >
+              <Fire size={15} weight="bold" />
+              Burn for {burnValue} Miles
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -327,6 +390,9 @@ export default function VouchersPage() {
   const [orderMerchant, setOrderMerchant] = useState<SpendMerchant | null>(null);
   const [orderVoucher, setOrderVoucher] = useState<IssuedVoucher | null>(null);
 
+  const [burnOpen, setBurnOpen] = useState(false);
+  const [burnVoucher, setBurnVoucher] = useState<BurnableVoucher | null>(null);
+
   useEffect(() => {
     getUserAddress();
   }, [getUserAddress]);
@@ -366,6 +432,32 @@ export default function VouchersPage() {
     setOrderVoucher(voucher);
     setOrderMerchant(merchant);
     setOrderOpen(true);
+  };
+
+  // Burn a WON voucher for Miles (spec §5) — opens the reason-survey sheet.
+  const handleWonBurn = (v: VoucherWithMeta) => {
+    const win = v.win_meta;
+    if (!win) return;
+    setBurnVoucher({
+      id: v.id,
+      merchantName: v.spend_voucher_templates?.spend_merchants?.name ?? "the merchant",
+      merchantCountry: null,
+      label: win.label,
+      marketplaceMiles: win.marketplace_miles,
+      burnMiles: Math.round(win.marketplace_miles * (win.burn_pct ?? 0.8)),
+    });
+    setBurnOpen(true);
+  };
+
+  const refreshSpendVouchers = async () => {
+    if (!address) return;
+    try {
+      const r = await fetch(`/api/Spend/vouchers/user/${address}`);
+      if (r.ok) {
+        const d = await r.json();
+        setVouchers(d.vouchers ?? []);
+      }
+    } catch { /* non-fatal */ }
   };
 
   const handleClawBurn = async (sessionId: string) => {
@@ -474,7 +566,7 @@ export default function VouchersPage() {
                   </h3>
                   <div className="space-y-3">
                     {activeVouchers.map((v) => (
-                      <VoucherCard key={v.id} voucher={v} onOrder={handleOrder} />
+                      <VoucherCard key={v.id} voucher={v} onOrder={handleOrder} onBurn={handleWonBurn} />
                     ))}
                   </div>
                 </section>
@@ -570,6 +662,16 @@ export default function VouchersPage() {
         onOpenChange={setOrderOpen}
         merchant={orderMerchant}
         preloadVoucher={orderVoucher}
+      />
+
+      <BurnVoucherSheet
+        open={burnOpen}
+        onOpenChange={(v) => {
+          setBurnOpen(v);
+          if (!v) setBurnVoucher(null);
+        }}
+        voucher={burnVoucher}
+        onBurned={() => { refreshSpendVouchers(); }}
       />
     </main>
   );

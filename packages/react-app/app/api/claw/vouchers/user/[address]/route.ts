@@ -2,45 +2,7 @@
 // Returns claw vouchers for a user by hydrating known session IDs from the
 // local session index. No browser or API-wide event history scan is needed.
 import { NextResponse } from "next/server";
-import { createPublicClient, http } from "viem";
-import { celo } from "viem/chains";
-import clawAbi from "@/contexts/akibaClawGame.json";
-import {
-  CLAW_SESSIONS_SETUP_MESSAGE,
-  isClawSessionsSetupError,
-  listClawSessionsForPlayer,
-} from "@/lib/server/clawSessions";
-
-const CLAW_GAME    = (process.env.NEXT_PUBLIC_CLAW_GAME_ADDRESS   ?? "0x32cd4449A49786f8e9C68A5466d46E4dbC5197B3") as `0x${string}`;
-const REGISTRY     = (process.env.NEXT_PUBLIC_VOUCHER_REGISTRY_ADDRESS ?? "0xdBFF182cc08e946FF92C5bA575140E41Ea8e63bC") as `0x${string}`;
-const RPC_URL      = process.env.CELO_RPC_URL ?? "https://forno.celo.org";
-
-// Minimal AkibaVoucherRegistry ABI — just getVoucher
-const REGISTRY_ABI = [
-  {
-    inputs: [{ name: "voucherId", type: "uint256" }],
-    name: "getVoucher",
-    outputs: [
-      {
-        type: "tuple",
-        components: [
-          { name: "voucherId",   type: "uint256" },
-          { name: "owner",       type: "address" },
-          { name: "tierId",      type: "uint8"   },
-          { name: "rewardClass", type: "uint8"   },
-          { name: "discountBps", type: "uint16"  },
-          { name: "maxValue",    type: "uint256" },
-          { name: "expiresAt",   type: "uint256" },
-          { name: "redeemed",    type: "bool"    },
-          { name: "burned",      type: "bool"    },
-          { name: "merchantId",  type: "bytes32" },
-        ],
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
+import { getClawVouchersForPlayer } from "@/lib/server/clawVouchers";
 
 export async function GET(
   _req: Request,
@@ -52,81 +14,15 @@ export async function GET(
     return NextResponse.json({ error: "address required" }, { status: 400 });
   }
 
-  const pub = createPublicClient({ chain: celo, transport: http(RPC_URL) });
-  const now = Math.floor(Date.now() / 1000);
-
   try {
-    const { sessions, error } = await listClawSessionsForPlayer(address, 100);
-    if (error) {
-      if (isClawSessionsSetupError(error)) {
-        return NextResponse.json({
-          vouchers: [],
-          setupRequired: true,
-          error: CLAW_SESSIONS_SETUP_MESSAGE,
-        });
-      }
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    const result = await getClawVouchersForPlayer(address);
+    if (result.setupRequired) {
+      return NextResponse.json({ vouchers: [], setupRequired: true, error: result.error });
     }
-
-    if (!sessions.length) {
-      return NextResponse.json({ vouchers: [] });
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: 500 });
     }
-
-    // Hydrate each session from the game contract, then each voucher from the registry.
-    const vouchers = await Promise.all(
-      sessions.map(async (indexed) => {
-        try {
-          const sessionId = BigInt(indexed.sessionId);
-          const session = await pub.readContract({
-            address: CLAW_GAME,
-            abi: clawAbi.abi,
-            functionName: "getSession",
-            args: [sessionId],
-          }) as any;
-
-          const owner = String(session.player ?? session[1] ?? "").toLowerCase();
-          const voucherId = BigInt((session.voucherId ?? session[9] ?? 0).toString());
-          if (owner !== address || voucherId === 0n) return null;
-
-          const v = await pub.readContract({
-            address: REGISTRY,
-            abi: REGISTRY_ABI,
-            functionName: "getVoucher",
-            args: [voucherId],
-          }) as any;
-
-          const expired    = Number(v.expiresAt) < now;
-          const voucherStatus = v.burned
-            ? "burned"
-            : v.redeemed
-            ? "redeemed"
-            : expired
-            ? "expired"
-            : "active";
-
-          return {
-            voucherId:     voucherId.toString(),
-            sessionId:     sessionId.toString(),
-            owner:         v.owner,
-            tierId:        Number(v.tierId),
-            rewardClass:   Number(v.rewardClass),
-            discountBps:   Number(v.discountBps),
-            maxValue:      v.maxValue.toString(),
-            expiresAt:     Number(v.expiresAt),
-            redeemed:      v.redeemed,
-            burned:        v.burned,
-            merchantId:    v.merchantId,
-            voucherStatus,
-          };
-        } catch (_e) {
-          return null;
-        }
-      })
-    );
-
-    return NextResponse.json({
-      vouchers: vouchers.filter(Boolean),
-    });
+    return NextResponse.json({ vouchers: result.vouchers });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message ?? "Failed" }, { status: 500 });
   }

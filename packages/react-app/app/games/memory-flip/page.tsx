@@ -13,6 +13,7 @@ import { useMemoryFlipGame } from "@/hooks/games/useMemoryFlipGame";
 import { useSettlement } from "@/hooks/games/useSettlement";
 import { useCredits } from "@/hooks/games/useCredits";
 import { useWeeklyLeaderboard } from "@/hooks/games/useWeeklyLeaderboard";
+import { useWeeklyCampaign } from "@/hooks/games/useWeeklyCampaign";
 import { Brain, ArrowCounterClockwise, Trophy, ShoppingCart } from "@phosphor-icons/react";
 import { MilesAmount } from "@/components/games/miles-amount";
 import { rewardForScore } from "@/lib/games/score";
@@ -30,6 +31,7 @@ export default function MemoryFlipPage() {
   const game        = useMemoryFlipGame(sessionFlow.session?.sessionId, sessionFlow.address, sessionFlow.session?.seed);
   const { status: creditStatus, buying, buyError, refresh: refreshCredits, buyCredits } = useCredits("memory_flip", sessionFlow.address);
   const weeklyLb    = useWeeklyLeaderboard("memory_flip");
+  const { campaign } = useWeeklyCampaign();
 
   const { isDailyCapped, playsToday, credits, hasCredits } = creditStatus;
   const MAX_DAILY = creditStatus.dailyCap;
@@ -116,6 +118,7 @@ export default function MemoryFlipPage() {
   const isPlaying  = game.phase === "playing" || game.phase === "countdown";
   const isDone     = game.phase === "settled" || game.phase === "error";
   const weeklyRank = weeklyLb.myBest?.rank ?? null;
+  const rank3Label = campaign?.tiers.find((t) => t.rank === 3)?.label ?? null;
 
   const startLabel = sessionFlow.isStarting
     ? "Starting round…"
@@ -270,6 +273,8 @@ export default function MemoryFlipPage() {
         result={result}
         settlementStatus={settlement.status}
         weeklyRank={weeklyRank}
+        weeklyEntries={weeklyLb.entries}
+        rank3Label={rank3Label}
         onPlayAgain={() => {
           setResultOpen(false);
           startRound();

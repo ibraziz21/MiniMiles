@@ -1,11 +1,13 @@
 // src/app/api/partner-quests/claim/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { claimQueuedPartnerReward } from "@/lib/minipointQueue";
+import { claimQueuedPartnerReward, claimQueuedPartnerWeeklyReward } from "@/lib/minipointQueue";
 import { isBlacklisted } from "@/lib/blacklist";
 import { requireSession } from "@/lib/auth";
 import { verifyClaimToken, consumeClaimToken } from "@/lib/partnerAttestation";
 import { checkStableHoldRequirement } from "@/lib/stableHoldGate";
+import { isoWeek } from "@/lib/games/week";
+import { QUEST_SPONSORED_LEADERBOARD } from "@/lib/merchantDiscoveryQuests";
 
 /* ─── env / clients ─────────────────────────────────────── */
 
@@ -63,24 +65,28 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Attestation token already used" }, { status: 403 });
     }
 
-    /* 1 ▸ one-time check */
-    const { data: existing, error: checkErr } = await supabase
-      .from("partner_engagements")
-      .select("id")
-      .eq("user_address", userLc)
-      .eq("partner_quest_id", questId)
-      .limit(1);
+    const isWeeklyQuest = questId === QUEST_SPONSORED_LEADERBOARD;
 
-    if (checkErr) {
-      console.error("[partner-claim] DB check error:", checkErr);
-      return NextResponse.json({ error: "db-error" }, { status: 500 });
-    }
+    /* 1 ▸ one-time check (weekly quest tracks completion separately) */
+    if (!isWeeklyQuest) {
+      const { data: existing, error: checkErr } = await supabase
+        .from("partner_engagements")
+        .select("id")
+        .eq("user_address", userLc)
+        .eq("partner_quest_id", questId)
+        .limit(1);
 
-    if (existing && existing.length > 0) {
-      return NextResponse.json(
-        { error: "Quest already claimed" },
-        { status: 400 }
-      );
+      if (checkErr) {
+        console.error("[partner-claim] DB check error:", checkErr);
+        return NextResponse.json({ error: "db-error" }, { status: 500 });
+      }
+
+      if (existing && existing.length > 0) {
+        return NextResponse.json(
+          { error: "Quest already claimed" },
+          { status: 400 }
+        );
+      }
     }
 
     /* 2 ▸ get reward points */
@@ -103,12 +109,20 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = await claimQueuedPartnerReward({
-      userAddress: userLc,
-      questId,
-      points,
-      reason: `partner-quest:${questId}`,
-    });
+    const result = isWeeklyQuest
+      ? await claimQueuedPartnerWeeklyReward({
+          userAddress: userLc,
+          questId,
+          points,
+          isoWeek: isoWeek(),
+          reason: `partner-quest:${questId}`,
+        })
+      : await claimQueuedPartnerReward({
+          userAddress: userLc,
+          questId,
+          points,
+          reason: `partner-quest:${questId}`,
+        });
 
     if (!result.ok && result.code === "already") {
       return NextResponse.json(

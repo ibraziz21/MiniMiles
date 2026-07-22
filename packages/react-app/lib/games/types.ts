@@ -1,5 +1,8 @@
 export type GameType = "rule_tap" | "memory_flip";
 
+/** Games that run on the weekly leaderboard / campaign system. */
+export const WEEKLY_GAME_TYPES: GameType[] = ["rule_tap", "memory_flip"];
+
 export type GamePhase =
   | "idle"
   | "starting"

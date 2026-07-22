@@ -28,7 +28,7 @@ export async function GET(
   // Step 1: fetch vouchers (no join — avoids FK auto-detection issues)
   const { data: vouchers, error: vErr } = await supabase
     .from("issued_vouchers")
-    .select("id, code, qr_payload, status, created_at, voucher_template_id, merchant_id, linked_product_id, product_name, product_image_url")
+    .select("id, code, qr_payload, status, created_at, voucher_template_id, merchant_id, linked_product_id, product_name, product_image_url, acquisition_source, win_meta, expires_at")
     .eq("user_address", address)
     .neq("status", "void")
     .order("created_at", { ascending: false });

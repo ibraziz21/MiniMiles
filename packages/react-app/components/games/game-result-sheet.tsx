@@ -1,10 +1,15 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
+import posthog from "posthog-js";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Trophy, ArrowCounterClockwise, Star, XCircle, CheckCircle, CircleNotch } from "@phosphor-icons/react";
-import type { GameResult } from "@/lib/games/types";
+import type { GameResult, GameType } from "@/lib/games/types";
+import { computeDeltaNudge, type StandingEntry } from "@/lib/games/deltaNudge";
 import { MilesAmount } from "./miles-amount";
+
+const GAME_NAMES: Record<GameType, string> = { rule_tap: "Rule Tap", memory_flip: "Memory Flip" };
 
 function SettlementBadge({ status }: { status: "idle" | "submitting" | "queued" | "settled" | "rejected" | "error" }) {
   if (status === "submitting") {
@@ -56,6 +61,8 @@ export function GameResultSheet({
   result,
   settlementStatus,
   weeklyRank,
+  weeklyEntries = [],
+  rank3Label = null,
   onPlayAgain,
 }: {
   open:             boolean;
@@ -63,10 +70,38 @@ export function GameResultSheet({
   result:           GameResult | null;
   settlementStatus: "idle" | "submitting" | "queued" | "settled" | "rejected" | "error";
   weeklyRank?:      number | null;
+  /** This week's board for the game — powers the delta nudge line. */
+  weeklyEntries?:   StandingEntry[];
+  /** Prize label for rank 3 this week, e.g. "10% off". */
+  rank3Label?:      string | null;
   onPlayAgain:      () => void;
 }) {
   const hasReward    = result && (result.rewardMiles || result.rewardStable);
   const isTopThree   = weeklyRank != null && weeklyRank >= 1 && weeklyRank <= 3;
+  const gameType     = result?.gameType;
+  const gameName     = gameType ? GAME_NAMES[gameType] : null;
+
+  const myBestScore = weeklyRank != null
+    ? weeklyEntries.find((e) => e.rank === weeklyRank)?.score ?? result?.score ?? null
+    : null;
+
+  // Post-game, a rank is only meaningful once the run settled onto the board
+  // — skip the "not played this week" case entirely here (that's for the
+  // challenge page, not a just-played result).
+  const nudge = gameName && weeklyRank != null
+    ? computeDeltaNudge({
+        myRank: weeklyRank,
+        myScore: myBestScore,
+        entries: weeklyEntries,
+        rank3Label,
+        gameName,
+      })
+    : null;
+
+  useEffect(() => {
+    if (nudge) posthog.capture("delta_nudge_impression", { situation: nudge.situation });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nudge?.situation]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -116,19 +151,20 @@ export function GameResultSheet({
               )}
             </div>
 
-            {/* Weekly rank */}
+            {/* Weekly rank + delta nudge */}
             {weeklyRank != null && (
-              <div className={`mx-5 mt-2 rounded-xl border px-4 py-3 flex items-center justify-between ${
+              <div className={`mx-5 mt-2 rounded-xl border px-4 py-3 ${
                 isTopThree
                   ? "bg-[#FFF6D8] border-[#B7791F22]"
                   : "bg-[#FAFAFA] border-[#F0F0F0]"
               }`}>
-                <div>
-                  <p className="text-xs text-[#817E7E] font-poppins">
-                    {isTopThree ? "Current weekly rank" : "Weekly rank"}
-                  </p>
-                  <p className="text-base font-bold text-[#1A1A1A] mt-0.5">#{weeklyRank}</p>
-                </div>
+                <p className="text-base font-bold text-[#1A1A1A]">
+                  You&apos;re <span className="text-[#238D9D]">#{weeklyRank}</span>
+                  {gameName ? ` in ${gameName}` : ""} this week
+                </p>
+                {nudge && (
+                  <p className="mt-1 text-xs font-semibold text-[#238D9D]">{nudge.copy}</p>
+                )}
               </div>
             )}
 
@@ -149,11 +185,12 @@ export function GameResultSheet({
             Play again
           </button>
           <Link
-            href="/games"
+            href="/games/challenge"
+            onClick={() => posthog.capture("result_sheet_standings_tap", { game: gameType })}
             className="flex items-center justify-center gap-2 rounded-xl bg-[#238D9D1A] px-4 py-3.5 text-sm font-bold text-[#238D9D]"
           >
             <Trophy size={16} weight="bold" />
-            Leaderboard
+            View standings
           </Link>
         </div>
       </SheetContent>
