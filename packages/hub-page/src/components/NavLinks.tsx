@@ -1,8 +1,9 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { ShoppingBag, Sparkles, Zap, Tag, User } from "lucide-react";
+import { ShoppingBag, Sparkles, Zap, Tag, User, QrCode } from "lucide-react";
 import clsx from "clsx";
+import { track } from "@/lib/analytics/track";
 
 const LINKS = [
   { href: "/shop",     label: "Shop & Earn", icon: ShoppingBag },
@@ -37,29 +38,50 @@ export function NavLinks({ dark = false }: { dark?: boolean }) {
           </a>
         );
       })}
+
+      {/* Pass — visually distinct pill, the product's core gesture is always
+          one tap away (home-redesign-spec.md §4). */}
+      <a
+        href="/pass"
+        onClick={() => track("pass_nav_tap")}
+        className={clsx(
+          "flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold transition-colors",
+          path === "/pass" || path.startsWith("/pass/")
+            ? "bg-akiba-teal text-white"
+            : dark
+            ? "bg-white/10 text-white hover:bg-white/20"
+            : "bg-akiba-tint text-akiba-teal hover:bg-akiba-teal/15"
+        )}
+      >
+        <QrCode className="h-4 w-4" />
+        Pass
+      </a>
     </>
   );
 }
 
 // Bottom nav item order (mobile):
-//   Shop | Quests | [Vouchers ↑ elevated] | Rewards | Profile
+//   Shop | Quests | [Pass ↑ elevated] | Vouchers | Rewards | Profile
 //
-// Vouchers sits in the centre slot with a filled rounded square that floats
-// slightly above the bar — it's the highest-value action on Hub (spending miles).
+// Pass sits in the centre slot with a filled rounded square that floats
+// slightly above the bar — it's the product's core gesture (home-redesign-
+// spec.md §4), always one tap away regardless of what page you're on.
+// Vouchers moves to a regular slot alongside Rewards.
 
 const LEFT_NAV  = [
   { href: "/shop",   label: "Shop",   icon: ShoppingBag },
   { href: "/quests", label: "Quests", icon: Zap },
 ];
 const RIGHT_NAV = [
-  { href: "/rewards", label: "Rewards", icon: Sparkles },
+  { href: "/vouchers", label: "Vouchers", icon: Tag },
+  { href: "/rewards",  label: "Rewards",  icon: Sparkles },
 ];
 
 export function BottomNav() {
   const path = usePathname();
   if (path === "/login") return null;
 
-  const vouchersActive = path === "/vouchers" || path.startsWith("/vouchers/");
+  const passActive    = path === "/pass" || path.startsWith("/pass/");
   const profileActive  = path === "/me" || path.startsWith("/me/");
 
   return (
@@ -92,26 +114,27 @@ export function BottomNav() {
           );
         })}
 
-        {/* ── Centre — Vouchers (elevated pill) ───────────────────────────── */}
+        {/* ── Centre — Pass (elevated pill) ───────────────────────────────── */}
         <a
-          href="/vouchers"
+          href="/pass"
+          onClick={() => track("pass_nav_tap")}
           className="relative flex flex-1 flex-col items-center justify-center gap-1 -mt-5 transition-colors"
         >
           <span
             className={clsx(
               "flex h-12 w-12 items-center justify-center rounded-2xl shadow-md transition-colors active:scale-95",
-              vouchersActive ? "bg-akiba-teal" : "bg-akiba-ink"
+              passActive ? "bg-akiba-teal" : "bg-akiba-ink"
             )}
           >
-            <Tag className="h-[22px] w-[22px] text-white" />
+            <QrCode className="h-[22px] w-[22px] text-white" />
           </span>
           <span
             className={clsx(
               "text-[10px] font-semibold tracking-wide",
-              vouchersActive ? "text-akiba-teal" : "text-akiba-muted"
+              passActive ? "text-akiba-teal" : "text-akiba-muted"
             )}
           >
-            Vouchers
+            Pass
           </span>
         </a>
 
