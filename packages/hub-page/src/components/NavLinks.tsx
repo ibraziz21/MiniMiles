@@ -61,18 +61,16 @@ export function NavLinks({ dark = false }: { dark?: boolean }) {
 }
 
 // Bottom nav item order (mobile):
-//   Shop | Quests | [Pass ↑ elevated] | Vouchers | Rewards | Profile
+//   Shop | Quests | Vouchers | Rewards | Profile
 //
-// Pass sits in the centre slot with a filled rounded square that floats
-// slightly above the bar — it's the product's core gesture (home-redesign-
-// spec.md §4), always one tap away regardless of what page you're on.
-// Vouchers moves to a regular slot alongside Rewards.
+// Pass is no longer a bar slot — five evenly-spaced items was already tight,
+// and Pass is the product's core gesture (home-redesign-spec.md §4), so it
+// gets its own floating action button instead, always one tap away without
+// competing for bar space.
 
-const LEFT_NAV  = [
-  { href: "/shop",   label: "Shop",   icon: ShoppingBag },
-  { href: "/quests", label: "Quests", icon: Zap },
-];
-const RIGHT_NAV = [
+const NAV_ITEMS = [
+  { href: "/shop",     label: "Shop",     icon: ShoppingBag },
+  { href: "/quests",   label: "Quests",   icon: Zap },
   { href: "/vouchers", label: "Vouchers", icon: Tag },
   { href: "/rewards",  label: "Rewards",  icon: Sparkles },
 ];
@@ -81,65 +79,19 @@ export function BottomNav() {
   const path = usePathname();
   if (path === "/login") return null;
 
-  const passActive    = path === "/pass" || path.startsWith("/pass/");
-  const profileActive  = path === "/me" || path.startsWith("/me/");
+  const profileActive = path === "/me" || path.startsWith("/me/");
 
   return (
     <nav
       className={clsx(
         "fixed inset-x-0 bottom-0 z-50 sm:hidden",
-        // overflow-visible so the elevated centre button can float above the border
-        "overflow-visible border-t border-akiba-line bg-white/95 backdrop-blur-sm",
+        "border-t border-akiba-line bg-white/95 backdrop-blur-sm",
         // reserve the home-indicator area on installed/standalone PWAs
         "pb-[env(safe-area-inset-bottom)]"
       )}
     >
       <div className="flex h-16">
-
-        {/* ── Left items ──────────────────────────────────────────────────── */}
-        {LEFT_NAV.map(({ href, label, icon: Icon }) => {
-          const active = path === href || path.startsWith(href + "/");
-          return (
-            <a
-              key={href}
-              href={href}
-              className={clsx(
-                "flex flex-1 flex-col items-center justify-center gap-1 transition-colors",
-                active ? "text-akiba-teal" : "text-akiba-muted"
-              )}
-            >
-              <Icon className="h-5 w-5" />
-              <span className="text-[10px] font-semibold tracking-wide">{label}</span>
-            </a>
-          );
-        })}
-
-        {/* ── Centre — Pass (elevated pill) ───────────────────────────────── */}
-        <a
-          href="/pass"
-          onClick={() => track("pass_nav_tap")}
-          className="relative flex flex-1 flex-col items-center justify-center gap-1 -mt-5 transition-colors"
-        >
-          <span
-            className={clsx(
-              "flex h-12 w-12 items-center justify-center rounded-2xl shadow-md transition-colors active:scale-95",
-              passActive ? "bg-akiba-teal" : "bg-akiba-ink"
-            )}
-          >
-            <QrCode className="h-[22px] w-[22px] text-white" />
-          </span>
-          <span
-            className={clsx(
-              "text-[10px] font-semibold tracking-wide",
-              passActive ? "text-akiba-teal" : "text-akiba-muted"
-            )}
-          >
-            Pass
-          </span>
-        </a>
-
-        {/* ── Right items ──────────────────────────────────────────────────── */}
-        {RIGHT_NAV.map(({ href, label, icon: Icon }) => {
+        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           const active = path === href || path.startsWith(href + "/");
           return (
             <a
@@ -176,8 +128,31 @@ export function BottomNav() {
           </span>
           <span className="text-[10px] font-semibold tracking-wide">Profile</span>
         </a>
-
       </div>
     </nav>
+  );
+}
+
+// Pass FAB — floats above the bottom nav bar so it stays a one-tap gesture
+// without taking a slot in the (already full) bar. Mobile-only, matching
+// BottomNav's breakpoint.
+export function PassFab() {
+  const path = usePathname();
+  if (path === "/login") return null;
+
+  const passActive = path === "/pass" || path.startsWith("/pass/");
+
+  return (
+    <a
+      href="/pass"
+      onClick={() => track("pass_nav_tap")}
+      className={clsx(
+        "fixed right-4 z-50 flex h-14 w-14 items-center justify-center rounded-2xl shadow-lg transition-colors active:scale-95 sm:hidden",
+        "bottom-[calc(4.5rem+env(safe-area-inset-bottom))]",
+        passActive ? "bg-akiba-teal" : "bg-akiba-ink"
+      )}
+    >
+      <QrCode className="h-6 w-6 text-white" />
+    </a>
   );
 }

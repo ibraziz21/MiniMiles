@@ -99,7 +99,10 @@ export async function POST(request: Request) {
   const isCrypto = !!tx_hash;
   const isMpesa  = !!mpesa_checkout_id;
 
-  if (!product_id || !recipient_name || !phone || !city) {
+  // Initial validation: just enough to look up the product and payment.
+  // Fulfillment fields (recipient/phone/city) are validated below, once the
+  // product's authoritative product_type is known.
+  if (!product_id) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
   if (!isCrypto && !isMpesa) {
@@ -114,13 +117,22 @@ export async function POST(request: Request) {
   // ── Product lookup ────────────────────────────────────────────────────────
   const { data: product } = await admin
     .from("merchant_products")
-    .select("id, name, price_cusd, category, merchant_id")
+    .select("id, name, price_cusd, category, merchant_id, product_type")
     .eq("id", product_id)
     .eq("active", true)
     .maybeSingle();
 
   if (!product || isHiddenPartner(product.merchant_id)) {
     return NextResponse.json({ error: "Product not found" }, { status: 404 });
+  }
+
+  // Authoritative fulfillment type — never trust product_type from the
+  // request body. Missing/legacy values default to physical.
+  const productType: "physical" | "digital" = product.product_type === "digital" ? "digital" : "physical";
+  const requiresDelivery = productType === "physical";
+
+  if (!recipient_name || !phone || (requiresDelivery && !city)) {
+    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
   const { data: settings } = await admin
@@ -249,7 +261,8 @@ export async function POST(request: Request) {
     product.price_cusd,
     product.category,
     product.id,
-    typeof city === "string" ? city : "",
+    requiresDelivery && typeof city === "string" ? city : "",
+    productType,
     pricingVoucher
   );
 
@@ -453,8 +466,8 @@ export async function POST(request: Request) {
       p_voucher_id:       resolvedVoucherId,
       p_recipient_name:   String(recipient_name),
       p_phone:            String(phone),
-      p_city:             String(city),
-      p_location_details: typeof location_details === "string" ? location_details : null,
+      p_city:             requiresDelivery ? String(city) : null,
+      p_location_details: requiresDelivery && typeof location_details === "string" ? location_details : null,
       p_hub_user_id:      resolvedVoucherId ? user.id : null,
       p_merchant_id:      resolvedVoucherId ? product.merchant_id : null,
       p_product_id_scope: resolvedVoucherId ? String(product.id) : null,

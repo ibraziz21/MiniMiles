@@ -14,6 +14,7 @@ type Product = {
   price_cusd: number;
   category: string;
   image_url: string | null;
+  product_type: "physical" | "digital";
 };
 
 type VoucherTemplate = {
@@ -67,7 +68,7 @@ async function getMerchantPage(slug: string): Promise<{
   const [{ data: products }, { data: templates }] = await Promise.all([
     admin
       .from("merchant_products")
-      .select("id, name, description, price_cusd, category, image_url")
+      .select("id, name, description, price_cusd, category, image_url, product_type")
       .eq("merchant_id", partner.id)
       .eq("active", true)
       .order("category")
@@ -105,6 +106,8 @@ const CATEGORY_LABELS: Record<string, string> = {
   electronics: "Electronics",
   accessories: "Accessories",
   services: "Services",
+  airtime: "Airtime",
+  gift_cards: "Gift Cards",
   clothing: "Clothing",
   food: "Food & Drinks",
   general: "General",
@@ -273,7 +276,7 @@ function ProductCard({
         </div>
 
         <AddToCart
-          product={{ id: product.id, name: product.name, price: product.price_cusd, category: product.category, imageUrl: product.image_url }}
+          product={{ id: product.id, name: product.name, price: product.price_cusd, category: product.category, imageUrl: product.image_url, productType: product.product_type }}
           merchant={{ id: merchant.id, slug: merchant.slug, name: merchant.name, walletAddress: merchant.wallet_address }}
         />
       </div>
