@@ -130,3 +130,5 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_ri_open_order_payment_ref
   WHERE type='order_rpc_failed_after_payment'
     AND resolved=false
     AND data->>'payment_ref' IS NOT NULL;
+
+NOTIFY pgrst, 'reload schema';
