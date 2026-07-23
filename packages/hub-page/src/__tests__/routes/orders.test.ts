@@ -421,7 +421,7 @@ describe("POST /api/shop/orders — M-Pesa callback verification", () => {
     expect(mockRpc).toHaveBeenCalledWith(
       "place_hub_order_and_redeem_voucher",
       expect.objectContaining({
-        p_payment_method: "mpesa:254712345678",
+        p_payment_method: "mpesa",
         p_payment_ref: CHECKOUT_ID,
       })
     );
@@ -759,7 +759,7 @@ describe("POST /api/shop/orders — Platform reward integration", () => {
     expect(payload.recipient).toEqual({ type: "wallet", value: "0xbuyer" });
     expect(payload.metadata).toEqual(expect.objectContaining({
       orderId: "order-uuid",
-      paymentMethod: expect.stringMatching(/^mpesa:/),
+      paymentMethod: "mpesa",
       paymentRef: CHECKOUT_ID,
       productId: "prod-1",
     }));

@@ -434,7 +434,7 @@ export async function POST(request: Request) {
     }
 
     paymentRef    = checkoutId;
-    paymentMethod = `mpesa:${initiatingPhone}`;
+    paymentMethod = "mpesa";
     paidAmountUsd = actualKes / usdRate;
   }
 
@@ -521,7 +521,7 @@ export async function POST(request: Request) {
         user_id:       user.id,
       },
     });
-    if (incidentErr) {
+    if (incidentErr && incidentErr.code !== "23505") {
       console.error("[orders] Failed to write reconciliation incident:", incidentErr.message);
     }
 
@@ -560,7 +560,7 @@ export async function POST(request: Request) {
         user_id:       user.id,
       },
     });
-    if (incidentErr) {
+    if (incidentErr && incidentErr.code !== "23505") {
       console.error("[orders] Failed to write reconciliation incident:", incidentErr.message);
     }
     return NextResponse.json(
