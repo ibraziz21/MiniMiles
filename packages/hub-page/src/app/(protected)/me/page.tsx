@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { LinkedWallets } from "./LinkedWallets";
 import { SignOutButton } from "./SignOutButton";
 import { WalletPickerModal } from "./WalletPickerModal";
@@ -8,42 +7,14 @@ import { AkibaPassCard } from "./AkibaPassCard";
 import { SetPasswordForm } from "./SetPasswordForm";
 import { ProfileQuickActions } from "./ProfileQuickActions";
 import { ActivityFeed } from "./ActivityFeed";
-import { getRecentActivity, getLedgerBalance } from "@/lib/akiba/activity";
-import { emitQuestAction } from "@/lib/akiba/quest-events";
+import { getRecentActivity } from "@/lib/akiba/activity";
+import { getUserBalance } from "@/lib/akiba/balance";
+import { resolveHubProfile } from "@/lib/akiba/hubProfile";
+import { getOrCreatePass } from "@/lib/akiba/pass";
 import { ArrowUpRight, MapPin, Tag } from "lucide-react";
 import { MilesIcon } from "@/components/MilesIcon";
 
 export const metadata = { title: "My Profile — Akiba Pass" };
-
-const MINIPOINTS = process.env.MINIPOINTS_ADDRESS;
-const CELO_RPC = process.env.CELO_RPC_URL ?? "https://forno.celo.org";
-
-async function readBalance(address: string): Promise<number> {
-  if (!MINIPOINTS) {
-    console.warn("[me] readBalance: MINIPOINTS_ADDRESS not set, returning 0");
-    return 0;
-  }
-  try {
-    const data =
-      "0x70a08231" + address.replace("0x", "").toLowerCase().padStart(64, "0");
-    const res = await fetch(CELO_RPC, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0", id: 1,
-        method: "eth_call",
-        params: [{ to: MINIPOINTS, data }, "latest"],
-      }),
-      cache: "no-store",
-    });
-    const json = await res.json();
-    if (!json.result || json.result === "0x") return 0;
-    return Number(BigInt(json.result) / BigInt(1e18));
-  } catch (err) {
-    console.error("[me] readBalance: RPC call failed →", err);
-    return 0;
-  }
-}
 
 const INTEREST_LABELS: Record<string, string> = {
   games: "Games", vouchers: "Vouchers", raffles: "Raffles",
@@ -55,87 +26,24 @@ export default async function MePage() {
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) redirect("/login?next=/me");
 
-  const admin = createAdminClient();
-
-  // 1. Check if user has already made a wallet choice (saved in hub_user_wallets)
-  const { data: savedWallet } = await admin
-    .from("hub_user_wallets")
-    .select("address")
-    .eq("user_id", user.id)
-    .eq("ecosystem", "minipay")
-    .maybeSingle();
-
-  // 2. Query users table by email — fetch all rows (email is not unique)
-  const { data: userRows, error: dbError } = await admin
-    .from("users")
-    .select("user_address, username, full_name, avatar_url, country, interests, is_member, phone, created_at")
-    .eq("email", user.email!)
-    .order("created_at", { ascending: false });
-
-  if (dbError) {
-    console.error("[me] users query error →", dbError.message);
-  }
-
-  const rows = userRows ?? [];
-
-  // 3. Resolve which address to use
-  let activeRow = rows.find((r) => r.user_address === savedWallet?.address) ?? null;
-
-  if (!activeRow && rows.length === 1) {
-    // Single wallet — use it automatically and save the preference
-    activeRow = rows[0];
-    await admin.from("hub_user_wallets").upsert(
-      { user_id: user.id, ecosystem: "minipay", address: activeRow.user_address.toLowerCase() },
-      { onConflict: "user_id,ecosystem", ignoreDuplicates: true }
-    );
-  }
-
-  const needsPicker = rows.length > 1 && !activeRow;
-  const walletAddress = activeRow?.user_address ?? null;
+  const { rows, activeRow, walletAddress, displayName, needsPicker } =
+    await resolveHubProfile({ userId: user.id, email: user.email ?? null });
 
   // One number: on-chain (claimed) + Platform ledger (unclaimed in-store Miles).
   // Email-only users have no wallet but can still hold ledger Miles from scans.
-  const [chainBalance, ledgerBalance] = await Promise.all([
-    walletAddress ? readBalance(walletAddress) : Promise.resolve(0),
-    getLedgerBalance({ email: user.email ?? null, walletAddress }),
-  ]);
-  const balance = chainBalance + ledgerBalance;
-  const hasBalance = walletAddress !== null || ledgerBalance > 0;
+  const { ledgerBalance, balance, hasBalance } = await getUserBalance({
+    walletAddress,
+    email: user.email ?? null,
+  });
 
-  const displayName = activeRow?.full_name ?? activeRow?.username ?? user.email ?? "You";
   const initials = displayName.slice(0, 2).toUpperCase();
 
   // Fetch or create the stable Akiba Pass ID for this user
-  let publicPassId: string | null = null;
-  if (user.email) {
-    let { data: passRow } = await admin
-      .from("hub_user_passes")
-      .select("public_pass_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (!passRow) {
-      const { data: inserted } = await admin
-        .from("hub_user_passes")
-        .insert({ user_id: user.id, email: user.email })
-        .select("public_pass_id")
-        .single();
-      passRow = inserted;
-
-      // Report the pass-signup quest action (fire-and-forget, deduped on Platform).
-      if (passRow?.public_pass_id) {
-        await emitQuestAction({
-          actionName: "pass_signup",
-          userId: user.id,
-          walletAddress,
-          idempotencyKey: `quest-pass_signup-${user.id}`,
-          metadata: { email: user.email },
-        });
-      }
-    }
-
-    publicPassId = passRow?.public_pass_id ?? null;
-  }
+  const { publicPassId } = await getOrCreatePass({
+    userId: user.id,
+    email: user.email ?? null,
+    walletAddress,
+  });
 
   // Recent activity — merchant scan awards + engagement-layer earnings
   const activity = await getRecentActivity({
