@@ -38,6 +38,7 @@ const MIGRATION_PATH_004 = resolve(__dirname, "../../../../../supabase/migration
 const MIGRATION_PATH_005 = resolve(__dirname, "../../../../../supabase/migrations/005_voucher_settlement_phase4.sql");
 const MIGRATION_PATH_006 = resolve(__dirname, "../../../../../supabase/migrations/006_voucher_payout_execution_phase5.sql");
 const MIGRATION_PATH_007 = resolve(__dirname, "../../../../../supabase/migrations/007_voucher_payout_hardening.sql");
+const MIGRATION_PATH_031 = resolve(__dirname, "../../../../../supabase/migrations/031_hub_order_legacy_columns.sql");
 
 const SETUP_SQL = `
 -- Drop and recreate the public schema so each test run starts from a clean slate.
@@ -121,7 +122,14 @@ CREATE TABLE IF NOT EXISTS issued_vouchers (
 CREATE TABLE IF NOT EXISTS merchant_transactions (
   id               uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   partner_id       uuid,
+  akiba_username   text        NOT NULL,
   user_address     text,
+  category         text        NOT NULL,
+  action           text        NOT NULL,
+  quote_kes        integer     NOT NULL,
+  labor_kes        integer,
+  discount_kes     integer,
+  paid_kes         integer,
   status           text,
   item_name        text,
   item_category    text,
@@ -231,6 +239,7 @@ beforeAll(async () => {
   await pool.query(readFileSync(MIGRATION_PATH_004, "utf-8"));
   await pool.query(readFileSync(MIGRATION_PATH_005, "utf-8"));
   await pool.query(readFileSync(MIGRATION_PATH_006, "utf-8"));
+  await pool.query(readFileSync(MIGRATION_PATH_031, "utf-8"));
 }, 30_000);
 
 afterAll(async () => {
@@ -732,6 +741,17 @@ describe("place_hub_order_and_redeem_voucher atomicity (#8)", () => {
 
     expect(rows[0].ok).toBe(true);
     expect(rows[0].order_id).not.toBeNull();
+
+    const { rows: [order] } = await pool.query(
+      `SELECT akiba_username,category,action,quote_kes,paid_kes
+         FROM merchant_transactions WHERE id=$1`,
+      [rows[0].order_id]
+    );
+    expect(order.akiba_username).toBe("0xnov");
+    expect(order.category).toBe("general");
+    expect(order.action).toBe("redeem");
+    expect(order.quote_kes).toBe(650);
+    expect(order.paid_kes).toBe(650);
   });
 });
 
@@ -742,20 +762,22 @@ describe("payment_ref replay rejection (#7)", () => {
     const partnerId = "00000000-0000-0000-0000-000000000013";
 
     await pool.query(
-      `INSERT INTO merchant_transactions (partner_id, user_address, status, item_name, item_category,
+      `INSERT INTO merchant_transactions (partner_id, akiba_username, user_address, category, action, quote_kes,
+         status, item_name, item_category,
          product_id, payment_ref, payment_currency, payment_method, amount_cusd, amount_kes,
          recipient_name, phone, city)
-       VALUES ($1,'0xdup','placed','Item','food','p1','UNIQUE_REF_001','CUSD','crypto:CUSD',
+       VALUES ($1,'dup','0xdup','general','redeem',650,'placed','Item','food','p1','UNIQUE_REF_001','CUSD','crypto:CUSD',
                5.0,650,'Dave','254700','Nairobi')`,
       [partnerId]
     );
 
     await expect(
       pool.query(
-        `INSERT INTO merchant_transactions (partner_id, user_address, status, item_name, item_category,
+        `INSERT INTO merchant_transactions (partner_id, akiba_username, user_address, category, action, quote_kes,
+           status, item_name, item_category,
            product_id, payment_ref, payment_currency, payment_method, amount_cusd, amount_kes,
            recipient_name, phone, city)
-         VALUES ($1,'0xdup2','placed','Item','food','p1','UNIQUE_REF_001','CUSD','crypto:CUSD',
+         VALUES ($1,'dup2','0xdup2','general','redeem',650,'placed','Item','food','p1','UNIQUE_REF_001','CUSD','crypto:CUSD',
                  5.0,650,'Eve','254700','Nairobi')`,
         [partnerId]
       )
@@ -769,6 +791,7 @@ describe("Migration idempotency (#2)", () => {
   it("runs both migrations a second time without error", async () => {
     await expect(pool.query(readFileSync(MIGRATION_PATH_001, "utf-8"))).resolves.not.toThrow();
     await expect(pool.query(readFileSync(MIGRATION_PATH_002, "utf-8"))).resolves.not.toThrow();
+    await expect(pool.query(readFileSync(MIGRATION_PATH_031, "utf-8"))).resolves.not.toThrow();
   });
 });
 
@@ -2697,6 +2720,9 @@ describe("004 applies cleanly and is idempotent", () => {
     await expect(
       pool.query(readFileSync(MIGRATION_PATH_005, "utf-8"))
     ).resolves.not.toThrow();
+    await expect(
+      pool.query(readFileSync(MIGRATION_PATH_031, "utf-8"))
+    ).resolves.not.toThrow();
   });
 
   it("creates all expected functions", async () => {
@@ -3615,6 +3641,7 @@ describe("005 — voucher settlement invariants", () => {
     );
     await pool.query(readFileSync(MIGRATION_PATH_005, "utf-8"));
     await pool.query(readFileSync(MIGRATION_PATH_005, "utf-8"));
+    await pool.query(readFileSync(MIGRATION_PATH_031, "utf-8"));
     const { rows } = await pool.query(
       `SELECT count(*)::int AS count FROM reconciliation_incidents
        WHERE type='voucher_settlement_backfill_ambiguous' AND data->>'redemption_id'=$1`,

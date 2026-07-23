@@ -153,6 +153,14 @@ export async function POST(request: Request) {
 
   const allAddresses = (walletRows ?? []).map((r: { address: string }) => r.address.toLowerCase());
   const primaryAddress = allAddresses[0] ?? (user.email ?? user.id);
+  const metadataUsername =
+    typeof user.user_metadata?.username === "string"
+      ? user.user_metadata.username.trim()
+      : "";
+  const akibaUsername =
+    metadataUsername ||
+    user.email?.split("@")[0] ||
+    primaryAddress.slice(0, 64);
 
   // ── Resolve voucher by ID or legacy code  (#7 fix: reject invalid IDs) ───
   let resolvedVoucherId: string | null = null;
@@ -345,11 +353,6 @@ export async function POST(request: Request) {
       if (resolvedVoucherId) await releaseVoucher(resolvedVoucherId, user.id, allAddresses);
       return NextResponse.json({ error: "M-Pesa payment not found or not initiated by this user" }, { status: 400 });
     }
-    if (new Date(stkReq.expires_at) < new Date()) {
-      if (resolvedVoucherId) await releaseVoucher(resolvedVoucherId, user.id, allAddresses);
-      return NextResponse.json({ error: "M-Pesa checkout session expired" }, { status: 400 });
-    }
-
     // 2. Require a successful server-recorded callback with a non-empty receipt.
     //    If the callback has not yet arrived, return a retryable 402 so the client
     //    can wait and retry (the /mpesa/status route only says "success" once the
@@ -362,6 +365,9 @@ export async function POST(request: Request) {
 
     if (!stkResult) {
       if (resolvedVoucherId) await releaseVoucher(resolvedVoucherId, user.id, allAddresses, "mpesa_callback_pending");
+      if (new Date(stkReq.expires_at) < new Date()) {
+        return NextResponse.json({ error: "M-Pesa checkout session expired" }, { status: 400 });
+      }
       return NextResponse.json(
         { error: "M-Pesa payment not yet confirmed by Safaricom — please retry in a moment", retryable: true },
         { status: 402 }
@@ -435,15 +441,23 @@ export async function POST(request: Request) {
   // ── Reject replayed payment references  (#7 fix) ─────────────────────────
   const { data: existingOrder } = await admin
     .from("merchant_transactions")
-    .select("id")
+    .select("id, status, amount_cusd")
     .eq("payment_ref", paymentRef)
     .maybeSingle();
 
   if (existingOrder) {
-    if (resolvedVoucherId) {
-      await releaseVoucher(resolvedVoucherId, user.id, allAddresses, "payment_ref_replayed");
-    }
-    return NextResponse.json({ error: "Payment reference already used" }, { status: 409 });
+    return NextResponse.json(
+      {
+        order: {
+          id: existingOrder.id,
+          status: existingOrder.status,
+          amount_cusd: existingOrder.amount_cusd,
+          eta: pricing.eta,
+        },
+        recovered: true,
+      },
+      { status: 200 }
+    );
   }
 
   // ── Atomic order creation + voucher redemption  (#8 fix) ─────────────────
@@ -474,6 +488,10 @@ export async function POST(request: Request) {
       p_product_category: resolvedVoucherId ? product.category : null,
       p_discount_applied: resolvedVoucherId ? pricing.discount : null,
       p_user_addresses:   resolvedVoucherId ? allAddresses : null,
+      p_akiba_username:    akibaUsername,
+      p_quote_kes:         Math.round(Number(product.price_cusd) * usdRate),
+      p_delivery_kes:      Math.round(pricing.deliveryFee * usdRate),
+      p_discount_kes:      Math.round(pricing.discount * usdRate),
     }
   );
 
@@ -482,26 +500,40 @@ export async function POST(request: Request) {
     // Release the claiming lock so the user can retry.
     if (resolvedVoucherId) {
       await releaseVoucher(resolvedVoucherId, user.id, allAddresses, "order_rpc_failed");
-
-      // Record reconciliation incident: payment was confirmed but order creation failed.
-      // This requires manual intervention.
-      await Promise.resolve(
-        admin.from("reconciliation_incidents").insert({
-          type:       "order_rpc_failed_after_payment",
-          voucher_id: resolvedVoucherId,
-          data: {
-            payment_ref:   paymentRef,
-            payment_method: paymentMethod,
-            error:          placeErr.message,
-            user_id:        user.id,
-          },
-        })
-      ).catch((e: unknown) => {
-        console.error("[orders] Failed to write reconciliation incident:", e);
-      });
     }
 
-    return NextResponse.json({ error: "Order creation failed. Payment was received — support will reconcile." }, { status: 500 });
+    // Record every paid order failure, including purchases without a voucher.
+    const { error: incidentErr } = await admin.from("reconciliation_incidents").insert({
+      type:       "order_rpc_failed_after_payment",
+      voucher_id: resolvedVoucherId,
+      data: {
+        payment_ref:   paymentRef,
+        payment_method: paymentMethod,
+        product_id:    String(product.id),
+        recipient_name: String(recipient_name),
+        phone:          String(phone),
+        city:           requiresDelivery ? String(city) : null,
+        location_details:
+          requiresDelivery && typeof location_details === "string"
+            ? location_details
+            : null,
+        error:         placeErr.message,
+        user_id:       user.id,
+      },
+    });
+    if (incidentErr) {
+      console.error("[orders] Failed to write reconciliation incident:", incidentErr.message);
+    }
+
+    console.error("[orders] Order RPC failed after verified payment:", placeErr.message);
+    return NextResponse.json(
+      {
+        error: "Order creation failed. Payment was received — retry order creation without paying again.",
+        payment_received: true,
+        recoverable: true,
+      },
+      { status: 500 }
+    );
   }
 
   const placeRow = (placeRows as unknown as Array<{ ok: boolean; order_id: string; error_code: string }>)[0];
@@ -510,7 +542,35 @@ export async function POST(request: Request) {
     if (resolvedVoucherId) {
       await releaseVoucher(resolvedVoucherId, user.id, allAddresses, "order_rpc_returned_error");
     }
-    return NextResponse.json({ error: placeRow?.error_code ?? "Order creation failed" }, { status: 500 });
+    const { error: incidentErr } = await admin.from("reconciliation_incidents").insert({
+      type:       "order_rpc_failed_after_payment",
+      voucher_id: resolvedVoucherId,
+      data: {
+        payment_ref:   paymentRef,
+        payment_method: paymentMethod,
+        product_id:    String(product.id),
+        recipient_name: String(recipient_name),
+        phone:          String(phone),
+        city:           requiresDelivery ? String(city) : null,
+        location_details:
+          requiresDelivery && typeof location_details === "string"
+            ? location_details
+            : null,
+        error:         placeRow?.error_code ?? "Order RPC returned no result",
+        user_id:       user.id,
+      },
+    });
+    if (incidentErr) {
+      console.error("[orders] Failed to write reconciliation incident:", incidentErr.message);
+    }
+    return NextResponse.json(
+      {
+        error: "Order creation failed. Payment was received — retry order creation without paying again.",
+        payment_received: true,
+        recoverable: true,
+      },
+      { status: 500 }
+    );
   }
 
   // Ask Platform to evaluate and issue a reward for this verified purchase.

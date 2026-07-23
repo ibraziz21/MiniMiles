@@ -58,6 +58,8 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
   const [orderId, setOrderId] = useState<string | null>(null);
   const [eta,     setEta]     = useState("3–5 days");
   const [error,   setError]   = useState<string | null>(null);
+  const [paymentReceived, setPaymentReceived] = useState(false);
+  const [recoveringOrder, setRecoveringOrder] = useState(false);
   const [reward,  setReward]  = useState<RewardResult | null>(null);
   // Captured before clear() empties the cart, so the "done" screen still
   // knows whether the completed order needed physical delivery.
@@ -91,7 +93,8 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
     setCurrency("cUSD"); setWalletAddress(null); setTxHash(null);
     setMpesaPhone(""); setCheckoutRequestId(null); setMpesaReceipt(null);
     setVoucherInput(""); setAppliedVoucher(null); setVoucherCode("");
-    setOrderId(null); setError(null); setReward(null); setOrderWasPhysical(false);
+    setOrderId(null); setError(null); setPaymentReceived(false); setRecoveringOrder(false);
+    setReward(null); setOrderWasPhysical(false);
     onClose();
   }
 
@@ -142,11 +145,20 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
           order?: { id?: string; eta?: string };
           reward?: RewardResult;
           error?: string;
+          payment_received?: boolean;
+          recoverable?: boolean;
         }>)
       )
     );
     const failed = results.find((r) => r.error);
-    if (failed) { setError(failed.error ?? "Order failed."); setStep("error"); return; }
+    if (failed) {
+      setPaymentReceived(Boolean(failed.payment_received && failed.recoverable));
+      setError(failed.error ?? "Order failed.");
+      setStep("error");
+      return;
+    }
+    setPaymentReceived(false);
+    setRecoveringOrder(false);
     const rewards = results.map((r) => r.reward).filter((r): r is RewardResult => !!r);
     const issuedMiles = rewards.reduce((sum, r) => sum + (r.issued ? r.miles : 0), 0);
     const pending = rewards.some((r) => r.pending);
@@ -228,6 +240,25 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
       setStep("error");
     } else {
       setTimeout(() => pollMpesa(reqId, attempt + 1), 4000);
+    }
+  }
+
+  async function recoverPaidOrder() {
+    if (recoveringOrder) return;
+    setRecoveringOrder(true);
+    setError(null);
+    try {
+      if (checkoutRequestId) {
+        await createOrders({ mpesa_checkout_id: checkoutRequestId });
+        return;
+      }
+      if (txHash) {
+        await createOrders({ tx_hash: txHash, currency });
+        return;
+      }
+      setError("Payment reference is unavailable. Contact support to reconcile this payment.");
+    } finally {
+      setRecoveringOrder(false);
     }
   }
 
@@ -541,7 +572,23 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
               <AlertCircle className="mb-4 h-10 w-10 text-red-400" />
               <p className="font-semibold text-akiba-ink">Something went wrong</p>
               <p className="mt-1 text-sm text-red-500">{error}</p>
-              <button onClick={() => setStep("review")} className="mt-6 rounded-xl bg-akiba-ink px-6 py-2.5 text-sm font-semibold text-white">Try again</button>
+              {paymentReceived ? (
+                <>
+                  <p className="mt-3 text-xs text-akiba-muted">
+                    Your payment is confirmed. Finishing the order will not send another payment prompt.
+                  </p>
+                  <button
+                    onClick={recoverPaidOrder}
+                    disabled={recoveringOrder}
+                    className="mt-6 flex items-center gap-2 rounded-xl bg-akiba-ink px-6 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                  >
+                    {recoveringOrder && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {recoveringOrder ? "Finishing order…" : "Finish order"}
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => setStep("review")} className="mt-6 rounded-xl bg-akiba-ink px-6 py-2.5 text-sm font-semibold text-white">Try again</button>
+              )}
             </div>
           )}
         </div>

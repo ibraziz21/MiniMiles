@@ -385,6 +385,18 @@ describe("POST /api/shop/orders — M-Pesa callback verification", () => {
     expect(mockRpc).not.toHaveBeenCalled();
   });
 
+  it("accepts an expired checkout when a successful callback was already recorded", async () => {
+    stkRequest.expires_at = new Date(Date.now() - 60_000).toISOString();
+
+    const res = await placeMpesaOrder();
+
+    expect(res.status).toBe(201);
+    expect(mockRpc).toHaveBeenCalledWith(
+      "place_hub_order_and_redeem_voucher",
+      expect.objectContaining({ p_payment_ref: CHECKOUT_ID })
+    );
+  });
+
   it("rejects an empty or whitespace-only receipt", async () => {
     mpesaResult!.receipt_number = "   ";
     const res = await placeMpesaOrder();
@@ -463,6 +475,40 @@ describe("POST /api/shop/orders — M-Pesa callback verification", () => {
     expect((json.order as Record<string, unknown>).miles_earned).toBeUndefined();
     // Reward result from Platform is present
     expect(json.reward).toBeDefined();
+  });
+
+  it("records a reconciliation incident for a paid order failure without a voucher", async () => {
+    let incident: Record<string, unknown> | null = null;
+    const baseFrom = fromImpl;
+    fromImpl = (table) => {
+      if (table === "reconciliation_incidents") {
+        return {
+          insert: async (row: Record<string, unknown>) => {
+            incident = row;
+            return { error: null };
+          },
+        } as unknown as Chain;
+      }
+      return baseFrom(table);
+    };
+    mockRpc.mockResolvedValue({
+      data: null,
+      error: { message: "null value in column legacy_field" },
+    });
+
+    const res = await placeMpesaOrder();
+    const json = await res.json() as {
+      payment_received?: boolean;
+      recoverable?: boolean;
+    };
+
+    expect(res.status).toBe(500);
+    expect(json.payment_received).toBe(true);
+    expect(json.recoverable).toBe(true);
+    expect(incident).toEqual(expect.objectContaining({
+      type: "order_rpc_failed_after_payment",
+      voucher_id: null,
+    }));
   });
 });
 
