@@ -2,9 +2,8 @@
  * Route-level tests for POST /api/payments/mpesa/callback
  *
  * Covers:
- *   - Missing MPESA_CALLBACK_SECRET env var → 500 (misconfiguration)
- *   - Missing x-mpesa-secret header → 401
- *   - Wrong x-mpesa-secret header → 401
+ *   - Production secret configuration and header enforcement
+ *   - Direct sandbox callbacks correlated to server-initiated checkout IDs
  *   - Malformed JSON body → 400
  *   - Missing CheckoutRequestID → 400
  *   - DB write failure → 500 (so Daraja retries)
@@ -15,10 +14,17 @@ import { NextRequest } from "next/server";
 
 // ── Supabase mock ─────────────────────────────────────────────────────────────
 const mockUpsert = vi.fn();
+const mockMaybeSingle = vi.fn();
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
-    from: () => ({ upsert: mockUpsert }),
+    from: (table: string) => table === "mpesa_stk_requests"
+      ? {
+          select: () => ({
+            eq: () => ({ maybeSingle: mockMaybeSingle }),
+          }),
+        }
+      : { upsert: mockUpsert },
   }),
 }));
 
@@ -60,14 +66,22 @@ function validBody(checkoutId = "ws_CO_test_001", resultCode = "0") {
 
 describe("POST /api/payments/mpesa/callback", () => {
   const originalEnv = process.env.MPESA_CALLBACK_SECRET;
+  const originalMpesaEnv = process.env.MPESA_ENV;
 
   beforeEach(() => {
     mockUpsert.mockReset();
     mockUpsert.mockResolvedValue({ error: null });
+    mockMaybeSingle.mockReset();
+    mockMaybeSingle.mockResolvedValue({
+      data: { checkout_request_id: "ws_CO_test_001" },
+      error: null,
+    });
+    process.env.MPESA_ENV = "production";
     process.env.MPESA_CALLBACK_SECRET = SECRET;
   });
 
   afterEach(() => {
+    process.env.MPESA_ENV = originalMpesaEnv;
     process.env.MPESA_CALLBACK_SECRET = originalEnv;
   });
 
@@ -90,6 +104,42 @@ describe("POST /api/payments/mpesa/callback", () => {
   it("returns 401 when x-mpesa-secret header is wrong", async () => {
     const res = await POST(makeRequest(validBody(), { "x-mpesa-secret": "wrong" }));
     expect(res.status).toBe(401);
+    expect(mockUpsert).not.toHaveBeenCalled();
+  });
+
+  // ── Direct sandbox callback ──────────────────────────────────────────────
+
+  it("accepts a sandbox callback without a custom header for a known checkout", async () => {
+    process.env.MPESA_ENV = "sandbox";
+    process.env.MPESA_CALLBACK_SECRET = "";
+
+    const res = await POST(makeRequest(validBody()));
+
+    expect(res.status).toBe(200);
+    expect(mockMaybeSingle).toHaveBeenCalledOnce();
+    expect(mockUpsert).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a sandbox callback for an unknown checkout", async () => {
+    process.env.MPESA_ENV = "sandbox";
+    mockMaybeSingle.mockResolvedValue({ data: null, error: null });
+
+    const res = await POST(makeRequest(validBody()));
+
+    expect(res.status).toBe(401);
+    expect(mockUpsert).not.toHaveBeenCalled();
+  });
+
+  it("returns 500 when sandbox checkout validation fails", async () => {
+    process.env.MPESA_ENV = "sandbox";
+    mockMaybeSingle.mockResolvedValue({
+      data: null,
+      error: { message: "connection timeout" },
+    });
+
+    const res = await POST(makeRequest(validBody()));
+
+    expect(res.status).toBe(500);
     expect(mockUpsert).not.toHaveBeenCalled();
   });
 

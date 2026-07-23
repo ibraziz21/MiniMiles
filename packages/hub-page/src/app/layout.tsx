@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { SiteHeader } from "@/components/SiteHeader";
-import { BottomNav } from "@/components/NavLinks";
+import { BottomNav, PassFab } from "@/components/NavLinks";
 import { CartProvider } from "@/lib/cart";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { InstallPrompt } from "@/components/InstallPrompt";
@@ -50,6 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <SiteHeader />
           <div className="pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0">{children}</div>
           <BottomNav />
+          <PassFab />
           <InstallPrompt />
         </CartProvider>
       </body>

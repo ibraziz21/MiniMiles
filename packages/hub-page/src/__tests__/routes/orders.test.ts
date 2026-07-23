@@ -89,6 +89,14 @@ const PRODUCT = {
   price_cusd: 5,
   category: "electronics",
   merchant_id: "merchant-uuid",
+  product_type: "physical",
+};
+const DIGITAL_PRODUCT = {
+  ...PRODUCT,
+  id: "prod-digital-1",
+  name: "Test Airtime",
+  category: "airtime",
+  product_type: "digital",
 };
 const SETTINGS = { wallet_address: "0xmerchant_wallet" };
 const WALLET_ROW = { address: "0xbuyerprimary" };
@@ -455,6 +463,120 @@ describe("POST /api/shop/orders — M-Pesa callback verification", () => {
     expect((json.order as Record<string, unknown>).miles_earned).toBeUndefined();
     // Reward result from Platform is present
     expect(json.reward).toBeDefined();
+  });
+});
+
+describe("POST /api/shop/orders — digital product_type", () => {
+  const CHECKOUT_ID = "ws_CO_digital_test";
+  const EXPECTED_KES = 650; // $5 product only, no delivery fee, at 130 KES/USD
+
+  function walletListChain(rows: Array<{ address: string }>) {
+    const result = { data: rows, error: null };
+    const thenable = {
+      then: <T>(resolve: (value: typeof result) => T) =>
+        Promise.resolve(result).then(resolve),
+    };
+    return { select: () => ({ eq: () => thenable }) } as unknown as Chain;
+  }
+
+  function setupDigitalTables() {
+    fromImpl = (table) => {
+      if (table === "merchant_products") return makeChain(DIGITAL_PRODUCT);
+      if (table === "partner_settings")  return makeChain(SETTINGS);
+      if (table === "hub_user_wallets")  return walletListChain([WALLET_ROW]);
+      if (table === "mpesa_stk_requests") return makeChain({
+        hub_user_id: "user-uuid",
+        phone:       "254712345678",
+        amount_kes:  EXPECTED_KES,
+        expires_at:  new Date(Date.now() + 3_600_000).toISOString(),
+      });
+      if (table === "mpesa_stk_results") return makeChain({
+        result_code:    "0",
+        receipt_number: "RCPTDIG01",
+        amount_kes:     EXPECTED_KES,
+        phone:          "254712345678",
+      });
+      if (table === "merchant_transactions") return makeChain(null);
+      return makeChain(null);
+    };
+
+    mockRpc.mockResolvedValue({
+      data: [{ ok: true, order_id: "order-digital-uuid", error_code: "" }],
+      error: null,
+    });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupDigitalTables();
+  });
+
+  it("succeeds without city/address and charges only the product total (no delivery fee)", async () => {
+    const res = await POST(makeRequest({
+      product_id:        "prod-digital-1",
+      recipient_name:    "Alice",
+      phone:             "0712345678",
+      mpesa_checkout_id: CHECKOUT_ID,
+    }));
+    const json = await res.json() as { order: { id: string; amount_cusd: number } };
+
+    expect(res.status).toBe(201);
+    expect(json.order.id).toBe("order-digital-uuid");
+    // $5 product only — no $3/$5 delivery fee added
+    expect(json.order.amount_cusd).toBe(5);
+  });
+
+  it("passes null city/location_details to the RPC for a digital order", async () => {
+    await POST(makeRequest({
+      product_id:        "prod-digital-1",
+      recipient_name:    "Alice",
+      phone:             "0712345678",
+      mpesa_checkout_id: CHECKOUT_ID,
+    }));
+
+    expect(mockRpc).toHaveBeenCalledWith(
+      "place_hub_order_and_redeem_voucher",
+      expect.objectContaining({ p_city: null, p_location_details: null })
+    );
+  });
+
+  it("a client cannot forge product_type to bypass delivery charges — server derives it from the DB", async () => {
+    // The client sends city/location as if paying for a physical delivery,
+    // and even tries to smuggle a product_type in the body — the route must
+    // ignore the body entirely and use the DB-fetched product_type (digital).
+    const res = await POST(makeRequest({
+      product_id:        "prod-digital-1",
+      product_type:      "physical", // forged — must be ignored
+      recipient_name:    "Alice",
+      phone:             "0712345678",
+      city:              "Nairobi",
+      mpesa_checkout_id: CHECKOUT_ID,
+    }));
+    const json = await res.json() as { order: { amount_cusd: number } };
+
+    expect(res.status).toBe(201);
+    // Still just the product total — forged product_type didn't add a fee.
+    expect(json.order.amount_cusd).toBe(5);
+  });
+});
+
+describe("POST /api/shop/orders — physical product without city", () => {
+  it("returns 400 when city is missing for a physical product", async () => {
+    fromImpl = (table) => {
+      if (table === "merchant_products") return makeChain(PRODUCT);
+      if (table === "partner_settings")  return makeChain(SETTINGS);
+      if (table === "hub_user_wallets")  return makeChain([WALLET_ROW]);
+      return makeChain(null);
+    };
+
+    const res = await POST(makeRequest({
+      product_id:        "prod-1",
+      recipient_name:    "Alice",
+      phone:             "0712345678",
+      mpesa_checkout_id: "ws_CO_missing_city",
+    }));
+
+    expect(res.status).toBe(400);
   });
 });
 

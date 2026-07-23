@@ -40,7 +40,7 @@ export async function GET(
   const [{ data: products }, { data: templates }] = await Promise.all([
     admin
       .from("merchant_products")
-      .select("id, name, description, price_cusd, category, image_url")
+      .select("id, name, description, price_cusd, category, image_url, product_type")
       .eq("merchant_id", partner.id)
       .eq("active", true)
       .order("category")
