@@ -74,6 +74,15 @@ CREATE TABLE IF NOT EXISTS auth.users (
   email text
 );
 
+CREATE TYPE tx_category AS ENUM (
+  'service','accessory','device','general','electronics','accessories',
+  'services','clothing','food'
+);
+CREATE TYPE tx_action AS ENUM ('earn','redeem');
+CREATE TYPE payment_method AS ENUM (
+  'minipay_send','cash','card','other','onchain_transfer'
+);
+
 -- partners: minimal subset so Phase 3 inspect/presentation RPCs can resolve merchant_name.
 CREATE TABLE IF NOT EXISTS partners (
   id        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -124,8 +133,8 @@ CREATE TABLE IF NOT EXISTS merchant_transactions (
   partner_id       uuid,
   akiba_username   text        NOT NULL,
   user_address     text,
-  category         text        NOT NULL,
-  action           text        NOT NULL,
+  category         tx_category NOT NULL,
+  action           tx_action   NOT NULL,
   quote_kes        integer     NOT NULL,
   labor_kes        integer,
   discount_kes     integer,
@@ -136,7 +145,7 @@ CREATE TABLE IF NOT EXISTS merchant_transactions (
   product_id       text,
   payment_ref      text,
   payment_currency text,
-  payment_method   text,
+  payment_method   payment_method,
   amount_cusd      double precision,
   amount_kes       integer,
   voucher_code     text,
@@ -732,7 +741,7 @@ describe("place_hub_order_and_redeem_voucher atomicity (#8)", () => {
 
     const { rows } = await pool.query(
       `SELECT * FROM place_hub_order_and_redeem_voucher(
-        $1,'0xnov','Widget','electronics','prod-2','REF003','CUSD','crypto:CUSD',
+        $1,'0xnov','Widget','electronics','prod-2','REF003','CUSD','mpesa',
         5.0,650,NULL,NULL,'Carol','254700000003','Mombasa',NULL,
         NULL,NULL,NULL,NULL,NULL,NULL
       )`,
@@ -743,7 +752,7 @@ describe("place_hub_order_and_redeem_voucher atomicity (#8)", () => {
     expect(rows[0].order_id).not.toBeNull();
 
     const { rows: [order] } = await pool.query(
-      `SELECT akiba_username,category,action,quote_kes,paid_kes
+      `SELECT akiba_username,category,action,quote_kes,paid_kes,payment_method
          FROM merchant_transactions WHERE id=$1`,
       [rows[0].order_id]
     );
@@ -752,6 +761,7 @@ describe("place_hub_order_and_redeem_voucher atomicity (#8)", () => {
     expect(order.action).toBe("redeem");
     expect(order.quote_kes).toBe(650);
     expect(order.paid_kes).toBe(650);
+    expect(order.payment_method).toBe("other");
   });
 });
 
@@ -766,7 +776,7 @@ describe("payment_ref replay rejection (#7)", () => {
          status, item_name, item_category,
          product_id, payment_ref, payment_currency, payment_method, amount_cusd, amount_kes,
          recipient_name, phone, city)
-       VALUES ($1,'dup','0xdup','general','redeem',650,'placed','Item','food','p1','UNIQUE_REF_001','CUSD','crypto:CUSD',
+       VALUES ($1,'dup','0xdup','general','redeem',650,'placed','Item','food','p1','UNIQUE_REF_001','CUSD','onchain_transfer',
                5.0,650,'Dave','254700','Nairobi')`,
       [partnerId]
     );
@@ -777,7 +787,7 @@ describe("payment_ref replay rejection (#7)", () => {
            status, item_name, item_category,
            product_id, payment_ref, payment_currency, payment_method, amount_cusd, amount_kes,
            recipient_name, phone, city)
-         VALUES ($1,'dup2','0xdup2','general','redeem',650,'placed','Item','food','p1','UNIQUE_REF_001','CUSD','crypto:CUSD',
+         VALUES ($1,'dup2','0xdup2','general','redeem',650,'placed','Item','food','p1','UNIQUE_REF_001','CUSD','onchain_transfer',
                  5.0,650,'Eve','254700','Nairobi')`,
         [partnerId]
       )

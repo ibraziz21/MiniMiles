@@ -62,7 +62,15 @@ BEGIN
     p_user_address,'general','redeem',COALESCE(p_quote_kes,p_amount_kes,0),
     COALESCE(p_delivery_kes,0),COALESCE(p_discount_kes,0),p_amount_kes,
     'placed',p_item_name,p_item_category,p_product_id,p_payment_ref,
-    p_payment_currency,p_payment_method,p_amount_cusd,p_amount_kes,p_voucher_code,p_voucher_id,
+    p_payment_currency,
+    CASE
+      WHEN p_payment_method IN ('minipay_send','cash','card','other','onchain_transfer')
+        THEN p_payment_method::payment_method
+      WHEN p_payment_method LIKE 'crypto:%'
+        THEN 'onchain_transfer'::payment_method
+      ELSE 'other'::payment_method
+    END,
+    p_amount_cusd,p_amount_kes,p_voucher_code,p_voucher_id,
     p_recipient_name,p_phone,p_city,p_location_details
   ) RETURNING id INTO v_order_id;
 
@@ -95,3 +103,30 @@ GRANT EXECUTE ON FUNCTION place_hub_order_and_redeem_voucher(
   uuid,text,text,text,text,text,text,text,numeric,integer,text,uuid,
   text,text,text,text,uuid,uuid,text,text,numeric,text[],text,integer,integer,integer
 ) TO service_role;
+
+-- Repeated recovery attempts must not create a new open incident for the same
+-- verified payment. Preserve the newest row and close older duplicate records
+-- before enforcing the invariant.
+WITH ranked_incidents AS (
+  SELECT
+    id,
+    row_number() OVER (
+      PARTITION BY type, data->>'payment_ref'
+      ORDER BY created_at DESC, id DESC
+    ) AS duplicate_rank
+  FROM reconciliation_incidents
+  WHERE type='order_rpc_failed_after_payment'
+    AND resolved=false
+    AND data->>'payment_ref' IS NOT NULL
+)
+UPDATE reconciliation_incidents
+SET resolved=true
+WHERE id IN (
+  SELECT id FROM ranked_incidents WHERE duplicate_rank>1
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ri_open_order_payment_ref
+  ON reconciliation_incidents ((data->>'payment_ref'))
+  WHERE type='order_rpc_failed_after_payment'
+    AND resolved=false
+    AND data->>'payment_ref' IS NOT NULL;
