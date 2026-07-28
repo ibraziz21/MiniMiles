@@ -87,18 +87,25 @@ export async function PATCH(
   }
 
   // ── Update ────────────────────────────────────────────────────────────────────
-  const now = new Date().toISOString();
-  const { error: updateErr } = await supabase
-    .from("merchant_transactions")
-    .update({
-      status: newStatus,
-      [TIMESTAMP_FOR_STATUS[newStatus]]: now,
-    })
-    .eq("id", id);
+  // advance_order_status is the only sanctioned way to change status — it
+  // validates the transition + actor against order_status_transitions and
+  // writes the order_events audit row atomically (order-lifecycle-completion-
+  // spec.md backbone). A direct UPDATE is rejected by a DB trigger.
+  const { data: rpcRows, error: rpcErr } = await supabase.rpc("advance_order_status", {
+    p_order_id: id,
+    p_to_status: newStatus,
+    p_actor: "admin",
+    p_meta: { source: "react-app-admin" },
+  });
 
-  if (updateErr) {
-    console.error("[orders/[id]] update failed", updateErr);
-    return NextResponse.json({ error: "Failed to update order" }, { status: 500 });
+  const rpcResult = (rpcRows as Array<{ ok: boolean; error_code: string }> | null)?.[0];
+
+  if (rpcErr || !rpcResult?.ok) {
+    console.error("[orders/[id]] advance_order_status failed", rpcErr, rpcResult);
+    return NextResponse.json(
+      { error: rpcResult?.error_code ?? "Failed to update order" },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({ ok: true, id, status: newStatus });

@@ -68,7 +68,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Merchants cannot select Akiba funding" }, { status: 400 });
   }
 
-  const validChannels = new Set(["miles_purchase", "claw", "raffle", "giveaway", "merchant_grant"]);
+  const validChannels = new Set([
+    "miles_purchase", "claw", "raffle", "giveaway", "merchant_grant",
+    "weekly_leaderboard_challenge",
+  ]);
   const channelPayload = (channels as Array<{ channel: string; cap?: number | null; active?: boolean }>)
     .filter((ch) => validChannels.has(ch.channel))
     .map((ch) => ({ channel: ch.channel, cap: ch.cap ?? null, active: ch.active ?? true }));

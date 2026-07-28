@@ -11,6 +11,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { GameType, LeaderboardEntry, WeeklyLeaderboardEntry } from "@/lib/games/types";
+import { isoWeek } from "@/lib/isoWeek";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -30,15 +31,6 @@ function currentWeekRange() {
   const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - ((day + 6) % 7)));
   const sunday = new Date(monday.getTime() + 7 * 86_400_000);
   return { from: monday.toISOString(), to: sunday.toISOString() };
-}
-
-function isoWeek(date = new Date()): string {
-  const d      = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const weekNo    = Math.ceil((((d.getTime() - yearStart.getTime()) / 86_400_000) + 1) / 7);
-  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
 }
 
 // Prize map for weekly top 3

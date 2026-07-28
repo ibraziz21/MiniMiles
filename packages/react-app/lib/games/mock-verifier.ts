@@ -3,6 +3,7 @@
 import { GAME_CONFIGS, MOCK_WALLET } from "./config";
 import { seedCommitment } from "./replay-validation";
 import { validateMemoryFlipReplay, validateRuleTapReplay } from "@/server/games/replay-validation";
+import { isoWeek } from "@/lib/isoWeek";
 import type {
   GameReplay,
   GameSession,
@@ -29,16 +30,6 @@ const storageKey = "akiba_skill_games_v1";
 
 function todayKey(gameType: GameType) {
   return `${gameType}:${new Date().toISOString().slice(0, 10)}`;
-}
-
-function isoWeek(date = new Date()): string {
-  // Returns "YYYY-Www" e.g. "2025-W16"
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
 }
 
 function weekKey(gameType: GameType) {

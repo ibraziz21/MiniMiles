@@ -11,31 +11,12 @@ import { writeAuditLog } from "@/lib/audit";
 import type { MerchantActionStatus } from "@/types";
 import { VALID_TRANSITIONS, FINAL_STATES } from "@/types";
 
-// Dynamically import from react-app — avoids a hard package dependency while
-// keeping cancellation logic in a single place.
-// In a monorepo with shared packages this would be a direct import from @akiba/lib.
-const REACT_APP_URL = process.env.REACT_APP_INTERNAL_URL;
-
-async function triggerCancellationCompensation(orderId: string): Promise<void> {
-  if (!REACT_APP_URL) {
-    // Fallback: call the compensation logic via internal webhook if configured,
-    // otherwise log for manual follow-up.
-    console.warn("[orders/cancel] REACT_APP_INTERNAL_URL not set — cancellation compensation skipped for order", orderId);
-    return;
-  }
-  try {
-    await fetch(`${REACT_APP_URL}/api/internal/cancel-compensation`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-webhook-secret": process.env.INTERNAL_WEBHOOK_SECRET ?? "",
-      },
-      body: JSON.stringify({ orderId }),
-    });
-  } catch (err) {
-    console.error("[orders/cancel] compensation webhook failed", orderId, err);
-  }
-}
+// Cancellation compensation (voucher reinstatement, settlement adjustment,
+// refund tracking row) now happens INSIDE advance_order_status, in the same
+// transaction as the cancel (order-lifecycle-completion-spec.md §4.1/§4.3).
+// This replaces the previous cross-app webhook to react-app's
+// /api/internal/cancel-compensation, which wasn't atomic with the cancel and
+// could silently drop compensation if the HTTP call failed.
 
 const TIMESTAMP_FOR_STATUS: Record<string, string> = {
   accepted: "accepted_at",
@@ -120,20 +101,25 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     );
   }
 
-  const now = new Date().toISOString();
+  // advance_order_status is the only sanctioned way to change status — it
+  // validates the transition + actor against order_status_transitions and
+  // writes the order_events audit row atomically (order-lifecycle-completion-
+  // spec.md backbone). A direct UPDATE is rejected by a DB trigger.
+  const { data: rpcRows, error: rpcErr } = await supabase.rpc("advance_order_status", {
+    p_order_id: id,
+    p_to_status: newStatus,
+    p_actor: "merchant",
+    p_meta: { partner_id: session.partnerId, merchant_user_id: session.merchantUserId },
+  });
 
-  const { error: updateErr } = await supabase
-    .from("merchant_transactions")
-    .update({
-      status: newStatus,
-      [TIMESTAMP_FOR_STATUS[newStatus]]: now,
-    })
-    .eq("id", id)
-    .eq("partner_id", session.partnerId); // double-check on write
+  const rpcResult = (rpcRows as Array<{ ok: boolean; error_code: string }> | null)?.[0];
 
-  if (updateErr) {
-    console.error("[orders/[id]] update failed:", updateErr);
-    return NextResponse.json({ error: "Failed to update order" }, { status: 500 });
+  if (rpcErr || !rpcResult?.ok) {
+    console.error("[orders/[id]] advance_order_status failed:", rpcErr, rpcResult);
+    return NextResponse.json(
+      { error: rpcResult?.error_code ?? "Failed to update order" },
+      { status: 500 },
+    );
   }
 
   // Write audit log — fire and forget
@@ -144,11 +130,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     orderId: id,
     metadata: { previous_status: order.status, new_status: newStatus },
   });
-
-  // Trigger compensation flow for cancellations (voucher reinstatement + refund record)
-  if (newStatus === "cancelled") {
-    void triggerCancellationCompensation(id);
-  }
 
   return NextResponse.json({ ok: true, id, status: newStatus });
 }

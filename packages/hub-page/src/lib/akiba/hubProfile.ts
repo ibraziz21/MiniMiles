@@ -2,6 +2,7 @@
 // from app/(protected)/me/page.tsx so /pass, /welcome and the home surfaces
 // all resolve the same wallet/displayName a user sees on /me.
 import { createAdminClient } from "@/lib/supabase/admin";
+import { reemitPassActivated } from "@/lib/akiba/internal-events";
 
 export type HubUserRow = {
   user_address: string;
@@ -53,10 +54,18 @@ export async function resolveHubProfile(opts: {
 
   if (!activeRow && rows.length === 1) {
     activeRow = rows[0];
-    await admin.from("hub_user_wallets").upsert(
+    const { data: linkedWallet } = await admin.from("hub_user_wallets").upsert(
       { user_id: userId, ecosystem: "minipay", address: activeRow.user_address.toLowerCase() },
       { onConflict: "user_id,ecosystem", ignoreDuplicates: true },
-    );
+    ).select("user_id").maybeSingle();
+
+    // ignoreDuplicates means `linkedWallet` is only non-null when this call
+    // actually inserted a new row (not on repeat resolutions of an already
+    // -linked wallet) — only a genuinely new link should re-emit
+    // pass_activated (spec §2.3).
+    if (linkedWallet) {
+      await reemitPassActivated({ userId, email });
+    }
   }
 
   const needsPicker = rows.length > 1 && !activeRow;
