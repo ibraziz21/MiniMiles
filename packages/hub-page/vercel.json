@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/internal/process-reward-jobs",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/internal/process-internal-event-jobs",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}

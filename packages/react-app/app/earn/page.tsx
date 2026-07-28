@@ -4,6 +4,7 @@ import AppHeader from "@/components/app-header";
 import MiniPointsCard from "@/components/mini-points-card";
 import DailyChallenges from "@/components/daily-challenge";
 import PartnerQuests from "@/components/partner-quests";
+import DiscoveryQuests from "@/components/discovery-quests";
 import EarnPartnerQuestSheet from "@/components/earn-partner-quest-sheet";
 import SuccessModal from "@/components/success-modal";
 import VerifiedInsights from "@/components/verified-insights";
@@ -251,6 +252,12 @@ export default function EarnPage() {
             <p className="text-gray-500">Completed a challenge? Click & claim Miles</p>
           </div>
           <DailyChallenges showCompleted={false} />
+          {/* discovery-quests-spec.md §5.2 — the new Platform-backed quest
+              group. Per §1 the intent is for this to eventually REPLACE the
+              hard-coded PartnerQuests catalog below, but that removal is a
+              call for whoever owns the Spend/Earn spec, not assumed here —
+              both render side by side until that's decided. */}
+          <DiscoveryQuests onClaimed={() => setSuccess(true)} />
           <PartnerQuests openPopup={openQuest} localPendingIds={localPendingPretiumIds} />
 
           {/* ── Verified Insights ───────────────────── */}

@@ -44,15 +44,23 @@ export async function POST(
   }
 
   // ── Mark received ─────────────────────────────────────────────────────────────
-  const now = new Date().toISOString();
-  const { error: updateErr } = await supabase
-    .from("merchant_transactions")
-    .update({ status: "received", received_at: now })
-    .eq("id", id);
+  // advance_order_status is the only sanctioned way to change status (order-
+  // lifecycle-completion-spec.md backbone) — a direct UPDATE is rejected by a
+  // DB trigger.
+  const { data: receivedRows, error: updateErr } = await supabase.rpc("advance_order_status", {
+    p_order_id: id,
+    p_to_status: "received",
+    p_actor: "customer",
+    p_meta: { source: "confirm-received" },
+  });
+  const receivedResult = (receivedRows as Array<{ ok: boolean; error_code: string }> | null)?.[0];
 
-  if (updateErr) {
-    console.error("[confirm-received] status update failed", updateErr);
-    return NextResponse.json({ error: "Failed to update order" }, { status: 500 });
+  if (updateErr || !receivedResult?.ok) {
+    console.error("[confirm-received] status update failed", updateErr, receivedResult);
+    return NextResponse.json(
+      { error: receivedResult?.error_code ?? "Failed to update order" },
+      { status: 500 },
+    );
   }
 
   // ── Enqueue AkibaMiles reward ─────────────────────────────────────────────────
@@ -68,13 +76,16 @@ export async function POST(
 
   // ── Mark completed (only when reward was successfully enqueued) ───────────────
   if (rewardEnqueued) {
-    const { error: completeErr } = await supabase
-      .from("merchant_transactions")
-      .update({ status: "completed", completed_at: new Date().toISOString() })
-      .eq("id", id);
+    const { data: completeRows, error: completeErr } = await supabase.rpc("advance_order_status", {
+      p_order_id: id,
+      p_to_status: "completed",
+      p_actor: "system",
+      p_meta: { source: "confirm-received" },
+    });
+    const completeResult = (completeRows as Array<{ ok: boolean; error_code: string }> | null)?.[0];
 
-    if (completeErr) {
-      console.error("[confirm-received] failed to mark completed", completeErr);
+    if (completeErr || !completeResult?.ok) {
+      console.error("[confirm-received] failed to mark completed", completeErr, completeResult);
       // Reward is queued; return success so the customer isn't blocked.
       // The status update will be corrected by the reward worker on completion.
     }

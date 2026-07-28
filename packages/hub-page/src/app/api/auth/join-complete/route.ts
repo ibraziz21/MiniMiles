@@ -9,7 +9,6 @@
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveHubProfile } from "@/lib/akiba/hubProfile";
 import { getOrCreatePass } from "@/lib/akiba/pass";
 
@@ -19,22 +18,18 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = (await req.json().catch(() => ({}))) as { src?: unknown };
-  const src = typeof body.src === "string" ? body.src.slice(0, 100) : null;
+  const src = typeof body.src === "string" ? body.src.slice(0, 100) : undefined;
 
   const { walletAddress } = await resolveHubProfile({ userId: user.id, email: user.email ?? null });
   const { publicPassId } = await getOrCreatePass({
     userId: user.id,
     email: user.email ?? null,
     walletAddress,
+    src,
   });
 
   if (!publicPassId) {
     return NextResponse.json({ error: "Could not create pass" }, { status: 500 });
-  }
-
-  if (src) {
-    const admin = createAdminClient();
-    await admin.from("hub_user_passes").update({ signup_src: src }).eq("user_id", user.id);
   }
 
   return NextResponse.json({ publicPassId });

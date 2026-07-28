@@ -61,6 +61,18 @@ export type PollCompletionPayload = {
   submittedAt: string;
 };
 
+// discovery-quests-spec.md §5.4 reward bridge — a Platform quest reward
+// (api/internal/reward-issued) minted through this app's normal pipeline.
+// idempotencyKey is `platform_reward:{rewardId}`, so exactly one mint ever
+// happens per Platform reward id regardless of webhook redelivery.
+export type PlatformRewardPayload = {
+  kind: "platform_reward";
+  userAddress: string;
+  rewardId: string;
+  questId: string;
+  pointsAwarded: number;
+};
+
 type MintJobPayload =
   | DailyEngagementPayload
   | PartnerEngagementPayload
@@ -69,7 +81,8 @@ type MintJobPayload =
   | ReferralBonusPayload
   | OrderMilesPayload
   | VaultDailyRewardPayload
-  | PollCompletionPayload;
+  | PollCompletionPayload
+  | PlatformRewardPayload;
 
 type MintJobRow = {
   id: string;
@@ -405,6 +418,38 @@ export async function enqueuePartnerVerifiedReward(opts: {
   });
 
   return { ok: true as const, awardedPoints: reward.awardedPoints };
+}
+
+/**
+ * Bridges a Platform-issued quest reward (discovery-quests-spec.md §5.4)
+ * into this app's own mint pipeline. Called from the inbound
+ * api/internal/reward-issued webhook handler, which verifies the request
+ * came from Platform before calling this — this function itself does no
+ * verification, only the idempotent-insert ensureMintJob() already gives
+ * every other reward path here.
+ */
+export async function enqueuePlatformReward(opts: {
+  rewardId: string;
+  questId: string;
+  walletAddress: string;
+  points: number;
+}) {
+  const { rewardId, questId, walletAddress, points } = opts;
+  const userLc = walletAddress.toLowerCase();
+
+  await ensureMintJob({
+    idempotencyKey: `platform_reward:${rewardId}`,
+    userAddress: userLc,
+    points,
+    reason: `platform-reward:${questId}`,
+    payload: {
+      kind: "platform_reward",
+      userAddress: userLc,
+      rewardId,
+      questId,
+      pointsAwarded: points,
+    },
+  });
 }
 
 export async function enqueueVaultDailyReward(opts: {

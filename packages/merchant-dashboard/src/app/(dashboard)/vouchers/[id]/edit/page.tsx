@@ -34,7 +34,7 @@ export default async function EditVoucherTemplatePage({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <TopBar title="Edit Voucher Template" subtitle="Update template details" />
+      <TopBar title="Edit voucher" subtitle="Update the customer offer" />
       <div className="flex-1 overflow-y-auto p-6">
         <Card className="max-w-lg">
           <CardHeader><CardTitle>Template details</CardTitle></CardHeader>

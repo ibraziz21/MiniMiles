@@ -11,8 +11,7 @@
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { emitQuestAction } from "@/lib/akiba/quest-events";
+import { getOrCreatePass } from "@/lib/akiba/pass";
 
 export async function GET() {
   const supabase = await createClient();
@@ -23,41 +22,22 @@ export async function GET() {
     return NextResponse.json({ error: "Account has no email — cannot issue pass" }, { status: 422 });
   }
 
-  const admin = createAdminClient();
+  // Delegates to the same atomic create-or-get path /pass, /welcome, /me and
+  // join-complete use — this route used to duplicate the insert+emit logic
+  // independently, which meant a user hitting this route first (rather than
+  // /me) got a pass_activated outbox row from a second, parallel code path.
+  const { publicPassId } = await getOrCreatePass({
+    userId: user.id,
+    email: user.email,
+    walletAddress: null,
+  });
 
-  // Fetch the stable pass row for this user
-  let { data: passRow } = await admin
-    .from("hub_user_passes")
-    .select("public_pass_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  // First visit: create the pass row
-  if (!passRow) {
-    const { data: inserted } = await admin
-      .from("hub_user_passes")
-      .insert({ user_id: user.id, email: user.email })
-      .select("public_pass_id")
-      .single();
-    passRow = inserted;
-
-    // Report the pass-signup quest action (fire-and-forget, deduped on Platform).
-    if (passRow?.public_pass_id) {
-      await emitQuestAction({
-        actionName: "pass_signup",
-        userId: user.id,
-        idempotencyKey: `quest-pass_signup-${user.id}`,
-        metadata: { email: user.email },
-      });
-    }
-  }
-
-  if (!passRow?.public_pass_id) {
+  if (!publicPassId) {
     return NextResponse.json({ error: "Could not issue pass" }, { status: 500 });
   }
 
   return NextResponse.json({
-    publicPassId: passRow.public_pass_id,
-    qrPayload: `akiba-pass:v1:${passRow.public_pass_id}`,
+    publicPassId,
+    qrPayload: `akiba-pass:v1:${publicPassId}`,
   });
 }

@@ -9,6 +9,7 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { isoWeek } from "@/lib/isoWeek";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -25,15 +26,6 @@ function isAuthorized(req: Request): boolean {
   const bearer = req.headers.get("authorization");
   if (bearer === `Bearer ${ADMIN_SECRET}`) return true;
   return new URL(req.url).searchParams.get("secret") === ADMIN_SECRET;
-}
-
-function isoWeek(date = new Date()): string {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86_400_000) + 1) / 7);
-  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
 }
 
 function weekRange(isoWeekStr: string): { from: string; to: string } {

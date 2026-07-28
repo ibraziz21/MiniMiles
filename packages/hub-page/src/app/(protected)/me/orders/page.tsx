@@ -4,6 +4,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ShoppingBag, Clock, CheckCircle2, Truck, Package, ArrowLeft, Coins } from "lucide-react";
 import { getPurchaseEventForOrder } from "@/lib/akiba/purchase-events";
 import type { OrderRewardStatus } from "@/lib/akiba/purchase-events";
+import { DisputeButton } from "./DisputeButton";
+import { RecoveryBanner } from "./RecoveryBanner";
+import { getOwnedAddresses } from "@/lib/akiba/order-ownership";
 
 export const metadata = { title: "My Orders — Akiba Pass" };
 
@@ -48,6 +51,11 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
     color: "bg-red-50 text-red-500",
     icon: <Clock className="h-3.5 w-3.5" />,
   },
+  disputed: {
+    label: "Under review",
+    color: "bg-amber-50 text-amber-700",
+    icon: <Clock className="h-3.5 w-3.5" />,
+  },
 };
 
 type Order = {
@@ -60,36 +68,61 @@ type Order = {
   city: string;
   recipient_name: string;
   created_at: string;
+  accepted_at: string | null;
+  packed_at: string | null;
+  dispatched_at: string | null;
   delivered_at: string | null;
+  received_at: string | null;
+  completed_at: string | null;
+  cancelled_at: string | null;
   voucher_code: string | null;
   partners: { name: string; image_url: string | null } | null;
 };
 
-async function getOrders(userId: string): Promise<Order[]> {
+type Refund = {
+  order_id: string;
+  refund_status: "pending_manual" | "refunded" | "not_applicable";
+  rail: "mpesa" | "crypto" | "miles" | null;
+  refund_tx_hash: string | null;
+};
+
+async function getOrders(userId: string): Promise<{ orders: Order[]; refunds: Map<string, Refund> }> {
   const admin = createAdminClient();
 
-  const { data: wallet } = await admin
-    .from("hub_user_wallets")
-    .select("address")
-    .eq("user_id", userId)
-    .limit(1)
-    .maybeSingle();
+  // Resolve ALL linked wallets, not just the first — an order can be placed
+  // under any of them.
+  const addresses = await getOwnedAddresses(admin, userId);
 
-  if (!wallet) return [];
+  if (addresses.length === 0) return { orders: [], refunds: new Map() };
 
   const { data } = await admin
     .from("merchant_transactions")
     .select(`
       id, status, item_name, item_category, amount_cusd,
       payment_currency, city, recipient_name, created_at,
-      delivered_at, voucher_code,
+      accepted_at, packed_at, dispatched_at, delivered_at,
+      received_at, completed_at, cancelled_at, voucher_code,
       partners ( name, image_url )
     `)
-    .eq("user_address", wallet.address)
+    .in("user_address", addresses)
     .order("created_at", { ascending: false })
     .limit(50);
 
-  return (data ?? []) as unknown as Order[];
+  const orders = (data ?? []) as unknown as Order[];
+  const cancelledIds = orders.filter((o) => o.status === "cancelled").map((o) => o.id);
+
+  const refunds = new Map<string, Refund>();
+  if (cancelledIds.length > 0) {
+    const { data: refundRows } = await admin
+      .from("order_cancellation_compensations")
+      .select("order_id, refund_status, rail, refund_tx_hash")
+      .in("order_id", cancelledIds);
+    for (const r of refundRows ?? []) {
+      if (r.order_id) refunds.set(r.order_id, r as Refund);
+    }
+  }
+
+  return { orders, refunds };
 }
 
 export default async function OrdersPage() {
@@ -97,7 +130,7 @@ export default async function OrdersPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login?next=/me/orders");
 
-  const orders = await getOrders(user.id);
+  const { orders, refunds } = await getOrders(user.id);
 
   // Fetch Platform reward status for all orders in parallel.
   // Promise.allSettled ensures a Platform failure for one order never breaks the page.
@@ -120,7 +153,12 @@ export default async function OrdersPage() {
         <ArrowLeft className="h-4 w-4" /> My profile
       </a>
 
-      <h1 className="mb-6 font-sterling text-2xl font-semibold text-akiba-ink">My Orders</h1>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="font-sterling text-2xl font-semibold text-akiba-ink">My Orders</h1>
+        <a href="/me/notifications" className="text-sm font-medium text-akiba-teal hover:underline">Notifications</a>
+      </div>
+
+      <RecoveryBanner />
 
       {orders.length === 0 ? (
         <div className="flex flex-col items-center rounded-2xl border border-dashed border-akiba-line bg-white py-14 text-center">
@@ -184,8 +222,17 @@ export default async function OrdersPage() {
 
                     <RewardBadge reward={reward} />
 
+                    {order.status === "cancelled" && (
+                      <RefundStatus refund={refunds.get(order.id) ?? null} />
+                    )}
+
+                    <OrderTimeline order={order} />
+
                     {order.status === "delivered" && (
-                      <ConfirmReceiptButton orderId={order.id} />
+                      <>
+                        <ConfirmReceiptButton orderId={order.id} />
+                        <DisputeButton orderId={order.id} />
+                      </>
                     )}
                   </div>
                 </div>
@@ -196,6 +243,60 @@ export default async function OrdersPage() {
       )}
     </main>
   );
+}
+
+function OrderTimeline({ order }: { order: Order }) {
+  const steps: Array<{ label: string; timestamp: string | null }> = [
+    { label: "Order placed", timestamp: order.created_at },
+    { label: "Accepted", timestamp: order.accepted_at },
+    { label: "Packed", timestamp: order.packed_at },
+    { label: "Out for delivery", timestamp: order.dispatched_at },
+    { label: "Delivered", timestamp: order.delivered_at },
+    { label: "Received", timestamp: order.received_at },
+    { label: "Completed", timestamp: order.completed_at },
+  ];
+  if (order.cancelled_at) steps.push({ label: "Cancelled", timestamp: order.cancelled_at });
+
+  return (
+    <details className="mt-2 text-xs">
+      <summary className="cursor-pointer select-none text-akiba-muted hover:text-akiba-ink">Order timeline</summary>
+      <ol className="mt-2 space-y-1.5 border-l border-akiba-line pl-3">
+        {steps.map((step) => {
+          const done = !!step.timestamp;
+          return (
+            <li key={step.label} className={done ? "text-akiba-ink" : "text-akiba-line"}>
+              <span className="font-medium">{step.label}</span>
+              {step.timestamp && (
+                <span className="ml-2 text-akiba-muted">
+                  {new Date(step.timestamp).toLocaleString("en-KE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </details>
+  );
+}
+
+function RefundStatus({ refund }: { refund: Refund | null }) {
+  if (!refund) return null;
+
+  if (refund.refund_status === "pending_manual") {
+    return (
+      <p className="mt-2 text-xs text-amber-700">
+        Refund initiated{refund.rail ? ` — ${refund.rail === "mpesa" ? "M-Pesa" : "crypto"}` : ""} — processing
+      </p>
+    );
+  }
+  if (refund.refund_status === "refunded") {
+    return (
+      <p className="mt-2 text-xs text-akiba-teal">
+        Refund completed{refund.refund_tx_hash ? ` — ref ${refund.refund_tx_hash}` : ""}
+      </p>
+    );
+  }
+  return null;
 }
 
 function RewardBadge({ reward }: { reward: OrderRewardStatus }) {
