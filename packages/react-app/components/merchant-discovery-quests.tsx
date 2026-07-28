@@ -7,20 +7,18 @@
 // nowhere but is kept in the tree — see open question #2 in the spec.
 
 import Image from 'next/image';
-import { createClient } from '@supabase/supabase-js';
-import { useQuery } from '@tanstack/react-query';
-import { useWeb3 } from '@/contexts/useWeb3';
 import cn from 'clsx';
 import { akibaMilesSymbol } from '@/lib/svg';
 import checkIcon from '@/public/svg/check-icon.svg';
 import lockIcon from '@/public/svg/lock-icon.svg';
-import { isoWeek } from '@/lib/games/week';
 import {
   QUEST_AKIBA_PASS,
   QUEST_BROWSE_DEALS,
   QUEST_SPONSORED_LEADERBOARD,
   QUEST_COMPLETE_PROFILE,
   QUEST_REDEEM_VOUCHER,
+  type MerchantQuestStatus,
+  type MerchantQuestStatusState,
 } from '@/lib/merchantDiscoveryQuests';
 import type { Quest } from './partner-quests';
 
@@ -95,66 +93,66 @@ export const MERCHANT_DISCOVERY_QUESTS: Quest[] = [
   },
 ];
 
-/* ─── Supabase hook ──────────────────────────────────────── */
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-);
-
-function useMerchantQuestClaimStatus(address?: string) {
-  return useQuery<Set<string>>({
-    enabled: !!address,
-    queryKey: ['merchant-discovery-claimed', address],
-    refetchOnMount: 'always',
-    queryFn: async () => {
-      if (!address) return new Set<string>();
-      const addrLc = address.toLowerCase();
-      const week = isoWeek();
-
-      const [{ data: engagements }, { data: weeklyClaim }] = await Promise.all([
-        supabase
-          .from('partner_engagements')
-          .select('partner_quest_id')
-          .eq('user_address', addrLc)
-          .in('partner_quest_id', [
-            QUEST_AKIBA_PASS,
-            QUEST_BROWSE_DEALS,
-            QUEST_COMPLETE_PROFILE,
-            QUEST_REDEEM_VOUCHER,
-          ]),
-        supabase
-          .from('partner_quest_weekly_claims')
-          .select('iso_week')
-          .eq('user_address', addrLc)
-          .eq('partner_quest_id', QUEST_SPONSORED_LEADERBOARD)
-          .eq('iso_week', week)
-          .maybeSingle(),
-      ]);
-
-      const claimed = new Set((engagements ?? []).map((d) => d.partner_quest_id));
-      if (weeklyClaim) claimed.add(QUEST_SPONSORED_LEADERBOARD);
-      return claimed;
-    },
-  });
-}
-
 /* ─── Quest row ───────────────────────────────────────────── */
 
-function QuestRow({ quest, claimed, onClick }: { quest: Quest; claimed: boolean; onClick: () => void }) {
+type MerchantQuestDisplayState =
+  | 'start'
+  | 'action-required'
+  | 'ready'
+  | 'queued'
+  | 'failed'
+  | 'completed';
+
+const STATE_LABELS: Record<MerchantQuestDisplayState, string> = {
+  start: 'Start quest',
+  'action-required': 'Action required',
+  ready: 'Ready to claim',
+  queued: 'Reward queued',
+  failed: 'Reward needs attention',
+  completed: 'Completed',
+};
+
+function QuestRow({
+  quest,
+  state,
+  onClick,
+}: {
+  quest: Quest;
+  state: MerchantQuestDisplayState;
+  onClick: () => void;
+}) {
+  const claimed = state === 'completed';
+  const queued = state === 'queued';
+  const failed = state === 'failed';
+  const disabled = claimed || queued;
+
   return (
-    <div
-      onClick={!claimed ? onClick : undefined}
+    <button
+      type="button"
+      onClick={!disabled ? onClick : undefined}
+      disabled={disabled}
       className={cn(
-        'flex min-h-[80px] w-full items-stretch rounded-[16px] border overflow-hidden bg-white',
-        claimed ? 'border-[#A7F3D0]' : 'border-[#E5E7EB]',
-        !claimed && 'cursor-pointer active:opacity-80',
+        'flex min-h-[80px] w-full items-stretch overflow-hidden rounded-[16px] border bg-white text-left',
+        claimed
+          ? 'border-[#A7F3D0]'
+          : queued
+          ? 'border-[#BAE6FD]'
+          : failed
+          ? 'border-[#FCA5A5]'
+          : 'border-[#E5E7EB]',
+        !disabled && 'cursor-pointer active:opacity-80',
       )}
     >
       <div
         className={cn(
           'flex self-stretch w-[48px] shrink-0 items-center justify-center',
-          claimed ? 'bg-[#CFF2E5]' : 'bg-[#8080801A]',
+          claimed
+            ? 'bg-[#CFF2E5]'
+            : queued
+            ? 'bg-[#E0F2FE]'
+            : failed
+            ? 'bg-[#FEE2E2]'
+            : 'bg-[#8080801A]',
         )}
       >
         <Image
@@ -167,8 +165,21 @@ function QuestRow({ quest, claimed, onClick }: { quest: Quest; claimed: boolean;
       </div>
 
       <div className="flex flex-1 flex-col justify-center px-3 py-3">
-        <p className={cn('text-[12px] leading-[16px] font-medium', claimed ? 'text-[#065F46]' : 'text-[#9CA3AF]')}>
-          {claimed ? 'Completed' : 'Tap to claim'}
+        <p
+          className={cn(
+            'text-[12px] leading-[16px] font-medium',
+            claimed
+              ? 'text-[#065F46]'
+              : queued
+              ? 'text-[#0369A1]'
+              : failed
+              ? 'text-[#B91C1C]'
+              : state === 'action-required'
+              ? 'text-[#B45309]'
+              : 'text-[#6B7280]',
+          )}
+        >
+          {STATE_LABELS[state]}
         </p>
         <p className="mt-1 text-[15px] leading-[22px] font-medium text-[#111827]">{quest.title}</p>
         <p className="mt-0.5 text-[12px] text-[#6B7280]">{quest.description}</p>
@@ -177,7 +188,7 @@ function QuestRow({ quest, claimed, onClick }: { quest: Quest; claimed: boolean;
           {quest.reward}
         </p>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -185,26 +196,70 @@ function QuestRow({ quest, claimed, onClick }: { quest: Quest; claimed: boolean;
 
 export default function MerchantDiscoveryQuests({
   openPopup,
+  showCompleted = false,
+  startedQuestIds = [],
+  queuedQuestIds = [],
+  actionRequiredQuestIds = [],
+  enabled = false,
+  statusRows = [],
 }: {
-  openPopup: (q: Quest) => void;
+  openPopup: (q: Quest, state?: MerchantQuestStatusState) => void;
+  showCompleted?: boolean;
+  startedQuestIds?: string[];
+  queuedQuestIds?: string[];
+  actionRequiredQuestIds?: string[];
+  enabled?: boolean;
+  statusRows?: MerchantQuestStatus[];
 }) {
-  const { address } = useWeb3();
-  const { data: claimedSet = new Set<string>() } = useMerchantQuestClaimStatus(address!);
+  if (!enabled) return null;
+
+  const statusByQuest = new Map<string, MerchantQuestStatus>(
+    statusRows.map((status) => [status.questId, status]),
+  );
+  const startedSet = new Set(startedQuestIds);
+  const queuedSet = new Set(queuedQuestIds);
+  const actionRequiredSet = new Set(actionRequiredQuestIds);
+  const visibleQuests = MERCHANT_DISCOVERY_QUESTS.filter((quest) =>
+    showCompleted
+      ? statusByQuest.get(quest.id)?.state === 'completed'
+      : statusByQuest.get(quest.id)?.state !== 'completed',
+  );
+
+  const stateForQuest = (questId: string): MerchantQuestDisplayState => {
+    const serverState = statusByQuest.get(questId)?.state;
+    if (serverState === 'completed') return 'completed';
+    if (serverState === 'failed') return 'failed';
+    if (serverState === 'queued') return 'queued';
+    if (queuedSet.has(questId)) return 'queued';
+    if (serverState === 'eligible') return 'ready';
+    if (actionRequiredSet.has(questId)) return 'action-required';
+    if (startedSet.has(questId)) return 'action-required';
+    return 'start';
+  };
 
   return (
     <div className="mt-6">
-      <h3 className="text-lg font-medium mb-1">Discover merchants</h3>
-      <p className="mb-3 text-sm text-gray-500">Find where to spend your Miles</p>
+      <h3 className="text-lg font-medium mb-1">
+        {showCompleted ? 'Merchant quests' : 'Discover merchants'}
+      </h3>
+      <p className="mb-3 text-sm text-gray-500">
+        {showCompleted ? 'Your completed merchant activities' : 'Find where to spend your Miles'}
+      </p>
 
       <div className="flex flex-col gap-2">
-        {MERCHANT_DISCOVERY_QUESTS.map((quest) => (
+        {visibleQuests.map((quest) => (
           <QuestRow
             key={quest.id}
             quest={quest}
-            claimed={claimedSet.has(quest.id)}
-            onClick={() => openPopup(quest)}
+            state={stateForQuest(quest.id)}
+            onClick={() => openPopup(quest, statusByQuest.get(quest.id)?.state)}
           />
         ))}
+        {showCompleted && visibleQuests.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-[#D1D5DB] bg-white px-4 py-6 text-center">
+            <p className="text-sm text-[#6B7280]">No merchant quests completed yet.</p>
+          </div>
+        )}
       </div>
     </div>
   );

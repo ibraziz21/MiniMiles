@@ -20,6 +20,17 @@ type PartnerEngagementPayload = {
   vaultBoost?: QuestVaultBoost;
 };
 
+type PartnerWeeklyEngagementPayload = {
+  kind: "partner_weekly_engagement";
+  userAddress: string;
+  questId: string;
+  isoWeek: string;
+  claimedAt: string;
+  pointsAwarded: number;
+  basePoints?: number;
+  vaultBoost?: QuestVaultBoost;
+};
+
 type ProfileMilestonePayload = {
   kind: "profile_milestone";
   userAddress: string;
@@ -64,6 +75,7 @@ export type PollCompletionPayload = {
 type MintJobPayload =
   | DailyEngagementPayload
   | PartnerEngagementPayload
+  | PartnerWeeklyEngagementPayload
   | ProfileMilestonePayload
   | NewUserSignupPayload
   | ReferralBonusPayload
@@ -186,11 +198,38 @@ async function ensureMintJob(opts: {
     .single();
 
   if (error && !isDuplicateError(error)) throw error;
-  if (data) return data as MintJobRow;
+  if (data) return { job: data as MintJobRow, revived: false };
 
   const raced = await getMintJob(opts.idempotencyKey);
   if (!raced) throw new Error(`Failed to create mint job ${opts.idempotencyKey}`);
-  return raced;
+  if (raced.status === "failed") {
+    const { data: revived, error: reviveError } = await supabase
+      .from("minipoint_mint_jobs")
+      .update({
+        status: "pending",
+        attempts: 0,
+        last_error: null,
+        available_at: new Date().toISOString(),
+        processing_by: null,
+        processing_started_at: null,
+      })
+      .eq("id", raced.id)
+      .eq("status", "failed")
+      .select("*")
+      .maybeSingle();
+
+    if (reviveError) throw reviveError;
+    if (revived) {
+      return { job: revived as MintJobRow, revived: true };
+    }
+
+    const concurrentlyRevived = await getMintJob(opts.idempotencyKey);
+    if (!concurrentlyRevived) {
+      throw new Error(`Failed to revive mint job ${opts.idempotencyKey}`);
+    }
+    return { job: concurrentlyRevived, revived: true };
+  }
+  return { job: raced, revived: false };
 }
 
 // ── Public helpers ────────────────────────────────────────────────────────────
@@ -288,7 +327,7 @@ export async function claimQueuedPartnerReward(opts: {
   const idempotencyKey = `partner:${questId}:${userLc}`;
   const reward = await computeQuestReward(userLc, points);
 
-  await ensureMintJob({
+  const queuedJob = await ensureMintJob({
     idempotencyKey,
     userAddress: userLc,
     points: reward.awardedPoints,
@@ -312,13 +351,15 @@ export async function claimQueuedPartnerReward(opts: {
     points: reward.awardedPoints,
     basePoints: reward.basePoints,
     vaultBoost: reward.vaultBoost,
+    jobId: queuedJob.job.id,
+    retried: queuedJob.revived,
   };
 }
 
 /**
- * Weekly-repeatable sibling of claimQueuedPartnerReward — uniqueness is
- * (user_address, partner_quest_id, iso_week) instead of once-ever, for
- * quests like "Play the sponsored leaderboard" that reset every ISO week.
+ * Weekly-repeatable sibling of claimQueuedPartnerReward. The idempotent mint
+ * job reserves the claim while it is pending; partner_quest_weekly_claims is
+ * written by the mint worker only after the on-chain mint succeeds.
  */
 export async function claimQueuedPartnerWeeklyReward(opts: {
   userAddress: string;
@@ -341,27 +382,19 @@ export async function claimQueuedPartnerWeeklyReward(opts: {
   if (checkError) throw checkError;
   if (existing) return { ok: false as const, code: "already" as const };
 
-  const { error: insertError } = await supabase
-    .from("partner_quest_weekly_claims")
-    .insert({ user_address: userLc, partner_quest_id: questId, iso_week: isoWeek });
-
-  if (insertError) {
-    if (isDuplicateError(insertError)) return { ok: false as const, code: "already" as const };
-    throw insertError;
-  }
-
   const idempotencyKey = `partner-weekly:${questId}:${userLc}:${isoWeek}`;
   const reward = await computeQuestReward(userLc, points);
 
-  await ensureMintJob({
+  const queuedJob = await ensureMintJob({
     idempotencyKey,
     userAddress: userLc,
     points: reward.awardedPoints,
     reason,
     payload: {
-      kind: "partner_engagement",
+      kind: "partner_weekly_engagement",
       userAddress: userLc,
       questId,
+      isoWeek,
       claimedAt: new Date().toISOString(),
       pointsAwarded: reward.awardedPoints,
       basePoints: reward.basePoints,
@@ -377,6 +410,8 @@ export async function claimQueuedPartnerWeeklyReward(opts: {
     points: reward.awardedPoints,
     basePoints: reward.basePoints,
     vaultBoost: reward.vaultBoost,
+    jobId: queuedJob.job.id,
+    retried: queuedJob.revived,
   };
 }
 

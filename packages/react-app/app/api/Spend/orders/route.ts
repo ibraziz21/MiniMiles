@@ -8,12 +8,18 @@
 //   claw_voucher_id           string | null   — claw voucher id (uint256 string)
 //   claw_voucher_owner        string | null   — must match on-chain owner
 //   claw_voucher_expires_at   number | null   — must match on-chain expiresAt
-//   recipient_name            string
-//   phone                     string
-//   city                      string
-//   location_details          string
+//   recipient_name            string | null   — physical products only
+//   phone                     string | null   — physical, or digital airtime_topup
+//   email                     string | null   — digital code_delivery only
+//   city                      string | null   — physical products only
+//   location_details          string | null   — physical products only
 //   delivery_fee_tx_hash      string  (0x...)
 //   currency                  "cUSD" | "USDT" | "USDC"
+//
+// Payment lands in the merchant's own partner_settings.wallet_address, or
+// DELIVERY_FEE_ADDRESS as a fallback when unset (voucher-merchant-checkout-spec.md §4).
+// Digital orders (merchant_products.product_type = 'digital') skip delivery
+// entirely and enqueue a fulfillment_jobs row instead (§3).
 
 import { NextResponse } from "next/server";
 import { parseUnits, decodeEventLog, type Abi } from "viem";
@@ -156,14 +162,16 @@ export async function POST(req: Request) {
       claw_voucher_expires_at,
       recipient_name,
       phone,
+      email,
       city,
       location_details,
       delivery_fee_tx_hash,
       currency,
     } = body;
 
-    // ── Validation ────────────────────────────────────────────────────────────
-    if (!product_id || !recipient_name || !phone || !city || !delivery_fee_tx_hash || !currency) {
+    // ── Validation (base fields — delivery/destination fields are validated
+    // after the product is fetched, since requirements branch on product_type) ──
+    if (!product_id || !delivery_fee_tx_hash || !currency) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
@@ -173,10 +181,6 @@ export async function POST(req: Request) {
     }
 
     const deliveryFeeAddress = process.env.DELIVERY_FEE_ADDRESS as `0x${string}` | undefined;
-    if (!deliveryFeeAddress) {
-      console.error("[orders] DELIVERY_FEE_ADDRESS env not set");
-      return NextResponse.json({ error: "Payment address not configured" }, { status: 500 });
-    }
 
     if (await isBlacklisted(addr, "Spend/orders")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -196,7 +200,7 @@ export async function POST(req: Request) {
     // ── Fetch product ─────────────────────────────────────────────────────────
     const { data: product, error: pErr } = await supabase
       .from("merchant_products")
-      .select("id, name, price_cusd, category, merchant_id, active")
+      .select("id, name, price_cusd, category, merchant_id, active, product_type, digital_delivery_kind")
       .eq("id", product_id)
       .single();
 
@@ -204,9 +208,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Product not found or inactive" }, { status: 404 });
     }
 
+    // product_type is authoritative for fulfillment — never inferred from category.
+    const isDigital = product.product_type === "digital";
+
+    // ── Destination validation — branches on product_type ─────────────────────
+    if (isDigital) {
+      if (product.digital_delivery_kind === "code_delivery") {
+        if (!email || typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          return NextResponse.json({ error: "A valid email is required for this item" }, { status: 400 });
+        }
+      } else if (!phone) {
+        return NextResponse.json({ error: "A phone number is required for this item" }, { status: 400 });
+      }
+    } else if (!recipient_name || !phone || !city) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
     const { data: partnerSettings, error: settingsErr } = await supabase
       .from("partner_settings")
-      .select("store_active,delivery_cities")
+      .select("store_active,delivery_cities,wallet_address")
       .eq("partner_id", product.merchant_id)
       .maybeSingle();
 
@@ -219,7 +239,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Merchant is not accepting orders right now" }, { status: 409 });
     }
 
-    if (partnerSettings?.delivery_cities?.length) {
+    // Pay the merchant's own wallet when set; fall back to the shared address
+    // otherwise — safe because merchant_transactions.partner_id (inserted
+    // below) already makes every order traceable to its merchant regardless
+    // of which wallet the funds land in (voucher-merchant-checkout-spec.md §4).
+    const payToAddress = (partnerSettings?.wallet_address as `0x${string}` | undefined) ?? deliveryFeeAddress;
+    if (!payToAddress) {
+      console.error("[orders] no merchant wallet_address and DELIVERY_FEE_ADDRESS env not set");
+      return NextResponse.json({ error: "Payment address not configured" }, { status: 500 });
+    }
+
+    if (!isDigital && partnerSettings?.delivery_cities?.length) {
       const allowedCities = partnerSettings.delivery_cities
         .map((allowedCity: string) => normalizeCity(allowedCity))
         .filter(Boolean);
@@ -359,8 +389,9 @@ export async function POST(req: Request) {
       product_price_cusd: Number(product.price_cusd),
       product_category:   product.category,
       product_id:         String(product_id),
-      city,
+      city:               city ?? "other",
       voucher: voucherRules,
+      product_type: product.product_type,
     });
 
     await supabase
@@ -384,7 +415,7 @@ export async function POST(req: Request) {
         tokenAddress: token.address,
         decimals: token.decimals,
         from: addr,
-        to: deliveryFeeAddress,
+        to: payToAddress,
         expectedAmountUsd: pricing.total_cusd,
       });
     } catch (verifyErr: any) {
@@ -440,10 +471,11 @@ export async function POST(req: Request) {
         payment_method: "onchain_transfer",
         payment_currency: currency,
         payment_ref: delivery_fee_tx_hash,
-        // Delivery details
-        recipient_name,
-        phone,
-        city,
+        // Delivery details (digital orders leave these null where not applicable —
+        // the destination the fulfillment job needs is carried in its own payload)
+        recipient_name: recipient_name ?? null,
+        phone: phone ?? null,
+        city: city ?? null,
         location_details: location_details ?? null,
         // Order starts at "placed" — fulfillment lifecycle proceeds from here
         status: "placed",
@@ -478,6 +510,26 @@ export async function POST(req: Request) {
           order_id: order.id,
           voucher_id: voucher.id,
           error: vErr,
+        });
+      }
+    }
+
+    // ── Enqueue digital fulfillment (reuses hub-page's shared ops queue —
+    // voucher-merchant-checkout-spec.md §3, no new ops surface) ──────────────
+    if (isDigital) {
+      const { error: enqueueErr } = await supabase.rpc("enqueue_digital_fulfillment", {
+        p_order_id: order.id,
+        p_payload: {
+          item_name: product.name,
+          recipient_name: recipient_name ?? null,
+          phone: product.digital_delivery_kind === "code_delivery" ? null : (phone ?? null),
+          email: product.digital_delivery_kind === "code_delivery" ? (email ?? null) : null,
+        },
+      });
+      if (enqueueErr) {
+        console.error("[orders] failed to enqueue digital fulfillment — needs manual follow-up", {
+          order_id: order.id,
+          error: enqueueErr,
         });
       }
     }

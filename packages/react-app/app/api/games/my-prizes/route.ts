@@ -1,6 +1,8 @@
 // GET  /api/games/my-prizes[?unseen=1]
-//   Session-authed. Won vouchers (acquisition_source='leaderboard_win') for
-//   the signed-in wallet. unseen=1 → only prizes whose win reveal sheet has
+//   Session-authed. Won vouchers (acquisition_source in
+//   PRIZE_ACQUISITION_SOURCES — legacy 'leaderboard_win' or the real
+//   'weekly_leaderboard_challenge' channel) for the signed-in wallet.
+//   unseen=1 → only prizes whose win reveal sheet has
 //   not been shown yet (win_seen_at is null, status still 'issued').
 //
 // POST /api/games/my-prizes  { voucherIds: string[] }
@@ -10,6 +12,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 import { requireSession } from "@/lib/auth";
+import { PRIZE_ACQUISITION_SOURCES } from "@/lib/games/prizeAcquisitionSources";
 
 const SELECT = `
   id, code, status, created_at, expires_at, win_seen_at, win_meta, merchant_id,
@@ -28,7 +31,7 @@ export async function GET(req: Request) {
     .from("issued_vouchers")
     .select(SELECT)
     .eq("user_address", address)
-    .eq("acquisition_source", "leaderboard_win")
+    .in("acquisition_source", PRIZE_ACQUISITION_SOURCES)
     .neq("status", "void")
     .order("created_at", { ascending: false });
 
@@ -66,7 +69,7 @@ export async function POST(req: Request) {
     .update({ win_seen_at: new Date().toISOString() })
     .in("id", voucherIds)
     .eq("user_address", address)
-    .eq("acquisition_source", "leaderboard_win")
+    .in("acquisition_source", PRIZE_ACQUISITION_SOURCES)
     .is("win_seen_at", null);
 
   if (error) {

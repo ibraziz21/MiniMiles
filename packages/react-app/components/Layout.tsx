@@ -6,6 +6,10 @@ import Footer from './Footer';
 import Header from './Header';
 import { useWeb3 } from '@/contexts/useWeb3';
 import { useMembership } from '@/helpers/useMembership';
+import Link from 'next/link';
+import { ArrowLeft } from '@phosphor-icons/react';
+import { safeMerchantQuestReturnTo } from '@/lib/merchantQuestJourney';
+import { AkibaEvolvingAnnouncement } from './AkibaEvolvingAnnouncement';
 
 interface Props { children: ReactNode }
 
@@ -15,6 +19,10 @@ const LayoutContent: FC<Props> = ({ children }) => {
   const searchParams = useSearchParams();
   const { getUserAddress } = useWeb3();
   const isPromoCapture = searchParams.get('akibaPromoCapture') === '1';
+  const merchantQuestReturnTo =
+    pathname !== '/earn'
+      ? safeMerchantQuestReturnTo(searchParams.get('returnTo'))
+      : null;
 
   /* MiniPay detection */
   const [isMiniPay, setIsMiniPay] = useState<boolean | null>(null);
@@ -89,11 +97,26 @@ const LayoutContent: FC<Props> = ({ children }) => {
       {!isOnboarding && !isClaim && !renderAsMiniPay && <Header />}
 
       <div className="flex-grow bg-app">
+        {merchantQuestReturnTo && (
+          <div className="px-4 pt-3">
+            <Link
+              href={merchantQuestReturnTo}
+              className="flex min-h-11 items-center gap-2 rounded-xl border border-[#238D9D33] bg-[#F0FDFF] px-3 py-2 text-sm font-semibold text-[#238D9D]"
+            >
+              <ArrowLeft size={17} weight="bold" />
+              Return to Earn to verify &amp; claim
+            </Link>
+          </div>
+        )}
         {children}
       </div>
 
       {/* Footer should show everywhere except onboarding/claim, even in MiniPay */}
       {!isOnboarding && !isClaim && <Footer />}
+
+      {/* One-time, app-wide product-direction announcement — not gated to
+          MiniPay since it's app content, not chrome. */}
+      {!isOnboarding && !isClaim && <AkibaEvolvingAnnouncement />}
     </div>
   );
 };

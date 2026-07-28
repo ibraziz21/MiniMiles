@@ -46,6 +46,9 @@ export async function POST(req: Request) {
       error: job.last_error,
     });
   } catch (err: any) {
+    if (err?.message === "INSUFFICIENT_MILES") {
+      return NextResponse.json({ error: "Not enough Miles available" }, { status: 422 });
+    }
     console.error("[prosperity-pass/claim]", err);
     return NextResponse.json({ error: err?.message ?? "server-error" }, { status: 500 });
   }

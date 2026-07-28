@@ -74,6 +74,10 @@ export type SpendMerchant = {
   slug: string;
   name: string;
   image_url?: string | null;
+  country?: string | null;
+  support_email?: string | null;
+  /** Public on-chain address — payment is sent directly here. */
+  wallet_address?: string | null;
 };
 
 export type SpendProduct = {
@@ -83,6 +87,8 @@ export type SpendProduct = {
   price_cusd: number;
   category: string;
   image_url?: string | null;
+  product_type?: "physical" | "digital" | null;
+  digital_delivery_kind?: "airtime_topup" | "code_delivery" | null;
 };
 
 export type IssuedVoucher = {
@@ -217,13 +223,18 @@ export default function VoucherOrderSheet({
   );
   const [selectedClawVoucher, setSelectedClawVoucher] = useState<Extract<SelectableVoucher, { kind: "claw" }> | null>(null);
 
-  // ── Step 2 — Delivery ─────────────────────────────────────────────────────
+  // ── Step 2 — Delivery (physical) / Destination (digital) ────────────────
   const [recipientName, setRecipientName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [selectedLocality, setSelectedLocality] = useState("");
   const [otherLocality, setOtherLocality] = useState("");
   const [locationDetails, setLocationDetails] = useState("");
   const [loadingProfile, setLoadingProfile] = useState(false);
+
+  // product_type is authoritative for fulfillment — never inferred from category.
+  const isDigital = selectedProduct?.product_type === "digital";
+  const digitalKind = selectedProduct?.digital_delivery_kind ?? null;
 
   // ── Step 3 — Payment ─────────────────────────────────────────────────────
   const [currency, setCurrency] = useState<Currency>("cUSD");
@@ -255,6 +266,7 @@ export default function VoucherOrderSheet({
       product_category: selectedProduct.category,
       city: effectiveCity || "other",
       voucher: activeVoucherRules,
+      product_type: selectedProduct.product_type,
     });
   }, [selectedProduct, effectiveCity, activeVoucherRules]);
 
@@ -339,6 +351,7 @@ export default function VoucherOrderSheet({
       setSelectedVoucher(preloadVoucher ?? null);
       setRecipientName("");
       setPhone("");
+      setEmail("");
       setSelectedLocality("");
       setOtherLocality("");
       setLocationDetails("");
@@ -351,11 +364,14 @@ export default function VoucherOrderSheet({
 
   const back = () => setStep((s) => Math.max(0, s - 1));
 
-  // ── Delivery validation ───────────────────────────────────────────────────
-  const deliveryValid =
-    recipientName.trim().length >= 2 &&
-    phone.trim().length >= 8 &&
-    effectiveCity.length >= 2;
+  // ── Delivery / destination validation ─────────────────────────────────────
+  const deliveryValid = isDigital
+    ? digitalKind === "code_delivery"
+      ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+      : phone.trim().length >= 8
+    : recipientName.trim().length >= 2 &&
+      phone.trim().length >= 8 &&
+      effectiveCity.length >= 2;
 
   // ── Submit order to backend (can be retried with an existing tx hash) ────────
   const submitOrder = useCallback(async (hash: string) => {
@@ -373,10 +389,11 @@ export default function VoucherOrderSheet({
           claw_voucher_id: selectedClawVoucher?.voucherId ?? null,
           claw_voucher_owner: selectedClawVoucher?.owner ?? null,
           claw_voucher_expires_at: selectedClawVoucher?.expiresAt ?? null,
-          recipient_name: recipientName.trim(),
-          phone: phone.trim(),
-          city: effectiveCity,
-          location_details: locationDetails.trim() || null,
+          recipient_name: isDigital ? null : recipientName.trim(),
+          phone: isDigital && digitalKind === "code_delivery" ? null : phone.trim(),
+          email: isDigital && digitalKind === "code_delivery" ? email.trim() : null,
+          city: isDigital ? null : effectiveCity,
+          location_details: isDigital ? null : locationDetails.trim() || null,
           delivery_fee_tx_hash: hash,
           currency,
         }),
@@ -396,12 +413,17 @@ export default function VoucherOrderSheet({
     } finally {
       setSubmitting(false);
     }
-  }, [address, selectedProduct, selectedVoucher, recipientName, phone, effectiveCity, locationDetails, currency]);
+  }, [address, selectedProduct, selectedVoucher, recipientName, phone, email, effectiveCity, locationDetails, currency, isDigital, digitalKind]);
 
   // ── Payment handler ───────────────────────────────────────────────────────
+  // Pays the merchant's own wallet when set, falling back to the shared
+  // DELIVERY_FEE_ADDRESS otherwise — must match the server's verification
+  // target in POST /api/Spend/orders exactly (voucher-merchant-checkout-spec.md §4).
+  const payToAddress = (merchant?.wallet_address as `0x${string}` | undefined) ?? DELIVERY_FEE_ADDRESS;
+
   const handlePay = useCallback(async () => {
-    if (!address || !selectedProduct || !pricing || !DELIVERY_FEE_ADDRESS) {
-      if (!DELIVERY_FEE_ADDRESS)
+    if (!address || !selectedProduct || !pricing || !payToAddress) {
+      if (!payToAddress)
         setError({ title: "Config error", desc: "Payment address not configured." });
       return;
     }
@@ -421,7 +443,7 @@ export default function VoucherOrderSheet({
         address: token.address,
         abi: ERC20_ABI,
         functionName: "transfer",
-        args: [DELIVERY_FEE_ADDRESS, amountRaw],
+        args: [payToAddress, amountRaw],
         account: address as `0x${string}`,
         chain: celo,
       });
@@ -446,7 +468,7 @@ export default function VoucherOrderSheet({
       setPaying(false);
     }
   }, [
-    address, selectedProduct, selectedVoucher, pricing, currency,
+    address, selectedProduct, selectedVoucher, pricing, currency, payToAddress,
     recipientName, phone, effectiveCity, locationDetails, pendingTxHash, submitOrder,
   ]);
 
@@ -488,6 +510,11 @@ export default function VoucherOrderSheet({
                 <div>
                   <p className="text-xs text-gray-400">Shopping at</p>
                   <h2 className="font-semibold text-base leading-tight">{merchant.name}</h2>
+                  {merchant.country && (
+                    <p className="text-xs text-gray-400 flex items-center gap-1">
+                      <MapPin size={11} /> {merchant.country}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -655,7 +682,7 @@ export default function VoucherOrderSheet({
             </div>
           )}
 
-          {/* ── STEP 2 — DELIVERY ──────────────────────────────────────── */}
+          {/* ── STEP 2 — DELIVERY (physical) / DESTINATION (digital) ──── */}
           {!isProcessing && step === 2 && (
             <div>
               <StepBar step={2} />
@@ -664,87 +691,123 @@ export default function VoucherOrderSheet({
               </button>
 
               <h3 className="font-semibold text-base mb-4 flex items-center gap-1.5">
-                <MapPin size={18} className="text-[#238D9D]" /> Delivery details
+                <MapPin size={18} className="text-[#238D9D]" />
+                {isDigital ? "Delivery destination" : "Delivery details"}
               </h3>
 
-              {loadingProfile && (
+              {!isDigital && loadingProfile && (
                 <div className="mb-4 rounded-2xl bg-[#238D9D0D] px-3 py-2 text-xs text-[#238D9D]">
                   Pulling your saved profile details…
                 </div>
               )}
 
-              <div className="space-y-3 mb-6">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Full name</label>
-                  <input
-                    value={recipientName}
-                    onChange={(e) => setRecipientName(e.target.value)}
-                    placeholder="Your full name"
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-[#238D9D]"
-                  />
-                </div>
+              {isDigital ? (
+                <div className="space-y-3 mb-6">
+                  <div className="rounded-2xl bg-[#238D9D0D] px-3 py-2 text-xs text-[#238D9D] mb-1">
+                    No shipping needed — delivered {pricing?.delivery_eta.toLowerCase() ?? "instantly"} after payment.
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-1">Phone number</label>
-                  <input
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+254 700 000 000"
-                    inputMode="tel"
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-[#238D9D]"
-                  />
+                  {digitalKind === "code_delivery" ? (
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Email address</label>
+                      <input
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        inputMode="email"
+                        type="email"
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-[#238D9D]"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">Your code will be sent here.</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Phone number</label>
+                      <input
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="+254 700 000 000"
+                        inputMode="tel"
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-[#238D9D]"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">This number will be topped up.</p>
+                    </div>
+                  )}
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1">City / Town</label>
-                  <Select
-                    value={selectedLocality}
-                    onValueChange={(value) => {
-                      setSelectedLocality(value);
-                      if (value !== OTHER_LOCALITY) setOtherLocality("");
-                    }}
-                  >
-                    <SelectTrigger className="w-full h-12 rounded-xl border-gray-200 bg-white px-3 text-base focus:ring-2 focus:ring-[#238D9D]">
-                      <SelectValue placeholder="Choose your town / locality" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white">
-                      {KENYA_LOCALITIES.map((locality) => (
-                        <SelectItem key={locality} value={locality}>
-                          {locality}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value={OTHER_LOCALITY}>Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {selectedLocality === OTHER_LOCALITY && (
+              ) : (
+                <div className="space-y-3 mb-6">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Full name</label>
                     <input
-                      value={otherLocality}
-                      onChange={(e) => setOtherLocality(e.target.value)}
-                      placeholder="Enter your town / area"
-                      className="mt-2 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-[#238D9D]"
+                      value={recipientName}
+                      onChange={(e) => setRecipientName(e.target.value)}
+                      placeholder="Your full name"
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-[#238D9D]"
                     />
-                  )}
-                  {effectiveCity && pricing && (
-                    <p className="text-xs text-[#238D9D] mt-1">
-                      Delivery fee: ${fmt(pricing.delivery_fee_cusd)} · {pricing.delivery_eta}
-                    </p>
-                  )}
-                </div>
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Street / building{" "}
-                    <span className="font-normal text-gray-400">(optional)</span>
-                  </label>
-                  <textarea
-                    value={locationDetails}
-                    onChange={(e) => setLocationDetails(e.target.value)}
-                    placeholder="Building name, street, estate, landmark…"
-                    rows={2}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-[#238D9D] resize-none"
-                  />
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Phone number</label>
+                    <input
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+254 700 000 000"
+                      inputMode="tel"
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-[#238D9D]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">City / Town</label>
+                    <Select
+                      value={selectedLocality}
+                      onValueChange={(value) => {
+                        setSelectedLocality(value);
+                        if (value !== OTHER_LOCALITY) setOtherLocality("");
+                      }}
+                    >
+                      <SelectTrigger className="w-full h-12 rounded-xl border-gray-200 bg-white px-3 text-base focus:ring-2 focus:ring-[#238D9D]">
+                        <SelectValue placeholder="Choose your town / locality" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white">
+                        {KENYA_LOCALITIES.map((locality) => (
+                          <SelectItem key={locality} value={locality}>
+                            {locality}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value={OTHER_LOCALITY}>Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {selectedLocality === OTHER_LOCALITY && (
+                      <input
+                        value={otherLocality}
+                        onChange={(e) => setOtherLocality(e.target.value)}
+                        placeholder="Enter your town / area"
+                        className="mt-2 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-[#238D9D]"
+                      />
+                    )}
+                    {effectiveCity && pricing && (
+                      <p className="text-xs text-[#238D9D] mt-1">
+                        Delivery fee: ${fmt(pricing.delivery_fee_cusd)} · {pricing.delivery_eta}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Street / building{" "}
+                      <span className="font-normal text-gray-400">(optional)</span>
+                    </label>
+                    <textarea
+                      value={locationDetails}
+                      onChange={(e) => setLocationDetails(e.target.value)}
+                      placeholder="Building name, street, estate, landmark…"
+                      rows={2}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-[#238D9D] resize-none"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               <Button
                 title="Continue to payment"
@@ -814,20 +877,24 @@ export default function VoucherOrderSheet({
                 </div>
               </div>
 
-              {/* Delivery details pill */}
+              {/* Delivery / destination pill */}
               <div className="flex items-start gap-2 text-sm text-gray-500 mb-4 px-1">
                 <MapPin size={15} className="mt-0.5 shrink-0 text-[#238D9D]" />
-                <span>
-                  {recipientName} · {phone} · {effectiveCity}
-                  {locationDetails ? ` · ${locationDetails}` : ""}
-                </span>
+                {isDigital ? (
+                  <span>{digitalKind === "code_delivery" ? email : phone}</span>
+                ) : (
+                  <span>
+                    {recipientName} · {phone} · {effectiveCity}
+                    {locationDetails ? ` · ${locationDetails}` : ""}
+                  </span>
+                )}
               </div>
 
               {/* Rewards note */}
               <div className="flex items-center gap-2 bg-[#238D9D0D] rounded-xl px-3 py-2 mb-5">
                 <Image src={akibaMilesSymbol} alt="" width={16} height={16} />
                 <p className="text-xs text-[#238D9D] font-medium">
-                  +200 AkibaMiles reward after delivery confirmation
+                  +200 AkibaMiles reward after {isDigital ? "order confirmation" : "delivery confirmation"}
                 </p>
               </div>
 
@@ -852,11 +919,11 @@ export default function VoucherOrderSheet({
               <Button
                 title={`Pay $${fmt(pricing.total_cusd)} ${currency}`}
                 onClick={handlePay}
-                disabled={!DELIVERY_FEE_ADDRESS}
+                disabled={!payToAddress}
                 className="w-full bg-[#238D9D] text-white rounded-xl h-[56px] font-medium text-base"
               />
 
-              {!DELIVERY_FEE_ADDRESS && (
+              {!payToAddress && (
                 <p className="text-xs text-red-500 text-center mt-2">
                   Payment address not configured — contact support.
                 </p>
@@ -873,7 +940,9 @@ export default function VoucherOrderSheet({
 
               <h2 className="font-bold text-xl mb-1">Order confirmed!</h2>
               <p className="text-sm text-gray-500 mb-5">
-                We'll deliver your item within {confirmedOrder.delivery_eta}.
+                {isDigital
+                  ? `Your ${digitalKind === "code_delivery" ? "code" : "top-up"} will arrive ${confirmedOrder.delivery_eta.toLowerCase()}.`
+                  : `We'll deliver your item within ${confirmedOrder.delivery_eta}.`}
               </p>
 
               <div className="w-full bg-gray-50 rounded-2xl p-4 space-y-2 text-sm mb-4">
@@ -886,8 +955,12 @@ export default function VoucherOrderSheet({
                   <span className="font-semibold">${fmt(confirmedOrder.amount_paid_cusd)} {currency}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Delivery</span>
-                  <span className="font-medium">{effectiveCity} · {confirmedOrder.delivery_eta}</span>
+                  <span className="text-gray-400">{isDigital ? "Sent to" : "Delivery"}</span>
+                  <span className="font-medium">
+                    {isDigital
+                      ? `${digitalKind === "code_delivery" ? email : phone} · ${confirmedOrder.delivery_eta}`
+                      : `${effectiveCity} · ${confirmedOrder.delivery_eta}`}
+                  </span>
                 </div>
               </div>
 

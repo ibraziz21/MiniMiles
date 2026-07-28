@@ -1,33 +1,39 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from './ui/button';
-import { Sheet, SheetContent } from './ui/sheet';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+} from './ui/sheet';
 import Image from 'next/image';
-import posthog from 'posthog-js';
 import { claimPartnerQuest } from '@/helpers/partnerQuests';
 import { useWeb3 } from '@/contexts/useWeb3';
 import { akibaMilesSymbol } from '@/lib/svg';
 import { Input } from './ui/input';
 import type { Quest } from './partner-quests';
+import { useRouter } from 'next/navigation';
 import {
-  QUEST_SPONSORED_LEADERBOARD,
-  QUEST_COMPLETE_PROFILE,
-  QUEST_REDEEM_VOUCHER,
-} from '@/lib/merchantDiscoveryQuests';
-
-const SERVER_VERIFIED_QUEST_IDS = new Set([
-  QUEST_SPONSORED_LEADERBOARD,
-  QUEST_COMPLETE_PROFILE,
-  QUEST_REDEEM_VOUCHER,
-]);
+  buildMerchantQuestActionHref,
+  friendlyMerchantQuestError,
+  hasMerchantQuestStarted,
+  isMerchantQuestActionRequired,
+  markMerchantQuestStarted,
+} from '@/lib/merchantQuestJourney';
+import type { MerchantQuestStatusState } from '@/lib/merchantDiscoveryQuests';
 
 interface PartnerQuestSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  quest: Quest | null;
+  quest: (Quest & { merchantQuestState?: MerchantQuestStatusState }) | null;
   setOpenSuccess?: (c: boolean) => void;
   onPretiumSubmit?: (questId: string) => void;
+  onQuestStarted?: (questId: string) => void;
+  onClaimQueued?: (questId: string) => void;
+  onClaimNeedsAction?: (questId: string) => void;
 }
 
 /* ────────────────────────────────────────────────────────── */
@@ -71,10 +77,16 @@ const EarnPartnerQuestSheet = ({
   quest,
   setOpenSuccess,
   onPretiumSubmit,
+  onQuestStarted,
+  onClaimQueued,
+  onClaimNeedsAction,
 }: PartnerQuestSheetProps) => {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [username, setUsername] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [hasStarted, setHasStarted] = useState(false);
   const [pretiumSubmitted, setPretiumSubmitted] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null | undefined>(undefined);
 
@@ -85,6 +97,12 @@ const EarnPartnerQuestSheet = ({
   }, [getUserAddress]);
 
   const isPretiumQuest = !!quest?.questType && PRETIUM_QUEST_TYPES.has(quest.questType);
+
+  useEffect(() => {
+    if (!open || !quest) return;
+    setError(null);
+    setHasStarted(hasMerchantQuestStarted(quest.id));
+  }, [open, quest]);
 
   // Fetch email when a Pretium quest sheet opens
   useEffect(() => {
@@ -100,6 +118,7 @@ const EarnPartnerQuestSheet = ({
   if (!quest) return null;
 
   const isUsernameQuest = quest.id === 'f18818cf-eec4-412e-8311-22e09a1332db';
+  const isFailedReward = quest.merchantQuestState === 'failed';
 
   const normalizedUsername = isUsernameQuest
     ? normalizeUsernameInput(username)
@@ -112,9 +131,39 @@ const EarnPartnerQuestSheet = ({
       ? 'Please enter a username first.'
       : null;
 
+  const handleStartQuest = async () => {
+    if (!quest.actionLink) return;
+    if (!address) {
+      setError('Connect your wallet before starting this quest.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      await waitForAuth();
+      const sessionResponse = await fetch('/api/auth/session', {
+        cache: 'no-store',
+      });
+      const sessionData = await sessionResponse.json().catch(() => null);
+      if (!sessionResponse.ok || !sessionData?.authenticated) {
+        throw new Error('Authentication required');
+      }
+      markMerchantQuestStarted(quest.id);
+      setHasStarted(true);
+      onQuestStarted?.(quest.id);
+      setLoading(false);
+      onOpenChange(false);
+      router.push(buildMerchantQuestActionHref(quest.actionLink, quest.id));
+    } catch {
+      setError('We could not authenticate your wallet. Please try again.');
+      setLoading(false);
+    }
+  };
+
   const handleClaim = async () => {
     if (!address) {
-      alert('Wallet not connected');
+      setError('Connect your wallet before verifying this quest.');
       return;
     }
 
@@ -177,35 +226,22 @@ const EarnPartnerQuestSheet = ({
           throw new Error(text || 'Failed to save username quest');
         }
       } else {
-        // ── Normal partner quests: open external app + claimPartnerQuest ──
-        const isMiniPay =
-          typeof window !== 'undefined' &&
-          (window as any).ethereum?.isMiniPay;
-
-        let destination = quest.actionLink;
-
-        // Twitter-specific deep link logic (based on title)
-        if (quest.title.toLowerCase().includes('twitter')) {
-          destination = isMiniPay
-            ? 'twitter://user?screen_name=akibaMilesApp'
-            : 'https://twitter.com/akibaMilesApp';
-        }
-
-        if (destination) {
-          if (isMiniPay) {
-            window.location.href = destination;
-          } else {
-            window.open(destination, '_blank', 'noopener,noreferrer');
-          }
-        }
-
-        const { error: claimError } = await claimPartnerQuest(address, quest.id);
+        // ── Merchant quest verification and claim ───────────────────────
+        // Navigation happens separately in handleStartQuest so MiniPay does
+        // not cancel the eligibility/claim requests while leaving this page.
+        const {
+          error: claimError,
+          reason: claimReason,
+        } = await claimPartnerQuest(address, quest.id);
         if (claimError) {
-          throw new Error(claimError);
+          if (isMerchantQuestActionRequired(claimError, claimReason)) {
+            onClaimNeedsAction?.(quest.id);
+          }
+          throw new Error(friendlyMerchantQuestError(claimError, claimReason));
         }
-        posthog.capture('quest_claim', {
-          quest_id: quest.id,
-          verified: SERVER_VERIFIED_QUEST_IDS.has(quest.id),
+        onClaimQueued?.(quest.id);
+        void queryClient.invalidateQueries({
+          queryKey: ['merchant-discovery-status'],
         });
       }
 
@@ -227,13 +263,17 @@ const EarnPartnerQuestSheet = ({
         side="bottom"
         className="bg-white rounded-t-xl font-sterling p-4"
       >
+        <SheetTitle className="sr-only">{quest.title}</SheetTitle>
+        <SheetDescription className="sr-only">
+          Start this merchant quest, return to AkibaMiles, then verify the action to claim the reward.
+        </SheetDescription>
         <div className="flex justify-start items-center mb-2">
           <div className="rounded-full mr-2" style={{ backgroundColor: quest.color }}>
             <Image src={akibaMilesSymbol} alt="" className="h-[20px]" />
           </div>
-          <h3 className="text-sm font-medium bg-[#24E5E033] text-[#1E8C89] rounded-full px-3">
-            Partner Quest
-          </h3>
+          <span className="text-sm font-medium bg-[#24E5E033] text-[#1E8C89] rounded-full px-3">
+            Merchant Quest
+          </span>
         </div>
 
         <div className="mb-4">
@@ -255,6 +295,15 @@ const EarnPartnerQuestSheet = ({
           </div>
           <span className="text-sm uppercase">akibaMiles</span>
         </div>
+
+        {!isPretiumQuest && !isUsernameQuest && (
+          <div className="mb-4 rounded-xl border border-[#FCD34D] bg-[#FEF9EC] px-3 py-2 font-poppins">
+            <p className="text-xs text-[#78350F]">
+              <span className="font-semibold">Claim requirement:</span>{' '}
+              hold some cUSD, USDT, or USDC in this wallet for at least one day.
+            </p>
+          </div>
+        )}
 
         <div className="mb-6 font-poppins">
           {isPretiumQuest ? (
@@ -397,24 +446,39 @@ const EarnPartnerQuestSheet = ({
             </div>
           )
         ) : (
-          <Button
-            className="w-full rounded-xl py-6 text-white bg-[#238D9D] mb-2"
-            title={
-              loading
-                ? 'Processing…'
-                : isUsernameQuest
-                ? 'Save username & Earn'
-                : 'Complete & Earn'
-            }
-            onClick={handleClaim}
-            disabled={loading || (isUsernameQuest && !!usernameValidationError)}
-          >
-            {loading
-              ? 'Processing…'
-              : isUsernameQuest
-              ? 'Save username & Earn'
-              : 'Complete & Earn'}
-          </Button>
+          isUsernameQuest ? (
+            <Button
+              className="w-full rounded-xl py-6 text-white bg-[#238D9D] mb-2"
+              title={loading ? 'Processing…' : 'Save username & Earn'}
+              onClick={handleClaim}
+              disabled={loading || !!usernameValidationError}
+            />
+          ) : (
+            <div className="flex flex-col gap-2">
+              {!isFailedReward && (
+                <Button
+                  className="w-full rounded-xl border border-[#238D9D] bg-white py-5 text-[#238D9D]"
+                  title={hasStarted ? 'Continue quest' : 'Start quest'}
+                  onClick={handleStartQuest}
+                  disabled={loading}
+                />
+              )}
+              <Button
+                className="w-full rounded-xl bg-[#238D9D] py-6 text-white"
+                title={
+                  loading
+                    ? isFailedReward
+                      ? 'Retrying reward…'
+                      : 'Verifying…'
+                    : isFailedReward
+                    ? 'Retry reward'
+                    : 'Verify & claim'
+                }
+                onClick={handleClaim}
+                disabled={loading}
+              />
+            </div>
+          )
         )}
       </SheetContent>
     </Sheet>

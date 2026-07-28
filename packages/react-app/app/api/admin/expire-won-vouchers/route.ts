@@ -8,6 +8,7 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { PRIZE_ACQUISITION_SOURCES } from "@/lib/games/prizeAcquisitionSources";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -31,7 +32,7 @@ export async function POST(req: Request) {
   const { data: expired, error } = await supabase
     .from("issued_vouchers")
     .select("id, user_address")
-    .eq("acquisition_source", "leaderboard_win")
+    .in("acquisition_source", PRIZE_ACQUISITION_SOURCES)
     .eq("status", "issued")
     .lte("expires_at", new Date().toISOString())
     .limit(200);

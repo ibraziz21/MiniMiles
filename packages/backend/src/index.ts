@@ -6,6 +6,7 @@ import gamesRouter from "./games/routes";
 import farkleRouter from "./farkle/routes";
 import { startFarkleSettlementWorker } from "./farkle/service";
 import { startMintWorker, runDrain, releaseCurrentLock } from "./mintWorker";
+import { startBurnWorker, releaseCurrentBurnLock } from "./burnWorker";
 import { startBurnBlacklistWatcher } from "./burnBlacklistWatcher";
 import { startProsperityPassWorker, releaseCurrentPassLock } from "./prosperityPassWorker";
 import { startCrackPotSweeper, runCrackPotSweep } from "./crackpotSweeper";
@@ -76,6 +77,7 @@ const server = app.listen(PORT, () => {
   console.log(`Server listening on port ${actualPort} (role=${role}, workers=${workersEnabled})`);
   if (workersEnabled) {
     startMintWorker();
+    startBurnWorker();
     startBurnBlacklistWatcher();
     startProsperityPassWorker();
     if (crackPotEnabled) startCrackPotSweeper();
@@ -90,6 +92,7 @@ const server = app.listen(PORT, () => {
 async function shutdown() {
   console.log("[server] Shutting down — releasing mint lock…");
   await releaseCurrentLock();
+  await releaseCurrentBurnLock();
   await releaseCurrentPassLock();
   process.exit(0);
 }

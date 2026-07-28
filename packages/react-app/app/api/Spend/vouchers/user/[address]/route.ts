@@ -66,7 +66,7 @@ export async function GET(
   const { data: merchants, error: mErr } = merchantIds.length
     ? await supabase
         .from("partners")
-        .select("id, name, slug, image_url")
+        .select("id, name, slug, image_url, country, partner_settings(wallet_address)")
         .in("id", merchantIds)
     : { data: [], error: null };
 
@@ -74,7 +74,17 @@ export async function GET(
     console.error("[GET /vouchers/user] merchants query", mErr);
   }
 
-  const merchantMap = new Map((merchants ?? []).map((m: any) => [m.id, m]));
+  const merchantsWithWallet = (merchants ?? []).map((m: any) => ({
+    id: m.id,
+    name: m.name,
+    slug: m.slug,
+    image_url: m.image_url,
+    country: m.country,
+    // Public on-chain address — the client needs it to pay the merchant directly.
+    wallet_address: m.partner_settings?.wallet_address ?? null,
+  }));
+
+  const merchantMap = new Map(merchantsWithWallet.map((m) => [m.id, m]));
   const templateMap = new Map(
     (templates ?? []).map((t: any) => [
       t.id,

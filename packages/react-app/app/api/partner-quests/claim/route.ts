@@ -8,6 +8,8 @@ import { verifyClaimToken, consumeClaimToken } from "@/lib/partnerAttestation";
 import { checkStableHoldRequirement } from "@/lib/stableHoldGate";
 import { isoWeek } from "@/lib/games/week";
 import { QUEST_SPONSORED_LEADERBOARD } from "@/lib/merchantDiscoveryQuests";
+import { recordMerchantQuestEvent } from "@/lib/server/merchantQuestAudit";
+import { shouldGateMerchantQuest } from "@/lib/server/merchantQuestRollout";
 
 /* ─── env / clients ─────────────────────────────────────── */
 
@@ -43,6 +45,12 @@ export async function POST(request: Request) {
     }
 
     const userLc = session.walletAddress;
+    if (shouldGateMerchantQuest(questId, userLc)) {
+      return NextResponse.json(
+        { error: "Merchant quests are not available" },
+        { status: 404 },
+      );
+    }
 
     if (await isBlacklisted(userLc, "partner-quests/claim")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -66,6 +74,7 @@ export async function POST(request: Request) {
     }
 
     const isWeeklyQuest = questId === QUEST_SPONSORED_LEADERBOARD;
+    const claimWeek = isWeeklyQuest ? isoWeek() : null;
 
     /* 1 ▸ one-time check (weekly quest tracks completion separately) */
     if (!isWeeklyQuest) {
@@ -114,7 +123,7 @@ export async function POST(request: Request) {
           userAddress: userLc,
           questId,
           points,
-          isoWeek: isoWeek(),
+          isoWeek: claimWeek!,
           reason: `partner-quest:${questId}`,
         })
       : await claimQueuedPartnerReward({
@@ -130,6 +139,22 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    await recordMerchantQuestEvent({
+      eventKey: result.retried
+        ? `retry:${result.jobId}:${Date.now()}`
+        : `claim:${result.jobId}`,
+      eventType: result.retried ? "retry_queued" : "claim_queued",
+      userAddress: userLc,
+      questId,
+      isoWeek: claimWeek,
+      mintJobId: result.jobId,
+      metadata: {
+        points: result.points,
+        basePoints: result.basePoints,
+        weekly: isWeeklyQuest,
+      },
+    });
 
     return NextResponse.json(
       { minted: result.minted, points: result.points, basePoints: result.basePoints, vaultBoost: result.vaultBoost, queued: true },

@@ -14,6 +14,11 @@ import MerchantVoucherSheet, {
 } from "@/components/merchant-voucher-sheet";
 import { useWeb3 } from "@/contexts/useWeb3";
 import { useWeeklyCampaign } from "@/hooks/games/useWeeklyCampaign";
+import { isPrizeAcquisitionSource } from "@/lib/games/prizeAcquisitionSources";
+import {
+  MERCHANT_QUEST_PROOF_DEAL_OPENED,
+  QUEST_BROWSE_DEALS,
+} from "@/lib/merchantDiscoveryQuests";
 import { akibaMilesSymbol } from "@/lib/svg";
 import { Ticket, Tag, ArrowRight, QrCode, GameController, Spinner } from "@phosphor-icons/react";
 import posthog from "posthog-js";
@@ -71,7 +76,7 @@ function daysLeft(iso: string | null | undefined): number | null {
 
 export default function SpendPage() {
   const web3 = useWeb3() as any;
-  const { address, getUserAddress } = web3;
+  const { address, getUserAddress, waitForAuth } = web3;
   const { campaign } = useWeeklyCampaign();
 
   const [vouchers, setVouchers] = useState<VoucherSummary[]>([]);
@@ -114,7 +119,7 @@ export default function SpendPage() {
   const expiringSoon = useMemo(
     () =>
       activeVouchers.some((v) => {
-        if (v.acquisition_source !== "leaderboard_win") return false;
+        if (!isPrizeAcquisitionSource(v.acquisition_source)) return false;
         const left = daysLeft(v.expires_at);
         return left !== null && left <= 7;
       }),
@@ -124,6 +129,35 @@ export default function SpendPage() {
   const openDeal = (deal: Deal) => {
     posthog.capture("deal_card_tap", { template_id: deal.id });
     if (!deal.spend_merchants) return;
+
+    const journeyQuestId = new URLSearchParams(window.location.search).get(
+      "merchantQuest",
+    );
+    if (journeyQuestId === QUEST_BROWSE_DEALS) {
+      void (async () => {
+        try {
+          await waitForAuth?.();
+          const response = await fetch("/api/merchant-quests/proof", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              questId: QUEST_BROWSE_DEALS,
+              actionType: MERCHANT_QUEST_PROOF_DEAL_OPENED,
+              referenceId: deal.id,
+            }),
+          });
+          if (!response.ok) {
+            console.warn(
+              "[spend] merchant quest proof was not recorded",
+              response.status,
+            );
+          }
+        } catch (error) {
+          console.warn("[spend] could not record merchant quest progress", error);
+        }
+      })();
+    }
+
     setSheetMerchant({
       id: deal.spend_merchants.id,
       slug: deal.spend_merchants.slug,

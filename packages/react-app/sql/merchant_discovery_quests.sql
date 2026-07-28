@@ -12,6 +12,8 @@ create table if not exists partner_quest_weekly_claims (
   partner_quest_id uuid not null references partner_quests(id),
   iso_week text not null, -- e.g. '2026-W30', see lib/games/week.ts
   claimed_at timestamptz not null default now(),
+  points_awarded integer,
+  tx_hash text,
   primary key (user_address, partner_quest_id, iso_week)
 );
 

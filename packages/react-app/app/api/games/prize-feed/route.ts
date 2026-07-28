@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { requireSession } from "@/lib/auth";
 import { getClawVouchersForPlayer } from "@/lib/server/clawVouchers";
 import { RewardClass } from "@/lib/clawTypes";
+import { PRIZE_ACQUISITION_SOURCES } from "@/lib/games/prizeAcquisitionSources";
 
 export type PrizeFeedEntry = {
   id: string;
@@ -29,7 +30,7 @@ export type PrizeFeedEntry = {
     rank: number;
     label: string;
     discount_percent: number;
-    spend_cap_kes: number;
+    spend_cap_kes: number | null;
     marketplace_miles: number;
     burn_pct: number;
   } | null;
@@ -69,7 +70,7 @@ export async function GET() {
       .from("issued_vouchers")
       .select(LEADERBOARD_SELECT)
       .eq("user_address", address)
-      .eq("acquisition_source", "leaderboard_win")
+      .in("acquisition_source", PRIZE_ACQUISITION_SOURCES)
       .neq("status", "void")
       .order("created_at", { ascending: false })
       .limit(10),

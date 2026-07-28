@@ -39,11 +39,11 @@ const SuccessModal = ({
         <div className="px-6 pt-5">
           <DialogHeader className="items-center">
             <span className="inline-flex items-center rounded-full bg-[#E6FBF4] px-3 py-1 text-xs font-medium text-[#15803d]">
-              ✅ Quest Completed
+              ✅ Reward queued
             </span>
 
             <DialogTitle className="mt-3 text-center text-xl font-semibold text-gray-900">
-              Claim Received
+              Verification received
             </DialogTitle>
 
             <p className="mt-1 text-center text-sm text-gray-500">

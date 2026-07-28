@@ -6,80 +6,18 @@
 // (on-chain holds, partner API calls, etc.) controls who can claim.
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { requireSession } from "@/lib/auth";
 import { isBlacklisted } from "@/lib/blacklist";
 import { issueClaimToken } from "@/lib/partnerAttestation";
 import { checkStableHoldRequirement } from "@/lib/stableHoldGate";
-import { isoWeek, weekRange } from "@/lib/games/week";
+import { isoWeek } from "@/lib/games/week";
+import { QUEST_SPONSORED_LEADERBOARD } from "@/lib/merchantDiscoveryQuests";
+import { supabase } from "@/lib/supabaseClient";
 import {
-  QUEST_SPONSORED_LEADERBOARD,
-  QUEST_COMPLETE_PROFILE,
-  QUEST_REDEEM_VOUCHER,
-} from "@/lib/merchantDiscoveryQuests";
-
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
-);
-
-// ── Merchant-discovery quest-specific eligibility hooks ──────────────────────
-// Returns a reason string when NOT eligible, or null when the quest-specific
-// condition is satisfied (the generic already-claimed check still applies).
-async function checkMerchantDiscoveryQuest(
-  questId: string,
-  userLc: string,
-): Promise<string | null> {
-  if (questId === QUEST_SPONSORED_LEADERBOARD) {
-    const week = isoWeek();
-    const { from, to } = weekRange(week);
-
-    const { data: alreadyThisWeek } = await supabase
-      .from("partner_quest_weekly_claims")
-      .select("iso_week")
-      .eq("user_address", userLc)
-      .eq("partner_quest_id", questId)
-      .eq("iso_week", week)
-      .maybeSingle();
-    if (alreadyThisWeek) return "already-claimed-this-week";
-
-    const { data: session } = await supabase
-      .from("skill_game_sessions")
-      .select("session_id")
-      .eq("wallet_address", userLc)
-      .eq("accepted", true)
-      .gte("created_at", from)
-      .lt("created_at", to)
-      .limit(1)
-      .maybeSingle();
-    if (!session) return "no-accepted-session-this-week";
-    return null;
-  }
-
-  if (questId === QUEST_COMPLETE_PROFILE) {
-    const { data: user } = await supabase
-      .from("users")
-      .select("country")
-      .eq("user_address", userLc)
-      .maybeSingle();
-    if (!user?.country) return "country-not-set";
-    return null;
-  }
-
-  if (questId === QUEST_REDEEM_VOUCHER) {
-    const { data: redeemed } = await supabase
-      .from("issued_vouchers")
-      .select("id")
-      .eq("user_address", userLc)
-      .eq("status", "redeemed")
-      .limit(1)
-      .maybeSingle();
-    if (!redeemed) return "no-redeemed-voucher";
-    return null;
-  }
-
-  return null;
-}
+  isMerchantDiscoveryQuestId,
+  verifyMerchantQuestAction,
+} from "@/lib/server/merchantQuestVerification";
+import { shouldGateMerchantQuest } from "@/lib/server/merchantQuestRollout";
 
 export async function GET(req: NextRequest) {
   const session = await requireSession();
@@ -93,6 +31,15 @@ export async function GET(req: NextRequest) {
   }
 
   const userLc = session.walletAddress;
+  if (
+    isMerchantDiscoveryQuestId(questId) &&
+    shouldGateMerchantQuest(questId, userLc)
+  ) {
+    return NextResponse.json(
+      { error: "Merchant quests are not available" },
+      { status: 404 },
+    );
+  }
 
   if (await isBlacklisted(userLc, "partner-quests/eligibility")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -136,12 +83,49 @@ export async function GET(req: NextRequest) {
     if (existing && existing.length > 0) {
       return NextResponse.json({ eligible: false, reason: "already-claimed" });
     }
+  } else {
+    const { data: weeklyClaim, error: weeklyClaimError } = await supabase
+      .from("partner_quest_weekly_claims")
+      .select("iso_week")
+      .eq("user_address", userLc)
+      .eq("partner_quest_id", questId)
+      .eq("iso_week", isoWeek())
+      .maybeSingle();
+
+    if (weeklyClaimError) {
+      console.error("[partner-quests/eligibility] weekly claim lookup", weeklyClaimError);
+      return NextResponse.json(
+        { error: "Could not verify quest completion" },
+        { status: 503 },
+      );
+    }
+    if (weeklyClaim) {
+      return NextResponse.json({
+        eligible: false,
+        reason: "already-claimed-this-week",
+      });
+    }
   }
 
   // ── Quest-specific eligibility hooks ─────────────────────────────────────
-  const merchantQuestReason = await checkMerchantDiscoveryQuest(questId, userLc);
-  if (merchantQuestReason) {
-    return NextResponse.json({ eligible: false, reason: merchantQuestReason });
+  let merchantQuestVerification;
+  try {
+    merchantQuestVerification = await verifyMerchantQuestAction(
+      questId,
+      userLc,
+    );
+  } catch (error) {
+    console.error("[partner-quests/eligibility] merchant verification", error);
+    return NextResponse.json(
+      { error: "Could not verify merchant quest progress" },
+      { status: 503 },
+    );
+  }
+  if (!merchantQuestVerification.eligible) {
+    return NextResponse.json({
+      eligible: false,
+      reason: merchantQuestVerification.reason,
+    });
   }
   // Add per-quest checks here as quests require on-chain or partner verification.
   // ─────────────────────────────────────────────────────────────────────────

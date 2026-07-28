@@ -26,7 +26,7 @@ type PrizeRow = {
     rank: number;
     label: string;
     discount_percent: number;
-    spend_cap_kes: number;
+    spend_cap_kes: number | null;
     marketplace_miles: number;
     burn_pct: number;
   } | null;
@@ -153,9 +153,11 @@ export function LeaderboardWinSheet() {
                       <p className="mt-0.5 text-3xl font-black" style={{ color: rank.accent }}>
                         {meta.label}
                       </p>
-                      <p className="mt-0.5 text-[11px] text-gray-400">
-                        on purchases up to KES {meta.spend_cap_kes.toLocaleString()}
-                      </p>
+                      {meta.spend_cap_kes != null && (
+                        <p className="mt-0.5 text-[11px] text-gray-400">
+                          on purchases up to KES {meta.spend_cap_kes.toLocaleString()}
+                        </p>
+                      )}
                     </div>
                     <div className="flex h-14 w-14 items-center justify-center rounded-2xl text-3xl" style={{ background: `${rank.accent}18` }}>
                       {rank.emoji}

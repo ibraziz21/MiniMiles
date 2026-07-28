@@ -1,5 +1,5 @@
 // POST /api/Spend/vouchers/issue
-// Burns AkibaMiles and issues a spend voucher.
+// Reserves a spend voucher and queues the AkibaMiles burn that pays for it.
 //
 // Body:
 //   merchant_id       string  (UUID)
@@ -15,11 +15,21 @@
 //   pg_advisory_xact_lock on the template_id so cap and cooldown checks are
 //   serialized across all concurrent requests.  The nonce INSERT before it
 //   serializes per-(user, nonce) pair.
+//
+// The burn itself is async (enqueueMilesBurn -> minipoint_burn_jobs,
+// drained by packages/backend's burnWorker) rather than an inline on-chain
+// call — reserve_miles_burn() atomically reserves against spendable balance
+// (on-chain balance minus everything else already queued) before the job
+// is inserted, so a concurrent request can't double-spend the same Miles
+// while this one is still in flight. The response returns the voucher as
+// status: "pending" with queued: true; it flips to "issued" (with a real
+// burn_tx_hash) once burnWorker completes the job — see
+// sql/minipoint_burn_queue.sql and lib/minipointBurnQueue.ts.
 
 import { NextResponse } from "next/server";
 import { verifyMessage } from "viem";
 import { supabase } from "@/lib/supabaseClient";
-import { safeBurnMiniPoints } from "@/lib/minipoints";
+import { enqueueMilesBurn } from "@/lib/minipointBurnQueue";
 import { isBlacklisted } from "@/lib/blacklist";
 
 const NONCE_WINDOW_SEC = 10 * 60; // 10 minutes
@@ -175,16 +185,34 @@ export async function POST(req: Request) {
       miles_cost: number;
     };
 
-    // ── Burn miles ────────────────────────────────────────────────────────────
-    let burnTxHash: string;
-    try {
-      burnTxHash = await safeBurnMiniPoints({
-        from: addr,
-        points: pendingVoucher.miles_cost,
-        reason: `voucher-issue:template_${template_id}`,
-      });
-    } catch (burnErr: any) {
-      console.error("[vouchers/issue] burn failed — voiding pending voucher", burnErr);
+    // Product-linking denorm doesn't depend on the burn — set it now so the
+    // voucher already displays correctly while it sits pending.
+    await supabase
+      .from("issued_vouchers")
+      .update({
+        linked_product_id: templateMeta?.linked_product_id ?? null,
+        product_name:       productName,
+        product_image_url:  productImageUrl,
+      })
+      .eq("id", pendingVoucher.voucher_id);
+
+    // ── Reserve + enqueue the burn (async — packages/backend's burnWorker
+    // executes it) ─────────────────────────────────────────────────────────
+    // reserve_miles_burn() atomically checks spendable balance (on-chain
+    // balance minus everything else already reserved in the queue) before
+    // this job is inserted — the insert itself is the reservation, closing
+    // the double-spend window an async burn would otherwise open. See
+    // sql/minipoint_burn_queue.sql.
+    const burnResult = await enqueueMilesBurn({
+      userAddress: addr,
+      points: pendingVoucher.miles_cost,
+      reason: `voucher-issue:template_${template_id}`,
+      idempotencyKey: `voucher-burn:${pendingVoucher.voucher_id}`,
+      payload: { kind: "voucher_issue", voucher_id: pendingVoucher.voucher_id },
+    });
+
+    if (!burnResult.ok) {
+      console.error("[vouchers/issue] burn reservation failed — voiding pending voucher", burnResult.error);
 
       // Void the pre-inserted row so it doesn't count toward cap or cooldown
       await supabase
@@ -192,49 +220,29 @@ export async function POST(req: Request) {
         .update({ status: "void" })
         .eq("id", pendingVoucher.voucher_id);
 
-      return NextResponse.json(
-        { error: burnErr?.shortMessage ?? "Miles burn failed" },
-        { status: 422 },
-      );
+      const status = burnResult.code === "insufficient_balance" ? 422 : 500;
+      return NextResponse.json({ error: burnResult.error }, { status });
     }
 
-    // ── Promote voucher to issued ─────────────────────────────────────────────
-    const { data: voucher, error: promoteErr } = await supabase
+    // Traceability — the same column hub-page's async burn flow already
+    // uses (lib/vouchers/issuance.ts), reused here rather than adding a new one.
+    await supabase
       .from("issued_vouchers")
-      .update({
-        status:             "issued",
-        burn_tx_hash:       burnTxHash,
-        linked_product_id:  templateMeta?.linked_product_id  ?? null,
-        product_name:       productName,
-        product_image_url:  productImageUrl,
-      })
-      .eq("id", pendingVoucher.voucher_id)
-      .select("id, code, qr_payload, status")
-      .single();
+      .update({ burn_idempotency_key: `voucher-burn:${pendingVoucher.voucher_id}` })
+      .eq("id", pendingVoucher.voucher_id);
 
-    if (promoteErr || !voucher) {
-      // Burn is confirmed on-chain but DB update failed.
-      // The pending row + burn_tx_hash are recoverable via the reconciliation job.
-      console.error("[vouchers/issue] promote to issued failed after confirmed burn — needs reconciliation", {
-        voucher_id:    pendingVoucher.voucher_id,
-        burn_tx_hash:  burnTxHash,
-        error:         promoteErr,
-      });
-      // Persist the burn_tx_hash so the reconciliation job can promote the row.
-      await supabase
-        .from("issued_vouchers")
-        .update({ burn_tx_hash: burnTxHash, recovery_state: "burn_confirmed_promote_failed" })
-        .eq("id", pendingVoucher.voucher_id)
-        .eq("status", "pending"); // only update if still pending — idempotent
-
-      // Return success with the pending row data so the user is not blocked.
-      return NextResponse.json(
-        { voucher: { id: pendingVoucher.voucher_id, code: pendingVoucher.code, qr_payload: pendingVoucher.qr_payload, status: "pending" } },
-        { status: 201 },
-      );
-    }
-
-    return NextResponse.json({ voucher }, { status: 201 });
+    // Promotion to status: "issued" + burn_tx_hash happens once burnWorker
+    // completes this job (payload.kind === "voucher_issue" side effect) —
+    // not here. The voucher stays "pending" until then; this mirrors the
+    // queued:true shape lib/minipointQueue.ts's claim functions already
+    // return for mint-side quest claims.
+    return NextResponse.json(
+      {
+        voucher: { id: pendingVoucher.voucher_id, code: pendingVoucher.code, qr_payload: pendingVoucher.qr_payload, status: "pending" },
+        queued: true,
+      },
+      { status: 201 },
+    );
   } catch (err: any) {
     console.error("[vouchers/issue] unexpected error", err);
     return NextResponse.json({ error: err?.message ?? "Internal error" }, { status: 500 });

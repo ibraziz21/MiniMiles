@@ -16,12 +16,34 @@ import {
 } from "@/components/ui/carousel";
 import { passOnboardingSource, AKIBA_PASS_URL } from "@/helpers/passOnboardingSource";
 import { openExternalUrl, copyToClipboard } from "@/lib/openExternal";
+import {
+  MERCHANT_QUEST_PROOF_PASS_OPENED,
+  QUEST_AKIBA_PASS,
+} from "@/lib/merchantDiscoveryQuests";
 
 export default function AkibaPassOnboarding() {
   const router = useRouter();
   const [api, setApi] = useState<CarouselApi | null>(null);
   const [idx, setIdx] = useState(0);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const questId = new URLSearchParams(window.location.search).get(
+      "merchantQuest",
+    );
+    if (questId !== QUEST_AKIBA_PASS) return;
+
+    void fetch("/api/merchant-quests/proof", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        questId: QUEST_AKIBA_PASS,
+        actionType: MERCHANT_QUEST_PROOF_PASS_OPENED,
+      }),
+    }).catch((error) => {
+      console.warn("[akiba-pass] could not record quest progress", error);
+    });
+  }, []);
 
   useEffect(() => {
     if (!api) return;

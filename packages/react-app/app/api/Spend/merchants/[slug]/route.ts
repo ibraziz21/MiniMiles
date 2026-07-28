@@ -11,7 +11,7 @@ export async function GET(
 
   const { data: merchant, error: mErr } = await supabase
     .from("partners")
-    .select("id, slug, name, country, image_url, partner_settings(logo_url)")
+    .select("id, slug, name, country, image_url, partner_settings(logo_url, support_email, wallet_address)")
     .eq("slug", slug)
     .single();
 
@@ -35,10 +35,18 @@ export async function GET(
     return NextResponse.json({ error: "Failed to fetch templates" }, { status: 500 });
   }
 
+  const settings = (merchant as any).partner_settings ?? null;
   return NextResponse.json({
     merchant: {
-      ...merchant,
-      image_url: (merchant as any).partner_settings?.logo_url ?? merchant.image_url,
+      id: merchant.id,
+      slug: merchant.slug,
+      name: merchant.name,
+      country: merchant.country,
+      image_url: settings?.logo_url ?? merchant.image_url,
+      support_email: settings?.support_email ?? null,
+      // Public on-chain address — the client needs it to send the stablecoin
+      // transfer directly to the merchant, not just know whether one is set.
+      wallet_address: settings?.wallet_address ?? null,
     },
     templates: templates ?? [],
   });
