@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { TopBar } from "@/components/layout/TopBar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/lib/utils";
 
 async function getVoucherData() {
@@ -43,6 +45,12 @@ export default async function VouchersPage() {
     <div>
       <TopBar title="Vouchers & Rewards" subtitle="Voucher issuance, redemption, and template health" />
       <div className="space-y-6 p-6">
+        <div className="flex justify-end">
+          <Button asChild variant="outline">
+            <Link href="/vouchers/weekly-challenge">Weekly Leaderboard Challenge →</Link>
+          </Button>
+        </div>
+
         <div className="grid gap-4 sm:grid-cols-3">
           <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Issued</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{formatNumber(issued.length)}</p></CardContent></Card>
           <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Redeemed</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{formatNumber(redeemed)}</p></CardContent></Card>

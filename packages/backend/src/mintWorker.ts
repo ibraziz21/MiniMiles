@@ -262,6 +262,98 @@ async function resetStalledJobs() {
   if (count > 0) console.log(`[mintWorker] Unstuck ${count} stalled jobs`);
 }
 
+async function recordMerchantQuestWorkerEvents(
+  jobs: any[],
+  eventType: "reward_completed" | "reward_failed",
+  metadata: Record<string, unknown> = {}
+) {
+  const rows = jobs
+    .filter((job) =>
+      job.payload?.kind === "partner_engagement" ||
+      job.payload?.kind === "partner_weekly_engagement"
+    )
+    .map((job) => ({
+      event_key: `${eventType}:${job.id}`,
+      event_type: eventType,
+      user_address: String(job.payload.userAddress).toLowerCase(),
+      partner_quest_id: job.payload.questId,
+      iso_week: job.payload.isoWeek ?? null,
+      mint_job_id: job.id,
+      metadata,
+    }));
+
+  if (rows.length === 0) return;
+  try {
+    const { error } = await withTimeout(
+      supabase
+        .from("merchant_quest_events")
+        .upsert(rows, { onConflict: "event_key", ignoreDuplicates: true }),
+      SUPABASE_TIMEOUT_MS,
+      `record merchant quest ${eventType}`
+    );
+    if (error) {
+      console.warn(`[mintWorker] merchant quest ${eventType} audit:`, error.message);
+    }
+  } catch (error: any) {
+    console.warn(
+      `[mintWorker] merchant quest ${eventType} audit unavailable:`,
+      error?.message ?? "unknown"
+    );
+  }
+}
+
+// A mint can confirm even if the follow-up weekly completion write encounters
+// a transient database error. Rebuild those derived rows from completed jobs
+// without ever resubmitting the on-chain mint.
+async function reconcileWeeklyPartnerCompletions() {
+  const { data: jobs, error } = await withTimeout(
+    supabase
+      .from("minipoint_mint_jobs")
+      .select("payload, tx_hash")
+      .eq("status", "completed")
+      .eq("payload->>kind", "partner_weekly_engagement")
+      .order("updated_at", { ascending: false })
+      .limit(1000),
+    SUPABASE_TIMEOUT_MS,
+    "load weekly partner completion reconciliation"
+  );
+
+  if (error) {
+    console.warn("[mintWorker] weekly completion reconciliation lookup:", error.message);
+    return;
+  }
+
+  const rows = (jobs ?? [])
+    .filter((job) =>
+      job.payload?.userAddress &&
+      job.payload?.questId &&
+      job.payload?.isoWeek
+    )
+    .map((job) => ({
+      user_address: job.payload.userAddress,
+      partner_quest_id: job.payload.questId,
+      iso_week: job.payload.isoWeek,
+      claimed_at: job.payload.claimedAt ?? new Date().toISOString(),
+      points_awarded: job.payload.pointsAwarded ?? null,
+      tx_hash: job.tx_hash ?? null,
+    }));
+
+  if (rows.length === 0) return;
+
+  const { error: upsertError } = await withTimeout(
+    supabase
+      .from("partner_quest_weekly_claims")
+      .upsert(rows, {
+        onConflict: "user_address,partner_quest_id,iso_week",
+      }),
+    SUPABASE_TIMEOUT_MS,
+    "reconcile weekly partner completions"
+  );
+  if (upsertError) {
+    console.warn("[mintWorker] weekly completion reconciliation write:", upsertError.message);
+  }
+}
+
 // Single bulk fetch + mark-processing instead of N sequential RPC calls.
 async function claimBatch(count: number, owner: string): Promise<any[]> {
   const nowIso = new Date().toISOString();
@@ -319,6 +411,17 @@ async function applyBatchPayloads(jobs: any[], txHash: string) {
       points_awarded: j.payload.pointsAwarded,
     }));
 
+  const partnerWeeklyRows = jobs
+    .filter((j) => j.payload?.kind === "partner_weekly_engagement")
+    .map((j) => ({
+      user_address: j.payload.userAddress,
+      partner_quest_id: j.payload.questId,
+      iso_week: j.payload.isoWeek,
+      claimed_at: j.payload.claimedAt,
+      points_awarded: j.payload.pointsAwarded,
+      tx_hash: txHash,
+    }));
+
   const m50 = jobs
     .filter((j) => j.payload?.kind === "profile_milestone" && j.payload.milestone === 50)
     .map((j) => j.payload.userAddress.toLowerCase());
@@ -346,6 +449,22 @@ async function applyBatchPayloads(jobs: any[], txHash: string) {
       "bulk partner_engagements"
     );
     if (error && error.code !== "23505") console.error("[mintWorker] bulk partner_engagements:", error.message);
+  }
+
+  if (partnerWeeklyRows.length > 0) {
+    const { error } = await withTimeout(
+      supabase
+        .from("partner_quest_weekly_claims")
+        .upsert(partnerWeeklyRows, {
+          onConflict: "user_address,partner_quest_id,iso_week",
+          ignoreDuplicates: true,
+        }),
+      SUPABASE_TIMEOUT_MS,
+      "bulk partner_quest_weekly_claims"
+    );
+    if (error && error.code !== "23505") {
+      console.error("[mintWorker] bulk partner_quest_weekly_claims:", error.message);
+    }
   }
 
   if (m50.length > 0) {
@@ -403,6 +522,8 @@ async function applyBatchPayloads(jobs: any[], txHash: string) {
     console.error("[mintWorker] bulk complete:", completeErr.message);
     throw completeErr;
   }
+
+  await recordMerchantQuestWorkerEvents(jobs, "reward_completed", { txHash });
 }
 
 // ── Mint helpers ──────────────────────────────────────────────────────────────
@@ -477,10 +598,17 @@ async function handleFailedJobs(failed: { job: any; msg: string; err: any }[]) {
 
     if (kind === "blacklisted") {
       await permanentlyFail(job.id, "blacklisted");
+      await recordMerchantQuestWorkerEvents([job], "reward_failed", {
+        reason: "blacklisted",
+      });
     } else if (kind === "unauthorized" || kind === "null-address" || isPermanentContractError(err) || isBlacklistedError({ message: msg })) {
       await permanentlyFail(job.id, reason);
+      await recordMerchantQuestWorkerEvents([job], "reward_failed", { reason });
     } else if ((job.attempts ?? 0) >= MAX_JOB_ATTEMPTS) {
       await permanentlyFail(job.id, msg);
+      await recordMerchantQuestWorkerEvents([job], "reward_failed", {
+        reason: msg.slice(0, 500),
+      });
     } else {
       const delay = Math.min(30, 2 ** Math.max(1, job.attempts ?? 1));
       await withTimeout(
@@ -619,6 +747,8 @@ export async function runDrain() {
     try {
       setRunPhase(owner, "reset-stalled");
       await resetStalledJobs();
+      setRunPhase(owner, "reconcile-weekly-partner-completions");
+      await reconcileWeeklyPartnerCompletions();
 
       while (true) {
         setRunPhase(owner, "renew-lock");

@@ -1,105 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useLeaderboard } from "@/hooks/games/useLeaderboard";
 import { useWeeklyLeaderboard } from "@/hooks/games/useWeeklyLeaderboard";
+import { useWeeklyCampaign } from "@/hooks/games/useWeeklyCampaign";
+import { useWeekCountdown } from "@/hooks/games/useWeekCountdown";
 import { useWeb3 } from "@/contexts/useWeb3";
-import type { GameType, LeaderboardEntry } from "@/lib/games/types";
-import { Trophy, Medal, CalendarBlank, Gift, Timer } from "@phosphor-icons/react";
-
-/** ms until Sunday 23:59:59 UTC (= next Mon 00:00:00 UTC) */
-function msUntilWeekClose() {
-  const now = new Date();
-  const day = now.getUTCDay(); // 0=Sun…6=Sat
-  const daysUntilMonday = day === 0 ? 1 : 8 - day; // days from now until next Monday
-  const nextMonday = new Date(Date.UTC(
-    now.getUTCFullYear(), now.getUTCMonth(),
-    now.getUTCDate() + daysUntilMonday,
-  ));
-  return nextMonday.getTime() - now.getTime();
-}
-
-function useWeekCountdown() {
-  const [ms, setMs] = useState(msUntilWeekClose);
-  useEffect(() => {
-    const id = setInterval(() => setMs(msUntilWeekClose()), 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  const totalSeconds = Math.floor(ms / 1000);
-  const days  = Math.floor(totalSeconds / 86400);
-  const hours = Math.floor((totalSeconds % 86400) / 3600);
-  const mins  = Math.floor((totalSeconds % 3600) / 60);
-  const secs  = totalSeconds % 60;
-
-  if (days > 1) return `${days}d left`;
-  if (days === 1) return `1d ${String(hours).padStart(2,"0")}:${String(mins).padStart(2,"0")}:${String(secs).padStart(2,"0")}`;
-  return `${String(hours).padStart(2,"0")}:${String(mins).padStart(2,"0")}:${String(secs).padStart(2,"0")}`;
-}
-
-const RANK_ICONS = [
-  <Trophy key="1" size={13} weight="fill" className="text-yellow-500" />,
-  <Medal key="2" size={13} weight="fill" className="text-slate-400" />,
-  <Medal key="3" size={13} weight="fill" className="text-orange-400" />,
-];
-
-function shortAddress(addr: string) {
-  if (!addr || addr.length < 10) return addr;
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-}
-
-function displayName(entry: LeaderboardEntry) {
-  if (entry.username) return `@${entry.username}`;
-  return shortAddress(entry.walletAddress);
-}
-
-function avatarBg(addr: string) {
-  const palette = [
-    "bg-purple-200 text-purple-700",
-    "bg-teal-200 text-teal-700",
-    "bg-orange-200 text-orange-700",
-    "bg-pink-200 text-pink-700",
-    "bg-blue-200 text-blue-700",
-  ];
-  return palette[addr ? addr.charCodeAt(2) % palette.length : 0];
-}
-
-function EntryRow({
-  entry,
-  rank,
-  isYou,
-}: {
-  entry:    LeaderboardEntry;
-  rank:     number;
-  isYou:    boolean;
-}) {
-  return (
-    <div className={`flex items-center gap-3 px-4 py-3 ${isYou ? "bg-[#F0FDFF]" : ""}`}>
-      <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#F5F5F5]">
-        {rank <= 3 ? RANK_ICONS[rank - 1] : (
-          <span className="text-xs font-bold text-[#525252]">#{rank}</span>
-        )}
-      </div>
-      <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${avatarBg(entry.walletAddress)}`}>
-        {entry.walletAddress.slice(2, 4).toUpperCase()}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <p className="text-sm font-semibold text-[#1A1A1A] truncate">{displayName(entry)}</p>
-          {isYou && (
-            <span className="text-[10px] font-bold text-[#238D9D] bg-[#238D9D1A] rounded-full px-1.5 py-0.5 flex-shrink-0">You</span>
-          )}
-        </div>
-        {!entry.username && (
-          <p className="text-xs text-[#817E7E] truncate">{shortAddress(entry.walletAddress)}</p>
-        )}
-      </div>
-      <div className="text-right flex-shrink-0">
-        <p className="text-sm font-bold text-[#238D9D]">{entry.score} pts</p>
-      </div>
-    </div>
-  );
-}
+import type { GameType } from "@/lib/games/types";
+import { Trophy, CalendarBlank, Gift, Timer } from "@phosphor-icons/react";
+import { EntryRow } from "@/components/games/leaderboard-shared";
 
 export function LeaderboardCard({ gameType }: { gameType: GameType }) {
   const [tab, setTab] = useState<"daily" | "weekly">("daily");
@@ -107,6 +16,8 @@ export function LeaderboardCard({ gameType }: { gameType: GameType }) {
   const weekCountdown = useWeekCountdown();
   const daily  = useLeaderboard(gameType);
   const weekly = useWeeklyLeaderboard(gameType);
+  const { campaign } = useWeeklyCampaign();
+  const sponsored = campaign?.merchant && campaign.gameTypes.includes(gameType) ? campaign : null;
 
   const isLoading = tab === "daily" ? daily.isLoading : weekly.isLoading;
   const entries   = tab === "daily" ? daily.entries   : weekly.entries;
@@ -144,19 +55,38 @@ export function LeaderboardCard({ gameType }: { gameType: GameType }) {
         </div>
       </div>
 
-      {/* Weekly countdown header */}
+      {/* Weekly countdown header — sponsored campaign banner when active (spec §2) */}
       {tab === "weekly" && (
         <div className="mx-4 mt-3 mb-1 rounded-xl bg-gradient-to-r from-[#FFF6D8] to-[#FFF0C0] border border-[#B7791F22] px-3 py-2.5">
           <div className="flex items-center gap-2">
             <Gift size={15} weight="fill" className="text-amber-500 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-[#B7791F]">This week's leaderboard</p>
+              <p className="text-xs font-semibold text-[#B7791F]">
+                {sponsored
+                  ? <>This week&apos;s prizes by <span className="font-bold">{sponsored.merchant!.name}</span></>
+                  : "This week's leaderboard"}
+              </p>
             </div>
             <div className="flex items-center gap-1 flex-shrink-0 bg-[#B7791F18] rounded-full px-2 py-1">
               <Timer size={10} weight="fill" className="text-[#B7791F]" />
               <span className="text-[10px] font-bold text-[#B7791F] tabular-nums">{weekCountdown}</span>
             </div>
           </div>
+          {sponsored && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {sponsored.tiers.slice(0, 3).map((t) => (
+                <span
+                  key={t.rank}
+                  className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-bold text-[#B7791F] ring-1 ring-[#B7791F22]"
+                >
+                  {t.rank === 1 ? "🏆" : t.rank === 2 ? "🥈" : "🥉"} {t.label}
+                </span>
+              ))}
+              <span className="text-[10px] text-[#B7791F]/80">
+                on up to KES {(sponsored.tiers[0]?.spendCapKes ?? 0).toLocaleString()}
+              </span>
+            </div>
+          )}
         </div>
       )}
 

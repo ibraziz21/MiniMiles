@@ -43,6 +43,8 @@ type Props = {
   merchant: MerchantForVoucher | null;
   /** Pre-loaded templates — if omitted the sheet fetches them itself. */
   templates?: VoucherTemplate[];
+  /** Fired once a voucher has actually been issued (Miles burned). */
+  onIssued?: (template: VoucherTemplate) => void;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -80,6 +82,7 @@ export default function MerchantVoucherSheet({
   onOpenChange,
   merchant,
   templates: propTemplates,
+  onIssued,
 }: Props) {
   const { address, getakibaMilesBalance } = useWeb3();
 
@@ -90,6 +93,9 @@ export default function MerchantVoucherSheet({
   const [balance, setBalance] = useState(0);
   const [issuing, setIssuing] = useState(false);
   const [voucherCode, setVoucherCode] = useState<string | null>(null);
+  // The Miles burn is queued, not inline — the voucher starts "pending" and
+  // flips to "issued" once packages/backend's burnWorker completes it.
+  const [voucherQueued, setVoucherQueued] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<{ title: string; desc?: string } | null>(null);
 
@@ -122,6 +128,7 @@ export default function MerchantVoucherSheet({
       setScreen("list");
       setSelected(null);
       setVoucherCode(null);
+      setVoucherQueued(false);
       setCopied(false);
     }
   }, [open]);
@@ -170,9 +177,11 @@ export default function MerchantVoucherSheet({
       if (!res.ok) throw new Error(json.error ?? "Voucher issuance failed");
 
       setVoucherCode(json.voucher.code);
+      setVoucherQueued(json.voucher.status === "pending");
       // Refresh balance display
       getakibaMilesBalance().then((b) => setBalance(Number(b))).catch(() => {});
       window.dispatchEvent(new Event("akiba:miles:refresh"));
+      onIssued?.(selected);
       setScreen("success");
     } catch (err: any) {
       const msg: string = err?.message ?? "";
@@ -377,10 +386,21 @@ export default function MerchantVoucherSheet({
                 <Image src={Successsvg} alt="Success" fill className="object-contain" />
               </div>
 
-              <h2 className="font-bold text-xl mb-1">Voucher issued!</h2>
+              <h2 className="font-bold text-xl mb-1">
+                {voucherQueued ? "Voucher on its way!" : "Voucher issued!"}
+              </h2>
               <p className="text-sm text-gray-500 mb-6">
-                Show this code at {merchant.name} when ordering.
+                {voucherQueued
+                  ? "Your Miles are being processed — this code will be ready to use in a moment."
+                  : `Show this code at ${merchant.name} when ordering.`}
               </p>
+
+              {voucherQueued && (
+                <div className="w-full flex items-center gap-2 bg-amber-50 rounded-xl px-3 py-2 mb-4 text-xs text-amber-700">
+                  <Spinner size={14} className="animate-spin shrink-0" />
+                  Processing — check /vouchers shortly if you don't want to wait here.
+                </div>
+              )}
 
               {/* Code card */}
               <div className="w-full bg-[#238D9D0D] border border-[#238D9D33] rounded-2xl p-5 mb-4">

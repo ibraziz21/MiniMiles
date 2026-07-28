@@ -175,6 +175,52 @@ async function burnPassPoints(userAddress: string, points: number): Promise<stri
   return tx.hash;
 }
 
+// Clears the shared minipoint_burn_jobs reservation (reserve_miles_burn,
+// idempotency key 'passport-burn:{address}') this worker's own burn just
+// fulfilled — see lib/prosperityPassQueue.ts. Best-effort: this worker
+// still executes the actual burn itself, this only stops the reserved
+// amount from counting against getSpendableMilesBalance elsewhere.
+// complete_minipoint_burn_job is idempotent, so safe to call even if a
+// prior run already completed it.
+async function completeSharedBurnReservation(userAddress: string, txHash: string) {
+  try {
+    const { data } = await supabase
+      .from("minipoint_burn_jobs")
+      .select("id")
+      .eq("idempotency_key", `passport-burn:${userAddress.toLowerCase()}`)
+      .maybeSingle();
+
+    if (data?.id) {
+      await supabase.rpc("complete_minipoint_burn_job", { p_job_id: data.id, p_tx_hash: txHash });
+    }
+  } catch (err: any) {
+    console.error(`[passWorker] Failed to clear shared burn reservation for ${userAddress}:`, err?.message ?? err);
+  }
+}
+
+// For when the pass flow finishes (or permanently fails) WITHOUT ever
+// burning — e.g. the user already has a pass by the time the job runs, or
+// the flow errors before reaching burnPassPoints. Marks the reservation
+// 'failed' so it stops counting toward getSpendableMilesBalance, same
+// functional effect as 'completed' (both are excluded from the
+// pending/processing sum), just an honest audit trail: no on-chain burn
+// tx exists for this reservation.
+async function releaseSharedBurnReservation(userAddress: string, reason: string) {
+  try {
+    const { data } = await supabase
+      .from("minipoint_burn_jobs")
+      .select("id")
+      .eq("idempotency_key", `passport-burn:${userAddress.toLowerCase()}`)
+      .maybeSingle();
+
+    if (data?.id) {
+      await supabase.rpc("fail_minipoint_burn_job", { p_job_id: data.id, p_error: reason });
+    }
+  } catch (err: any) {
+    console.error(`[passWorker] Failed to release shared burn reservation for ${userAddress}:`, err?.message ?? err);
+  }
+}
+
 async function refundPassPoints(userAddress: string, points: number): Promise<string> {
   const signer = getRelayerSigner();
   const contract = new ethers.Contract(MINIPOINTS_V2_ADDRESS, MINIPOINTS_ABI, signer);
@@ -343,6 +389,11 @@ async function handleJob(job: ProsperityPassJob) {
   try {
     const existing = await getExistingPass(job.user_address);
     if (hasPassport(existing)) {
+      if (burnTxHash) {
+        await completeSharedBurnReservation(job.user_address, burnTxHash);
+      } else {
+        await releaseSharedBurnReservation(job.user_address, "not_needed_has_passport");
+      }
       await completeJob(job.id, {
         superchain_id: String(existing.superChainID ?? ""),
         safe_address: String(existing.smartAccount ?? ""),
@@ -362,6 +413,7 @@ async function handleJob(job: ProsperityPassJob) {
         .update({ burn_tx_hash: burnTxHash, superchain_id: superChainID, updated_at: new Date().toISOString() })
         .eq("id", job.id);
     }
+    await completeSharedBurnReservation(job.user_address, burnTxHash);
 
     const { safeAddress, txHash } = await createSuperAccount(job.user_address, superChainID);
 
@@ -400,8 +452,14 @@ async function handleJob(job: ProsperityPassJob) {
     }
 
     if ((job.attempts ?? 0) >= MAX_JOB_ATTEMPTS) {
+      // Giving up for good with no burn ever having happened — release the
+      // reservation. (If burnTxHash were set we'd have returned already, in
+      // one of the branches above.)
+      await releaseSharedBurnReservation(job.user_address, message);
       await failJob(job.id, message);
     } else {
+      // Still retrying — leave the reservation in place, a future attempt
+      // may still burn.
       await retryJob(job.id, message);
     }
   }

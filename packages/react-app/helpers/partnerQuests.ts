@@ -2,7 +2,9 @@
 export interface ClaimResponse {
   minted?: number;
   txHash?: string;
+  queued?: boolean;
   error?: string;
+  reason?: string;
 }
 
 export async function claimPartnerQuest(
@@ -16,7 +18,10 @@ export async function claimPartnerQuest(
   const eligData = await eligRes.json();
 
   if (!eligRes.ok || !eligData.eligible) {
-    return { error: eligData.message ?? eligData.error ?? eligData.reason ?? "Not eligible" };
+    return {
+      error: eligData.message ?? eligData.error ?? eligData.reason ?? "Not eligible",
+      reason: eligData.reason ?? eligData.error,
+    };
   }
 
   const { attestationToken } = eligData;
@@ -28,5 +33,13 @@ export async function claimPartnerQuest(
     body: JSON.stringify({ questId, attestationToken }),
   });
 
-  return claimRes.json();
+  const claimData = await claimRes.json();
+  if (!claimRes.ok) {
+    return {
+      ...claimData,
+      error: claimData.error ?? "Could not queue this reward",
+      reason: claimData.reason,
+    };
+  }
+  return claimData;
 }

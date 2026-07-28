@@ -3,8 +3,9 @@
 import AppHeader from "@/components/app-header";
 import MiniPointsCard from "@/components/mini-points-card";
 import DailyChallenges from "@/components/daily-challenge";
-import PartnerQuests from "@/components/partner-quests";
-import DiscoveryQuests from "@/components/discovery-quests";
+import MerchantDiscoveryQuests, {
+  MERCHANT_DISCOVERY_QUESTS,
+} from "@/components/merchant-discovery-quests";
 import EarnPartnerQuestSheet from "@/components/earn-partner-quest-sheet";
 import SuccessModal from "@/components/success-modal";
 import VerifiedInsights from "@/components/verified-insights";
@@ -19,16 +20,32 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import { useIsMiniPay } from "@/hooks/useIsMiniPay";
+import {
+  markMerchantQuestStarted,
+  readStartedMerchantQuestIds,
+} from "@/lib/merchantQuestJourney";
+import type { MerchantQuestStatusState } from "@/lib/merchantDiscoveryQuests";
+import { useMerchantQuestStatus } from "@/lib/useMerchantQuestStatus";
 
 export default function EarnPage() {
   const web3 = useWeb3() as any;
-  const { address, getUserAddress, getakibaMilesBalance, getUserVaultBalance } = web3;
+  const {
+    address,
+    isAuthenticated,
+    getUserAddress,
+    getakibaMilesBalance,
+    getUserVaultBalance,
+  } = web3;
   const [balance, setBalance] = useState("0");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [vaultHelp, setVaultHelp] = useState(false);
   const [currentDeposit, setCurrentDeposit] = useState<number>(0);
   const [quest, setQuest] = useState<any>(null);
   const [success, setSuccess] = useState(false);
+  const [startedQuestIds, setStartedQuestIds] = useState<string[]>([]);
+  const [queuedQuestIds, setQueuedQuestIds] = useState<string[]>([]);
+  const [actionRequiredQuestIds, setActionRequiredQuestIds] = useState<string[]>([]);
+  const [returnedQuestId, setReturnedQuestId] = useState<string | null>(null);
   const [localPendingPretiumIds, setLocalPendingPretiumIds] = useState<string[]>([]);
   const handlePretiumSubmit = (questId: string) =>
     setLocalPendingPretiumIds((prev) => (prev.includes(questId) ? prev : [...prev, questId]));
@@ -38,6 +55,12 @@ export default function EarnPage() {
   const showVault = isMiniPay === false;
 
   const router = useRouter();
+  const { data: merchantQuestStatus } = useMerchantQuestStatus(
+    address,
+    isAuthenticated,
+  );
+  const merchantQuestsEnabled = merchantQuestStatus?.enabled === true;
+  const merchantQuestStatusRows = merchantQuestStatus?.quests ?? [];
 
   // Verified Insights state
   const [activePollId, setActivePollId] = useState<string | null>(null);
@@ -46,6 +69,31 @@ export default function EarnPage() {
 
   /* wallet + balance */
   useEffect(() => { getUserAddress?.(); }, [getUserAddress]);
+
+  useEffect(() => {
+    const questIds = MERCHANT_DISCOVERY_QUESTS.map((item) => item.id);
+    setStartedQuestIds(readStartedMerchantQuestIds(questIds));
+
+    const returnedQuestId = new URLSearchParams(window.location.search).get("quest");
+    setReturnedQuestId(returnedQuestId);
+  }, []);
+
+  useEffect(() => {
+    if (!returnedQuestId || merchantQuestStatus === undefined) return;
+    const returnedQuest = MERCHANT_DISCOVERY_QUESTS.find(
+      (item) => item.id === returnedQuestId,
+    );
+    if (returnedQuest && merchantQuestsEnabled) {
+      markMerchantQuestStarted(returnedQuest.id);
+      setStartedQuestIds((prev) =>
+        prev.includes(returnedQuest.id) ? prev : [...prev, returnedQuest.id],
+      );
+      setQuest(returnedQuest);
+      setSheetOpen(true);
+    }
+    window.history.replaceState({}, "", "/earn");
+    setReturnedQuestId(null);
+  }, [merchantQuestStatus, merchantQuestsEnabled, returnedQuestId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,7 +149,23 @@ export default function EarnPage() {
     fetchVaultBalance();
   }, [address, getUserVaultBalance, showVault]);
 
-  const openQuest = (q: any) => { setQuest(q); setSheetOpen(true); };
+  const openQuest = (q: any, merchantQuestState?: MerchantQuestStatusState) => {
+    setQuest({ ...q, merchantQuestState });
+    setSheetOpen(true);
+  };
+  const markQuestStarted = (questId: string) => {
+    setStartedQuestIds((prev) => (prev.includes(questId) ? prev : [...prev, questId]));
+    setActionRequiredQuestIds((prev) => prev.filter((id) => id !== questId));
+  };
+  const markQuestQueued = (questId: string) => {
+    setQueuedQuestIds((prev) => (prev.includes(questId) ? prev : [...prev, questId]));
+    setActionRequiredQuestIds((prev) => prev.filter((id) => id !== questId));
+  };
+  const markQuestActionRequired = (questId: string) => {
+    setActionRequiredQuestIds((prev) =>
+      prev.includes(questId) ? prev : [...prev, questId],
+    );
+  };
   const goDeposit = () => router.push("/vaults");
   const goWithdraw = () => router.push("/vaults/withdraw");
   const hasDeposit = currentDeposit > 0;
@@ -252,13 +316,14 @@ export default function EarnPage() {
             <p className="text-gray-500">Completed a challenge? Click & claim Miles</p>
           </div>
           <DailyChallenges showCompleted={false} />
-          {/* discovery-quests-spec.md §5.2 — the new Platform-backed quest
-              group. Per §1 the intent is for this to eventually REPLACE the
-              hard-coded PartnerQuests catalog below, but that removal is a
-              call for whoever owns the Spend/Earn spec, not assumed here —
-              both render side by side until that's decided. */}
-          <DiscoveryQuests onClaimed={() => setSuccess(true)} />
-          <PartnerQuests openPopup={openQuest} localPendingIds={localPendingPretiumIds} />
+          <MerchantDiscoveryQuests
+            openPopup={openQuest}
+            enabled={merchantQuestsEnabled}
+            statusRows={merchantQuestStatusRows}
+            startedQuestIds={startedQuestIds}
+            queuedQuestIds={queuedQuestIds}
+            actionRequiredQuestIds={actionRequiredQuestIds}
+          />
 
           {/* ── Verified Insights ───────────────────── */}
           <VerifiedInsights
@@ -268,8 +333,17 @@ export default function EarnPage() {
         </TabsContent>
 
         <TabsContent value="completed">
-          <h3 className="text-lg font-medium mt-6 mb-2">Completed today</h3>
+          <h3 className="text-lg font-medium mt-6 mb-2">Daily challenges completed today</h3>
           <DailyChallenges showCompleted={true} />
+          <MerchantDiscoveryQuests
+            openPopup={openQuest}
+            showCompleted
+            enabled={merchantQuestsEnabled}
+            statusRows={merchantQuestStatusRows}
+            startedQuestIds={startedQuestIds}
+            queuedQuestIds={queuedQuestIds}
+            actionRequiredQuestIds={actionRequiredQuestIds}
+          />
         </TabsContent>
       </Tabs>
 
@@ -280,6 +354,9 @@ export default function EarnPage() {
         quest={quest}
         setOpenSuccess={setSuccess}
         onPretiumSubmit={handlePretiumSubmit}
+        onQuestStarted={markQuestStarted}
+        onClaimQueued={markQuestQueued}
+        onClaimNeedsAction={markQuestActionRequired}
       />
       <PollSheet
         pollId={activePollId}

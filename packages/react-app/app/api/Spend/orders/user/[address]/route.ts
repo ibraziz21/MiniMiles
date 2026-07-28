@@ -36,6 +36,7 @@ export async function GET(
        recipient_name, phone, city, location_details,
        created_at, accepted_at, packed_at, dispatched_at,
        delivered_at, received_at, cancelled_at, completed_at,
+       provider_pending_at,
        miles_reward_status`,
     )
     .eq("user_address", address)
@@ -59,6 +60,26 @@ export async function GET(
       console.error("[GET /orders/user partners]", partnerErr);
     } else {
       partnerMap = new Map((partners ?? []).map((p) => [p.id, p]));
+    }
+  }
+
+  // A fulfillment_jobs row existing for an order is the reliable signal that
+  // it's a digital order — those never populate accepted_at/packed_at/
+  // dispatched_at (the guard trigger only allows placed -> provider_pending
+  // -> delivered -> completed for them), so the timeline needs to branch.
+  const orderIds = (transactions ?? []).map((r) => r.id);
+  let fulfillmentMap = new Map<string, { status: string; provider_ref: string | null; last_error: string | null }>();
+
+  if (orderIds.length > 0) {
+    const { data: jobs, error: jobsErr } = await supabase
+      .from("fulfillment_jobs")
+      .select("order_id, status, provider_ref, last_error")
+      .in("order_id", orderIds);
+
+    if (jobsErr) {
+      console.error("[GET /orders/user fulfillment_jobs]", jobsErr);
+    } else {
+      fulfillmentMap = new Map((jobs ?? []).map((j) => [j.order_id, j]));
     }
   }
 
@@ -96,9 +117,11 @@ export async function GET(
       received_at:   row.received_at,
       cancelled_at:  row.cancelled_at,
       completed_at:  row.completed_at,
+      provider_pending_at: row.provider_pending_at,
       // Reward
       miles_reward_status: row.miles_reward_status,
       partner: row.partner_id ? partnerMap.get(row.partner_id) ?? null : null,
+      fulfillment_job: fulfillmentMap.get(row.id) ?? null,
     };
   });
 

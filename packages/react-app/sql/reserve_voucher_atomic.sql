@@ -58,11 +58,16 @@ BEGIN
   PERFORM pg_advisory_xact_lock(hashtext(p_template_id::text));
 
   -- ── 2. Fetch and validate the template ────────────────────────────────────
-  SELECT id, merchant_id, active, expires_at, global_cap, cooldown_seconds, miles_cost
+  -- Table-qualified because RETURNS TABLE(..., miles_cost integer) auto-declares
+  -- miles_cost as a plpgsql variable in this function's scope, which otherwise
+  -- collides with spend_voucher_templates.miles_cost (same bug class as
+  -- issue_leaderboard_prize's voucher_id/code ambiguity fixed earlier).
+  SELECT svt.id, svt.merchant_id, svt.active, svt.expires_at, svt.global_cap,
+         svt.cooldown_seconds, svt.miles_cost
     INTO v_template
-    FROM spend_voucher_templates
-   WHERE id = p_template_id
-     AND merchant_id = p_merchant_id;
+    FROM spend_voucher_templates svt
+   WHERE svt.id = p_template_id
+     AND svt.merchant_id = p_merchant_id;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'TEMPLATE_INACTIVE: template % not found for merchant %',
@@ -84,11 +89,14 @@ BEGIN
   -- Count non-void vouchers for this template (pending + issued + claiming + redeemed).
   -- The advisory lock ensures no concurrent transaction can insert between
   -- this count and the insert below.
+  -- Table-qualified for the same reason as step 2: RETURNS TABLE(..., status
+  -- text, ...) auto-declares `status` as a plpgsql variable, colliding with
+  -- issued_vouchers.status when referenced unqualified.
   IF v_template.global_cap IS NOT NULL THEN
     SELECT COUNT(*) INTO v_issued_count
-      FROM issued_vouchers
-     WHERE voucher_template_id = p_template_id
-       AND status <> 'void';
+      FROM issued_vouchers iv
+     WHERE iv.voucher_template_id = p_template_id
+       AND iv.status <> 'void';
 
     IF v_issued_count >= v_template.global_cap THEN
       RAISE EXCEPTION 'CAP_EXCEEDED: template % has reached its global cap of %',
@@ -101,12 +109,12 @@ BEGIN
   IF v_template.cooldown_seconds > 0 THEN
     v_cooldown_cutoff := now() - (v_template.cooldown_seconds || ' seconds')::interval;
 
-    SELECT id INTO v_recent
-      FROM issued_vouchers
-     WHERE user_address        = p_user_address
-       AND voucher_template_id = p_template_id
-       AND status             <> 'void'
-       AND created_at          > v_cooldown_cutoff
+    SELECT iv.id INTO v_recent
+      FROM issued_vouchers iv
+     WHERE iv.user_address        = p_user_address
+       AND iv.voucher_template_id = p_template_id
+       AND iv.status             <> 'void'
+       AND iv.created_at          > v_cooldown_cutoff
      LIMIT 1;
 
     IF FOUND THEN

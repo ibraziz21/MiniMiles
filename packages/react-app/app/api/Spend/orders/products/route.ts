@@ -13,7 +13,7 @@ export async function GET(req: Request) {
 
   const { data, error } = await supabase
     .from("merchant_products")
-    .select("id, name, description, price_cusd, category, image_url")
+    .select("id, name, description, price_cusd, category, image_url, product_type, digital_delivery_kind")
     .eq("merchant_id", merchant_id)
     .eq("active", true)
     .order("name");

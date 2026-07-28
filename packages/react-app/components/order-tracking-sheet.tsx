@@ -27,6 +27,7 @@ type OrderRecord = {
   received_at:   string | null;
   cancelled_at:  string | null;
   completed_at:  string | null;
+  provider_pending_at: string | null;
   // Reward
   miles_reward_status: string | null;
   partner: {
@@ -34,6 +35,14 @@ type OrderRecord = {
     name: string;
     slug: string;
     image_url?: string | null;
+  } | null;
+  // Presence alone means this was a digital order (airtime/gift-card) —
+  // those skip accepted/packed/dispatched entirely (placed -> provider_pending
+  // -> delivered -> completed), so the timeline needs a separate branch.
+  fulfillment_job: {
+    status: "pending" | "processing" | "delivered" | "failed";
+    provider_ref: string | null;
+    last_error: string | null;
   } | null;
 };
 
@@ -77,6 +86,24 @@ function buildTimeline(order: OrderRecord): TimelineStep[] {
       { label: "Cancelled",     ts: order.cancelled_at, icon: <XCircle size={14} />, isCancel: true },
     ];
   }
+
+  if (order.fulfillment_job) {
+    const job = order.fulfillment_job;
+    if (job.status === "failed") {
+      return [
+        { label: "Order placed", ts: order.created_at,        icon: <Receipt size={14} /> },
+        { label: "Processing",   ts: order.provider_pending_at, icon: <Truck size={14} /> },
+        { label: "Failed",       ts: order.provider_pending_at, icon: <XCircle size={14} />, isCancel: true },
+      ];
+    }
+    return [
+      { label: "Order placed", ts: order.created_at,          icon: <Receipt size={14} /> },
+      { label: "Processing",   ts: order.provider_pending_at,  icon: <Truck size={14} /> },
+      { label: "Delivered",    ts: order.delivered_at,         icon: <Package size={14} /> },
+      { label: "Completed",    ts: order.completed_at,         icon: <CheckCircle size={14} /> },
+    ];
+  }
+
   return [
     { label: "Order placed",    ts: order.created_at,    icon: <Receipt size={14} /> },
     { label: "Accepted",        ts: order.accepted_at,   icon: <Storefront size={14} /> },
@@ -96,6 +123,9 @@ const STATUS_LABEL: Record<string, string> = {
   received:        "Received",
   completed:       "Completed",
   cancelled:       "Cancelled",
+  provider_pending:"Processing",
+  fulfil_failed:   "Failed",
+  retrying:        "Retrying",
 };
 
 const STATUS_COLOR: Record<string, string> = {
@@ -107,6 +137,9 @@ const STATUS_COLOR: Record<string, string> = {
   received:        "bg-green-50 text-green-600",
   completed:       "bg-green-50 text-green-700",
   cancelled:       "bg-red-50 text-red-500",
+  provider_pending:"bg-amber-50 text-amber-600",
+  fulfil_failed:   "bg-red-50 text-red-500",
+  retrying:        "bg-amber-50 text-amber-600",
 };
 
 function OrderCard({
@@ -209,8 +242,11 @@ function OrderCard({
         </div>
       </div>
 
-      {/* Confirm received button — only shown when delivered */}
-      {status === "delivered" && (
+      {/* Confirm received button — physical orders only. Digital orders have
+          no separate confirmation step: complete_fulfillment_job cascades
+          delivered -> received -> completed atomically the moment ops marks
+          the job delivered. */}
+      {status === "delivered" && !order.fulfillment_job && (
         <button
           type="button"
           disabled={confirming}
@@ -223,6 +259,13 @@ function OrderCard({
             "Confirm received · Earn 200 AkibaMiles"
           )}
         </button>
+      )}
+
+      {/* Digital fulfillment failure — surface the reason, not just "Failed" */}
+      {order.fulfillment_job?.status === "failed" && order.fulfillment_job.last_error && (
+        <div className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">
+          {order.fulfillment_job.last_error}
+        </div>
       )}
 
       {/* Reward indicator */}

@@ -45,6 +45,37 @@ function makeWallet() {
 // ── Bulk DB side-effects after successful batch mint ──────────────────────────
 function isDupe(e: any) { return e?.code === "23505"; }
 
+async function recordMerchantQuestCompletions(jobs: any[], txHash: string) {
+  const rows = jobs
+    .filter((job) =>
+      job.payload?.kind === "partner_engagement" ||
+      job.payload?.kind === "partner_weekly_engagement"
+    )
+    .map((job) => ({
+      event_key: `reward_completed:${job.id}`,
+      event_type: "reward_completed",
+      user_address: String(job.payload.userAddress).toLowerCase(),
+      partner_quest_id: job.payload.questId,
+      iso_week: job.payload.isoWeek ?? null,
+      mint_job_id: job.id,
+      metadata: { txHash },
+  }));
+  if (rows.length === 0) return;
+  try {
+    const { error } = await supabase
+      .from("merchant_quest_events")
+      .upsert(rows, { onConflict: "event_key", ignoreDuplicates: true });
+    if (error) {
+      console.warn("[drain] merchant quest completion audit:", error.message);
+    }
+  } catch (error: any) {
+    console.warn(
+      "[drain] merchant quest completion audit unavailable:",
+      error?.message ?? "unknown"
+    );
+  }
+}
+
 async function applyBatchPayloads(jobs: any[], txHash: string) {
   const dailyRows = jobs
     .filter((j) => j.payload?.kind === "daily_engagement")
@@ -64,6 +95,17 @@ async function applyBatchPayloads(jobs: any[], txHash: string) {
       points_awarded: j.payload.pointsAwarded,
     }));
 
+  const partnerWeeklyRows = jobs
+    .filter((j) => j.payload?.kind === "partner_weekly_engagement")
+    .map((j) => ({
+      user_address: j.payload.userAddress,
+      partner_quest_id: j.payload.questId,
+      iso_week: j.payload.isoWeek,
+      claimed_at: j.payload.claimedAt,
+      points_awarded: j.payload.pointsAwarded,
+      tx_hash: txHash,
+    }));
+
   const milestoneJobs = jobs.filter((j) => j.payload?.kind === "profile_milestone");
 
   // Bulk inserts (ignore duplicates)
@@ -75,6 +117,18 @@ async function applyBatchPayloads(jobs: any[], txHash: string) {
   if (partnerRows.length > 0) {
     const { error } = await supabase.from("partner_engagements").upsert(partnerRows, { onConflict: "user_address,partner_quest_id", ignoreDuplicates: true });
     if (error && error.code !== "23505") console.error("[drain] bulk partner_engagements upsert:", error.message);
+  }
+
+  if (partnerWeeklyRows.length > 0) {
+    const { error } = await supabase
+      .from("partner_quest_weekly_claims")
+      .upsert(partnerWeeklyRows, {
+        onConflict: "user_address,partner_quest_id,iso_week",
+        ignoreDuplicates: true,
+      });
+    if (error && error.code !== "23505") {
+      console.error("[drain] bulk partner_quest_weekly_claims upsert:", error.message);
+    }
   }
 
   // Profile milestones must be per-row updates (different field per milestone value)
@@ -91,6 +145,7 @@ async function applyBatchPayloads(jobs: any[], txHash: string) {
     .update({ status: "completed", tx_hash: txHash, updated_at: new Date().toISOString() })
     .in("id", ids);
   if (completeErr) console.error("[drain] bulk complete update:", completeErr.message);
+  if (!completeErr) await recordMerchantQuestCompletions(jobs, txHash);
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────

@@ -53,6 +53,11 @@ export function getDeliveryTier(city: string): DeliveryTier {
   return { fee_cusd: 5.0, eta: "3–5 days" };
 }
 
+/** Digital products have nothing to ship — product_type is authoritative, never inferred from category. */
+export function getDigitalDeliveryTier(): DeliveryTier {
+  return { fee_cusd: 0, eta: "Instant" };
+}
+
 /**
  * Returns the discounted product price in cUSD.
  * Returns the original price unchanged if the voucher's category restriction
@@ -117,9 +122,10 @@ export function calculateOrderTotal(params: {
   product_id?: string | null;
   city: string;
   voucher: VoucherRules | null;
+  product_type?: "physical" | "digital" | null;
 }): OrderPricing {
-  const { product_price_cusd, product_category, product_id, city, voucher } = params;
-  const { fee_cusd, eta } = getDeliveryTier(city);
+  const { product_price_cusd, product_category, product_id, city, voucher, product_type } = params;
+  const { fee_cusd, eta } = product_type === "digital" ? getDigitalDeliveryTier() : getDeliveryTier(city);
   const discounted = applyVoucher(product_price_cusd, product_category, voucher, product_id);
   // Round to avoid floating-point drift before on-chain amount comparison
   const total = Math.round((discounted + fee_cusd) * 1e6) / 1e6;

@@ -1,31 +1,10 @@
 // src/app/api/badges/progress/[owner]/route.ts
 import { NextResponse } from "next/server";
-import { createPublicClient, http, isAddress, formatUnits } from "viem";
+import { createPublicClient, http, isAddress } from "viem";
 import { celo } from "viem/chains";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-/* ----------------------------- Dice (Games) ----------------------------- */
-
-const DICE_ABI = [
-  {
-    type: "function",
-    name: "getPlayerStats",
-    stateMutability: "view",
-    inputs: [{ name: "player", type: "address" }],
-    outputs: [
-      { name: "roundsJoined", type: "uint64" },
-      { name: "roundsWon", type: "uint64" },
-      { name: "totalStaked", type: "uint128" },
-      { name: "totalWon", type: "uint128" },
-    ],
-  },
-] as const;
-
-const DICE_ADDRESS =
-  (process.env.DICE_ADDRESS as `0x${string}` | undefined) ??
-  ("0xf77e7395Aa5c89BcC8d6e23F67a9c7914AB9702a" as const);
 
 /* ----------------------------- RPCs for tx counts ----------------------------- */
 /**
@@ -57,21 +36,13 @@ async function getTxCount(client: typeof clientCel2, addr: `0x${string}`) {
   return Number(n);
 }
 
-async function getAkibaFromGames(owner: `0x${string}`) {
-  try {
-    const res = (await clientCel2.readContract({
-      address: DICE_ADDRESS,
-      abi: DICE_ABI,
-      functionName: "getPlayerStats",
-      args: [owner],
-    })) as readonly [bigint, bigint, bigint, bigint];
-
-    const totalWon = res[3];
-    const v = Number.parseFloat(formatUnits(totalWon, 18));
-    return Number.isFinite(v) ? v : 0;
-  } catch {
-    return 0;
-  }
+/**
+ * "amg-akiba-games" badge value — previously sourced from the (now retired)
+ * Dice contract's totalWon. No replacement data source yet, so this returns 0
+ * until a new games-earnings aggregate is wired in.
+ */
+async function getAkibaFromGames(_owner: `0x${string}`) {
+  return 0;
 }
 
 /* ----------------------------- Lifetime Akiba (History reuse) ----------------------------- */

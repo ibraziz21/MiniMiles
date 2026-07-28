@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useWeb3 } from "@/contexts/useWeb3";
 import { akibaMilesSymbol } from "@/lib/svg";
-import { Spinner, Tag, ShoppingBag, ArrowLeft, Ticket, Fire } from "@phosphor-icons/react";
+import { Spinner, Tag, ShoppingBag, ArrowLeft, Ticket, Fire, Package } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import dynamic from "next/dynamic";
@@ -13,11 +13,29 @@ import type { IssuedVoucher, SpendMerchant } from "@/components/voucher-order-sh
 import { RewardClass } from "@/lib/clawTypes";
 
 const VoucherOrderSheet = dynamic(() => import("@/components/voucher-order-sheet"), { ssr: false });
+const OrderTrackingSheet = dynamic(() => import("@/components/order-tracking-sheet"), { ssr: false });
+
+import { BurnVoucherSheet, type BurnableVoucher } from "@/components/vouchers/BurnVoucherSheet";
+import { isPrizeAcquisitionSource } from "@/lib/games/prizeAcquisitionSources";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+type WinMeta = {
+  game_type: string;
+  week: string;
+  rank: number;
+  label: string;
+  discount_percent: number;
+  spend_cap_kes: number | null;
+  marketplace_miles: number;
+  burn_pct: number;
+};
+
 type VoucherWithMeta = IssuedVoucher & {
   created_at: string;
+  acquisition_source?: string | null;
+  win_meta?: WinMeta | null;
+  expires_at?: string | null;
   spend_voucher_templates: {
     id: string;
     title: string;
@@ -26,6 +44,19 @@ type VoucherWithMeta = IssuedVoucher & {
   } | null;
 };
 
+const WIN_GAME_LABELS: Record<string, string> = {
+  rule_tap: "Rule Tap",
+  memory_flip: "Memory Flip",
+};
+
+const WIN_RANK_LABELS: Record<number, string> = { 1: "🏆 1st", 2: "🥈 2nd", 3: "🥉 3rd" };
+
+function daysLeft(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const ms = new Date(iso).getTime() - Date.now();
+  return ms > 0 ? Math.ceil(ms / 86_400_000) : 0;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const STATUS_STYLE: Record<string, string> = {
@@ -33,6 +64,7 @@ const STATUS_STYLE: Record<string, string> = {
   redeemed: "bg-gray-100 text-gray-500",
   expired: "bg-red-50 text-red-400",
   void: "bg-gray-100 text-gray-400",
+  burned: "bg-orange-50 text-orange-400",
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -40,6 +72,7 @@ const STATUS_LABEL: Record<string, string> = {
   redeemed: "Used",
   expired: "Expired",
   void: "Void",
+  burned: "Burned for Miles",
 };
 
 function discountLabel(rules: IssuedVoucher["rules_snapshot"] | null | undefined): string {
@@ -67,13 +100,18 @@ function formatDate(iso: string) {
 function VoucherCard({
   voucher,
   onOrder,
+  onBurn,
 }: {
   voucher: VoucherWithMeta;
   onOrder: (v: IssuedVoucher, m: SpendMerchant) => void;
+  onBurn?: (v: VoucherWithMeta) => void;
 }) {
   const merchant = voucher.spend_voucher_templates?.spend_merchants ?? null;
   const templateName = voucher.spend_voucher_templates?.title ?? "Voucher";
   const isActive = voucher.status === "issued";
+  const win = isPrizeAcquisitionSource(voucher.acquisition_source) ? voucher.win_meta ?? null : null;
+  const expiry = isActive && win ? daysLeft(voucher.expires_at) : null;
+  const burnValue = win ? Math.round(win.marketplace_miles * (win.burn_pct ?? 0.8)) : 0;
 
   return (
     <div
@@ -83,15 +121,31 @@ function VoucherCard({
     >
       {/* Header row */}
       <div className="flex items-center justify-between mb-2">
-        <span
-          className={`text-xs rounded-full px-2.5 py-0.5 font-medium ${
-            STATUS_STYLE[voucher.status] ?? "bg-gray-100 text-gray-400"
-          }`}
-        >
-          {STATUS_LABEL[voucher.status] ?? voucher.status}
-        </span>
-        <span className="text-xs text-gray-400">{formatDate(voucher.created_at)}</span>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span
+            className={`text-xs rounded-full px-2.5 py-0.5 font-medium ${
+              STATUS_STYLE[voucher.status] ?? "bg-gray-100 text-gray-400"
+            }`}
+          >
+            {STATUS_LABEL[voucher.status] ?? voucher.status}
+          </span>
+          {win && (
+            <span className="text-xs rounded-full px-2 py-0.5 font-semibold bg-amber-50 text-amber-600 truncate">
+              Won · {WIN_RANK_LABELS[win.rank] ?? `#${win.rank}`} · {WIN_GAME_LABELS[win.game_type] ?? win.game_type}
+            </span>
+          )}
+        </div>
+        <span className="text-xs text-gray-400 shrink-0">{formatDate(voucher.created_at)}</span>
       </div>
+
+      {/* Expiry countdown for won vouchers */}
+      {expiry !== null && (
+        <p className="mb-2 text-[11px] font-medium text-orange-500">
+          {expiry > 0
+            ? `${expiry} day${expiry === 1 ? "" : "s"} left — auto-burns for ${Math.round((voucher.win_meta?.marketplace_miles ?? 0) * 0.5)} Miles if unused`
+            : "Expiring — will auto-burn for Miles"}
+        </p>
+      )}
 
       {/* Merchant + template */}
       <div className="flex items-center gap-2 mb-2">
@@ -148,15 +202,26 @@ function VoucherCard({
         </button>
       </div>
 
-      {/* Action */}
+      {/* Actions */}
       {isActive && merchant && (
-        <button
-          onClick={() => onOrder(voucher, merchant)}
-          className="w-full bg-[#238D9D] text-white rounded-xl h-10 text-sm font-medium flex items-center justify-center gap-1.5"
-        >
-          <ShoppingBag size={15} />
-          {voucher.linked_product_id ? "Use voucher" : "Order goods"}
-        </button>
+        <div className="space-y-2">
+          <button
+            onClick={() => onOrder(voucher, merchant)}
+            className="w-full bg-[#238D9D] text-white rounded-xl h-10 text-sm font-medium flex items-center justify-center gap-1.5"
+          >
+            <ShoppingBag size={15} />
+            {voucher.linked_product_id ? "Use voucher" : "Order goods"}
+          </button>
+          {win && onBurn && (
+            <button
+              onClick={() => onBurn(voucher)}
+              className="w-full rounded-xl h-10 text-sm font-medium border border-[#238D9D44] text-[#238D9D] flex items-center justify-center gap-1.5"
+            >
+              <Fire size={15} weight="bold" />
+              Burn for {burnValue} Miles
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -327,6 +392,11 @@ export default function VouchersPage() {
   const [orderMerchant, setOrderMerchant] = useState<SpendMerchant | null>(null);
   const [orderVoucher, setOrderVoucher] = useState<IssuedVoucher | null>(null);
 
+  const [burnOpen, setBurnOpen] = useState(false);
+  const [burnVoucher, setBurnVoucher] = useState<BurnableVoucher | null>(null);
+
+  const [trackOrdersOpen, setTrackOrdersOpen] = useState(false);
+
   useEffect(() => {
     getUserAddress();
   }, [getUserAddress]);
@@ -368,6 +438,32 @@ export default function VouchersPage() {
     setOrderOpen(true);
   };
 
+  // Burn a WON voucher for Miles (spec §5) — opens the reason-survey sheet.
+  const handleWonBurn = (v: VoucherWithMeta) => {
+    const win = v.win_meta;
+    if (!win) return;
+    setBurnVoucher({
+      id: v.id,
+      merchantName: v.spend_voucher_templates?.spend_merchants?.name ?? "the merchant",
+      merchantCountry: null,
+      label: win.label,
+      marketplaceMiles: win.marketplace_miles,
+      burnMiles: Math.round(win.marketplace_miles * (win.burn_pct ?? 0.8)),
+    });
+    setBurnOpen(true);
+  };
+
+  const refreshSpendVouchers = async () => {
+    if (!address) return;
+    try {
+      const r = await fetch(`/api/Spend/vouchers/user/${address}`);
+      if (r.ok) {
+        const d = await r.json();
+        setVouchers(d.vouchers ?? []);
+      }
+    } catch { /* non-fatal */ }
+  };
+
   const handleClawBurn = async (sessionId: string) => {
     if (!address) return;
     setBurningId(sessionId);
@@ -386,9 +482,22 @@ export default function VouchersPage() {
     }
   };
 
+  // Spend Vouchers = bought with AkibaMiles (acquisition_source is
+  // 'miles_purchase', the column's own default — never actually null in
+  // practice, but treated as the same thing for older rows). Prizes = every
+  // other acquisition path (claw, raffle, giveaway, merchant_grant,
+  // akiba_grant, weekly leaderboard) — a voucher earned as a reward, not
+  // bought, regardless of which pathway won it.
+  const isPurchased = (v: VoucherWithMeta) => (v.acquisition_source ?? "miles_purchase") === "miles_purchase";
+  const spendVouchers = vouchers.filter(isPurchased);
+  const prizeIssuedVouchers = vouchers.filter((v) => !isPurchased(v));
+
   // Split by status
-  const activeVouchers = vouchers.filter((v) => v.status === "issued");
-  const pastVouchers = vouchers.filter((v) => v.status !== "issued");
+  const activeVouchers = spendVouchers.filter((v) => v.status === "issued");
+  const pastVouchers = spendVouchers.filter((v) => v.status !== "issued");
+
+  const activePrizeVouchers = prizeIssuedVouchers.filter((v) => v.status === "issued");
+  const pastPrizeVouchers = prizeIssuedVouchers.filter((v) => v.status !== "issued");
 
   return (
     <main className="pb-24 font-sterling bg-onboarding min-h-screen">
@@ -397,7 +506,15 @@ export default function VouchersPage() {
         <Link href="/spend" className="text-gray-500">
           <ArrowLeft size={22} />
         </Link>
-        <h1 className="text-2xl font-semibold">My Vouchers</h1>
+        <h1 className="text-2xl font-semibold flex-1">My Vouchers</h1>
+        <button
+          type="button"
+          onClick={() => setTrackOrdersOpen(true)}
+          aria-label="Track your orders"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-[#238D9D0D] text-[#238D9D]"
+        >
+          <Package size={20} />
+        </button>
       </div>
 
       <Tabs defaultValue="spend" className="px-4 mt-2">
@@ -412,7 +529,7 @@ export default function VouchersPage() {
             value="claw"
             className="flex-1 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm text-sm"
           >
-            Claw Prizes
+            Prizes
           </TabsTrigger>
         </TabsList>
 
@@ -452,7 +569,7 @@ export default function VouchersPage() {
               <h3 className="font-semibold text-base mb-1">Connect your wallet</h3>
               <p className="text-sm text-gray-400">Open AkibaMiles in MiniPay to see your vouchers.</p>
             </div>
-          ) : vouchers.length === 0 ? (
+          ) : spendVouchers.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center px-6">
               <div className="w-16 h-16 rounded-full bg-[#238D9D0D] flex items-center justify-center mb-4">
                 <Tag size={28} className="text-[#238D9D]" />
@@ -474,7 +591,7 @@ export default function VouchersPage() {
                   </h3>
                   <div className="space-y-3">
                     {activeVouchers.map((v) => (
-                      <VoucherCard key={v.id} voucher={v} onOrder={handleOrder} />
+                      <VoucherCard key={v.id} voucher={v} onOrder={handleOrder} onBurn={handleWonBurn} />
                     ))}
                   </div>
                 </section>
@@ -496,9 +613,10 @@ export default function VouchersPage() {
           )}
         </TabsContent>
 
-        {/* ── CLAW PRIZES ────────────────────────────────────────── */}
+        {/* ── PRIZES (every non-purchased acquisition path: claw, raffle,
+            giveaway, merchant/akiba grant, weekly leaderboard, …) ────── */}
         <TabsContent value="claw">
-          {clawLoading ? (
+          {(clawLoading || loading) ? (
             <div className="flex justify-center py-16">
               <span className="animate-spin inline-flex text-[#06B6D4]"><Spinner size={32} /></span>
             </div>
@@ -508,16 +626,16 @@ export default function VouchersPage() {
                 <span className="text-[#06B6D4]"><Ticket size={28} /></span>
               </div>
               <h3 className="font-semibold text-base mb-1">Connect your wallet</h3>
-              <p className="text-sm text-gray-400">Open AkibaMiles in MiniPay to see your claw prizes.</p>
+              <p className="text-sm text-gray-400">Open AkibaMiles in MiniPay to see your prizes.</p>
             </div>
-          ) : clawVouchers.length === 0 ? (
+          ) : clawVouchers.length === 0 && prizeIssuedVouchers.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center px-6">
               <div className="w-16 h-16 rounded-full bg-[#06B6D40D] flex items-center justify-center mb-4">
                 <Image src={akibaMilesSymbol} alt="" width={32} height={32} />
               </div>
-              <h3 className="font-semibold text-base mb-1">No claw prizes yet</h3>
+              <h3 className="font-semibold text-base mb-1">No prizes yet</h3>
               <p className="text-sm text-gray-400 mb-5">
-                Win a Rare or Legendary item in the Claw game to earn a prize voucher.
+                Play games, join raffles, or top the weekly leaderboard to earn reward vouchers.
               </p>
               <Link href="/claw">
                 <Button title="Play Akiba Claw" className="bg-[#06B6D4] text-white rounded-xl px-6 h-11 font-medium" />
@@ -525,10 +643,13 @@ export default function VouchersPage() {
             </div>
           ) : (
             <>
-              {clawVouchers.filter((v) => v.voucherStatus === "active").length > 0 && (
+              {(activePrizeVouchers.length > 0 || clawVouchers.some((v) => v.voucherStatus === "active")) && (
                 <section className="mb-6">
                   <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Active</h3>
                   <div className="space-y-3">
+                    {activePrizeVouchers.map((v) => (
+                      <VoucherCard key={v.id} voucher={v} onOrder={handleOrder} onBurn={handleWonBurn} />
+                    ))}
                     {clawVouchers
                       .filter((v) => v.voucherStatus === "active")
                       .map((v) => (
@@ -542,10 +663,13 @@ export default function VouchersPage() {
                   </div>
                 </section>
               )}
-              {clawVouchers.filter((v) => v.voucherStatus !== "active").length > 0 && (
+              {(pastPrizeVouchers.length > 0 || clawVouchers.some((v) => v.voucherStatus !== "active")) && (
                 <section>
                   <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Past</h3>
                   <div className="space-y-3">
+                    {pastPrizeVouchers.map((v) => (
+                      <VoucherCard key={v.id} voucher={v} onOrder={handleOrder} />
+                    ))}
                     {clawVouchers
                       .filter((v) => v.voucherStatus !== "active")
                       .map((v) => (
@@ -570,6 +694,19 @@ export default function VouchersPage() {
         onOpenChange={setOrderOpen}
         merchant={orderMerchant}
         preloadVoucher={orderVoucher}
+      />
+
+      {/* Order tracking sheet — triggered from the header icon */}
+      <OrderTrackingSheet open={trackOrdersOpen} onOpenChange={setTrackOrdersOpen} />
+
+      <BurnVoucherSheet
+        open={burnOpen}
+        onOpenChange={(v) => {
+          setBurnOpen(v);
+          if (!v) setBurnVoucher(null);
+        }}
+        voucher={burnVoucher}
+        onBurned={() => { refreshSpendVouchers(); }}
       />
     </main>
   );

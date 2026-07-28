@@ -10,7 +10,9 @@ type Job = {
   id: string;
   order_id: string;
   executor: string;
-  payload: { product_id?: string; item_name?: string; recipient_name?: string; phone?: string };
+  // email added for react-app's code_delivery digital products (voucher-merchant-checkout-spec.md
+  // §3) — a gift-card-style item has no phone recipient, it needs an address to email a code to.
+  payload: { product_id?: string; item_name?: string; recipient_name?: string; phone?: string; email?: string };
   attempts: number;
   status: "pending" | "processing" | "delivered" | "failed";
   provider_ref: string | null;
@@ -69,7 +71,7 @@ export default async function FulfillmentPage() {
                     <td className="px-4 py-3 text-slate-700">{job.payload.item_name ?? "—"}</td>
                     <td className="px-4 py-3">
                       <p className="text-slate-900">{job.payload.recipient_name ?? "—"}</p>
-                      <p className="text-xs text-slate-400">{job.payload.phone ?? ""}</p>
+                      <p className="text-xs text-slate-400">{job.payload.phone ?? job.payload.email ?? ""}</p>
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant={STATUS_VARIANT[job.status]}>{job.status}</Badge>

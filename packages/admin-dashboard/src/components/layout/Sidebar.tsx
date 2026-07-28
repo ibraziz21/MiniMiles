@@ -19,7 +19,6 @@ import {
   Ticket,
   ListChecks,
   PackageCheck,
-  ClipboardCheck,
   ScrollText,
   ShieldCheck,
   Settings,

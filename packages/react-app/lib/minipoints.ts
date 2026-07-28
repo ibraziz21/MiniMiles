@@ -5,9 +5,11 @@ import {
   createWalletClient,
   http,
   parseUnits,
+  formatUnits,
 } from "viem";
 import { nonceManager, privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
+import { supabase } from "@/lib/supabaseClient";
 
 import MiniPointsAbi from "@/contexts/minimiles.json";
 
@@ -160,4 +162,41 @@ export async function safeBurnMiniPoints(params: {
     reason,
     attachReferral: false,
   });
+}
+
+/* ─── Balance reads — for the burn-queue's spendable-balance guard ───── */
+
+export async function getOnchainMilesBalance(address: `0x${string}`): Promise<number> {
+  const raw = await publicClient.readContract({
+    address: CONTRACT_ADDRESS,
+    abi: MiniPointsAbi.abi,
+    functionName: "balanceOf",
+    args: [address],
+  }) as bigint;
+  return Number(formatUnits(raw, 18));
+}
+
+/** Sum of this address's not-yet-executed burn-queue reservations. */
+async function getReservedBurnPoints(address: string): Promise<number> {
+  const { data, error } = await supabase
+    .from("minipoint_burn_jobs")
+    .select("points")
+    .eq("user_address", address.toLowerCase())
+    .in("status", ["pending", "processing"]);
+
+  if (error) throw error;
+  return (data ?? []).reduce((sum, row) => sum + Number(row.points), 0);
+}
+
+/**
+ * On-chain balance minus everything already reserved in the burn queue —
+ * the balance any burn-gating check should use, not raw balanceOf, once a
+ * burn can be queued instead of executed inline.
+ */
+export async function getSpendableMilesBalance(address: `0x${string}`): Promise<number> {
+  const [onchain, reserved] = await Promise.all([
+    getOnchainMilesBalance(address),
+    getReservedBurnPoints(address),
+  ]);
+  return Math.max(0, onchain - reserved);
 }
