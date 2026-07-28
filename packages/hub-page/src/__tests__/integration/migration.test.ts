@@ -38,6 +38,8 @@ const MIGRATION_PATH_004 = resolve(__dirname, "../../../../../supabase/migration
 const MIGRATION_PATH_005 = resolve(__dirname, "../../../../../supabase/migrations/005_voucher_settlement_phase4.sql");
 const MIGRATION_PATH_006 = resolve(__dirname, "../../../../../supabase/migrations/006_voucher_payout_execution_phase5.sql");
 const MIGRATION_PATH_007 = resolve(__dirname, "../../../../../supabase/migrations/007_voucher_payout_hardening.sql");
+const MIGRATION_PATH_031 = resolve(__dirname, "../../../../../supabase/migrations/031_hub_order_legacy_columns.sql");
+const MIGRATION_PATH_045 = resolve(__dirname, "../../../../../supabase/migrations/045_weekly_leaderboard_channel.sql");
 
 const SETUP_SQL = `
 -- Drop and recreate the public schema so each test run starts from a clean slate.
@@ -71,6 +73,15 @@ CREATE SCHEMA IF NOT EXISTS auth;
 CREATE TABLE IF NOT EXISTS auth.users (
   id    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   email text
+);
+
+CREATE TYPE tx_category AS ENUM (
+  'service','accessory','device','general','electronics','accessories',
+  'services','clothing','food'
+);
+CREATE TYPE tx_action AS ENUM ('earn','redeem');
+CREATE TYPE payment_method AS ENUM (
+  'minipay_send','cash','card','other','onchain_transfer'
 );
 
 -- partners: minimal subset so Phase 3 inspect/presentation RPCs can resolve merchant_name.
@@ -121,14 +132,21 @@ CREATE TABLE IF NOT EXISTS issued_vouchers (
 CREATE TABLE IF NOT EXISTS merchant_transactions (
   id               uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   partner_id       uuid,
+  akiba_username   text        NOT NULL,
   user_address     text,
+  category         tx_category NOT NULL,
+  action           tx_action   NOT NULL,
+  quote_kes        integer     NOT NULL,
+  labor_kes        integer,
+  discount_kes     integer,
+  paid_kes         integer,
   status           text,
   item_name        text,
   item_category    text,
   product_id       text,
   payment_ref      text,
   payment_currency text,
-  payment_method   text,
+  payment_method   payment_method,
   amount_cusd      double precision,
   amount_kes       integer,
   voucher_code     text,
@@ -231,6 +249,8 @@ beforeAll(async () => {
   await pool.query(readFileSync(MIGRATION_PATH_004, "utf-8"));
   await pool.query(readFileSync(MIGRATION_PATH_005, "utf-8"));
   await pool.query(readFileSync(MIGRATION_PATH_006, "utf-8"));
+  await pool.query(readFileSync(MIGRATION_PATH_031, "utf-8"));
+  await pool.query(readFileSync(MIGRATION_PATH_045, "utf-8"));
 }, 30_000);
 
 afterAll(async () => {
@@ -723,7 +743,7 @@ describe("place_hub_order_and_redeem_voucher atomicity (#8)", () => {
 
     const { rows } = await pool.query(
       `SELECT * FROM place_hub_order_and_redeem_voucher(
-        $1,'0xnov','Widget','electronics','prod-2','REF003','CUSD','crypto:CUSD',
+        $1,'0xnov','Widget','electronics','prod-2','REF003','CUSD','mpesa',
         5.0,650,NULL,NULL,'Carol','254700000003','Mombasa',NULL,
         NULL,NULL,NULL,NULL,NULL,NULL
       )`,
@@ -732,30 +752,85 @@ describe("place_hub_order_and_redeem_voucher atomicity (#8)", () => {
 
     expect(rows[0].ok).toBe(true);
     expect(rows[0].order_id).not.toBeNull();
+
+    const { rows: [order] } = await pool.query(
+      `SELECT akiba_username,category,action,quote_kes,paid_kes,payment_method
+         FROM merchant_transactions WHERE id=$1`,
+      [rows[0].order_id]
+    );
+    expect(order.akiba_username).toBe("0xnov");
+    expect(order.category).toBe("general");
+    expect(order.action).toBe("redeem");
+    expect(order.quote_kes).toBe(650);
+    expect(order.paid_kes).toBe(650);
+    expect(order.payment_method).toBe("other");
   });
 });
 
 // ── #7 payment_ref unique index rejects replay ───────────────────────────────
+
+describe("concurrent recovery — at most one order per payment_ref", () => {
+  // paid-order-recovery-spec.md Phase 2 gate: "atomic recovery RPC that
+  // creates at most one order" / "concurrent recovery tests proving no
+  // duplicate order". Two callers racing to finish the SAME payment
+  // (e.g. the customer's own retry landing at the same moment as an admin-
+  // triggered recovery) must never produce two orders. uq_mt_payment_ref
+  // is what actually enforces this — the app-level pre-check in
+  // POST /api/shop/orders (SELECT existing order before inserting) narrows
+  // the race window but the DB constraint is the real guarantee.
+  it("place_hub_order_and_redeem_voucher called concurrently with the same payment_ref creates exactly one order", async () => {
+    const partnerId = "00000000-0000-0000-0000-0000000000f1";
+    const paymentRef = "CONCURRENT_RECOVERY_REF_001";
+
+    const call = () =>
+      pool.query(
+        `SELECT * FROM place_hub_order_and_redeem_voucher(
+          $1,'0xconcurrent','Widget','electronics','prod-concurrent',$2,'CUSD','crypto:CUSD',
+          5.0,650,NULL,NULL,'Frank','254700000099','Nairobi',NULL,
+          NULL,NULL,NULL,NULL,NULL,NULL
+        )`,
+        [partnerId, paymentRef]
+      );
+
+    const results = await Promise.allSettled([call(), call()]);
+
+    const succeeded = results.filter(
+      (r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof call>>> =>
+        r.status === "fulfilled" && r.value.rows[0]?.ok === true
+    );
+    // Exactly one of the two concurrent attempts actually created a row —
+    // the other either raised on the unique constraint or got ok:false.
+    expect(succeeded.length).toBe(1);
+
+    const { rows } = await pool.query(
+      `SELECT count(*) FROM merchant_transactions WHERE payment_ref = $1`,
+      [paymentRef]
+    );
+    expect(Number(rows[0].count)).toBe(1);
+  });
+});
 
 describe("payment_ref replay rejection (#7)", () => {
   it("uq_mt_payment_ref prevents duplicate payment references", async () => {
     const partnerId = "00000000-0000-0000-0000-000000000013";
 
     await pool.query(
-      `INSERT INTO merchant_transactions (partner_id, user_address, status, item_name, item_category,
+      `INSERT INTO merchant_transactions (partner_id, akiba_username, user_address, category, action, quote_kes,
+         status, item_name, item_category,
          product_id, payment_ref, payment_currency, payment_method, amount_cusd, amount_kes,
          recipient_name, phone, city)
-       VALUES ($1,'0xdup','placed','Item','food','p1','UNIQUE_REF_001','CUSD','crypto:CUSD',
+       VALUES ($1,'dup','0xdup','general','redeem',650,'placed','Item','food','p1','UNIQUE_REF_001','CUSD','onchain_transfer',
                5.0,650,'Dave','254700','Nairobi')`,
       [partnerId]
     );
 
     await expect(
       pool.query(
-        `INSERT INTO merchant_transactions (partner_id, user_address, status, item_name, item_category,
+        `INSERT INTO merchant_transactions (partner_id, akiba_username, user_address, category, action, quote_kes,
+           status, item_name, item_category,
            product_id, payment_ref, payment_currency, payment_method, amount_cusd, amount_kes,
            recipient_name, phone, city)
-         VALUES ($1,'0xdup2','placed','Item','food','p1','UNIQUE_REF_001','CUSD','crypto:CUSD',
+         VALUES ($1,'dup2','0xdup2','general','redeem',650,'placed','Item','food','p1','UNIQUE_REF_001','CUSD','onchain_transfer',
                  5.0,650,'Eve','254700','Nairobi')`,
         [partnerId]
       )
@@ -769,6 +844,7 @@ describe("Migration idempotency (#2)", () => {
   it("runs both migrations a second time without error", async () => {
     await expect(pool.query(readFileSync(MIGRATION_PATH_001, "utf-8"))).resolves.not.toThrow();
     await expect(pool.query(readFileSync(MIGRATION_PATH_002, "utf-8"))).resolves.not.toThrow();
+    await expect(pool.query(readFileSync(MIGRATION_PATH_031, "utf-8"))).resolves.not.toThrow();
   });
 });
 
@@ -2697,6 +2773,9 @@ describe("004 applies cleanly and is idempotent", () => {
     await expect(
       pool.query(readFileSync(MIGRATION_PATH_005, "utf-8"))
     ).resolves.not.toThrow();
+    await expect(
+      pool.query(readFileSync(MIGRATION_PATH_031, "utf-8"))
+    ).resolves.not.toThrow();
   });
 
   it("creates all expected functions", async () => {
@@ -3615,6 +3694,7 @@ describe("005 — voucher settlement invariants", () => {
     );
     await pool.query(readFileSync(MIGRATION_PATH_005, "utf-8"));
     await pool.query(readFileSync(MIGRATION_PATH_005, "utf-8"));
+    await pool.query(readFileSync(MIGRATION_PATH_031, "utf-8"));
     const { rows } = await pool.query(
       `SELECT count(*)::int AS count FROM reconciliation_incidents
        WHERE type='voucher_settlement_backfill_ambiguous' AND data->>'redemption_id'=$1`,
@@ -4566,5 +4646,69 @@ describe("007 — payout production hardening", () => {
       expect(r2).toMatch(/^RCP-/);
       expect(r1).not.toBe(r2);
     });
+  });
+});
+
+describe("045 — weekly_leaderboard_challenge channel + campaign_id", () => {
+  it("accepts weekly_leaderboard_challenge through create_voucher_program and round-trips campaign_id", async () => {
+    const partnerId = "00000000-0000-0000-0000-ff0000000045";
+    const campaignId = "00000000-0000-0000-0000-cccccccc0001";
+    const { rows: [t] } = await pool.query(
+      `INSERT INTO spend_voucher_templates (partner_id, title, voucher_type, miles_cost, discount_percent)
+       VALUES ($1, 'Leaderboard T', 'percent', 0, 10) RETURNING id`,
+      [partnerId]
+    );
+
+    const { rows: [r] } = await pool.query(`
+      SELECT * FROM create_voucher_program(
+        'Leaderboard Program', $1, 'free', NULL, 1000,
+        NULL, NULL,
+        '[{"channel":"miles_purchase","cap":900,"active":true},{"channel":"weekly_leaderboard_challenge","cap":100,"active":true}]'::jsonb,
+        '00000000-0000-0000-0000-000000000099'::uuid,
+        $2::uuid
+      )`, [t.id, partnerId]
+    );
+    expect(r.ok).toBe(true);
+
+    const { rows: allocations } = await pool.query(
+      `SELECT channel, cap, campaign_id FROM voucher_program_channel_allocations WHERE program_id=$1 ORDER BY channel`,
+      [r.program_id]
+    );
+    expect(allocations.map((a) => a.channel)).toEqual(["miles_purchase", "weekly_leaderboard_challenge"]);
+    const leaderboardRow = allocations.find((a) => a.channel === "weekly_leaderboard_challenge");
+    expect(leaderboardRow.campaign_id).toBeNull();
+
+    // campaign_id is a soft reference (no FK) — any uuid round-trips, since
+    // sponsored_game_campaigns isn't part of this numbered migration sequence.
+    await pool.query(
+      `UPDATE voucher_program_channel_allocations SET campaign_id=$1 WHERE program_id=$2 AND channel='weekly_leaderboard_challenge'`,
+      [campaignId, r.program_id]
+    );
+    const { rows: [updated] } = await pool.query(
+      `SELECT campaign_id FROM voucher_program_channel_allocations WHERE program_id=$1 AND channel='weekly_leaderboard_challenge'`,
+      [r.program_id]
+    );
+    expect(updated.campaign_id).toBe(campaignId);
+  });
+
+  it("still rejects channels outside the enum", async () => {
+    const partnerId = "00000000-0000-0000-0000-ff0000000046";
+    const { rows: [t] } = await pool.query(
+      `INSERT INTO spend_voucher_templates (partner_id, title, voucher_type, miles_cost, discount_percent)
+       VALUES ($1, 'Invalid Channel T', 'percent', 0, 10) RETURNING id`,
+      [partnerId]
+    );
+
+    await expect(
+      pool.query(`
+        SELECT * FROM create_voucher_program(
+          'Invalid Channel Program', $1, 'free', NULL, 100,
+          NULL, NULL,
+          '[{"channel":"not_a_real_channel","cap":50,"active":true}]'::jsonb,
+          '00000000-0000-0000-0000-000000000099'::uuid,
+          $2::uuid
+        )`, [t.id, partnerId]
+      )
+    ).rejects.toThrow("INVALID_CHANNEL");
   });
 });

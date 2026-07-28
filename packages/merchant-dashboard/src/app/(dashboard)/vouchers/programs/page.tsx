@@ -3,10 +3,10 @@ import { supabase } from "@/lib/supabase";
 import { redirect } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { VoucherTabs } from "@/components/vouchers/VoucherTabs";
+import { channelLabel } from "@/lib/voucherChannels";
 
 const STATE_COLORS: Record<string, string> = {
   draft:  "bg-gray-100 text-gray-600",
@@ -15,18 +15,10 @@ const STATE_COLORS: Record<string, string> = {
   ended:  "bg-red-100 text-red-600",
 };
 
-const CHANNEL_LABELS: Record<string, string> = {
-  miles_purchase: "Miles",
-  claw:           "Claw",
-  raffle:         "Raffle",
-  giveaway:       "Giveaway",
-  merchant_grant: "Grant",
-  akiba_grant:    "Akiba",
-};
-
 interface InventoryRow {
   program_id:        string;
   program_name:      string;
+  template_id:       string;
   state:             string;
   total_cap:         number | null;
   program_consumed:  number;
@@ -74,29 +66,19 @@ export default async function ProgramsPage() {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <TopBar
-        title="Voucher Programs"
-        subtitle={`${programGroups.length} program${programGroups.length !== 1 ? "s" : ""}`}
-        actions={
-          canEdit ? (
-            <Link href="/vouchers/programs/new">
-              <Button size="sm" className="gap-1.5">
-                <Plus className="h-4 w-4" /> New Program
-              </Button>
-            </Link>
-          ) : undefined
-        }
+        title="Distribution"
+        subtitle={`Channel allocation across ${programGroups.length} voucher${programGroups.length !== 1 ? "s" : ""}`}
       />
+      <VoucherTabs />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
         {programGroups.length === 0 ? (
           <Card>
             <CardContent className="py-16 text-center text-sm text-gray-500">
-              No programs yet.{" "}
-              {canEdit && (
-                <Link href="/vouchers/programs/new" className="text-[#238D9D] hover:underline">
-                  Create one →
-                </Link>
-              )}
+              No distribution yet.{" "}
+              <Link href="/vouchers/create" className="text-[#238D9D] hover:underline">
+                Create a voucher →
+              </Link>
             </CardContent>
           </Card>
         ) : (
@@ -117,7 +99,7 @@ export default async function ProgramsPage() {
                     </div>
                   </div>
                   {canEdit && (
-                    <Link href={`/vouchers/programs/${meta.program_id}`}>
+                    <Link href={`/vouchers/${meta.template_id}`}>
                       <Button variant="outline" size="sm">Manage</Button>
                     </Link>
                   )}
@@ -139,7 +121,7 @@ export default async function ProgramsPage() {
                           <tr key={ch.channel} className="border-b border-gray-50 last:border-0">
                             <td className="py-1.5 pr-4">
                               <span className={`font-medium ${ch.channel_active ? "text-gray-700" : "text-gray-300"}`}>
-                                {CHANNEL_LABELS[ch.channel] ?? ch.channel}
+                                {channelLabel(ch.channel)}
                                 {!ch.channel_active && " (paused)"}
                               </span>
                             </td>

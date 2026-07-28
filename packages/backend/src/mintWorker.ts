@@ -498,6 +498,12 @@ async function applyBatchPayloads(jobs: any[], txHash: string) {
   // poll_completion — no extra side-effects: poll_responses.reward_queued is
   // set at submit time (or by the watcher on retry). Nothing to do here.
 
+  // platform_reward — no extra side-effects: the idempotency_key
+  // (platform_reward:{rewardId}) on minipoint_mint_jobs itself is what
+  // guarantees exactly-one mint per Platform reward id; there's no local
+  // dedup table to update the way partner_engagements/daily_engagements
+  // have. Nothing to do here beyond completing the job row.
+
   const { error: completeErr } = await withTimeout(
     supabase
       .from("minipoint_mint_jobs")

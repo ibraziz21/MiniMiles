@@ -1,8 +1,9 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { ShoppingBag, Sparkles, Zap, Tag, User } from "lucide-react";
+import { ShoppingBag, Sparkles, Zap, Tag, User, QrCode } from "lucide-react";
 import clsx from "clsx";
+import { track } from "@/lib/analytics/track";
 
 const LINKS = [
   { href: "/shop",     label: "Shop & Earn", icon: ShoppingBag },
@@ -37,86 +38,60 @@ export function NavLinks({ dark = false }: { dark?: boolean }) {
           </a>
         );
       })}
+
+      {/* Pass — visually distinct pill, the product's core gesture is always
+          one tap away (home-redesign-spec.md §4). */}
+      <a
+        href="/pass"
+        onClick={() => track("pass_nav_tap")}
+        className={clsx(
+          "flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold transition-colors",
+          path === "/pass" || path.startsWith("/pass/")
+            ? "bg-akiba-teal text-white"
+            : dark
+            ? "bg-white/10 text-white hover:bg-white/20"
+            : "bg-akiba-tint text-akiba-teal hover:bg-akiba-teal/15"
+        )}
+      >
+        <QrCode className="h-4 w-4" />
+        Pass
+      </a>
     </>
   );
 }
 
 // Bottom nav item order (mobile):
-//   Shop | Quests | [Vouchers ↑ elevated] | Rewards | Profile
+//   Shop | Quests | Vouchers | Rewards | Profile
 //
-// Vouchers sits in the centre slot with a filled rounded square that floats
-// slightly above the bar — it's the highest-value action on Hub (spending miles).
+// Pass is no longer a bar slot — five evenly-spaced items was already tight,
+// and Pass is the product's core gesture (home-redesign-spec.md §4), so it
+// gets its own floating action button instead, always one tap away without
+// competing for bar space.
 
-const LEFT_NAV  = [
-  { href: "/shop",   label: "Shop",   icon: ShoppingBag },
-  { href: "/quests", label: "Quests", icon: Zap },
-];
-const RIGHT_NAV = [
-  { href: "/rewards", label: "Rewards", icon: Sparkles },
+const NAV_ITEMS = [
+  { href: "/shop",     label: "Shop",     icon: ShoppingBag },
+  { href: "/quests",   label: "Quests",   icon: Zap },
+  { href: "/vouchers", label: "Vouchers", icon: Tag },
+  { href: "/rewards",  label: "Rewards",  icon: Sparkles },
 ];
 
 export function BottomNav() {
   const path = usePathname();
   if (path === "/login") return null;
 
-  const vouchersActive = path === "/vouchers" || path.startsWith("/vouchers/");
-  const profileActive  = path === "/me" || path.startsWith("/me/");
+  const profileActive = path === "/me" || path.startsWith("/me/");
 
   return (
     <nav
       className={clsx(
         "fixed inset-x-0 bottom-0 z-50 sm:hidden",
-        // overflow-visible so the elevated centre button can float above the border
-        "overflow-visible border-t border-akiba-line bg-white/95 backdrop-blur-sm",
+        "border-t border-akiba-line bg-white/95 backdrop-blur-sm",
         // reserve the home-indicator area on installed/standalone PWAs
         "pb-[env(safe-area-inset-bottom)]"
       )}
     >
       <div className="flex h-16">
-
-        {/* ── Left items ──────────────────────────────────────────────────── */}
-        {LEFT_NAV.map(({ href, label, icon: Icon }) => {
-          const active = path === href || path.startsWith(href + "/");
-          return (
-            <a
-              key={href}
-              href={href}
-              className={clsx(
-                "flex flex-1 flex-col items-center justify-center gap-1 transition-colors",
-                active ? "text-akiba-teal" : "text-akiba-muted"
-              )}
-            >
-              <Icon className="h-5 w-5" />
-              <span className="text-[10px] font-semibold tracking-wide">{label}</span>
-            </a>
-          );
-        })}
-
-        {/* ── Centre — Vouchers (elevated pill) ───────────────────────────── */}
-        <a
-          href="/vouchers"
-          className="relative flex flex-1 flex-col items-center justify-center gap-1 -mt-5 transition-colors"
-        >
-          <span
-            className={clsx(
-              "flex h-12 w-12 items-center justify-center rounded-2xl shadow-md transition-colors active:scale-95",
-              vouchersActive ? "bg-akiba-teal" : "bg-akiba-ink"
-            )}
-          >
-            <Tag className="h-[22px] w-[22px] text-white" />
-          </span>
-          <span
-            className={clsx(
-              "text-[10px] font-semibold tracking-wide",
-              vouchersActive ? "text-akiba-teal" : "text-akiba-muted"
-            )}
-          >
-            Vouchers
-          </span>
-        </a>
-
-        {/* ── Right items ──────────────────────────────────────────────────── */}
-        {RIGHT_NAV.map(({ href, label, icon: Icon }) => {
+        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           const active = path === href || path.startsWith(href + "/");
           return (
             <a
@@ -153,8 +128,31 @@ export function BottomNav() {
           </span>
           <span className="text-[10px] font-semibold tracking-wide">Profile</span>
         </a>
-
       </div>
     </nav>
+  );
+}
+
+// Pass FAB — floats above the bottom nav bar so it stays a one-tap gesture
+// without taking a slot in the (already full) bar. Mobile-only, matching
+// BottomNav's breakpoint.
+export function PassFab() {
+  const path = usePathname();
+  if (path === "/login") return null;
+
+  const passActive = path === "/pass" || path.startsWith("/pass/");
+
+  return (
+    <a
+      href="/pass"
+      onClick={() => track("pass_nav_tap")}
+      className={clsx(
+        "fixed right-4 z-50 flex h-14 w-14 items-center justify-center rounded-2xl shadow-lg transition-colors active:scale-95 sm:hidden",
+        "bottom-[calc(4.5rem+env(safe-area-inset-bottom))]",
+        passActive ? "bg-akiba-teal" : "bg-akiba-ink"
+      )}
+    >
+      <QrCode className="h-6 w-6 text-white" />
+    </a>
   );
 }

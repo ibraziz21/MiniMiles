@@ -11,6 +11,7 @@ import {
   ShoppingBag,
   Tag,
   Landmark,
+  Undo2,
   Users,
   Inbox,
   Gamepad2,
@@ -55,6 +56,7 @@ const navSections: Array<{ label: string; items: NavItem[] }> = [
         ],
       },
       { href: "/ops-queue", label: "Ops Queue", icon: ListChecks },
+      { href: "/reconciliation", label: "Reconciliation", icon: ClipboardCheck },
     ],
   },
   {
@@ -66,6 +68,7 @@ const navSections: Array<{ label: string; items: NavItem[] }> = [
       { href: "/fulfillment", label: "Fulfilment", icon: PackageCheck },
       { href: "/vouchers", label: "Vouchers", icon: Tag },
       { href: "/finance", label: "Finance", icon: Landmark },
+      { href: "/refunds", label: "Refunds", icon: Undo2 },
       { href: "/settlement", label: "Settlement", icon: Landmark },
       { href: "/users", label: "Users & Wallets", icon: Users },
       {

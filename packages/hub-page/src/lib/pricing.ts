@@ -56,14 +56,20 @@ export function applyVoucher(
   return Math.max(0, price - (voucher.discount_cusd ?? 0));
 }
 
+export type ProductType = "physical" | "digital";
+
 export function calculateOrder(
   price: number,
   category: string,
   productId: string,
   city: string,
+  productType: ProductType,
   voucher: VoucherForPricing | null
 ) {
-  const { fee: deliveryFee, eta } = getDeliveryInfo(city);
+  // product_type is authoritative for fulfillment — never inferred from
+  // category. Digital items are delivered instantly with no delivery fee.
+  const { fee: deliveryFee, eta } =
+    productType === "digital" ? { fee: 0, eta: "Instant" } : getDeliveryInfo(city);
   const discountedPrice = applyVoucher(price, category, productId, voucher);
   const discount = price - discountedPrice;
   const total = discountedPrice + deliveryFee;

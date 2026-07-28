@@ -12,6 +12,7 @@ export type CartItem = {
   price: number;        // price_cusd
   category: string;
   imageUrl: string | null;
+  productType: "physical" | "digital";
   qty: number;
 };
 
@@ -42,7 +43,13 @@ function load(): CartState {
   if (typeof window === "undefined") return EMPTY;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : EMPTY;
+    if (!raw) return EMPTY;
+    const parsed: CartState = JSON.parse(raw);
+    // Legacy carts saved before product_type existed default to physical.
+    return {
+      ...parsed,
+      items: parsed.items.map((i) => ({ ...i, productType: i.productType ?? "physical" })),
+    };
   } catch {
     return EMPTY;
   }
@@ -66,16 +73,19 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   function add(item: Omit<CartItem, "qty">): "added" | "switched" {
     const current = load();
-    // Different merchant — caller must call confirmSwitch to proceed
-    if (current.merchantId && current.merchantId !== item.merchantId) {
+    const existing = current.items[0];
+    // Single-SKU cart: a different merchant or a different product both
+    // require confirmSwitch. Checkout currently pays once per cart, so
+    // mixing products would let one payment cover orders with different
+    // fulfillment types/pricing — see hub digital-checkout brief §5.
+    if (existing && (existing.merchantId !== item.merchantId || existing.id !== item.id)) {
       return "switched";
     }
-    const existing = current.items.find((i) => i.id === item.id);
     const next: CartState = {
       merchantId: item.merchantId,
       items: existing
-        ? current.items.map((i) => i.id === item.id ? { ...i, qty: i.qty + 1 } : i)
-        : [...current.items, { ...item, qty: 1 }],
+        ? [{ ...existing, qty: existing.qty + 1 }]
+        : [{ ...item, qty: 1 }],
     };
     update(next);
     return "added";

@@ -36,6 +36,9 @@ type Chain = {
   single:      () => Promise<{ data: unknown; error: null }>;
   limit:  (n: number) => Chain;
   order:  (col: string, opts: unknown) => Chain;
+  insert: (row: unknown) => Promise<{ error: null }>;
+  update: (row: unknown) => Chain;
+  then: (resolve: (v: { error: null }) => unknown) => unknown;
 };
 
 // The mock needs to be configurable per test — we expose a `fromImpl` function
@@ -71,6 +74,9 @@ function makeChain(data: unknown, error: unknown = null): Chain {
     single:      async () => ({ data, error: error as null }),
     limit: () => chain,
     order: () => chain,
+    insert: async () => ({ error: null }),
+    update: () => chain,
+    then: (resolve: (v: { error: null }) => unknown) => Promise.resolve({ error: null }).then(resolve),
   };
   return chain;
 }
@@ -89,6 +95,14 @@ const PRODUCT = {
   price_cusd: 5,
   category: "electronics",
   merchant_id: "merchant-uuid",
+  product_type: "physical",
+};
+const DIGITAL_PRODUCT = {
+  ...PRODUCT,
+  id: "prod-digital-1",
+  name: "Test Airtime",
+  category: "airtime",
+  product_type: "digital",
 };
 const SETTINGS = { wallet_address: "0xmerchant_wallet" };
 const WALLET_ROW = { address: "0xbuyerprimary" };
@@ -377,6 +391,18 @@ describe("POST /api/shop/orders — M-Pesa callback verification", () => {
     expect(mockRpc).not.toHaveBeenCalled();
   });
 
+  it("accepts an expired checkout when a successful callback was already recorded", async () => {
+    stkRequest.expires_at = new Date(Date.now() - 60_000).toISOString();
+
+    const res = await placeMpesaOrder();
+
+    expect(res.status).toBe(201);
+    expect(mockRpc).toHaveBeenCalledWith(
+      "place_hub_order_and_redeem_voucher",
+      expect.objectContaining({ p_payment_ref: CHECKOUT_ID })
+    );
+  });
+
   it("rejects an empty or whitespace-only receipt", async () => {
     mpesaResult!.receipt_number = "   ";
     const res = await placeMpesaOrder();
@@ -401,7 +427,7 @@ describe("POST /api/shop/orders — M-Pesa callback verification", () => {
     expect(mockRpc).toHaveBeenCalledWith(
       "place_hub_order_and_redeem_voucher",
       expect.objectContaining({
-        p_payment_method: "mpesa:254712345678",
+        p_payment_method: "mpesa",
         p_payment_ref: CHECKOUT_ID,
       })
     );
@@ -455,6 +481,203 @@ describe("POST /api/shop/orders — M-Pesa callback verification", () => {
     expect((json.order as Record<string, unknown>).miles_earned).toBeUndefined();
     // Reward result from Platform is present
     expect(json.reward).toBeDefined();
+  });
+
+  it("records a reconciliation incident for a paid order failure without a voucher", async () => {
+    let incident: Record<string, unknown> | null = null;
+    const baseFrom = fromImpl;
+    fromImpl = (table) => {
+      if (table === "reconciliation_incidents") {
+        return {
+          insert: async (row: Record<string, unknown>) => {
+            incident = row;
+            return { error: null };
+          },
+        } as unknown as Chain;
+      }
+      return baseFrom(table);
+    };
+    mockRpc.mockResolvedValue({
+      data: null,
+      error: { message: "null value in column legacy_field" },
+    });
+
+    const res = await placeMpesaOrder();
+    const json = await res.json() as {
+      payment_received?: boolean;
+      recoverable?: boolean;
+    };
+
+    expect(res.status).toBe(500);
+    expect(json.payment_received).toBe(true);
+    expect(json.recoverable).toBe(true);
+    expect(incident).toEqual(expect.objectContaining({
+      type: "order_rpc_failed_after_payment",
+      voucher_id: null,
+    }));
+  });
+});
+
+describe("POST /api/shop/orders — digital product_type", () => {
+  const CHECKOUT_ID = "ws_CO_digital_test";
+  const EXPECTED_KES = 650; // $5 product only, no delivery fee, at 130 KES/USD
+
+  function walletListChain(rows: Array<{ address: string }>) {
+    const result = { data: rows, error: null };
+    const thenable = {
+      then: <T>(resolve: (value: typeof result) => T) =>
+        Promise.resolve(result).then(resolve),
+    };
+    return { select: () => ({ eq: () => thenable }) } as unknown as Chain;
+  }
+
+  function setupDigitalTables() {
+    fromImpl = (table) => {
+      if (table === "merchant_products") return makeChain(DIGITAL_PRODUCT);
+      if (table === "partner_settings")  return makeChain(SETTINGS);
+      if (table === "hub_user_wallets")  return walletListChain([WALLET_ROW]);
+      if (table === "mpesa_stk_requests") return makeChain({
+        hub_user_id: "user-uuid",
+        phone:       "254712345678",
+        amount_kes:  EXPECTED_KES,
+        expires_at:  new Date(Date.now() + 3_600_000).toISOString(),
+      });
+      if (table === "mpesa_stk_results") return makeChain({
+        result_code:    "0",
+        receipt_number: "RCPTDIG01",
+        amount_kes:     EXPECTED_KES,
+        phone:          "254712345678",
+      });
+      if (table === "merchant_transactions") return makeChain(null);
+      return makeChain(null);
+    };
+
+    mockRpc.mockResolvedValue({
+      data: [{ ok: true, order_id: "order-digital-uuid", error_code: "" }],
+      error: null,
+    });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupDigitalTables();
+  });
+
+  it("succeeds without city/address and charges only the product total (no delivery fee)", async () => {
+    const res = await POST(makeRequest({
+      product_id:        "prod-digital-1",
+      recipient_name:    "Alice",
+      phone:             "0712345678",
+      mpesa_checkout_id: CHECKOUT_ID,
+    }));
+    const json = await res.json() as { order: { id: string; amount_cusd: number } };
+
+    expect(res.status).toBe(201);
+    expect(json.order.id).toBe("order-digital-uuid");
+    // $5 product only — no $3/$5 delivery fee added
+    expect(json.order.amount_cusd).toBe(5);
+  });
+
+  it("passes null city/location_details to the RPC for a digital order", async () => {
+    await POST(makeRequest({
+      product_id:        "prod-digital-1",
+      recipient_name:    "Alice",
+      phone:             "0712345678",
+      mpesa_checkout_id: CHECKOUT_ID,
+    }));
+
+    expect(mockRpc).toHaveBeenCalledWith(
+      "place_hub_order_and_redeem_voucher",
+      expect.objectContaining({ p_city: null, p_location_details: null })
+    );
+  });
+
+  it("a client cannot forge product_type to bypass delivery charges — server derives it from the DB", async () => {
+    // The client sends city/location as if paying for a physical delivery,
+    // and even tries to smuggle a product_type in the body — the route must
+    // ignore the body entirely and use the DB-fetched product_type (digital).
+    const res = await POST(makeRequest({
+      product_id:        "prod-digital-1",
+      product_type:      "physical", // forged — must be ignored
+      recipient_name:    "Alice",
+      phone:             "0712345678",
+      city:              "Nairobi",
+      mpesa_checkout_id: CHECKOUT_ID,
+    }));
+    const json = await res.json() as { order: { amount_cusd: number } };
+
+    expect(res.status).toBe(201);
+    // Still just the product total — forged product_type didn't add a fee.
+    expect(json.order.amount_cusd).toBe(5);
+  });
+
+  it("enqueues a digital fulfilment job for the created order", async () => {
+    await POST(makeRequest({
+      product_id:        "prod-digital-1",
+      recipient_name:    "Alice",
+      phone:             "0712345678",
+      mpesa_checkout_id: CHECKOUT_ID,
+    }));
+
+    expect(mockRpc).toHaveBeenCalledWith(
+      "enqueue_digital_fulfillment",
+      expect.objectContaining({
+        p_order_id: "order-digital-uuid",
+        p_payload: expect.objectContaining({ product_id: "prod-digital-1" }),
+      })
+    );
+  });
+
+  it("does not enqueue a fulfilment job for a physical order", async () => {
+    fromImpl = (table) => {
+      if (table === "merchant_products") return makeChain(PRODUCT);
+      if (table === "partner_settings")  return makeChain(SETTINGS);
+      if (table === "hub_user_wallets")  return walletListChain([WALLET_ROW]);
+      if (table === "mpesa_stk_requests") return makeChain({
+        hub_user_id: "user-uuid",
+        phone:       "254712345678",
+        amount_kes:  1040,
+        expires_at:  new Date(Date.now() + 3_600_000).toISOString(),
+      });
+      if (table === "mpesa_stk_results") return makeChain({
+        result_code:    "0",
+        receipt_number: "RCPTPHYS01",
+        amount_kes:     1040,
+        phone:          "254712345678",
+      });
+      if (table === "merchant_transactions") return makeChain(null);
+      return makeChain(null);
+    };
+
+    await POST(makeRequest({
+      product_id:        "prod-1",
+      recipient_name:    "Alice",
+      phone:             "0712345678",
+      city:              "Nairobi",
+      mpesa_checkout_id: "ws_CO_physical_no_enqueue",
+    }));
+
+    expect(mockRpc).not.toHaveBeenCalledWith("enqueue_digital_fulfillment", expect.anything());
+  });
+});
+
+describe("POST /api/shop/orders — physical product without city", () => {
+  it("returns 400 when city is missing for a physical product", async () => {
+    fromImpl = (table) => {
+      if (table === "merchant_products") return makeChain(PRODUCT);
+      if (table === "partner_settings")  return makeChain(SETTINGS);
+      if (table === "hub_user_wallets")  return makeChain([WALLET_ROW]);
+      return makeChain(null);
+    };
+
+    const res = await POST(makeRequest({
+      product_id:        "prod-1",
+      recipient_name:    "Alice",
+      phone:             "0712345678",
+      mpesa_checkout_id: "ws_CO_missing_city",
+    }));
+
+    expect(res.status).toBe(400);
   });
 });
 
@@ -515,83 +738,58 @@ describe("POST /api/shop/orders — Platform reward integration", () => {
     setupMpesaTables();
   });
 
-  it("returns reward.issued=true and miles from Platform when reward is granted", async () => {
-    mockPurchaseEventResult = {
-      ok: true,
-      purchaseEventId: "pe-abc",
-      rewardIssued:    true,
-      milesAwarded:    300,
-      reason:          "launch reward",
-    };
+  // Reward accrue/release policy (order-lifecycle-completion-spec.md §6):
+  // order creation ACCRUES the reward (stores the payload) but never calls
+  // Platform directly — the customer always sees "pending" at checkout, and
+  // the real Platform call fires later, at order completion
+  // (lib/akiba/reward-release.ts), not from this route.
+
+  it("never calls Platform's purchase-events API at order creation", async () => {
+    const { sendPurchaseEvent } = await import("@/lib/akiba/purchase-events");
+    const spy = vi.mocked(sendPurchaseEvent);
+
+    await placeOrder();
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("always returns a pending reward at creation, regardless of Platform's (unused) mock result", async () => {
+    mockPurchaseEventResult = { ok: true, rewardIssued: true, milesAwarded: 300, reason: "launch reward" };
 
     const res = await placeOrder();
     const json = await res.json() as {
       order: { id: string };
-      reward: { issued: boolean; miles: number; reason?: string; pending?: boolean };
-    };
-
-    expect(res.status).toBe(201);
-    expect(json.reward.issued).toBe(true);
-    expect(json.reward.miles).toBe(300);
-    expect(json.reward.reason).toBe("launch reward");
-    expect(json.reward.pending).toBeUndefined();
-  });
-
-  it("returns reward.issued=false and miles=0 when Platform has no active reward", async () => {
-    mockPurchaseEventResult = {
-      ok:           true,
-      rewardIssued: false,
-      milesAwarded: 0,
-      reason:       "no active campaign",
-    };
-
-    const res = await placeOrder();
-    const json = await res.json() as { order: unknown; reward: { issued: boolean; miles: number } };
-
-    expect(res.status).toBe(201);
-    expect(json.reward.issued).toBe(false);
-    expect(json.reward.miles).toBe(0);
-  });
-
-  it("still returns 201 and reward.pending=true when Platform call fails after order succeeds", async () => {
-    mockPurchaseEventResult = {
-      ok:           false,
-      rewardIssued: false,
-      milesAwarded: 0,
-      error:        "Platform unavailable",
-    };
-
-    const res = await placeOrder();
-    const json = await res.json() as {
-      order: { id: string };
-      reward: { issued: boolean; pending?: boolean };
+      reward: { issued: boolean; miles: number; pending?: boolean };
     };
 
     expect(res.status).toBe(201);
     expect(json.order.id).toBe("order-uuid");
     expect(json.reward.issued).toBe(false);
+    expect(json.reward.miles).toBe(0);
     expect(json.reward.pending).toBe(true);
   });
 
-  it("sends Platform purchase-event fields derived from the verified order", async () => {
-    const { sendPurchaseEvent } = await import("@/lib/akiba/purchase-events");
-    const spy = vi.mocked(sendPurchaseEvent);
-
-    mockPurchaseEventResult = { ok: true, rewardIssued: false, milesAwarded: 0 };
-
+  it("passes the exact Platform payload and a pre-generated order id to the RPC atomically", async () => {
     await placeOrder();
 
-    expect(spy).toHaveBeenCalledOnce();
-    const payload = spy.mock.calls[0][0];
+    // The RPC call that creates the order is also what creates the reward
+    // job (p_reward_payload) -- no separate follow-up write, so a crash
+    // between "order created" and "reward stored" can't happen.
+    const call = mockRpc.mock.calls.find((c) => c[0] === "place_hub_order_and_redeem_voucher");
+    expect(call).toBeDefined();
+    const args = call![1] as Record<string, unknown>;
+
+    expect(args.p_order_id).toEqual(expect.any(String));
+    const payload = args.p_reward_payload as Record<string, unknown>;
     expect(payload.externalPurchaseId).toBe(CHECKOUT_ID);
-    expect(payload.idempotencyKey).toBe("hub-purchase-order-uuid");
+    expect(payload.idempotencyKey).toBe(`hub-purchase-${args.p_order_id}`);
     expect(payload.sourceApp).toBe("hub");
     expect(payload.amount).toBe(EXPECTED_KES);
     expect(payload.currency).toBe("KES");
     expect(payload.recipient).toEqual({ type: "wallet", value: "0xbuyer" });
     expect(payload.metadata).toEqual(expect.objectContaining({
-      orderId: "order-uuid",
-      paymentMethod: expect.stringMatching(/^mpesa:/),
+      orderId: args.p_order_id,
+      paymentMethod: "mpesa",
       paymentRef: CHECKOUT_ID,
       productId: "prod-1",
     }));

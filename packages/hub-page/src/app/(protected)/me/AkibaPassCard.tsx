@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import QRCode from "qrcode";
 import { Copy, CheckCheck, Download, Share2, RefreshCw, ShieldCheck, WifiOff } from "lucide-react";
+import { qrPayload, drawPassQr } from "@/lib/akiba/passQr";
+import { useLivePassToken } from "@/lib/akiba/useLivePassToken";
 
 type Props = {
   initialPassId: string;
@@ -73,10 +74,6 @@ async function buildPassCard(
   });
 }
 
-function qrPayload(passId: string) {
-  return `akiba-pass:v1:${passId}`;
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 export function AkibaPassCard({ initialPassId, email, displayLabel }: Props) {
   const canvasRef              = useRef<HTMLCanvasElement>(null);
@@ -90,9 +87,7 @@ export function AkibaPassCard({ initialPassId, email, displayLabel }: Props) {
 
   // Live rotating token (akiba-id) — expires ~5 min; static pass is the
   // offline fallback. A photographed live code is useless minutes later.
-  const [liveToken, setLiveToken]         = useState<string | null>(null);
-  const [liveExpiresAt, setLiveExpiresAt] = useState<number | null>(null);
-  const [secondsLeft, setSecondsLeft]     = useState<number | null>(null);
+  const { liveToken, secondsLeft, currentPayload } = useLivePassToken(passId);
 
   useEffect(() => {
     setCanShare(
@@ -103,59 +98,16 @@ export function AkibaPassCard({ initialPassId, email, displayLabel }: Props) {
 
   const drawQr = useCallback((payload: string) => {
     if (!canvasRef.current) return;
-    return QRCode.toCanvas(canvasRef.current, payload, {
-      width: 220,
-      margin: 2,
-      color: { dark: "#0D3349", light: "#FFFFFF" },
-      errorCorrectionLevel: "M",
-    });
+    return drawPassQr(canvasRef.current, payload);
   }, []);
 
   // Kept for save/share — the exported PNG always embeds the durable static pass
   const renderQr = useCallback((id: string) => drawQr(qrPayload(id)), [drawQr]);
 
-  // ── Live token lifecycle ──────────────────────────────────────────────────
-  const fetchLiveToken = useCallback(async () => {
-    try {
-      const res = await fetch("/api/me/pass/token", { method: "POST" });
-      if (!res.ok) throw new Error(String(res.status));
-      const { token, expiresAt } = await res.json() as { token: string; expiresAt?: string };
-      setLiveToken(token);
-      setLiveExpiresAt(expiresAt ? new Date(expiresAt).getTime() : Date.now() + 300_000);
-    } catch {
-      // Offline or Platform down — static pass keeps working
-      setLiveToken(null);
-      setLiveExpiresAt(null);
-    }
-  }, []);
-
-  // Initial fetch + refresh when the tab regains focus (till moment)
-  useEffect(() => {
-    void fetchLiveToken();
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void fetchLiveToken();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [fetchLiveToken]);
-
-  // Countdown + auto-refresh 30s before expiry
-  useEffect(() => {
-    if (!liveExpiresAt) { setSecondsLeft(null); return; }
-    const tick = () => {
-      const left = Math.max(0, Math.floor((liveExpiresAt - Date.now()) / 1000));
-      setSecondsLeft(left);
-      if (left <= 30) void fetchLiveToken();
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [liveExpiresAt, fetchLiveToken]);
-
   // Render whichever code is current (live preferred, static fallback)
   useEffect(() => {
-    void drawQr(liveToken ?? qrPayload(passId));
-  }, [liveToken, passId, drawQr]);
+    void drawQr(currentPayload);
+  }, [currentPayload, drawQr]);
 
   // ── Regenerate: issue a new stable UUID, invalidating old QRs ────────────
   const regenerate = useCallback(async () => {
@@ -208,10 +160,10 @@ export function AkibaPassCard({ initialPassId, email, displayLabel }: Props) {
       }
     } finally {
       // Restore the on-screen code (live token if we have one)
-      await drawQr(liveToken ?? qrPayload(passId));
+      await drawQr(currentPayload);
       setSaving(false);
     }
-  }, [canShare, passId, displayLabel, email, renderQr, drawQr, liveToken]);
+  }, [canShare, passId, displayLabel, email, renderQr, drawQr, currentPayload]);
 
   const copyEmail = useCallback(async () => {
     try {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { reemitPassActivated } from "@/lib/akiba/internal-events";
 
 const VALID_ECOSYSTEMS = ["minipay", "base"] as const;
 type Ecosystem = (typeof VALID_ECOSYSTEMS)[number];
@@ -67,6 +68,12 @@ export async function POST(request: Request) {
     // Non-fatal — the bridge record was saved; log and continue
     console.error("[hub] users upsert failed:", userError.message);
   }
+
+  // Re-emit pass_activated with the freshly-linked wallet added to the
+  // identity list (discovery-quests-spec.md §2.3). Safe to call even when
+  // this wallet was already linked — same idempotency key, Platform merges
+  // rather than double-completing.
+  await reemitPassActivated({ userId: user.id, email: user.email ?? null });
 
   return NextResponse.json({ ok: true });
 }

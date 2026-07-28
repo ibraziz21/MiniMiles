@@ -34,6 +34,10 @@ vi.mock("@/lib/supabase/server", () => ({
 
 // ── Mock admin client ─────────────────────────────────────────────────────────
 // Routes table queries to the appropriate fixture based on table name.
+// GET /api/me/pass now delegates to getOrCreatePass, which calls the
+// create_or_get_hub_pass RPC rather than querying hub_user_passes directly
+// (044_internal_event_outbox.sql) — resolve/regenerate still hit the table
+// directly, so `.from()` is still exercised by those two describe blocks.
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     from: (table: string) => {
@@ -67,6 +71,19 @@ vi.mock("@/lib/supabase/admin", () => ({
         },
       };
       return builder;
+    },
+
+    async rpc(fn: string) {
+      if (fn === "create_or_get_hub_pass") {
+        return {
+          data: [{
+            public_pass_id: mockPassExists ? KNOWN_PASS_ID : NEW_PASS_ID,
+            is_new: !mockPassExists,
+          }],
+          error: null,
+        };
+      }
+      return { data: null, error: null };
     },
   }),
 }));

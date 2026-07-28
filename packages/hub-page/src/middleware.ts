@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PROTECTED = ["/me"];
+const PROTECTED = ["/me", "/pass", "/welcome"];
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -54,5 +54,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/me/:path*", "/login"],
+  matcher: ["/me/:path*", "/pass/:path*", "/welcome/:path*", "/login"],
 };

@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { reemitPassActivated } from "@/lib/akiba/internal-events";
 
 /**
  * After login, look up the `users` table by email and auto-import any
@@ -59,6 +60,10 @@ export async function syncWalletsFromUsersTable(
       imported++;
       break; // Only one minipay slot; stop after filling it
     }
+  }
+
+  if (imported > 0) {
+    await reemitPassActivated({ userId: authUserId, email });
   }
 
   return { imported };

@@ -19,9 +19,9 @@ import type { TokenSymbol } from "@/lib/tokens";
 import { claimVoucher, releaseVoucher } from "@/lib/vouchers/redemption";
 import type { VoucherForPricing } from "@/lib/pricing";
 import type { RulesSnapshot } from "@/lib/vouchers/types";
-import { sendPurchaseEvent } from "@/lib/akiba/purchase-events";
 import { emitQuestActions } from "@/lib/akiba/quest-events";
 import { HIDDEN_PARTNER_FILTER, isHiddenPartner } from "@/lib/akiba/hidden-partners";
+import { buildIdentities } from "@/lib/akiba/identities";
 
 const CELO_RPC = process.env.CELO_RPC_URL ?? "https://forno.celo.org";
 
@@ -99,7 +99,10 @@ export async function POST(request: Request) {
   const isCrypto = !!tx_hash;
   const isMpesa  = !!mpesa_checkout_id;
 
-  if (!product_id || !recipient_name || !phone || !city) {
+  // Initial validation: just enough to look up the product and payment.
+  // Fulfillment fields (recipient/phone/city) are validated below, once the
+  // product's authoritative product_type is known.
+  if (!product_id) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
   if (!isCrypto && !isMpesa) {
@@ -114,13 +117,22 @@ export async function POST(request: Request) {
   // ── Product lookup ────────────────────────────────────────────────────────
   const { data: product } = await admin
     .from("merchant_products")
-    .select("id, name, price_cusd, category, merchant_id")
+    .select("id, name, price_cusd, category, merchant_id, product_type")
     .eq("id", product_id)
     .eq("active", true)
     .maybeSingle();
 
   if (!product || isHiddenPartner(product.merchant_id)) {
     return NextResponse.json({ error: "Product not found" }, { status: 404 });
+  }
+
+  // Authoritative fulfillment type — never trust product_type from the
+  // request body. Missing/legacy values default to physical.
+  const productType: "physical" | "digital" = product.product_type === "digital" ? "digital" : "physical";
+  const requiresDelivery = productType === "physical";
+
+  if (!recipient_name || !phone || (requiresDelivery && !city)) {
+    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
   const { data: settings } = await admin
@@ -141,11 +153,20 @@ export async function POST(request: Request) {
 
   const allAddresses = (walletRows ?? []).map((r: { address: string }) => r.address.toLowerCase());
   const primaryAddress = allAddresses[0] ?? (user.email ?? user.id);
+  const metadataUsername =
+    typeof user.user_metadata?.username === "string"
+      ? user.user_metadata.username.trim()
+      : "";
+  const akibaUsername =
+    metadataUsername ||
+    user.email?.split("@")[0] ||
+    primaryAddress.slice(0, 64);
 
   // ── Resolve voucher by ID or legacy code  (#7 fix: reject invalid IDs) ───
   let resolvedVoucherId: string | null = null;
   let voucherRules: RulesSnapshot | null = null;
   let resolvedVoucherCode: string | null = null;
+  let resolvedAcquisitionSource: string | null = null;
 
   const lookupId   = typeof voucher_id   === "string" ? voucher_id.trim()               : null;
   const lookupCode = typeof voucher_code === "string" ? voucher_code.trim().toUpperCase() : null;
@@ -155,6 +176,7 @@ export async function POST(request: Request) {
       .from("issued_vouchers")
       .select(`
         id, code, status, hub_user_id, user_address, expires_at, rules_snapshot,
+        acquisition_source,
         spend_voucher_templates (
           id, partner_id, voucher_type, discount_percent, discount_cusd,
           applicable_category, linked_product_id, retail_value_cusd, miles_cost, title
@@ -229,8 +251,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Voucher is not valid for this category" }, { status: 400 });
     }
 
-    resolvedVoucherId   = vRow.id;
-    resolvedVoucherCode = vRow.code;
+    resolvedVoucherId          = vRow.id;
+    resolvedVoucherCode        = vRow.code;
+    resolvedAcquisitionSource  = vRow.acquisition_source ?? null;
   }
 
   // ── Pricing ───────────────────────────────────────────────────────────────
@@ -249,7 +272,8 @@ export async function POST(request: Request) {
     product.price_cusd,
     product.category,
     product.id,
-    typeof city === "string" ? city : "",
+    requiresDelivery && typeof city === "string" ? city : "",
+    productType,
     pricingVoucher
   );
 
@@ -332,11 +356,6 @@ export async function POST(request: Request) {
       if (resolvedVoucherId) await releaseVoucher(resolvedVoucherId, user.id, allAddresses);
       return NextResponse.json({ error: "M-Pesa payment not found or not initiated by this user" }, { status: 400 });
     }
-    if (new Date(stkReq.expires_at) < new Date()) {
-      if (resolvedVoucherId) await releaseVoucher(resolvedVoucherId, user.id, allAddresses);
-      return NextResponse.json({ error: "M-Pesa checkout session expired" }, { status: 400 });
-    }
-
     // 2. Require a successful server-recorded callback with a non-empty receipt.
     //    If the callback has not yet arrived, return a retryable 402 so the client
     //    can wait and retry (the /mpesa/status route only says "success" once the
@@ -349,6 +368,9 @@ export async function POST(request: Request) {
 
     if (!stkResult) {
       if (resolvedVoucherId) await releaseVoucher(resolvedVoucherId, user.id, allAddresses, "mpesa_callback_pending");
+      if (new Date(stkReq.expires_at) < new Date()) {
+        return NextResponse.json({ error: "M-Pesa checkout session expired" }, { status: 400 });
+      }
       return NextResponse.json(
         { error: "M-Pesa payment not yet confirmed by Safaricom — please retry in a moment", retryable: true },
         { status: 402 }
@@ -415,27 +437,92 @@ export async function POST(request: Request) {
     }
 
     paymentRef    = checkoutId;
-    paymentMethod = `mpesa:${initiatingPhone}`;
+    paymentMethod = "mpesa";
     paidAmountUsd = actualKes / usdRate;
   }
 
   // ── Reject replayed payment references  (#7 fix) ─────────────────────────
   const { data: existingOrder } = await admin
     .from("merchant_transactions")
-    .select("id")
+    .select("id, status, amount_cusd")
     .eq("payment_ref", paymentRef)
     .maybeSingle();
 
   if (existingOrder) {
-    if (resolvedVoucherId) {
-      await releaseVoucher(resolvedVoucherId, user.id, allAddresses, "payment_ref_replayed");
-    }
-    return NextResponse.json({ error: "Payment reference already used" }, { status: 409 });
+    return NextResponse.json(
+      {
+        order: {
+          id: existingOrder.id,
+          status: existingOrder.status,
+          amount_cusd: existingOrder.amount_cusd,
+          eta: pricing.eta,
+        },
+        recovered: true,
+      },
+      { status: 200 }
+    );
   }
 
+  // Reward accrue/release (order-lifecycle-completion-spec.md §6): the
+  // reward job is created ATOMICALLY with the order (same RPC, same
+  // transaction) rather than via a follow-up UPDATE — a crash between "order
+  // created" and "reward payload stored" can no longer lose the reward.
+  // The order id is pre-generated so the payload's idempotencyKey can use it
+  // up front — getPurchaseEventForOrder reconstructs the same
+  // `hub-purchase-${orderId}` key later to look the event up on My Orders.
+  const preGeneratedOrderId = crypto.randomUUID();
+  const primaryWallet = allAddresses[0] ?? null;
+  const purchaseAmount = isCrypto ? paidAmountUsd : Math.round(paidAmountUsd * usdRate);
+  const purchaseCurrency = isCrypto ? String(currency) : "KES";
+  const rewardRecipient = primaryWallet
+    ? { type: "wallet" as const, value: primaryWallet }
+    : user.email
+      ? { type: "email" as const, value: user.email }
+      : { type: "phone" as const, value: String(phone) };
+  const pendingRewardPayload = {
+    merchantId:         product.merchant_id,
+    externalPurchaseId: paymentRef,
+    idempotencyKey:     `hub-purchase-${preGeneratedOrderId}`,
+    recipient:           rewardRecipient,
+    amount:              purchaseAmount,
+    currency:            purchaseCurrency,
+    productCategory:    product.category,
+    sourceApp:          "hub" as const,
+    occurredAt:         new Date().toISOString(),
+    metadata: {
+      orderId:       preGeneratedOrderId,
+      hubUserId:     user.id,
+      hubUserEmail:  user.email ?? null,
+      walletAddress: primaryWallet,
+      paymentRef,
+      paymentMethod,
+      amountUsd:     paidAmountUsd,
+      amountKes:     Math.round(paidAmountUsd * usdRate),
+      productId:     String(product.id),
+      itemName:      product.name,
+    },
+  };
+
+  // discovery-quests-spec.md §3.2 — built here (not inside the RPC) because
+  // it needs an identity lookup (email + linked wallets) the RPC itself
+  // can't do; the RPC just persists it atomically with the redemption.
+  const internalEventPayload = resolvedVoucherId
+    ? {
+        event_type: "voucher_redeemed",
+        idempotency_key: `vredeem:${resolvedVoucherId}`,
+        identities: await buildIdentities({ userId: user.id, email: user.email ?? null }),
+        metadata: {
+          voucher_id: resolvedVoucherId,
+          merchant_id: product.merchant_id,
+          acquisition_source: resolvedAcquisitionSource,
+        },
+      }
+    : null;
+
   // ── Atomic order creation + voucher redemption  (#8 fix) ─────────────────
-  // place_hub_order_and_redeem_voucher inserts the order AND redeems the voucher
-  // in one database transaction. If either step fails, both roll back.
+  // place_hub_order_and_redeem_voucher inserts the order, the reward job,
+  // and redeems the voucher in one database transaction. If any step fails,
+  // all roll back.
   const { data: placeRows, error: placeErr } = await admin.rpc(
     "place_hub_order_and_redeem_voucher",
     {
@@ -453,14 +540,21 @@ export async function POST(request: Request) {
       p_voucher_id:       resolvedVoucherId,
       p_recipient_name:   String(recipient_name),
       p_phone:            String(phone),
-      p_city:             String(city),
-      p_location_details: typeof location_details === "string" ? location_details : null,
+      p_city:             requiresDelivery ? String(city) : null,
+      p_location_details: requiresDelivery && typeof location_details === "string" ? location_details : null,
       p_hub_user_id:      resolvedVoucherId ? user.id : null,
       p_merchant_id:      resolvedVoucherId ? product.merchant_id : null,
       p_product_id_scope: resolvedVoucherId ? String(product.id) : null,
       p_product_category: resolvedVoucherId ? product.category : null,
       p_discount_applied: resolvedVoucherId ? pricing.discount : null,
       p_user_addresses:   resolvedVoucherId ? allAddresses : null,
+      p_akiba_username:    akibaUsername,
+      p_quote_kes:         Math.round(Number(product.price_cusd) * usdRate),
+      p_delivery_kes:      Math.round(pricing.deliveryFee * usdRate),
+      p_discount_kes:      Math.round(pricing.discount * usdRate),
+      p_reward_payload:    pendingRewardPayload,
+      p_order_id:          preGeneratedOrderId,
+      p_internal_event_payload: internalEventPayload,
     }
   );
 
@@ -469,26 +563,45 @@ export async function POST(request: Request) {
     // Release the claiming lock so the user can retry.
     if (resolvedVoucherId) {
       await releaseVoucher(resolvedVoucherId, user.id, allAddresses, "order_rpc_failed");
-
-      // Record reconciliation incident: payment was confirmed but order creation failed.
-      // This requires manual intervention.
-      await Promise.resolve(
-        admin.from("reconciliation_incidents").insert({
-          type:       "order_rpc_failed_after_payment",
-          voucher_id: resolvedVoucherId,
-          data: {
-            payment_ref:   paymentRef,
-            payment_method: paymentMethod,
-            error:          placeErr.message,
-            user_id:        user.id,
-          },
-        })
-      ).catch((e: unknown) => {
-        console.error("[orders] Failed to write reconciliation incident:", e);
-      });
     }
 
-    return NextResponse.json({ error: "Order creation failed. Payment was received — support will reconcile." }, { status: 500 });
+    // Record every paid order failure, including purchases without a voucher.
+    const { error: incidentErr } = await admin.from("reconciliation_incidents").insert({
+      type:       "order_rpc_failed_after_payment",
+      voucher_id: resolvedVoucherId,
+      data: {
+        payment_ref:   paymentRef,
+        payment_method: paymentMethod,
+        product_id:    String(product.id),
+        recipient_name: String(recipient_name),
+        phone:          String(phone),
+        city:           requiresDelivery ? String(city) : null,
+        location_details:
+          requiresDelivery && typeof location_details === "string"
+            ? location_details
+            : null,
+        error:         placeErr.message,
+        user_id:       user.id,
+        amount_cusd:   paidAmountUsd,
+        amount_kes:    Math.round(paidAmountUsd * usdRate),
+        payment_currency: isCrypto ? String(currency) : "KES",
+        user_address:  primaryAddress,
+        partner_id:    product.merchant_id,
+      },
+    });
+    if (incidentErr && incidentErr.code !== "23505") {
+      console.error("[orders] Failed to write reconciliation incident:", incidentErr.message);
+    }
+
+    console.error("[orders] Order RPC failed after verified payment:", placeErr.message);
+    return NextResponse.json(
+      {
+        error: "Order creation failed. Payment was received — retry order creation without paying again.",
+        payment_received: true,
+        recoverable: true,
+      },
+      { status: 500 }
+    );
   }
 
   const placeRow = (placeRows as unknown as Array<{ ok: boolean; order_id: string; error_code: string }>)[0];
@@ -497,68 +610,102 @@ export async function POST(request: Request) {
     if (resolvedVoucherId) {
       await releaseVoucher(resolvedVoucherId, user.id, allAddresses, "order_rpc_returned_error");
     }
-    return NextResponse.json({ error: placeRow?.error_code ?? "Order creation failed" }, { status: 500 });
-  }
-
-  // Ask Platform to evaluate and issue a reward for this verified purchase.
-  // This is awaited so the result is included in the response, but order
-  // success is not gated on it — a Platform failure still returns 201.
-  const primaryWallet = allAddresses[0] ?? null;
-  const purchaseAmount = isCrypto ? paidAmountUsd : Math.round(paidAmountUsd * usdRate);
-  const purchaseCurrency = isCrypto ? String(currency) : "KES";
-  const recipient = primaryWallet
-    ? { type: "wallet" as const, value: primaryWallet }
-    : user.email
-      ? { type: "email" as const, value: user.email }
-      : { type: "phone" as const, value: String(phone) };
-  const purchaseIdempotencyKey = `hub-purchase-${placeRow.order_id}`;
-  const rewardResult = await sendPurchaseEvent({
-    merchantId:         product.merchant_id,
-    externalPurchaseId: paymentRef,
-    idempotencyKey:     purchaseIdempotencyKey,
-    recipient,
-    amount:             purchaseAmount,
-    currency:           purchaseCurrency,
-    productCategory:    product.category,
-    sourceApp:          "hub",
-    occurredAt:         new Date().toISOString(),
-    metadata: {
-      orderId:       placeRow.order_id,
-      hubUserId:     user.id,
-      hubUserEmail:  user.email ?? null,
-      walletAddress: primaryWallet,
-      paymentRef,
-      paymentMethod,
-      amountUsd:     paidAmountUsd,
-      amountKes:     Math.round(paidAmountUsd * usdRate),
-      productId:     String(product.id),
-      itemName:      product.name,
-    },
-  });
-
-  if (!rewardResult.ok) {
-    console.error(
-      "[orders] Platform purchase-event failed after order",
-      placeRow.order_id,
-      rewardResult.error
+    const { error: incidentErr } = await admin.from("reconciliation_incidents").insert({
+      type:       "order_rpc_failed_after_payment",
+      voucher_id: resolvedVoucherId,
+      data: {
+        payment_ref:   paymentRef,
+        payment_method: paymentMethod,
+        product_id:    String(product.id),
+        recipient_name: String(recipient_name),
+        phone:          String(phone),
+        city:           requiresDelivery ? String(city) : null,
+        location_details:
+          requiresDelivery && typeof location_details === "string"
+            ? location_details
+            : null,
+        error:         placeRow?.error_code ?? "Order RPC returned no result",
+        user_id:       user.id,
+        amount_cusd:   paidAmountUsd,
+        amount_kes:    Math.round(paidAmountUsd * usdRate),
+        payment_currency: isCrypto ? String(currency) : "KES",
+        user_address:  primaryAddress,
+        partner_id:    product.merchant_id,
+      },
+    });
+    if (incidentErr && incidentErr.code !== "23505") {
+      console.error("[orders] Failed to write reconciliation incident:", incidentErr.message);
+    }
+    return NextResponse.json(
+      {
+        error: "Order creation failed. Payment was received — retry order creation without paying again.",
+        payment_received: true,
+        recoverable: true,
+      },
+      { status: 500 }
     );
   }
 
-  // Report quest actions for this completed order (fire-and-forget; one-time
-  // quests dedupe on Platform, so emitting first_purchase every order is safe).
+  // "Payment confirmed / order placed" notification (order-lifecycle-
+  // completion-spec.md §5.2). 'placed' is set by the INSERT above, not an
+  // advance_order_status transition, so it's not auto-notified there.
+  await admin.from("notification_outbox").insert({
+    user_ref: primaryAddress,
+    order_id: placeRow.order_id,
+    template: "order_placed",
+    status: "sent",
+    sent_at: new Date().toISOString(),
+    dedupe_key: `notif:${placeRow.order_id}:order_placed`,
+  }).then(({ error }) => {
+    if (error && error.code !== "23505") console.error("[orders] Failed to write order_placed notification:", error.message);
+  });
+
+  // Digital orders need instant fulfilment tracked, not just a payment
+  // record — enqueue the ops fulfilment job and move the order to
+  // provider_pending (order-lifecycle-completion-spec.md §4.2). A failure
+  // here doesn't fail the response (payment already succeeded); it's logged
+  // as a reconciliation incident for manual follow-up instead.
+  if (!requiresDelivery) {
+    const { data: enqueueRows, error: enqueueErr } = await admin.rpc("enqueue_digital_fulfillment", {
+      p_order_id: placeRow.order_id,
+      p_payload: {
+        product_id: String(product.id),
+        item_name: product.name,
+        recipient_name: String(recipient_name),
+        phone: String(phone),
+      },
+    });
+    const enqueueResult = (enqueueRows as Array<{ ok: boolean; error_code: string }> | null)?.[0];
+
+    if (enqueueErr || !enqueueResult?.ok) {
+      console.error("[orders] enqueue_digital_fulfillment failed:", enqueueErr, enqueueResult);
+      await admin.from("reconciliation_incidents").insert({
+        type: "fulfillment_job_enqueue_failed",
+        voucher_id: resolvedVoucherId,
+        data: {
+          order_id: placeRow.order_id,
+          product_id: String(product.id),
+          error: enqueueResult?.error_code ?? enqueueErr?.message ?? "unknown",
+        },
+      }).then(({ error }) => {
+        if (error) console.error("[orders] Failed to write reconciliation incident:", error.message);
+      });
+    }
+  }
+
+  // Report quest actions for this order (fire-and-forget; one-time quests
+  // dedupe on Platform, so emitting first_purchase every order is safe).
+  // purchase_completed is NOT emitted here — an order is merely 'placed' at
+  // this point, not completed, and could still be cancelled/refunded. It
+  // fires from lib/akiba/reward-release.ts instead, gated on the reward job
+  // (created atomically with this same order) actually releasing, which
+  // only happens once advance_order_status reaches 'completed'.
   await emitQuestActions([
     {
       actionName: "first_purchase",
       userId: user.id,
       walletAddress: primaryWallet,
       idempotencyKey: `quest-first_purchase-${user.id}`,
-      metadata: { orderId: placeRow.order_id, email: user.email ?? null },
-    },
-    {
-      actionName: "purchase_completed",
-      userId: user.id,
-      walletAddress: primaryWallet,
-      idempotencyKey: `quest-purchase_completed-${placeRow.order_id}`,
       metadata: { orderId: placeRow.order_id, email: user.email ?? null },
     },
     ...(resolvedVoucherId
@@ -578,13 +725,7 @@ export async function POST(request: Request) {
       : []),
   ]);
 
-  const rewardResponse = rewardResult.ok
-    ? {
-        issued: rewardResult.rewardIssued,
-        miles:  rewardResult.milesAwarded,
-        ...(rewardResult.reason ? { reason: rewardResult.reason } : {}),
-      }
-    : { issued: false, miles: 0, pending: true };
+  const rewardResponse = { issued: false, miles: 0, pending: true };
 
   return NextResponse.json(
     {

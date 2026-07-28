@@ -7,6 +7,10 @@
     {
       "path": "/api/crackpot/cycle/expire",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/internal/process-sponsored-game-jobs",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

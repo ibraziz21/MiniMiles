@@ -11,6 +11,7 @@ type Props = {
     price: number;
     category: string;
     imageUrl: string | null;
+    productType: "physical" | "digital";
   };
   merchant: {
     id: string;
@@ -35,6 +36,7 @@ export function AddToCart({ product, merchant }: Props) {
       price: product.price,
       category: product.category,
       imageUrl: product.imageUrl,
+      productType: product.productType,
     });
 
     if (result === "switched") {
@@ -56,6 +58,7 @@ export function AddToCart({ product, merchant }: Props) {
       price: product.price,
       category: product.category,
       imageUrl: product.imageUrl,
+      productType: product.productType,
     });
     setState("added");
     setTimeout(() => setState("idle"), 1500);
@@ -66,7 +69,7 @@ export function AddToCart({ product, merchant }: Props) {
       <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
         <p className="flex items-center gap-1.5 text-xs font-medium text-amber-800">
           <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-          Your cart has items from <strong>{merchantName}</strong>. Start a new cart for {merchant.name}?
+          Your cart already has a different item{merchantName ? <> from <strong>{merchantName}</strong></> : null}. Replace it with {product.name}?
         </p>
         <div className="mt-2 flex gap-2">
           <button onClick={() => setState("idle")} className="flex-1 rounded-lg border border-amber-200 py-1.5 text-xs font-semibold text-amber-700">

@@ -58,12 +58,26 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
   const [orderId, setOrderId] = useState<string | null>(null);
   const [eta,     setEta]     = useState("3–5 days");
   const [error,   setError]   = useState<string | null>(null);
+  const [paymentReceived, setPaymentReceived] = useState(false);
+  const [recoveringOrder, setRecoveringOrder] = useState(false);
   const [reward,  setReward]  = useState<RewardResult | null>(null);
+  // Captured before clear() empties the cart, so the "done" screen still
+  // knows whether the completed order needed physical delivery.
+  const [orderWasPhysical, setOrderWasPhysical] = useState(false);
 
   const firstItem = items[0];
+  // Single-SKU cart (lib/cart.tsx), so every item shares this product's type.
+  const hasPhysicalItems = items.some((item) => (item.productType ?? "physical") === "physical");
   const pricing = firstItem
     ? (() => {
-        const base = calculateOrder(subtotal, firstItem.category, firstItem.id, city || "other", appliedVoucher);
+        const base = calculateOrder(
+          subtotal,
+          firstItem.category,
+          firstItem.id,
+          city || "other",
+          hasPhysicalItems ? "physical" : "digital",
+          appliedVoucher
+        );
         const discountRatio = appliedVoucher ? base.discountedPrice / base.originalPrice : 1;
         const discounted = subtotal * discountRatio;
         const discount = subtotal - discounted;
@@ -79,7 +93,8 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
     setCurrency("cUSD"); setWalletAddress(null); setTxHash(null);
     setMpesaPhone(""); setCheckoutRequestId(null); setMpesaReceipt(null);
     setVoucherInput(""); setAppliedVoucher(null); setVoucherCode("");
-    setOrderId(null); setError(null); setReward(null);
+    setOrderId(null); setError(null); setPaymentReceived(false); setRecoveringOrder(false);
+    setReward(null); setOrderWasPhysical(false);
     onClose();
   }
 
@@ -130,11 +145,20 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
           order?: { id?: string; eta?: string };
           reward?: RewardResult;
           error?: string;
+          payment_received?: boolean;
+          recoverable?: boolean;
         }>)
       )
     );
     const failed = results.find((r) => r.error);
-    if (failed) { setError(failed.error ?? "Order failed."); setStep("error"); return; }
+    if (failed) {
+      setPaymentReceived(Boolean(failed.payment_received && failed.recoverable));
+      setError(failed.error ?? "Order failed.");
+      setStep("error");
+      return;
+    }
+    setPaymentReceived(false);
+    setRecoveringOrder(false);
     const rewards = results.map((r) => r.reward).filter((r): r is RewardResult => !!r);
     const issuedMiles = rewards.reduce((sum, r) => sum + (r.issued ? r.miles : 0), 0);
     const pending = rewards.some((r) => r.pending);
@@ -149,6 +173,7 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
           ? { issued: false, miles: 0, pending: true }
           : rewards[0] ?? null
     );
+    setOrderWasPhysical(hasPhysicalItems);
     setStep("done");
     clear();
   }
@@ -215,6 +240,25 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
       setStep("error");
     } else {
       setTimeout(() => pollMpesa(reqId, attempt + 1), 4000);
+    }
+  }
+
+  async function recoverPaidOrder() {
+    if (recoveringOrder) return;
+    setRecoveringOrder(true);
+    setError(null);
+    try {
+      if (checkoutRequestId) {
+        await createOrders({ mpesa_checkout_id: checkoutRequestId });
+        return;
+      }
+      if (txHash) {
+        await createOrders({ tx_hash: txHash, currency });
+        return;
+      }
+      setError("Payment reference is unavailable. Contact support to reconcile this payment.");
+    } finally {
+      setRecoveringOrder(false);
     }
   }
 
@@ -332,22 +376,28 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-akiba-muted">Delivery details</label>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-akiba-muted">
+                  {hasPhysicalItems ? "Delivery details" : "Contact details"}
+                </label>
                 <div className="space-y-2">
                   <input type="text" placeholder="Recipient name" value={name} onChange={(e) => setName(e.target.value)}
                     className="w-full rounded-xl border border-akiba-line px-4 py-2.5 text-sm outline-none focus:border-akiba-teal" />
                   <input type="tel" placeholder="Phone number" value={phone} onChange={(e) => setPhone(e.target.value)}
                     className="w-full rounded-xl border border-akiba-line px-4 py-2.5 text-sm outline-none focus:border-akiba-teal" />
-                  <div className="relative">
-                    <select value={city} onChange={(e) => setCity(e.target.value)}
-                      className="w-full appearance-none rounded-xl border border-akiba-line px-4 py-2.5 text-sm outline-none focus:border-akiba-teal">
-                      <option value="">Select city</option>
-                      {DELIVERY_CITIES.map((c) => <option key={c} value={c.toLowerCase()}>{c}</option>)}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-akiba-muted" />
-                  </div>
-                  <textarea placeholder="Delivery address / location" value={location} onChange={(e) => setLocation(e.target.value)}
-                    rows={2} className="w-full resize-none rounded-xl border border-akiba-line px-4 py-2.5 text-sm outline-none focus:border-akiba-teal" />
+                  {hasPhysicalItems && (
+                    <>
+                      <div className="relative">
+                        <select value={city} onChange={(e) => setCity(e.target.value)}
+                          className="w-full appearance-none rounded-xl border border-akiba-line px-4 py-2.5 text-sm outline-none focus:border-akiba-teal">
+                          <option value="">Select city</option>
+                          {DELIVERY_CITIES.map((c) => <option key={c} value={c.toLowerCase()}>{c}</option>)}
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-akiba-muted" />
+                      </div>
+                      <textarea placeholder="Delivery address / location" value={location} onChange={(e) => setLocation(e.target.value)}
+                        rows={2} className="w-full resize-none rounded-xl border border-akiba-line px-4 py-2.5 text-sm outline-none focus:border-akiba-teal" />
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -376,7 +426,7 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
               <div className="flex gap-3 pt-2">
                 <button onClick={() => setStep("cart")} className="rounded-xl border border-akiba-line px-4 py-3 text-sm font-semibold text-akiba-muted hover:border-akiba-teal/40">← Back</button>
                 <button onClick={() => {
-                  if (!name || !phone || !city) { setError("Fill in all delivery fields."); return; }
+                  if (!name || !phone || (hasPhysicalItems && !city)) { setError("Fill in all delivery fields."); return; }
                   if (payMode === "mpesa" && !mpesaPhone) { setError("Enter your M-Pesa phone number."); return; }
                   setError(null); setStep("review");
                 }} className="flex-1 rounded-xl bg-akiba-teal py-3 text-sm font-semibold text-white hover:bg-[#1E7E8D]">
@@ -392,7 +442,10 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
               <div className="rounded-2xl border border-akiba-line bg-akiba-card p-4 space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-akiba-muted">Subtotal ({count} items)</span><span>${pricing.originalPrice.toFixed(2)}</span></div>
                 {pricing.discount > 0 && <div className="flex justify-between text-akiba-teal"><span>Voucher ({voucherCode})</span><span>-${pricing.discount.toFixed(2)}</span></div>}
-                <div className="flex justify-between"><span className="text-akiba-muted">Delivery ({city})</span><span>${pricing.deliveryFee.toFixed(2)}</span></div>
+                <div className="flex justify-between">
+                  <span className="text-akiba-muted">{hasPhysicalItems ? `Delivery (${city})` : "Digital delivery"}</span>
+                  <span>{hasPhysicalItems ? `$${pricing.deliveryFee.toFixed(2)}` : "Free"}</span>
+                </div>
                 <div className="flex justify-between border-t border-akiba-line pt-2 font-semibold text-akiba-ink">
                   <span>Total</span>
                   <span>
@@ -404,8 +457,10 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
               </div>
 
               <div className="rounded-xl border border-akiba-line bg-white p-3 text-sm space-y-1">
-                <p className="flex items-center gap-2"><Truck className="h-4 w-4 text-akiba-teal" /><span className="font-medium">{pricing.eta}</span></p>
-                <p className="pl-6 text-akiba-muted">{name} · {phone} · <span className="capitalize">{city}</span></p>
+                <p className="flex items-center gap-2"><Truck className="h-4 w-4 text-akiba-teal" /><span className="font-medium">{hasPhysicalItems ? pricing.eta : "Instant digital delivery"}</span></p>
+                <p className="pl-6 text-akiba-muted">
+                  {name} · {phone}{hasPhysicalItems ? <> · <span className="capitalize">{city}</span></> : null}
+                </p>
               </div>
 
               {/* Payment method info */}
@@ -487,7 +542,9 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
                 <CheckCircle2 className="h-9 w-9 text-akiba-teal" />
               </div>
               <h3 className="font-sterling text-2xl font-semibold text-akiba-ink">Order placed!</h3>
-              <p className="mt-2 text-sm text-akiba-muted">Estimated delivery: <span className="font-semibold text-akiba-ink">{eta}</span></p>
+              {orderWasPhysical && (
+                <p className="mt-2 text-sm text-akiba-muted">Estimated delivery: <span className="font-semibold text-akiba-ink">{eta}</span></p>
+              )}
               {reward?.issued && reward.miles > 0 && (
                 <div className="mt-4 flex items-center gap-2 rounded-full bg-akiba-teal/10 px-5 py-2.5">
                   <MilesAmount amount={reward.miles} size="md" prefix="+" className="text-akiba-teal" />
@@ -515,7 +572,23 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
               <AlertCircle className="mb-4 h-10 w-10 text-red-400" />
               <p className="font-semibold text-akiba-ink">Something went wrong</p>
               <p className="mt-1 text-sm text-red-500">{error}</p>
-              <button onClick={() => setStep("review")} className="mt-6 rounded-xl bg-akiba-ink px-6 py-2.5 text-sm font-semibold text-white">Try again</button>
+              {paymentReceived ? (
+                <>
+                  <p className="mt-3 text-xs text-akiba-muted">
+                    Your payment is confirmed. Finishing the order will not send another payment prompt.
+                  </p>
+                  <button
+                    onClick={recoverPaidOrder}
+                    disabled={recoveringOrder}
+                    className="mt-6 flex items-center gap-2 rounded-xl bg-akiba-ink px-6 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                  >
+                    {recoveringOrder && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {recoveringOrder ? "Finishing order…" : "Finish order"}
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => setStep("review")} className="mt-6 rounded-xl bg-akiba-ink px-6 py-2.5 text-sm font-semibold text-white">Try again</button>
+              )}
             </div>
           )}
         </div>
