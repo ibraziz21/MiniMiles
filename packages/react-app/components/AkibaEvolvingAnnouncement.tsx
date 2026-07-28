@@ -84,7 +84,7 @@ export function AkibaEvolvingAnnouncement() {
               <Fire size={18} weight="fill" className="mt-0.5 shrink-0 text-orange-500" />
               <p className="text-[13px] leading-snug text-gray-600">
                 <span className="font-semibold text-gray-800">Your prizes always have value.</span>{" "}
-                Won a voucher you can't use? Burn it for Miles and unlock something you
+                Won a voucher you can&apos;t use? Burn it for Miles and unlock something you
                 actually want.
               </p>
             </div>
@@ -94,7 +94,7 @@ export function AkibaEvolvingAnnouncement() {
             onClick={handleSeeRewards}
             className="mt-6 h-12 w-full rounded-2xl bg-[#238D9D] text-sm font-bold text-white active:scale-[0.98] transition-transform"
           >
-            See this week's rewards →
+            See this week&apos;s rewards →
           </button>
 
           <button

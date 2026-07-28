@@ -70,7 +70,7 @@ export default async function WeeklyChallengeSponsorPage() {
       />
       <div className="space-y-6 p-6">
         <Card>
-          <CardHeader><CardTitle>Current week's sponsor</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Current week&apos;s sponsor</CardTitle></CardHeader>
           <CardContent>
             {currentCampaign ? (
               <div className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm">
@@ -94,7 +94,7 @@ export default async function WeeklyChallengeSponsorPage() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Assign this week's sponsor</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Assign this week&apos;s sponsor</CardTitle></CardHeader>
           <CardContent>
             <AssignSponsorForm allocations={allocations} />
             <p className="mt-3 text-xs text-slate-400">

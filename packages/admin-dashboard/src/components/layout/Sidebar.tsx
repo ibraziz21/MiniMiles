@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   BarChart2,
   ClipboardList,
+  ClipboardCheck,
   Store,
   ShoppingBag,
   Tag,
