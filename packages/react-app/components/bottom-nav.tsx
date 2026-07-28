@@ -34,7 +34,7 @@ export const BottomNav = () => {
         }`}
       >
         <Gamepad2 className={`h-5 w-5 ${isActive("/games") ? "stroke-[#238D9D]" : ""}`} />
-        <span className={`font-medium ${isActive("/games") ? "font-bold" : ""}`}>Games</span>
+        <span className={`font-medium ${isActive("/games") ? "font-bold" : ""}`}>Spend</span>
         {(isActive("/games")) && <span className="h-1 w-1 rounded-full bg-[#238D9D]" />}
       </Link>
 

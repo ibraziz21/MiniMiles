@@ -1,4 +1,4 @@
-import { Earn, HomeSvg } from "@/lib/svg";
+import { Earn, HomeSvg, Spend } from "@/lib/svg";
 import { Gamepad2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -24,8 +24,8 @@ export default function Footer() {
       </Link>
 
       <Link href="/spend" className={`flex flex-col items-center justify-center text-gray-600 text-xs w-[100px] h-[60px] rounded-t-full ${pathname === "/spend" ? "bg-[#ADF4FF]" : ""}`}>
-        <Gamepad2 className="h-6 w-6 text-[#238D9D]" />
-        <span className="font-sterling text-[16px]">Games</span>
+        <Image src={Spend} alt="" />
+        <span className="font-sterling text-[16px]">Deals</span>
       </Link>
     </nav>
   );
