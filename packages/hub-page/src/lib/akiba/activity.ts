@@ -79,6 +79,61 @@ export async function getLedgerBalance(opts: {
   }
 }
 
+export type LedgerBalanceResult =
+  | { ok: true; balance: number; canonicalIds: string[] }
+  | { ok: false; reason: string };
+
+/**
+ * Same resolution as getLedgerBalance, but distinguishes a real zero balance
+ * from a failed read (identity_links/miles_ledger query error). Used only by
+ * the voucher-purchase quote/reserve path, where silently treating "we
+ * couldn't check" as "you have zero" would wrongly reject a legitimate
+ * purchase. Display surfaces should keep using getLedgerBalance.
+ */
+export async function getLedgerBalanceStrict(opts: {
+  email: string | null;
+  walletAddress: string | null;
+}): Promise<LedgerBalanceResult> {
+  const { email, walletAddress } = opts;
+  const wallet = walletAddress?.toLowerCase() ?? null;
+  const admin = createAdminClient();
+
+  const identityFilters: string[] = [];
+  if (email) identityFilters.push(`and(identity_type.eq.email,identity_value.eq.${email})`);
+  if (wallet) identityFilters.push(`and(identity_type.eq.wallet,identity_value.eq.${wallet})`);
+  if (identityFilters.length === 0) return { ok: true, balance: 0, canonicalIds: [] };
+
+  try {
+    const { data: links, error: linksErr } = await admin
+      .from("identity_links")
+      .select("canonical_id")
+      .or(identityFilters.join(","));
+
+    if (linksErr) return { ok: false, reason: "identity_links_query_failed" };
+
+    const canonicalIds = [...new Set((links ?? []).map((l: any) => l.canonical_id as string))];
+    if (canonicalIds.length === 0) return { ok: true, balance: 0, canonicalIds: [] };
+
+    const { data: rows, error: ledgerErr } = await admin
+      .from("miles_ledger")
+      .select("amount, direction")
+      .in("canonical_id", canonicalIds)
+      .eq("on_chain", false);
+
+    if (ledgerErr) return { ok: false, reason: "miles_ledger_query_failed" };
+
+    const balance = (rows ?? []).reduce(
+      (sum: number, r: any) =>
+        sum + (r.direction === "credit" ? Number(r.amount) : -Number(r.amount)),
+      0,
+    );
+    return { ok: true, balance, canonicalIds };
+  } catch (err) {
+    console.error("[activity] getLedgerBalanceStrict failed:", err);
+    return { ok: false, reason: "unexpected_error" };
+  }
+}
+
 const GRANT_SOURCES: Record<string, string> = {
   merchant_grant: "Merchant gift",
   akiba_grant: "Akiba gift",

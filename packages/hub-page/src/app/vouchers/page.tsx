@@ -23,8 +23,22 @@ type VoucherTemplate = {
   } | null;
 };
 
-async function getAllTemplates(): Promise<VoucherTemplate[]> {
+async function getAllTemplates(hubUserId: string | null): Promise<VoucherTemplate[]> {
   const admin = createAdminClient();
+  const { data: availability, error: availabilityError } = await admin.rpc(
+    "list_available_voucher_template_ids_hub",
+    { p_hub_user_id: hubUserId },
+  );
+  if (availabilityError) {
+    console.error("[vouchers] availability query failed:", availabilityError.message);
+    return [];
+  }
+  const templateIds = (availability ?? []).map(
+    (row: { template_id: string } | string) =>
+      typeof row === "string" ? row : row.template_id,
+  );
+  if (templateIds.length === 0) return [];
+
   const { data } = await admin
     .from("spend_voucher_templates")
     .select(`
@@ -32,7 +46,7 @@ async function getAllTemplates(): Promise<VoucherTemplate[]> {
       applicable_category, retail_value_cusd,
       partners ( id, slug, name, image_url )
     `)
-    .eq("active", true)
+    .in("id", templateIds)
     .not("partner_id", "in", HIDDEN_PARTNER_FILTER)
     .order("miles_cost", { ascending: true });
 
@@ -50,10 +64,8 @@ const HOW_IT_WORKS = [
 ];
 
 export default async function VouchersPage() {
-  const [templates, { data: { user } }] = await Promise.all([
-    getAllTemplates(),
-    (await createClient()).auth.getUser(),
-  ]);
+  const { data: { user } } = await (await createClient()).auth.getUser();
+  const templates = await getAllTemplates(user?.id ?? null);
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-5 sm:py-8 sm:px-6 lg:px-8">

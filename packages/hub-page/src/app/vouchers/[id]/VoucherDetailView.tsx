@@ -74,6 +74,8 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
   const [error, setError] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const [currentStatus, setCurrentStatus] = useState<DetailVoucher["status"]>(voucher.status);
+  const [processingError, setProcessingError] = useState<string | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const showQrRef = useRef(false);
@@ -82,11 +84,50 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
   const requestEpochRef = useRef(0);
 
   const statusColors: Record<string, string> = {
+    pending:  "bg-amber-50 text-amber-700",
+    claiming: "bg-amber-50 text-amber-700",
     issued:   "bg-akiba-tint text-akiba-teal",
     redeemed: "bg-green-50 text-green-700",
     expired:  "bg-akiba-card text-akiba-muted",
     void:     "bg-red-50 text-red-600",
   };
+
+  // Pending on-chain purchases become usable without requiring the user to
+  // leave and revisit the page. Terminal failures are also surfaced directly.
+  useEffect(() => {
+    if (currentStatus !== "pending") return;
+
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/shop/vouchers/${voucher.id}/status`, {
+          cache: "no-store",
+        });
+        if (!response.ok) return;
+        const data = await response.json() as {
+          voucher_status: DetailVoucher["status"];
+          intent_state: string | null;
+          failure_reason: string | null;
+        };
+        if (cancelled) return;
+        setCurrentStatus(data.voucher_status);
+        if (data.intent_state === "failed") {
+          setProcessingError(data.failure_reason ?? "This purchase could not be completed.");
+        } else if (data.intent_state === "reconciliation_required") {
+          setProcessingError("The transaction is taking longer than expected. Support has been notified.");
+        }
+      } catch {
+        // Polling is best-effort; the next interval retries.
+      }
+    };
+
+    void poll();
+    const timer = window.setInterval(poll, 3_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [currentStatus, voucher.id]);
 
   // Mint a token + render its QR onto the canvas.
   const presentToken = useCallback(async () => {
@@ -180,7 +221,7 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
   // A refresh can deliver a redeemed/expired/claiming status while the panel
   // remains mounted. Close immediately; the status trigger already revoked it.
   useEffect(() => {
-    if (voucher.status !== "issued" && showQrRef.current) {
+    if (currentStatus !== "issued" && showQrRef.current) {
       requestEpochRef.current += 1;
       reopenPendingRef.current = false;
       showQrRef.current = false;
@@ -188,7 +229,7 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
       setExpiresAt(null);
       setError(null);
     }
-  }, [voucher.status]);
+  }, [currentStatus]);
 
   // Countdown + auto-rotation timer.
   useEffect(() => {
@@ -230,7 +271,7 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
       <div
         className={clsx(
           "overflow-hidden rounded-3xl border bg-white shadow-sm",
-          voucher.status === "expired" || voucher.status === "void"
+          currentStatus === "expired" || currentStatus === "void"
             ? "border-akiba-line opacity-70"
             : "border-akiba-line"
         )}
@@ -254,10 +295,10 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
           <span
             className={clsx(
               "rounded-full px-3 py-1 text-[11px] font-semibold capitalize",
-              statusColors[voucher.status] ?? "bg-akiba-card text-akiba-muted"
+              statusColors[currentStatus] ?? "bg-akiba-card text-akiba-muted"
             )}
           >
-            {voucher.status}
+            {currentStatus === "pending" ? "Processing" : currentStatus}
           </span>
         </div>
 
@@ -285,14 +326,22 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
 
         {/* QR area */}
         <div className="border-t border-akiba-line px-5 py-5">
-          {voucher.status !== "issued" ? (
-            <p className="text-center text-sm text-akiba-muted">
-              {voucher.status === "redeemed"
+          {currentStatus !== "issued" ? (
+            <div className="text-center text-sm text-akiba-muted">
+              {currentStatus === "pending" ? (
+                <div className="flex flex-col items-center gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin text-akiba-teal" />
+                  <p>Your Miles transaction is processing. This page updates automatically.</p>
+                  {processingError && <p className="text-red-600">{processingError}</p>}
+                </div>
+              ) : (
+                <p>{currentStatus === "redeemed"
                 ? "This voucher has been redeemed."
-                : voucher.status === "expired"
+                : currentStatus === "expired"
                 ? "This voucher has expired."
-                : "This voucher is not available."}
-            </p>
+                : processingError ?? "This voucher is not available."}</p>
+              )}
+            </div>
           ) : !showQr ? (
             <button
               onClick={openQr}

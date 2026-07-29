@@ -57,7 +57,12 @@ export interface VoucherView {
 }
 
 export type IssueVoucherResult =
-  | { ok: true; voucher: { id: string; code: string; status: VoucherStatus } }
+  | {
+      ok: true;
+      voucher: { id: string; code: string; status: VoucherStatus };
+      queued?: boolean;
+      intentState?: string;
+    }
   | { ok: false; error: string; httpStatus: number };
 
 export type RedeemVoucherResult =

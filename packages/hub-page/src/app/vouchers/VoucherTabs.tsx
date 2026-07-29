@@ -60,12 +60,20 @@ const TAB_LABELS: Record<Tab, string> = {
 function redeemErrorMessage(status: number, serverMessage?: string): string {
   if (status === 401) return "Sign in to redeem";
   if (status === 400 && serverMessage?.toLowerCase().includes("wallet")) return "Connect a wallet first";
-  if (status === 409) return "This voucher is no longer available";
+  if (status === 409) return "Price or availability changed — please try again";
   if (status === 422) return "Not enough AkibaMiles";
   if (status === 429) return "Try again later";
-  if (status === 503) return "Redemption is being reconciled. Check My vouchers shortly.";
+  if (status === 503) return "Could not verify your balance — please retry";
   return serverMessage ?? "Something went wrong. Please try again.";
 }
+
+type Quote = {
+  quote_id: string;
+  ledger_points: number;
+  onchain_points: number;
+  total_points: number;
+  wallet_address?: string | null;
+};
 
 export function VoucherTabs({
   templates,
@@ -94,7 +102,9 @@ export function VoucherTabs({
     }
   }, [needsMine, loaded, isSignedIn]);
 
-  const active  = myVouchers.filter((v) => v.status === "issued");
+  const active  = myVouchers.filter((v) =>
+    ["pending", "issued", "claiming"].includes(v.status),
+  );
   const used    = myVouchers.filter((v) => v.status === "redeemed");
   const expired = myVouchers.filter((v) => v.status === "expired");
   const current = tab === "active" ? active : tab === "used" ? used : expired;
@@ -212,15 +222,42 @@ function AvailableCard({
   const router = useRouter();
   const merchant = t.partners;
 
-  type RedeemStatus = "idle" | "loading" | "error";
+  type RedeemStatus = "idle" | "quoting" | "confirming" | "loading" | "error" | "queued";
   const [redeemStatus, setRedeemStatus] = useState<RedeemStatus>("idle");
   const [redeemError, setRedeemError] = useState<string | null>(null);
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const [queuedVoucherId, setQueuedVoucherId] = useState<string | null>(null);
 
   async function handleRedeem() {
     if (!isSignedIn) {
       router.push("/login");
       return;
     }
+    setRedeemStatus("quoting");
+    setRedeemError(null);
+
+    try {
+      const res = await fetch("/api/shop/vouchers/quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ template_id: t.id }),
+      });
+      const data = await res.json() as Quote & { error?: string };
+      if (!res.ok) {
+        setRedeemStatus("error");
+        setRedeemError(redeemErrorMessage(res.status, data.error));
+        return;
+      }
+      setQuote(data);
+      setRedeemStatus("confirming");
+    } catch {
+      setRedeemStatus("error");
+      setRedeemError("Something went wrong. Please try again.");
+    }
+  }
+
+  async function handleConfirm() {
+    if (!quote) return;
     setRedeemStatus("loading");
     setRedeemError(null);
 
@@ -228,12 +265,17 @@ function AvailableCard({
       const res = await fetch("/api/shop/vouchers/redeem", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ template_id: t.id }),
+        body: JSON.stringify({ template_id: t.id, quote_id: quote.quote_id, confirmed: true }),
       });
-      const data = await res.json() as { voucher?: { id: string }; error?: string };
+      const data = await res.json() as { voucher?: { id: string }; queued?: boolean; error?: string };
       if (!res.ok) {
         setRedeemStatus("error");
         setRedeemError(redeemErrorMessage(res.status, data.error));
+        return;
+      }
+      if (data.queued) {
+        setQueuedVoucherId(data.voucher?.id ?? null);
+        setRedeemStatus("queued");
         return;
       }
       router.push(`/vouchers/${data.voucher!.id}`);
@@ -294,23 +336,42 @@ function AvailableCard({
         </div>
       )}
 
+      {/* Queued feedback — burnWorker still finishing the on-chain portion */}
+      {redeemStatus === "queued" && (
+        <div className="mx-3 mb-2 rounded-lg bg-akiba-tint px-3 py-2 text-xs text-akiba-teal sm:mx-4">
+          Voucher processing.
+          {queuedVoucherId && (
+            <a href={`/vouchers/${queuedVoucherId}`} className="ml-1 underline">
+              Track status
+            </a>
+          )}
+        </div>
+      )}
+
       {/* Primary CTA */}
       <div className="px-3 pb-3 sm:px-4">
         <button
           onClick={handleRedeem}
-          disabled={redeemStatus === "loading"}
+          disabled={redeemStatus === "loading" || redeemStatus === "quoting" || redeemStatus === "queued"}
           className={clsx(
             "flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-sm font-semibold transition",
-            redeemStatus === "loading"
+            redeemStatus === "loading" || redeemStatus === "quoting" || redeemStatus === "queued"
               ? "cursor-not-allowed bg-akiba-teal/60 text-white"
               : "bg-akiba-teal text-white hover:bg-akiba-teal/90 active:scale-[0.98]"
           )}
         >
-          {redeemStatus === "loading" ? (
+          {redeemStatus === "quoting" ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Checking balance…
+            </>
+          ) : redeemStatus === "loading" ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
               Redeeming…
             </>
+          ) : redeemStatus === "queued" ? (
+            "Voucher queued"
           ) : (
             <>
               <MilesAmount amount={t.miles_cost} size="xs" className="text-white [&_svg]:fill-white" />
@@ -329,6 +390,54 @@ function AvailableCard({
           <ExternalLink className="h-3 w-3" /> Shop at {merchant.name}
         </a>
       )}
+
+      {/* Confirmation modal — real quoted split, no wallet signature needed */}
+      {(redeemStatus === "confirming" || redeemStatus === "loading") && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
+          <div className="w-full max-w-md rounded-t-3xl bg-white p-6 sm:rounded-3xl">
+            <h3 className="text-base font-bold text-akiba-ink">Confirm your purchase</h3>
+            {quote && (
+              <div className="mt-3 space-y-1.5 text-sm text-akiba-muted">
+                {quote.ledger_points > 0 && (
+                  <p>
+                    <span className="font-semibold text-akiba-ink">{quote.ledger_points} Miles</span> from your balance
+                  </p>
+                )}
+                {quote.onchain_points > 0 && (
+                  <p>
+                    <span className="font-semibold text-akiba-ink">{quote.onchain_points} Miles</span>
+                    {" "}will be burned from{" "}
+                    {quote.wallet_address
+                      ? `${quote.wallet_address.slice(0, 6)}…${quote.wallet_address.slice(-4)}`
+                      : "your linked wallet"}
+                  </p>
+                )}
+              </div>
+            )}
+            <button
+              onClick={handleConfirm}
+              disabled={redeemStatus === "loading"}
+              className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-akiba-teal py-2.5 text-sm font-semibold text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-akiba-teal/60"
+            >
+              {redeemStatus === "loading" ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Confirming…
+                </>
+              ) : (
+                "Yes, confirm"
+              )}
+            </button>
+            <button
+              onClick={() => setRedeemStatus("idle")}
+              disabled={redeemStatus === "loading"}
+              className="mt-2 w-full py-2 text-sm font-medium text-akiba-muted"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -338,6 +447,8 @@ function IssuedCard({ voucher: v }: { voucher: IssuedVoucher }) {
   const merchant = t?.partners;
 
   const statusColors: Record<string, string> = {
+    pending:  "bg-amber-50 text-amber-700",
+    claiming: "bg-amber-50 text-amber-700",
     issued:   "bg-akiba-tint text-akiba-teal",
     redeemed: "bg-green-50 text-green-700",
     expired:  "bg-akiba-card text-akiba-muted",
@@ -380,7 +491,7 @@ function IssuedCard({ voucher: v }: { voucher: IssuedVoucher }) {
             statusColors[v.status]
           )}
         >
-          {v.status}
+          {v.status === "pending" ? "Processing" : v.status}
         </span>
       </div>
 
@@ -405,6 +516,8 @@ function IssuedCard({ voucher: v }: { voucher: IssuedVoucher }) {
         <span className="flex items-center gap-1.5">
           {v.status === "issued" ? (
             <><QrCode className="h-3.5 w-3.5" /> Show QR to redeem</>
+          ) : v.status === "pending" ? (
+            <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Processing purchase</>
           ) : (
             "View details"
           )}

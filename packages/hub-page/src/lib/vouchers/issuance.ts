@@ -1,160 +1,104 @@
 /**
  * Hub voucher issuance service.
  *
- * Audit corrections:
- *   #3  Burns recoverable: scoped idempotency key passed to burn API,
- *       burn_ref persisted, ambiguous failure → recovery_state='burn_ambiguous'
- *       (never void on network ambiguity)
- *   #4  Idempotency lookup scoped to same user + wallet + template + source
+ * Canonical spend-intent model (replaces the old external Platform burn-API
+ * call, which is the source of the burn_ambiguous backlog): reservation,
+ * ledger holds and on-chain burn-job enqueue are one atomic Postgres
+ * transaction. Finalization atomically consumes those holds, posts the
+ * ledger debits, and issues the voucher (reserve_voucher_purchase, see
+ * supabase/migrations/046_hub_miles_spend_intents.sql). No external HTTP
+ * call is made from this path anymore.
  */
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateSecureCode } from "./codes";
+import { readChainBalanceStrict } from "@/lib/akiba/balance";
 import type { IssueVoucherResult, RulesSnapshot } from "./types";
-
-const AKIBA_API = process.env.AKIBA_API_URL ?? "";
-// Service key issued to the Akiba Pass by Akiba internal ops.
-// This is a platform_service credential, not a merchant key.
-const AKIBA_API_KEY = process.env.AKIBA_API_KEY ?? "";
-
-type BurnResult =
-  | { ok: true; burnRef: string }
-  | { ok: false; definitive: true }   // burn definitively rejected (e.g. 422 insufficient balance)
-  | { ok: false; definitive: false }; // outcome unknown — network/5xx/429/ambiguous 4xx
-
-// Only HTTP 422 (Unprocessable Entity) is treated as definitively rejected.
-// The burn API uses 422 for semantic rejections such as insufficient balance or
-// invalid address. All other 4xx codes (400, 401, 403, 429…) are ambiguous:
-// the request may have been partially processed or rate-limited, and voiding
-// the voucher would silently consume miles that were never debited.
-const DEFINITIVE_BURN_REJECTION = new Set([422]);
-
-async function burnMilesWithIdempotency(
-  address: string,
-  amount: number,
-  idempotencyKey: string,
-  voucherId: string,
-): Promise<BurnResult> {
-  // Config guard: missing URL or key is ambiguous — we cannot call the API,
-  // but we also cannot safely void (the burn was never attempted).
-  if (!AKIBA_API || !AKIBA_API_KEY) {
-    return { ok: false, definitive: false };
-  }
-
-  let res: Response;
-  try {
-    res = await fetch(`${AKIBA_API}/api/v1/miles/burn`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${AKIBA_API_KEY}`,
-        "Idempotency-Key": idempotencyKey,
-      },
-      body: JSON.stringify({
-        address,
-        amount,
-        reason: "hub_voucher_purchase",
-        externalRef: voucherId,
-        actorType: "platform_service",
-        actorId: "akiba_hub",
-      }),
-    });
-  } catch {
-    return { ok: false, definitive: false };
-  }
-
-  if (res.ok) {
-    const data = await res.json().catch(() => ({})) as Record<string, unknown>;
-    return {
-      ok: true,
-      // Prefer the canonical ledger reference; fall back to legacy tx_hash.
-      burnRef: (data.reference ?? data.tx_hash ?? idempotencyKey) as string,
-    };
-  }
-
-  if (DEFINITIVE_BURN_REJECTION.has(res.status)) {
-    return { ok: false, definitive: true };
-  }
-
-  return { ok: false, definitive: false };
-}
 
 export interface IssueVoucherInput {
   userId: string;
-  userAddress: string;   // lowercased, ownership pre-verified
+  userAddress: string | null;   // lowercased, ownership pre-verified; null for walletless (ledger-only) purchases
+  email: string | null;
   templateId: string;
   merchantId: string;
-  nonce: string;
+  nonce?: string;
   idempotencyKey?: string;
+  consentMethod: "wallet_signature" | "hub_ui_confirmed";
+  quoteId?: string | null;
+  disclosureVersion: string;
+  totalPoints: number;
 }
 
 export async function issueVoucher(
   input: IssueVoucherInput
 ): Promise<IssueVoucherResult> {
   const admin = createAdminClient();
-  const { userId, userAddress, templateId, merchantId, nonce, idempotencyKey } = input;
+  const {
+    userId, userAddress, email, templateId, merchantId, nonce,
+    idempotencyKey, consentMethod, quoteId, disclosureVersion, totalPoints,
+  } = input;
 
-  // ── 1. Scoped idempotency check  (#4 fix) ────────────────────────────────
-  // Verifies ownership before returning any existing row to prevent
-  // a matching key from leaking a different user's voucher.
-  if (idempotencyKey) {
-    const { data: existing } = await admin
-      .from("issued_vouchers")
-      .select("id, code, status, hub_user_id, user_address, voucher_template_id, acquisition_source")
-      .eq("idempotency_key", idempotencyKey)
-      .maybeSingle();
+  // Wallet-signature issuance still consumes the signed nonce. The Hub modal
+  // path is protected by its server-generated quote key and does not invent an
+  // address-shaped nonce owner for walletless users.
+  if (consentMethod === "wallet_signature") {
+    if (!nonce || !userAddress) {
+      return { ok: false, error: "Signed wallet request is missing its nonce or wallet", httpStatus: 400 };
+    }
+    const { error: nonceErr } = await admin
+      .from("voucher_issue_nonces")
+      .insert({ nonce, user_address: userAddress });
 
-    if (existing) {
-      const ownerOk =
-        (existing.hub_user_id && existing.hub_user_id === userId) ||
-        ((existing.user_address ?? "").toLowerCase() === userAddress.toLowerCase());
-      const templateOk = existing.voucher_template_id === templateId;
-      const sourceOk   = existing.acquisition_source === "miles_purchase";
-
-      if (!ownerOk || !templateOk || !sourceOk) {
-        return {
-          ok: false,
-          error: "Idempotency key conflict: key belongs to a different request",
-          httpStatus: 409,
-        };
+    if (nonceErr) {
+      if (nonceErr.code === "23505") {
+        return { ok: false, error: "Nonce already used — request is a replay", httpStatus: 400 };
       }
-      return {
-        ok: true,
-        voucher: { id: existing.id, code: existing.code, status: existing.status },
-      };
+      return { ok: false, error: "Failed to consume nonce", httpStatus: 500 };
     }
   }
 
-  // ── 2. Consume nonce (UNIQUE constraint prevents replay) ─────────────────
-  const { error: nonceErr } = await admin
-    .from("voucher_issue_nonces")
-    .insert({ nonce, user_address: userAddress });
-
-  if (nonceErr) {
-    if (nonceErr.code === "23505") {
-      return { ok: false, error: "Nonce already used — request is a replay", httpStatus: 400 };
-    }
-    return { ok: false, error: "Failed to consume nonce", httpStatus: 500 };
-  }
-
-  // ── 3. Generate code ──────────────────────────────────────────────────────
+  // ── Generate code ─────────────────────────────────────────────────────────
   const code = generateSecureCode();
 
+  // ── 4. Resolve every wallet linked to this user (for canonical-id lookup) ─
+  // A user's email + wallets can resolve to more than one canonical_id
+  // (identity_links) — reserve_voucher_purchase handles that set itself;
+  // this just gathers the raw identity values it needs.
+  const { data: linkedWallets, error: walletsErr } = await admin
+    .from("hub_user_wallets")
+    .select("address")
+    .eq("user_id", userId);
+  if (walletsErr) {
+    return { ok: false, error: "Could not resolve linked wallets", httpStatus: 503 };
+  }
+  const wallets = (linkedWallets ?? []).map((w: { address: string }) => w.address.toLowerCase());
 
-  // ── 4+5. Reserve via program-aware RPC (resolves eligible program from DB) ─
-  // reserve_with_program_atomic_hub:
-  //   • Finds exactly one active miles_purchase program for the template.
-  //   • PROGRAM_REQUIRED if none, PROGRAM_AMBIGUOUS if more than one.
-  //   • Enforces program + channel cap before calling reserve_voucher_atomic_hub.
-  //   • Never falls back to unlimited (Phase 1) issuance path.
+  // ── 5. On-chain balance — read outside the transaction (Postgres can't ──
+  // call the chain), strict variant so an RPC failure isn't conflated with
+  // a real zero balance (only relevant if this purchase ends up needing an
+  // on-chain portion at all; the RPC only enforces it if onchain_points > 0).
+  const balanceResult = userAddress
+    ? await readChainBalanceStrict(userAddress)
+    : ({ ok: true, balance: 0 } as const);
+
+  // ── 6. Single atomic reservation + ledger hold + burn-job enqueue ───────
+  const idKey = idempotencyKey ?? `hub-issue-${userId}-${templateId}-${nonce ?? crypto.randomUUID()}`;
   const { data: reserved, error: rpcErr } = await admin.rpc(
-    "reserve_with_program_atomic_hub",
+    "reserve_voucher_purchase",
     {
-      p_template_id:     templateId,
-      p_user_address:    userAddress,
-      p_merchant_id:     merchantId,
-      p_code:            code,
-      p_idempotency_key: idempotencyKey ?? null,
-      p_hub_user_id:     userId,
+      p_hub_user_id: userId,
+      p_email: email,
+      p_wallets: wallets,
+      p_wallet_address: userAddress,
+      p_template_id: templateId,
+      p_merchant_id: merchantId,
+      p_code: code,
+      p_total_points: totalPoints,
+      p_idempotency_key: idKey,
+      p_consent_method: consentMethod,
+      p_disclosure_version: disclosureVersion,
+      p_quote_id: quoteId ?? null,
+      p_onchain_balance_ok: balanceResult.ok,
+      p_onchain_balance: balanceResult.ok ? balanceResult.balance : 0,
     }
   );
 
@@ -178,172 +122,60 @@ export async function issueVoucher(
     if (msg.startsWith("COOLDOWN_ACTIVE")) {
       return { ok: false, error: "cooldown_active", httpStatus: 429 };
     }
+    if (msg.startsWith("IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD")) {
+      return { ok: false, error: "Request conflict — please retry", httpStatus: 409 };
+    }
+    if (msg.startsWith("QUOTE_STALE")) {
+      return { ok: false, error: "Price or balance changed — please refresh and try again", httpStatus: 409 };
+    }
+    if (msg.startsWith("BALANCE_UNAVAILABLE")) {
+      return { ok: false, error: "Could not verify your balance — please retry", httpStatus: 503 };
+    }
+    if (msg.startsWith("WALLET_REQUIRED_FOR_ONCHAIN_PORTION")) {
+      return { ok: false, error: "Connect a wallet to cover the remaining balance", httpStatus: 400 };
+    }
+    if (msg.startsWith("INSUFFICIENT_BALANCE")) {
+      return { ok: false, error: "Not enough Miles", httpStatus: 422 };
+    }
+    if (msg.startsWith("PRICE_MISMATCH")) {
+      return { ok: false, error: "Price changed — please refresh and try again", httpStatus: 409 };
+    }
     return { ok: false, error: rpcErr.message, httpStatus: 500 };
   }
 
-  const row = (reserved as unknown as Array<{ voucher_id: string; code: string; status: string; miles_cost: number }>)[0];
+  const row = (reserved as unknown as Array<{
+    intent_id: string; voucher_id: string; code: string;
+    ledger_points: number; onchain_points: number; state: string;
+    failure_code: string | null;
+  }>)[0];
   if (!row) {
     return { ok: false, error: "Reservation returned no row", httpStatus: 500 };
   }
 
-  const voucherId = row.voucher_id;
-  const milesCost = row.miles_cost;
-
-  // ── 6. Persist burn idempotency key before calling the burn API  (#3 fix) ─
-  // MUST succeed before calling the burn API.  If we cannot persist the key we
-  // have no way to reconcile an ambiguous burn outcome, so we abort and void.
-  const burnIdempotencyKey = `hub-burn-${userId}-${voucherId}`;
-
-  const { error: keyErr } = await admin
-    .from("issued_vouchers")
-    .update({ burn_idempotency_key: burnIdempotencyKey })
-    .eq("id", voucherId);
-
-  if (keyErr) {
-    await admin.from("issued_vouchers").update({ status: "void" }).eq("id", voucherId);
-    return { ok: false, error: "Internal error persisting burn key", httpStatus: 500 };
-  }
-
-  // ── 7. Burn miles with scoped idempotency key  (#3 fix) ──────────────────
-  const burnResult = await burnMilesWithIdempotency(userAddress, milesCost, burnIdempotencyKey, voucherId);
-
-  if (!burnResult.ok) {
-    if (burnResult.definitive) {
-      // 4xx rejection — burn definitively failed; safe to void
-      await admin
-        .from("issued_vouchers")
-        .update({ status: "void" })
-        .eq("id", voucherId);
-
-      await admin.from("voucher_events").insert({
-        issued_voucher_id: voucherId,
-        event_type: "voided",
-        actor_id: userId,
-        metadata: { reason: "burn_rejected_definitive" },
-      });
-
-      return {
-        ok: false,
-        error: "Miles burn rejected: insufficient balance or invalid address",
-        httpStatus: 422,
-      };
-    } else {
-      // Network error / non-definitive 4xx (429, 400…) — outcome unknown; do NOT void (#3 fix)
-      // Reconciliation queries burn API with burn_idempotency_key.
-      // Both the state update and audit event must persist atomically.
-      // If we cannot persist recovery evidence we must NOT claim the voucher is
-      // held for reconciliation — there would be no evidence for ops to act on.
-      const { error: recoveryErr } = await admin.rpc("record_burn_outcome", {
-        p_voucher_id:     voucherId,
-        p_actor_id:       userId,
-        p_recovery_state: "burn_ambiguous",
-        p_event_type:     "burn_ambiguous",
-        p_metadata:       { burn_idempotency_key: burnIdempotencyKey },
-      });
-
-      if (recoveryErr) {
-        console.error("[issuance] Failed to record burn_ambiguous:", recoveryErr);
-        return {
-          ok: false,
-          error: "Miles burn outcome unknown — please retry. If this persists, contact support.",
-          httpStatus: 503,
-        };
-      }
-
-      return {
-        ok: false,
-        error: "Miles burn outcome unknown — please retry. Your voucher is held for reconciliation.",
-        httpStatus: 503,
-      };
-    }
-  }
-
-  // ── 8. Persist burn_ref after confirmed burn  (#3 fix) ───────────────────
-  const { error: refErr } = await admin
-    .from("issued_vouchers")
-    .update({ burn_ref: burnResult.burnRef })
-    .eq("id", voucherId);
-
-  if (refErr) {
-    // Burn succeeded but we couldn't save the burn_ref.
-    // Atomically record recovery evidence; if that also fails we cannot safely
-    // return ok:true (there would be no reconciliation record for ops to act on).
-    console.error("[issuance] Failed to persist burn_ref:", refErr);
-    const { error: recoveryErr } = await admin.rpc("record_burn_outcome", {
-      p_voucher_id:     voucherId,
-      p_actor_id:       userId,
-      p_recovery_state: "burn_confirmed_promote_failed",
-      p_event_type:     "burn_confirmed_promote_failed",
-      p_metadata:       {},
-    });
-    if (recoveryErr) {
-      console.error("[issuance] CRITICAL: burn confirmed but recovery state could not be recorded:", recoveryErr);
-      return {
-        ok: false,
-        error: "Burn confirmed but recovery state could not be recorded — contact support with your voucher code.",
-        httpStatus: 500,
-      };
-    }
+  if (row.state === "failed") {
     return {
-      ok: true,
-      voucher: { id: voucherId, code, status: "pending" },
+      ok: false,
+      error: row.failure_code === "RESERVATION_EXPIRED"
+        ? "The purchase reservation expired — please request a new quote"
+        : "This purchase failed and was not charged",
+      httpStatus: 409,
     };
   }
 
-  await admin.from("voucher_events").insert({
-    issued_voucher_id: voucherId,
-    event_type: "burn_confirmed",
-    actor_id: userId,
-    metadata: { burn_ref: burnResult.burnRef },
-  });
-
-  // ── 9. Promote pending → issued ───────────────────────────────────────────
-  const { data: promoted, error: promoteErr } = await admin
-    .from("issued_vouchers")
-    .update({ status: "issued" })
-    .eq("id", voucherId)
-    .eq("status", "pending")
-    .select("id, code, status")
-    .single();
-
-  if (promoteErr || !promoted) {
-    // Burn succeeded but DB promote failed — atomically record for reconciliation.
-    // If recovery evidence cannot be stored, do NOT return ok:true: there would
-    // be no record for ops to find and the user would be left with no recourse.
-    const { error: recoveryErr } = await admin.rpc("record_burn_outcome", {
-      p_voucher_id:     voucherId,
-      p_actor_id:       userId,
-      p_recovery_state: "burn_confirmed_promote_failed",
-      p_event_type:     "burn_confirmed_promote_failed",
-      p_metadata:       { burn_ref: burnResult.burnRef },
-    });
-
-    if (recoveryErr) {
-      console.error("[issuance] CRITICAL: promote failed and recovery state could not be recorded:", recoveryErr);
-      return {
-        ok: false,
-        error: "Order processing error — your miles may have been consumed. Contact support with your voucher code.",
-        httpStatus: 500,
-      };
-    }
-
-    // Recovery evidence stored; a reconciliation job will promote this row.
+  if (row.state === "finalized") {
     return {
       ok: true,
-      voucher: { id: voucherId, code, status: "pending" },
+      voucher: { id: row.voucher_id, code: row.code, status: "issued" },
+      intentState: row.state,
     };
   }
 
-  // Audit event
-  await admin.from("voucher_events").insert({
-    issued_voucher_id: voucherId,
-    event_type: "issued",
-    actor_id: userId,
-  });
-
+  // onchain_points > 0 — burnWorker finishes this asynchronously.
   return {
     ok: true,
-    voucher: { id: promoted.id, code: promoted.code, status: promoted.status },
+    voucher: { id: row.voucher_id, code: row.code, status: "pending" },
+    queued: true,
+    intentState: row.state,
   };
 }
 

@@ -11,34 +11,64 @@ export async function POST(request: Request) {
 
   // ── Parse body ───────────────────────────────────────────────────────────────
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
-  const { template_id, idempotency_key } = body ?? {};
+  const { template_id, quote_id, confirmed } = body ?? {};
 
   if (typeof template_id !== "string" || !template_id) {
     return NextResponse.json({ error: "template_id is required" }, { status: 400 });
   }
 
-  const admin = createAdminClient();
-
-  // ── Resolve wallet ────────────────────────────────────────────────────────────
-  // Prefer is_primary = true; fall back to most recently linked.
-  const { data: wallets } = await admin
-    .from("hub_user_wallets")
-    .select("address, is_primary, linked_at")
-    .eq("user_id", user.id)
-    .order("linked_at", { ascending: false });
-
-  if (!wallets || wallets.length === 0) {
-    return NextResponse.json({ error: "Connect a wallet first" }, { status: 400 });
+  // The burn (whether ledger, on-chain, or both) requires the user to have
+  // explicitly clicked through a confirmation modal showing the real quote —
+  // no wallet signature needed for this path, but a bare boolean isn't
+  // enough on its own either; it must reference an actual quote (see below).
+  if (confirmed !== true || typeof quote_id !== "string" || !quote_id) {
+    return NextResponse.json({ error: "A confirmed quote is required" }, { status: 400 });
   }
 
-  const primaryWallet = (wallets as Array<{ address: string; is_primary: boolean; linked_at: string }>)
-    .find((w) => w.is_primary);
-  const wallet = primaryWallet ?? (wallets as Array<{ address: string }>)[0];
+  const admin = createAdminClient();
 
-  // ── Resolve merchant from template ──────────────────────────────────────────
+  // The quote owns the stable purchase key and the exact wallet (or null for a
+  // ledger-only walletless purchase). A retry of the same quote therefore
+  // reaches the database with the same idempotency key.
+  const { data: quote, error: quoteErr } = await admin
+    .from("voucher_purchase_quotes")
+    .select("purchase_key, wallet_address, disclosure_version, hub_user_id, template_id")
+    .eq("id", quote_id)
+    .maybeSingle();
+
+  if (
+    quoteErr ||
+    !quote ||
+    quote.hub_user_id !== user.id ||
+    quote.template_id !== template_id
+  ) {
+    return NextResponse.json({ error: "Quote not found or expired" }, { status: 409 });
+  }
+
+  const walletAddress =
+    typeof quote.wallet_address === "string"
+      ? quote.wallet_address.toLowerCase()
+      : null;
+
+  if (walletAddress) {
+    const { data: linkedWallet } = await admin
+      .from("hub_user_wallets")
+      .select("address")
+      .eq("user_id", user.id)
+      .eq("address", walletAddress)
+      .maybeSingle();
+    if (!linkedWallet) {
+      return NextResponse.json(
+        { error: "The wallet in this quote is no longer linked" },
+        { status: 409 },
+      );
+    }
+  }
+
+  // ── Resolve merchant + price from template ──────────────────────────────────
   const { data: template } = await admin
     .from("spend_voucher_templates")
-    .select("partner_id")
+    .select("partner_id, miles_cost")
     .eq("id", template_id)
     .maybeSingle();
 
@@ -47,25 +77,30 @@ export async function POST(request: Request) {
   }
 
   // ── Server-generated nonce + idempotency key ────────────────────────────────
-  const nonce = crypto.randomUUID();
-  const resolvedIdempotencyKey =
-    typeof idempotency_key === "string" && idempotency_key
-      ? idempotency_key
-      : `hub-redeem-${user.id}-${template_id}-${crypto.randomUUID()}`;
-
   // ── Delegate to issuance service ─────────────────────────────────────────────
   const result = await issueVoucher({
     userId:         user.id,
-    userAddress:    wallet.address.toLowerCase(),
+    userAddress:    walletAddress,
+    email:          user.email ?? null,
     templateId:     template_id,
-    merchantId:     (template as { partner_id: string }).partner_id,
-    nonce,
-    idempotencyKey: resolvedIdempotencyKey,
+    merchantId:     (template as { partner_id: string; miles_cost: number }).partner_id,
+    totalPoints:    (template as { partner_id: string; miles_cost: number }).miles_cost,
+    idempotencyKey: quote.purchase_key,
+    consentMethod:  "hub_ui_confirmed",
+    quoteId:        quote_id,
+    disclosureVersion: quote.disclosure_version,
   });
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.httpStatus });
   }
 
-  return NextResponse.json({ voucher: result.voucher }, { status: 201 });
+  return NextResponse.json(
+    {
+      voucher: result.voucher,
+      queued: result.queued ?? false,
+      intent_state: result.intentState,
+    },
+    { status: 201 },
+  );
 }

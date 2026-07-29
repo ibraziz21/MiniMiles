@@ -40,6 +40,7 @@ const MIGRATION_PATH_006 = resolve(__dirname, "../../../../../supabase/migration
 const MIGRATION_PATH_007 = resolve(__dirname, "../../../../../supabase/migrations/007_voucher_payout_hardening.sql");
 const MIGRATION_PATH_031 = resolve(__dirname, "../../../../../supabase/migrations/031_hub_order_legacy_columns.sql");
 const MIGRATION_PATH_045 = resolve(__dirname, "../../../../../supabase/migrations/045_weekly_leaderboard_channel.sql");
+const MIGRATION_PATH_046 = resolve(__dirname, "../../../../../supabase/migrations/046_hub_miles_spend_intents.sql");
 
 const SETUP_SQL = `
 -- Drop and recreate the public schema so each test run starts from a clean slate.
@@ -90,6 +91,42 @@ CREATE TABLE IF NOT EXISTS partners (
   slug      text,
   name      text NOT NULL DEFAULT 'Test Partner',
   image_url text
+);
+
+-- Shared Akiba Platform identity and ledger tables used by migration 046.
+CREATE TABLE IF NOT EXISTS identity_links (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  canonical_id   uuid NOT NULL,
+  identity_type  text NOT NULL,
+  identity_value text NOT NULL,
+  UNIQUE(identity_type, identity_value)
+);
+
+CREATE TABLE IF NOT EXISTS miles_ledger (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  canonical_id  uuid NOT NULL,
+  amount        integer NOT NULL CHECK (amount > 0),
+  direction     text NOT NULL CHECK (direction IN ('credit','debit')),
+  source_type   text NOT NULL CHECK (
+    source_type IN ('merchant','campaign','quest','game','referral','claim','reversal','purchase')
+  ),
+  source_id     uuid,
+  partner_id    uuid REFERENCES partners(id),
+  on_chain      boolean DEFAULT false,
+  tx_hash       text,
+  note          text,
+  created_at    timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  key             text NOT NULL,
+  partner_id      uuid NOT NULL REFERENCES partners(id),
+  status          text NOT NULL DEFAULT 'processing',
+  response_status integer,
+  response_body   jsonb,
+  created_at      timestamptz DEFAULT now(),
+  UNIQUE(key, partner_id)
 );
 
 -- spend_voucher_templates (minimal subset used by the migration RPCs)
@@ -251,6 +288,7 @@ beforeAll(async () => {
   await pool.query(readFileSync(MIGRATION_PATH_006, "utf-8"));
   await pool.query(readFileSync(MIGRATION_PATH_031, "utf-8"));
   await pool.query(readFileSync(MIGRATION_PATH_045, "utf-8"));
+  await pool.query(readFileSync(MIGRATION_PATH_046, "utf-8"));
 }, 30_000);
 
 afterAll(async () => {
@@ -270,6 +308,10 @@ describe("Migration application (#1)", () => {
       "mpesa_stk_requests",
       "mpesa_stk_results",
       "reconciliation_incidents",
+      "voucher_purchase_quotes",
+      "miles_spend_intents",
+      "miles_ledger_holds",
+      "minipoint_burn_jobs",
     ];
 
     for (const table of tables) {
@@ -4710,5 +4752,312 @@ describe("045 — weekly_leaderboard_challenge channel + campaign_id", () => {
         )`, [t.id, partnerId]
       )
     ).rejects.toThrow("INVALID_CHANNEL");
+  });
+});
+
+// ── 046 — canonical Hub voucher spend intents ────────────────────────────────
+
+async function createSpendIntentFixture(options: {
+  price?: number;
+  ledgerCredit?: number;
+} = {}) {
+  const price = options.price ?? 100;
+  const ledgerCredit = options.ledgerCredit ?? price;
+  const { rows: [partner] } = await pool.query(
+    `INSERT INTO partners(name, slug) VALUES('Spend Intent Merchant', $1) RETURNING id`,
+    [`spend-${crypto.randomUUID()}`],
+  );
+  const { rows: [hubUser] } = await pool.query(
+    `INSERT INTO auth.users(email) VALUES($1) RETURNING id, email`,
+    [`spend-${crypto.randomUUID()}@example.com`],
+  );
+  const { rows: [template] } = await pool.query(
+    `INSERT INTO spend_voucher_templates(
+       partner_id, title, voucher_type, miles_cost, discount_percent, global_cap
+     ) VALUES($1, 'Spend Intent Voucher', 'percent', $2, 10, 20)
+     RETURNING id`,
+    [partner.id, price],
+  );
+  const { rows: [program] } = await pool.query(
+    `INSERT INTO voucher_programs(template_id, name, state, total_cap)
+     VALUES($1, 'Spend Intent Program', 'active', 20)
+     RETURNING id`,
+    [template.id],
+  );
+  await pool.query(
+    `INSERT INTO voucher_program_channel_allocations(program_id, channel, cap, active)
+     VALUES($1, 'miles_purchase', 20, true)`,
+    [program.id],
+  );
+
+  const canonicalId = crypto.randomUUID();
+  await pool.query(
+    `INSERT INTO identity_links(canonical_id, identity_type, identity_value)
+     VALUES($1, 'email', lower($2))`,
+    [canonicalId, hubUser.email],
+  );
+  if (ledgerCredit > 0) {
+    await pool.query(
+      `INSERT INTO miles_ledger(
+         canonical_id, amount, direction, source_type, source_id,
+         partner_id, on_chain, note
+       ) VALUES($1, $2, 'credit', 'merchant', $3, $4, false, 'test credit')`,
+      [canonicalId, ledgerCredit, crypto.randomUUID(), partner.id],
+    );
+  }
+
+  return {
+    partnerId: partner.id as string,
+    hubUserId: hubUser.id as string,
+    email: hubUser.email as string,
+    templateId: template.id as string,
+    canonicalId,
+    price,
+  };
+}
+
+async function reserveSpendIntent(params: {
+  fixture: Awaited<ReturnType<typeof createSpendIntentFixture>>;
+  key: string;
+  code: string;
+  wallet?: string | null;
+  chainBalance?: number;
+}) {
+  const { fixture } = params;
+  return pool.query(
+    `SELECT * FROM reserve_voucher_purchase(
+       $1::uuid, $2::text, $3::text[], $4::text,
+       $5::uuid, $6::uuid, $7::text, $8::integer,
+       $9::text, 'hub_ui_confirmed'::text, 'v1'::text,
+       NULL::uuid, true, $10::numeric
+     )`,
+    [
+      fixture.hubUserId,
+      fixture.email,
+      params.wallet ? [params.wallet] : [],
+      params.wallet ?? null,
+      fixture.templateId,
+      fixture.partnerId,
+      params.code,
+      fixture.price,
+      params.key,
+      params.chainBalance ?? 0,
+    ],
+  );
+}
+
+describe("046 — spend-intent funding and worker invariants", () => {
+  it("issues a walletless ledger-only voucher atomically", async () => {
+    const fixture = await createSpendIntentFixture();
+    const { rows: [purchase] } = await reserveSpendIntent({
+      fixture,
+      key: `ledger-only:${crypto.randomUUID()}`,
+      code: "LEDGER0046",
+    });
+
+    expect(purchase.state).toBe("finalized");
+    expect(purchase.ledger_points).toBe(100);
+    expect(purchase.onchain_points).toBe(0);
+
+    const { rows: [voucher] } = await pool.query(
+      `SELECT status, user_address, hub_user_id FROM issued_vouchers WHERE id=$1`,
+      [purchase.voucher_id],
+    );
+    expect(voucher.status).toBe("issued");
+    expect(voucher.user_address).toBeNull();
+    expect(voucher.hub_user_id).toBe(fixture.hubUserId);
+
+    const { rows: [ledger] } = await pool.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE direction='debit')::int AS debits,
+         COALESCE(SUM(amount) FILTER (WHERE direction='debit'), 0)::int AS debited
+       FROM miles_ledger WHERE source_id=$1`,
+      [purchase.voucher_id],
+    );
+    expect(ledger.debits).toBe(1);
+    expect(ledger.debited).toBe(100);
+  });
+
+  it("holds ledger funds until the on-chain portion confirms", async () => {
+    const fixture = await createSpendIntentFixture({ ledgerCredit: 40 });
+    const { rows: [purchase] } = await reserveSpendIntent({
+      fixture,
+      key: `split:${crypto.randomUUID()}`,
+      code: "SPLIT00046",
+      wallet: "0xabc046",
+      chainBalance: 100,
+    });
+
+    expect(purchase.state).toBe("reserved");
+    expect(purchase.ledger_points).toBe(40);
+    expect(purchase.onchain_points).toBe(60);
+
+    const { rows: [intent] } = await pool.query(
+      `SELECT burn_job_id FROM miles_spend_intents WHERE id=$1`,
+      [purchase.intent_id],
+    );
+    const { rows: [before] } = await pool.query(
+      `SELECT
+         (SELECT status FROM miles_ledger_holds WHERE intent_id=$1) AS hold_status,
+         (SELECT COUNT(*)::int FROM miles_ledger WHERE source_id=$2 AND direction='debit') AS debits`,
+      [purchase.intent_id, purchase.voucher_id],
+    );
+    expect(before.hold_status).toBe("active");
+    expect(before.debits).toBe(0);
+
+    await pool.query(
+      `SELECT prepare_hub_voucher_burn($1,$2,'0x046hash','0x046raw',46)`,
+      [intent.burn_job_id, purchase.intent_id],
+    );
+    await pool.query(
+      `SELECT mark_hub_voucher_burn_submitted($1,$2,'0x046hash')`,
+      [intent.burn_job_id, purchase.intent_id],
+    );
+    await pool.query(
+      `SELECT finalize_hub_voucher_burn($1,$2,$3,'0x046hash')`,
+      [intent.burn_job_id, purchase.intent_id, purchase.voucher_id],
+    );
+    // Finalizer retry is intentionally idempotent.
+    await pool.query(
+      `SELECT finalize_hub_voucher_burn($1,$2,$3,'0x046hash')`,
+      [intent.burn_job_id, purchase.intent_id, purchase.voucher_id],
+    );
+
+    const { rows: [after] } = await pool.query(
+      `SELECT
+         (SELECT state FROM miles_spend_intents WHERE id=$1) AS intent_state,
+         (SELECT status FROM minipoint_burn_jobs WHERE id=$2) AS job_status,
+         (SELECT status FROM issued_vouchers WHERE id=$3) AS voucher_status,
+         (SELECT status FROM miles_ledger_holds WHERE intent_id=$1) AS hold_status,
+         (SELECT COUNT(*)::int FROM miles_ledger WHERE source_id=$3 AND direction='debit') AS debits`,
+      [purchase.intent_id, intent.burn_job_id, purchase.voucher_id],
+    );
+    expect(after.intent_state).toBe("finalized");
+    expect(after.job_status).toBe("completed");
+    expect(after.voucher_status).toBe("issued");
+    expect(after.hold_status).toBe("consumed");
+    expect(after.debits).toBe(1);
+  });
+
+  it("never expires an intent after a transaction is prepared", async () => {
+    const fixture = await createSpendIntentFixture({ ledgerCredit: 25 });
+    const { rows: [purchase] } = await reserveSpendIntent({
+      fixture,
+      key: `prepared:${crypto.randomUUID()}`,
+      code: "PREP000046",
+      wallet: "0xprepared046",
+      chainBalance: 100,
+    });
+    const { rows: [intent] } = await pool.query(
+      `SELECT burn_job_id FROM miles_spend_intents WHERE id=$1`,
+      [purchase.intent_id],
+    );
+    await pool.query(
+      `SELECT prepare_hub_voucher_burn($1,$2,'0xpreparedhash','0xpreparedraw',47)`,
+      [intent.burn_job_id, purchase.intent_id],
+    );
+    await pool.query(
+      `UPDATE miles_spend_intents SET reservation_expires_at=now()-interval '1 minute' WHERE id=$1`,
+      [purchase.intent_id],
+    );
+
+    const { rows: [sweep] } = await pool.query(
+      `SELECT expire_unsubmitted_spend_intents() AS expired`,
+    );
+    expect(sweep.expired).toBe(0);
+
+    const { rows: [state] } = await pool.query(
+      `SELECT state FROM miles_spend_intents WHERE id=$1`,
+      [purchase.intent_id],
+    );
+    expect(state.state).toBe("onchain_prepared");
+  });
+
+  it("atomically releases held ledger funds and voucher capacity on a definitive burn failure", async () => {
+    const fixture = await createSpendIntentFixture({ ledgerCredit: 35 });
+    const { rows: [purchase] } = await reserveSpendIntent({
+      fixture,
+      key: `failed:${crypto.randomUUID()}`,
+      code: "FAILED0046",
+      wallet: "0xfailed046",
+      chainBalance: 100,
+    });
+    const { rows: [intent] } = await pool.query(
+      `SELECT burn_job_id FROM miles_spend_intents WHERE id=$1`,
+      [purchase.intent_id],
+    );
+
+    await pool.query(
+      `SELECT fail_hub_voucher_burn($1,$2,$3,'REVERTED','receipt status 0')`,
+      [intent.burn_job_id, purchase.intent_id, purchase.voucher_id],
+    );
+    // Worker retries of the finalizer are safe.
+    await pool.query(
+      `SELECT fail_hub_voucher_burn($1,$2,$3,'REVERTED','receipt status 0')`,
+      [intent.burn_job_id, purchase.intent_id, purchase.voucher_id],
+    );
+
+    const { rows: [result] } = await pool.query(
+      `SELECT
+         (SELECT state FROM miles_spend_intents WHERE id=$1) AS intent_state,
+         (SELECT status FROM minipoint_burn_jobs WHERE id=$2) AS job_status,
+         (SELECT status FROM issued_vouchers WHERE id=$3) AS voucher_status,
+         (SELECT status FROM miles_ledger_holds WHERE intent_id=$1) AS hold_status,
+         (SELECT COUNT(*)::int FROM miles_ledger WHERE source_id=$3 AND direction='debit') AS debits`,
+      [purchase.intent_id, intent.burn_job_id, purchase.voucher_id],
+    );
+    expect(result.intent_state).toBe("failed");
+    expect(result.job_status).toBe("failed");
+    expect(result.voucher_status).toBe("void");
+    expect(result.hold_status).toBe("released");
+    expect(result.debits).toBe(0);
+  });
+
+  it("serializes concurrent retries into one intent, voucher, and burn job", async () => {
+    const fixture = await createSpendIntentFixture({ ledgerCredit: 0 });
+    const key = `concurrent:${crypto.randomUUID()}`;
+    const request = (code: string) => reserveSpendIntent({
+      fixture,
+      key,
+      code,
+      wallet: "0xconcurrent046",
+      chainBalance: 100,
+    });
+
+    const [a, b] = await Promise.all([request("CONCUR0046A"), request("CONCUR0046B")]);
+    expect(a.rows[0].voucher_id).toBe(b.rows[0].voucher_id);
+    expect(a.rows[0].intent_id).toBe(b.rows[0].intent_id);
+
+    const { rows: [counts] } = await pool.query(
+      `SELECT
+         (SELECT COUNT(*)::int FROM miles_spend_intents WHERE idempotency_key=$1) AS intents,
+         (SELECT COUNT(*)::int FROM minipoint_burn_jobs WHERE idempotency_key=$1 || ':burn') AS jobs`,
+      [key],
+    );
+    expect(counts.intents).toBe(1);
+    expect(counts.jobs).toBe(1);
+  });
+
+  it("returns the stored voucher and code on an idempotent retry", async () => {
+    const fixture = await createSpendIntentFixture();
+    const key = `retry:${crypto.randomUUID()}`;
+    const { rows: [first] } = await reserveSpendIntent({
+      fixture,
+      key,
+      code: "FIRST00046",
+    });
+    const { rows: [second] } = await reserveSpendIntent({
+      fixture,
+      key,
+      code: "SECOND0046",
+    });
+
+    expect(second.voucher_id).toBe(first.voucher_id);
+    expect(second.code).toBe("FIRST00046");
+    const { rows: [count] } = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM miles_spend_intents WHERE idempotency_key=$1`,
+      [key],
+    );
+    expect(count.count).toBe(1);
   });
 });

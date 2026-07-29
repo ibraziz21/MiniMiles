@@ -34,6 +34,42 @@ export async function readChainBalance(address: string): Promise<number> {
   }
 }
 
+export type ChainBalanceResult = { ok: true; balance: number } | { ok: false; reason: string };
+
+/**
+ * Same on-chain read as readChainBalance, but distinguishes a real zero
+ * balance from an RPC/config failure. readChainBalance's "return 0 on any
+ * error" behavior is fine for a display page but unsafe for purchasing — an
+ * RPC outage would otherwise read as "no balance" and reject a legitimate
+ * purchase as insufficient funds. Used only by the voucher-purchase
+ * quote/reserve path.
+ */
+export async function readChainBalanceStrict(address: string): Promise<ChainBalanceResult> {
+  if (!MINIPOINTS) return { ok: false, reason: "minipoints_address_not_configured" };
+  try {
+    const data =
+      "0x70a08231" + address.replace("0x", "").toLowerCase().padStart(64, "0");
+    const res = await fetch(CELO_RPC, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0", id: 1,
+        method: "eth_call",
+        params: [{ to: MINIPOINTS, data }, "latest"],
+      }),
+      cache: "no-store",
+    });
+    if (!res.ok) return { ok: false, reason: `rpc_http_${res.status}` };
+    const json = await res.json();
+    if (json.error) return { ok: false, reason: "rpc_error_response" };
+    if (!json.result || json.result === "0x") return { ok: true, balance: 0 };
+    return { ok: true, balance: Number(BigInt(json.result) / BigInt(1e18)) };
+  } catch (err) {
+    console.error("[balance] readChainBalanceStrict: RPC call failed →", err);
+    return { ok: false, reason: "rpc_call_threw" };
+  }
+}
+
 export type UserBalance = {
   chainBalance: number;
   ledgerBalance: number;

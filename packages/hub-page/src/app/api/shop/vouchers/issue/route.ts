@@ -85,10 +85,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid wallet signature" }, { status: 403 });
   }
 
-  // Resolve merchant_id from the template
+  // Resolve merchant_id + price from the template
   const { data: template } = await admin
     .from("spend_voucher_templates")
-    .select("partner_id")
+    .select("partner_id, miles_cost")
     .eq("id", template_id)
     .maybeSingle();
 
@@ -100,15 +100,27 @@ export async function POST(request: Request) {
   const result = await issueVoucher({
     userId:         user.id,
     userAddress:    user_address.toLowerCase(),
+    email:          user.email ?? null,
     templateId:     template_id,
     merchantId:     template.partner_id,
+    totalPoints:    template.miles_cost,
     nonce,
     idempotencyKey: typeof idempotency_key === "string" ? idempotency_key : undefined,
+    consentMethod:  "wallet_signature",
+    quoteId:        null,
+    disclosureVersion: "wallet-signature-v1",
   });
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.httpStatus });
   }
 
-  return NextResponse.json({ voucher: result.voucher }, { status: 201 });
+  return NextResponse.json(
+    {
+      voucher: result.voucher,
+      queued: result.queued ?? false,
+      intent_state: result.intentState,
+    },
+    { status: 201 },
+  );
 }
