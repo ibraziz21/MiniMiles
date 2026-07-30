@@ -98,3 +98,69 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+// ── Web Push (web-push-notifications-spec.md §9) ───────────────────────────
+const FALLBACK_NOTIFICATION = {
+  title: "Akiba update",
+  body: "You have a new Akiba update.",
+  url: "/me/notifications",
+};
+
+function isRelativeSameOriginPath(url) {
+  return typeof url === "string" && url.startsWith("/") && !url.startsWith("//");
+}
+
+self.addEventListener("push", (event) => {
+  let payload = null;
+  try {
+    payload = event.data ? event.data.json() : null;
+  } catch {
+    payload = null;
+  }
+
+  const valid = payload && payload.v === 1 && isRelativeSameOriginPath(payload.url);
+  const title = valid ? payload.title : FALLBACK_NOTIFICATION.title;
+  const body = valid ? payload.body : FALLBACK_NOTIFICATION.body;
+  const url = valid ? payload.url : FALLBACK_NOTIFICATION.url;
+  const tag = valid && payload.notificationId ? `notification:${payload.notificationId}` : "notification:fallback";
+
+  event.waitUntil(
+    (async () => {
+      await self.registration.showNotification(title, {
+        body,
+        icon: "/icons/icon-192.png",
+        badge: "/icons/icon-192.png",
+        tag,
+        data: { url },
+      });
+
+      if ("setAppBadge" in self.navigator) {
+        try {
+          await self.navigator.setAppBadge();
+        } catch {
+          // Not supported/allowed on this platform; not fatal.
+        }
+      }
+    })(),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  const url = (event.notification.data && event.notification.data.url) || "/me/notifications";
+  event.notification.close();
+
+  event.waitUntil(
+    (async () => {
+      const clientsList = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const existing = clientsList.find((c) => new URL(c.url).origin === self.location.origin);
+      if (existing) {
+        await existing.focus();
+        if ("navigate" in existing) {
+          await existing.navigate(url);
+        }
+        return;
+      }
+      await self.clients.openWindow(url);
+    })(),
+  );
+});

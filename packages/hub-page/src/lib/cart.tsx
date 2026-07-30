@@ -7,7 +7,6 @@ export type CartItem = {
   merchantId: string;
   merchantSlug: string;
   merchantName: string;
-  merchantWallet: string | null;
   name: string;
   price: number;        // price_cusd
   category: string;

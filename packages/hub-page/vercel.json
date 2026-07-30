@@ -7,6 +7,10 @@
     {
       "path": "/api/internal/process-internal-event-jobs",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/internal/process-push-jobs",
+      "schedule": "*/1 * * * *"
     }
   ]
 }

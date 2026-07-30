@@ -1,76 +1,35 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { HIDDEN_PARTNER_FILTER, isHiddenPartner } from "@/lib/akiba/hidden-partners";
+import { listPublicMerchants } from "@/lib/merchants/queries";
 
-export const revalidate = 60;
+/**
+ * @deprecated Compatibility adapter for the pre-directory `/shop` read path.
+ * Delegates to the new public directory read (`list_public_merchants`) so it
+ * no longer shows only `store_active` merchants. Remove after the
+ * `/merchants` migration window (see merchant-directory-in-store-discovery-spec.md §4).
+ *
+ * Must reflect current publish/suspension state on every request — no ISR
+ * cache (a 60s-stale response could keep showing a merchant an admin just
+ * suspended), and must never be statically executed at build time.
+ */
+export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const admin = createAdminClient();
+  try {
+    const result = await listPublicMerchants({ mode: "all", limit: 50 });
 
-  // Join partners → partner_settings (store_active, logo_url, delivery_cities)
-  // Count products and voucher templates per merchant
-  const { data: partners, error } = await admin
-    .from("partners")
-    .select(`
-      id,
-      slug,
-      name,
-      country,
-      image_url,
-      partner_settings!inner (
-        store_active,
-        logo_url,
-        delivery_cities
-      )
-    `)
-    .eq("partner_settings.store_active", true)
-    .not("id", "in", HIDDEN_PARTNER_FILTER)
-    .order("name");
+    const merchants = result.merchants.map((m) => ({
+      id: m.id,
+      slug: m.slug,
+      name: m.name,
+      country: m.primaryLocation?.city ?? null,
+      image_url: m.logoUrl,
+      delivery_cities: [] as string[],
+      product_count: 0,
+      voucher_count: m.voucherCount,
+    }));
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ merchants });
+  } catch {
+    return NextResponse.json({ error: "directory_unavailable" }, { status: 503 });
   }
-
-  if (!partners || partners.length === 0) {
-    return NextResponse.json({ merchants: [] });
-  }
-
-  const ids = partners.map((p) => p.id);
-
-  // Product counts
-  const { data: productCounts } = await admin
-    .from("merchant_products")
-    .select("merchant_id")
-    .in("merchant_id", ids)
-    .eq("active", true);
-
-  // Voucher template counts
-  const { data: voucherCounts } = await admin
-    .from("spend_voucher_templates")
-    .select("partner_id")
-    .in("partner_id", ids)
-    .eq("active", true);
-
-  const pCount = (id: string) =>
-    (productCounts ?? []).filter((r) => r.merchant_id === id).length;
-  const vCount = (id: string) =>
-    (voucherCounts ?? []).filter((r) => r.partner_id === id).length;
-
-  const merchants = partners.map((p) => {
-    const settings = Array.isArray(p.partner_settings)
-      ? p.partner_settings[0]
-      : p.partner_settings;
-    return {
-      id: p.id,
-      slug: p.slug,
-      name: p.name,
-      country: p.country,
-      image_url: settings?.logo_url ?? p.image_url,
-      delivery_cities: settings?.delivery_cities ?? [],
-      product_count: pCount(p.id),
-      voucher_count: vCount(p.id),
-    };
-  });
-
-  return NextResponse.json({ merchants });
 }

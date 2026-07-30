@@ -6,10 +6,10 @@ import clsx from "clsx";
 import { track } from "@/lib/analytics/track";
 
 const LINKS = [
-  { href: "/shop",     label: "Shop & Earn", icon: ShoppingBag },
-  { href: "/vouchers", label: "Vouchers",    icon: Tag },
-  { href: "/rewards",  label: "Rewards",     icon: Sparkles },
-  { href: "/quests",   label: "Quests",      icon: Zap },
+  { href: "/merchants", label: "Merchants", icon: ShoppingBag },
+  { href: "/vouchers",  label: "Vouchers",  icon: Tag },
+  { href: "/rewards",   label: "Rewards",   icon: Sparkles },
+  { href: "/quests",    label: "Quests",    icon: Zap },
 ];
 
 export function NavLinks({ dark = false }: { dark?: boolean }) {
@@ -69,10 +69,10 @@ export function NavLinks({ dark = false }: { dark?: boolean }) {
 // competing for bar space.
 
 const NAV_ITEMS = [
-  { href: "/shop",     label: "Shop",     icon: ShoppingBag },
-  { href: "/quests",   label: "Quests",   icon: Zap },
-  { href: "/vouchers", label: "Vouchers", icon: Tag },
-  { href: "/rewards",  label: "Rewards",  icon: Sparkles },
+  { href: "/merchants", label: "Merchants", icon: ShoppingBag },
+  { href: "/quests",    label: "Quests",    icon: Zap },
+  { href: "/vouchers",  label: "Vouchers",  icon: Tag },
+  { href: "/rewards",   label: "Rewards",   icon: Sparkles },
 ];
 
 export function BottomNav() {

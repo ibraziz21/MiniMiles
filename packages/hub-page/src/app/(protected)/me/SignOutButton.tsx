@@ -2,12 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { cleanupPushBeforeLogout } from "@/lib/push/browser";
 import { LogOut } from "lucide-react";
 
 export function SignOutButton() {
   const router = useRouter();
 
   async function signOut() {
+    // Must run while the old session is still authenticated -- otherwise the
+    // DELETE call 401s and the subscription lingers, leaking push to the
+    // next signed-in user on a shared device.
+    await cleanupPushBeforeLogout();
+
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/");

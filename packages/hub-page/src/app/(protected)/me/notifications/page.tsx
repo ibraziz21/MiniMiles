@@ -1,19 +1,23 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ArrowLeft, Bell, Package, Truck, CheckCircle2, XCircle, RotateCcw } from "lucide-react";
+import { ArrowLeft, Bell, Package, Truck, CheckCircle2, XCircle, RotateCcw, Ticket, AlertTriangle } from "lucide-react";
+import { PushNotificationSettings } from "@/components/PushNotificationSettings";
 
 export const metadata = { title: "Notifications — Akiba Pass" };
 
 const TEMPLATE_CONFIG: Record<string, { label: string; icon: React.ReactNode }> = {
-  order_placed:      { label: "Order placed",          icon: <Package className="h-4 w-4" /> },
-  order_accepted:    { label: "Order accepted",         icon: <Package className="h-4 w-4" /> },
-  order_dispatched:  { label: "Order dispatched",       icon: <Truck className="h-4 w-4" /> },
-  order_delivered:   { label: "Order delivered",        icon: <CheckCircle2 className="h-4 w-4" /> },
-  digital_delivered: { label: "Digital delivery ready",  icon: <CheckCircle2 className="h-4 w-4" /> },
-  order_cancelled:   { label: "Order cancelled",        icon: <XCircle className="h-4 w-4" /> },
-  refund_initiated:  { label: "Refund initiated",       icon: <RotateCcw className="h-4 w-4" /> },
-  refund_completed:  { label: "Refund completed",       icon: <RotateCcw className="h-4 w-4" /> },
+  order_placed:           { label: "Order placed",             icon: <Package className="h-4 w-4" /> },
+  order_accepted:         { label: "Order accepted",            icon: <Package className="h-4 w-4" /> },
+  order_dispatched:       { label: "Order dispatched",          icon: <Truck className="h-4 w-4" /> },
+  order_delivered:        { label: "Order delivered",           icon: <CheckCircle2 className="h-4 w-4" /> },
+  digital_delivered:      { label: "Digital delivery ready",     icon: <CheckCircle2 className="h-4 w-4" /> },
+  order_cancelled:        { label: "Order cancelled",           icon: <XCircle className="h-4 w-4" /> },
+  refund_initiated:       { label: "Refund initiated",          icon: <RotateCcw className="h-4 w-4" /> },
+  refund_completed:       { label: "Refund completed",          icon: <RotateCcw className="h-4 w-4" /> },
+  voucher_ready:          { label: "Voucher ready",             icon: <Ticket className="h-4 w-4" /> },
+  voucher_failed:         { label: "Voucher purchase failed",   icon: <XCircle className="h-4 w-4" /> },
+  voucher_reconciliation: { label: "Voucher purchase in review", icon: <AlertTriangle className="h-4 w-4" /> },
 };
 
 type NotificationRow = {
@@ -22,6 +26,7 @@ type NotificationRow = {
   template: string;
   created_at: string;
   metadata: Record<string, unknown>;
+  deep_link: string | null;
 };
 
 async function getNotifications(userId: string, email: string | null): Promise<NotificationRow[]> {
@@ -40,7 +45,7 @@ async function getNotifications(userId: string, email: string | null): Promise<N
 
   const { data } = await admin
     .from("notification_outbox")
-    .select("id, order_id, template, created_at, metadata")
+    .select("id, order_id, template, created_at, metadata, deep_link")
     .in("user_ref", refs)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -63,6 +68,10 @@ export default async function NotificationsPage() {
 
       <h1 className="mb-6 font-sterling text-2xl font-semibold text-akiba-ink">Notifications</h1>
 
+      <div className="mb-6">
+        <PushNotificationSettings />
+      </div>
+
       {notifications.length === 0 ? (
         <div className="flex flex-col items-center rounded-2xl border border-dashed border-akiba-line bg-white py-14 text-center">
           <Bell className="mb-3 h-10 w-10 text-akiba-line" />
@@ -80,11 +89,15 @@ export default async function NotificationsPage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-akiba-ink">{cfg.label}</p>
-                  {n.order_id && (
+                  {n.order_id ? (
                     <a href="/me/orders" className="text-xs text-akiba-teal hover:underline">
                       View order
                     </a>
-                  )}
+                  ) : n.deep_link ? (
+                    <a href={n.deep_link} className="text-xs text-akiba-teal hover:underline">
+                      View details
+                    </a>
+                  ) : null}
                   <p className="mt-0.5 text-xs text-akiba-muted">
                     {new Date(n.created_at).toLocaleString("en-KE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                   </p>

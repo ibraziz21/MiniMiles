@@ -179,14 +179,22 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
   }
 
   async function payCrypto() {
-    if (!pricing || !firstItem?.merchantWallet) { setError("Merchant wallet not configured."); return; }
+    if (!pricing || !firstItem) { setError("Cart is empty."); return; }
     setStep("paying"); setError(null);
+
+    // Resolved on demand — never persisted in cart state or embedded in a
+    // public page payload (merchant-directory-in-store-discovery-spec.md §14).
+    const walletRes = await fetch(`/api/shop/merchants/${firstItem.merchantSlug}/wallet`);
+    const walletData = await walletRes.json().catch(() => null);
+    const merchantWallet = walletRes.ok ? (walletData?.wallet_address as string | undefined) : undefined;
+    if (!merchantWallet) { setError("Merchant wallet not configured."); setStep("review"); return; }
+
     const addr = walletAddress ?? await connectWallet();
     if (!addr) { setStep("review"); return; }
 
     const token = TOKENS[currency];
     const amountWei = toTokenUnits(pricing.total, token.decimals);
-    const data = encodeERC20Transfer(firstItem.merchantWallet, amountWei);
+    const data = encodeERC20Transfer(merchantWallet, amountWei);
 
     try {
       const hash = await window.ethereum!.request({

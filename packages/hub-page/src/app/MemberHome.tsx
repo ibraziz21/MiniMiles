@@ -48,7 +48,7 @@ export async function MemberHome({ user }: { user: User }) {
 
       {/* 2b — Denominated balance */}
       <TrackedLink
-        href="/shop"
+        href="/merchants"
         event="balance_tap"
         eventProps={{ affordable: !!affordable }}
         className="mb-4 block rounded-2xl border border-akiba-line bg-white px-5 py-4 transition active:scale-[0.99]"
@@ -77,7 +77,7 @@ export async function MemberHome({ user }: { user: User }) {
             <h2 className="text-sm font-semibold uppercase tracking-wide text-akiba-muted">
               Use it today
             </h2>
-            <Link href="/shop" className="flex items-center gap-1 text-xs font-semibold text-akiba-teal">
+            <Link href="/merchants" className="flex items-center gap-1 text-xs font-semibold text-akiba-teal">
               See all <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
@@ -85,7 +85,7 @@ export async function MemberHome({ user }: { user: User }) {
             {rail.map((deal) => (
               <TrackedLink
                 key={deal.id}
-                href={deal.partners ? `/shop/${deal.partners.slug}` : "/shop"}
+                href={deal.partners ? `/merchants/${deal.partners.slug}` : "/merchants"}
                 event="deals_rail_tap"
                 eventProps={{ template_id: deal.id }}
                 className="flex w-40 shrink-0 flex-col rounded-2xl border border-akiba-line bg-white p-3.5 transition active:scale-[0.98]"

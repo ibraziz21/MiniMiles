@@ -1,76 +1,62 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { HIDDEN_PARTNER_FILTER, isHiddenPartner } from "@/lib/akiba/hidden-partners";
+import { createClient } from "@/lib/supabase/server";
+import { getPublicMerchant } from "@/lib/merchants/queries";
 
-export const revalidate = 60;
+/**
+ * @deprecated Compatibility adapter for the pre-directory `/shop/[slug]` read
+ * path. Delegates to the new public directory read (`get_public_merchant`)
+ * instead of the old `store_active`-only lookup. Remove after the
+ * `/merchants` migration window (see merchant-directory-in-store-discovery-spec.md §4).
+ */
+export const dynamic = "force-dynamic";
 
-export async function GET(
-  _req: Request,
-  { params }: { params: { slug: string } }
-) {
-  const admin = createAdminClient();
+export async function GET(_req: Request, { params }: { params: { slug: string } }) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const { data: partner, error } = await admin
-    .from("partners")
-    .select(`
-      id, slug, name, country, image_url,
-      partner_settings (
-        store_active, logo_url, delivery_cities, wallet_address,
-        support_email, support_phone
-      )
-    `)
-    .eq("slug", params.slug)
-    .maybeSingle();
-
-  if (partner && isHiddenPartner(partner.id)) {
-    return NextResponse.json({ error: "Merchant not found" }, { status: 404 });
+  let merchant;
+  try {
+    merchant = await getPublicMerchant(params.slug, user?.id ?? null);
+  } catch {
+    return NextResponse.json({ error: "directory_unavailable" }, { status: 503 });
   }
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!partner) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  const settings = Array.isArray(partner.partner_settings)
-    ? partner.partner_settings[0]
-    : partner.partner_settings;
-
-  if (!settings?.store_active) {
-    return NextResponse.json({ error: "Store is not active" }, { status: 404 });
-  }
-
-  const [{ data: products }, { data: templates }] = await Promise.all([
-    admin
-      .from("merchant_products")
-      .select("id, name, description, price_cusd, category, image_url, product_type")
-      .eq("merchant_id", partner.id)
-      .eq("active", true)
-      .order("category")
-      .order("name"),
-    admin
-      .from("spend_voucher_templates")
-      .select(`
-        id, title, voucher_type, miles_cost,
-        discount_percent, discount_cusd,
-        applicable_category, linked_product_id,
-        retail_value_cusd, cooldown_seconds,
-        global_cap, expires_at
-      `)
-      .eq("partner_id", partner.id)
-      .eq("active", true)
-      .order("miles_cost"),
-  ]);
+  if (!merchant) return NextResponse.json({ error: "Merchant not found" }, { status: 404 });
 
   return NextResponse.json({
     merchant: {
-      id: partner.id,
-      slug: partner.slug,
-      name: partner.name,
-      country: partner.country,
-      image_url: settings.logo_url ?? partner.image_url,
-      delivery_cities: settings.delivery_cities ?? [],
-      wallet_address: settings.wallet_address,
-      support_email: settings.support_email,
+      id: merchant.id,
+      slug: merchant.slug,
+      name: merchant.name,
+      country: merchant.primaryLocation?.city ?? null,
+      image_url: merchant.logoUrl,
+      delivery_cities: [] as string[],
+      wallet_address: null,
+      support_email: merchant.contacts.email,
     },
-    products: products ?? [],
-    voucher_templates: templates ?? [],
+    products: merchant.products.map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      price_cusd: p.priceCusd,
+      category: p.category,
+      image_url: p.imageUrl,
+      product_type: p.productType,
+    })),
+    voucher_templates: merchant.vouchers.map((v) => ({
+      id: v.id,
+      title: v.title,
+      voucher_type: v.voucherType,
+      miles_cost: v.milesCost,
+      discount_percent: v.discountPercent,
+      discount_cusd: v.discountCusd,
+      applicable_category: v.applicableCategory,
+      linked_product_id: v.linkedProductId,
+      retail_value_cusd: v.retailValueCusd,
+      cooldown_seconds: v.cooldownSeconds,
+      global_cap: v.globalCap,
+      expires_at: v.expiresAt,
+    })),
   });
 }

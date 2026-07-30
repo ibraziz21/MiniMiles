@@ -277,7 +277,7 @@ function ProductCard({
 
         <AddToCart
           product={{ id: product.id, name: product.name, price: product.price_cusd, category: product.category, imageUrl: product.image_url, productType: product.product_type }}
-          merchant={{ id: merchant.id, slug: merchant.slug, name: merchant.name, walletAddress: merchant.wallet_address }}
+          merchant={{ id: merchant.id, slug: merchant.slug, name: merchant.name }}
         />
       </div>
     </div>

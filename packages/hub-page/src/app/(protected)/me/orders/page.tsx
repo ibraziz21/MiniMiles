@@ -166,7 +166,7 @@ export default async function OrdersPage() {
           <p className="font-medium text-akiba-ink">No orders yet</p>
           <p className="mt-1 text-sm text-akiba-muted">Head to the shop to make your first purchase.</p>
           <a
-            href="/shop"
+            href="/merchants"
             className="mt-5 inline-flex items-center gap-2 rounded-full bg-akiba-teal px-5 py-2 text-sm font-semibold text-white"
           >
             <ShoppingBag className="h-4 w-4" /> Shop & Earn

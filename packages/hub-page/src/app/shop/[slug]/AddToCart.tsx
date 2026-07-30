@@ -17,7 +17,6 @@ type Props = {
     id: string;
     slug: string;
     name: string;
-    walletAddress: string | null;
   };
 };
 
@@ -31,7 +30,6 @@ export function AddToCart({ product, merchant }: Props) {
       merchantId: merchant.id,
       merchantSlug: merchant.slug,
       merchantName: merchant.name,
-      merchantWallet: merchant.walletAddress,
       name: product.name,
       price: product.price,
       category: product.category,
@@ -53,7 +51,6 @@ export function AddToCart({ product, merchant }: Props) {
       merchantId: merchant.id,
       merchantSlug: merchant.slug,
       merchantName: merchant.name,
-      merchantWallet: merchant.walletAddress,
       name: product.name,
       price: product.price,
       category: product.category,
