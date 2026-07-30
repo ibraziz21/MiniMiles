@@ -89,16 +89,41 @@ describe("GET /api/merchants", () => {
     expect(mockRpc).not.toHaveBeenCalled();
   });
 
-  it("drops merchants with no coordinates when a radius filter is applied (RPC currently passes them through)", async () => {
-    state.summaryRows = [
-      row({ id: "with-coords", slug: "with-coords", distance_km: 2.4 }),
-      row({ id: "no-coords", slug: "no-coords", distance_km: null }),
-    ];
+  it("rejects partial coordinates and a radius without coordinates", async () => {
+    const partial = await GET(new Request("http://localhost/api/merchants?lat=-1.28"));
+    const radiusOnly = await GET(new Request("http://localhost/api/merchants?radius_km=10"));
+
+    expect(partial.status).toBe(400);
+    expect(radiusOnly.status).toBe(400);
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unknown operating mode", async () => {
+    const res = await GET(new Request("http://localhost/api/merchants?mode=warehouse"));
+
+    expect(res.status).toBe(400);
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+
+  it("passes a validated radius to the database contract", async () => {
+    state.summaryRows = [row({ id: "with-coords", slug: "with-coords", distance_km: 2.4 })];
     const res = await GET(new Request("http://localhost/api/merchants?lat=-1.28&lng=36.8&radius_km=10"));
+
+    expect(res.status).toBe(200);
+    expect(state.lastListRpcArgs).toMatchObject({
+      p_lat: -1.28,
+      p_lng: 36.8,
+      p_radius_km: 10,
+    });
+  });
+
+  it("returns 400 for a malformed cursor instead of silently restarting pagination", async () => {
+    const res = await GET(new Request("http://localhost/api/merchants?cursor=not-a-cursor"));
     const body = await res.json();
 
-    expect(body.merchants).toHaveLength(1);
-    expect(body.merchants[0].id).toBe("with-coords");
+    expect(res.status).toBe(400);
+    expect(body.error).toBe("invalid_cursor");
+    expect(mockRpc).not.toHaveBeenCalled();
   });
 
   it("replaces voucherCount with canonical availability, not the RPC's active+unexpired count", async () => {

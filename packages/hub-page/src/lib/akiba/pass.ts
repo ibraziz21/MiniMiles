@@ -36,7 +36,10 @@ export async function getOrCreatePass(opts: {
   const { data, error } = await admin.rpc("create_or_get_hub_pass", {
     p_user_id: userId,
     p_email: email,
-    ...(src ? { p_src: src } : {}),
+    // Always send every named argument in the canonical database signature.
+    // This avoids relying on default-argument resolution in PostgREST's
+    // schema cache and works identically for organic and attributed joins.
+    p_src: src ?? "organic",
   });
 
   if (error) {

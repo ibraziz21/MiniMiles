@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { listPublicMerchants, getCanonicalVoucherCounts } from "@/lib/merchants/queries";
+import {
+  listPublicMerchants,
+  getCanonicalVoucherCounts,
+  InvalidMerchantCursorError,
+} from "@/lib/merchants/queries";
 
 // A live-inventory directory (publish state, open/closed, voucher
 // availability) must never be served from a stale static/ISR cache —
@@ -15,7 +19,11 @@ export async function GET(request: Request) {
   const q = searchParams.get("q") ?? undefined;
   const category = searchParams.get("category") ?? undefined;
   const city = searchParams.get("city") ?? undefined;
-  const mode = (searchParams.get("mode") as "physical" | "online" | "all" | null) ?? undefined;
+  const modeParam = searchParams.get("mode");
+  if (modeParam !== null && !["physical", "online", "all"].includes(modeParam)) {
+    return NextResponse.json({ error: "Invalid mode" }, { status: 400 });
+  }
+  const mode = (modeParam as "physical" | "online" | "all" | null) ?? undefined;
   const cursor = searchParams.get("cursor") ?? undefined;
 
   const limitRaw = Number(searchParams.get("limit") ?? "20");
@@ -27,6 +35,13 @@ export async function GET(request: Request) {
 
   const latParam = searchParams.get("lat");
   const lngParam = searchParams.get("lng");
+  const radiusParam = searchParams.get("radius_km");
+  if ((latParam === null) !== (lngParam === null)) {
+    return NextResponse.json({ error: "lat and lng must be provided together" }, { status: 400 });
+  }
+  if (radiusParam !== null && (latParam === null || lngParam === null)) {
+    return NextResponse.json({ error: "radius_km requires lat and lng" }, { status: 400 });
+  }
   if (latParam !== null && lngParam !== null) {
     const parsedLat = Number(latParam);
     const parsedLng = Number(lngParam);
@@ -39,7 +54,6 @@ export async function GET(request: Request) {
     lat = parsedLat;
     lng = parsedLng;
 
-    const radiusParam = searchParams.get("radius_km");
     if (radiusParam !== null) {
       const parsedRadius = Number(radiusParam);
       if (!Number.isFinite(parsedRadius) || parsedRadius <= 0) {
@@ -74,7 +88,10 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json(result);
-  } catch {
+  } catch (error) {
+    if (error instanceof InvalidMerchantCursorError) {
+      return NextResponse.json({ error: "invalid_cursor" }, { status: 400 });
+    }
     // Never forward the underlying Supabase/DB error to a public response;
     // it's already logged server-side inside queries.ts.
     return NextResponse.json({ error: "directory_unavailable" }, { status: 503 });

@@ -166,18 +166,41 @@ describe("listPublicMerchants — public-data safety and pagination", () => {
     expect(result.next_cursor).toBeNull();
   });
 
-  it("round-trips an opaque cursor and passes only the name through to the RPC", async () => {
+  it("round-trips an opaque composite cursor with every SQL sort key", async () => {
+    state.summaryRows = [
+      baseSummaryRow({ id: "m1", slug: "m1", name: "Alpha", distance_km: 1.25 }),
+      baseSummaryRow({ id: "m2", slug: "m2", name: "Beta" }),
+    ];
+    const first = await listPublicMerchants({ limit: 1, lat: -1.28, lng: 36.8 });
+    expect(first.next_cursor).not.toBeNull();
+
+    await listPublicMerchants({
+      limit: 1,
+      lat: -1.28,
+      lng: 36.8,
+      cursor: first.next_cursor!,
+    });
+
+    const secondCallArgs = mockRpc.mock.calls[1][1] as { p_cursor: string | null };
+    expect(JSON.parse(secondCallArgs.p_cursor!)).toEqual({
+      name: "Alpha",
+      id: "m1",
+      distanceKm: 1.25,
+    });
+  });
+
+  it("rejects a cursor reused with a different filter scope", async () => {
     state.summaryRows = [
       baseSummaryRow({ id: "m1", slug: "m1", name: "Alpha" }),
       baseSummaryRow({ id: "m2", slug: "m2", name: "Beta" }),
     ];
-    const first = await listPublicMerchants({ limit: 1 });
-    expect(first.next_cursor).not.toBeNull();
+    const first = await listPublicMerchants({ limit: 1, category: "food_drink" });
 
-    await listPublicMerchants({ limit: 1, cursor: first.next_cursor! });
-
-    const secondCallArgs = mockRpc.mock.calls[1][1] as { p_cursor: string | null };
-    expect(secondCallArgs.p_cursor).toBe("Alpha");
+    await expect(listPublicMerchants({
+      limit: 1,
+      category: "beauty_wellness",
+      cursor: first.next_cursor!,
+    })).rejects.toMatchObject({ name: "InvalidMerchantCursorError" });
   });
 
   it("wraps an RPC error in a sanitized DirectoryUnavailableError, never leaking the DB message", async () => {

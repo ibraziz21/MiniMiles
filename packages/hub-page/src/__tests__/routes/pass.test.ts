@@ -20,6 +20,18 @@ const KNOWN_USER_ROW = { full_name: "Alice K.", username: "alicek" };
 // ── Mutable flag: controls whether hub_user_passes returns a row ──────────────
 // Must be prefixed "mock" so Vitest's vi.mock hoisting allows reference.
 let mockPassExists = true;
+const mockRpc = vi.fn(async (fn: string) => {
+  if (fn === "create_or_get_hub_pass") {
+    return {
+      data: [{
+        public_pass_id: mockPassExists ? KNOWN_PASS_ID : NEW_PASS_ID,
+        is_new: !mockPassExists,
+      }],
+      error: null,
+    };
+  }
+  return { data: null, error: null };
+});
 
 // ── Mock auth ─────────────────────────────────────────────────────────────────
 vi.mock("@/lib/supabase/server", () => ({
@@ -73,18 +85,7 @@ vi.mock("@/lib/supabase/admin", () => ({
       return builder;
     },
 
-    async rpc(fn: string) {
-      if (fn === "create_or_get_hub_pass") {
-        return {
-          data: [{
-            public_pass_id: mockPassExists ? KNOWN_PASS_ID : NEW_PASS_ID,
-            is_new: !mockPassExists,
-          }],
-          error: null,
-        };
-      }
-      return { data: null, error: null };
-    },
+    rpc: mockRpc,
   }),
 }));
 
@@ -112,6 +113,16 @@ describe("GET /api/me/pass", () => {
     expect(res.status).toBe(200);
     expect(typeof json.publicPassId).toBe("string");
     expect(typeof json.qrPayload).toBe("string");
+  });
+
+  it("uses the canonical three-argument RPC signature", async () => {
+    await passGET();
+
+    expect(mockRpc).toHaveBeenCalledWith("create_or_get_hub_pass", {
+      p_user_id: "user-uuid",
+      p_email: "alice@example.com",
+      p_src: "organic",
+    });
   });
 
   it("qrPayload starts with akiba-pass:v1:", async () => {

@@ -41,6 +41,13 @@ Dev server prefers port **3003** → [http://localhost:3003](http://localhost:30
 
 Copy `.env.local.example` to `.env.local` and fill in Supabase, Platform (`AKIBA_API_URL` / `AKIBA_API_KEY`), M-Pesa, and chain (`MINIPOINTS_ADDRESS`, `CELO_RPC_URL`) values.
 
+Merchant-directory synchronization also requires
+`DIRECTORY_REVALIDATION_SECRET`, shared only with dashboard-merchant. Its
+outbox worker calls `POST /api/internal/revalidate-merchant-directory`; the
+endpoint is authenticated even while directory pages remain force-dynamic.
+Deploy Akiba-Platform migration 071 before this Hub version because directory
+cursors use the composite distance/name/ID contract introduced there.
+
 ## Testing
 
 ```bash

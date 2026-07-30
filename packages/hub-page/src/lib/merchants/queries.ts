@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type {
   MerchantDirectoryResponse,
@@ -16,6 +17,13 @@ export class DirectoryUnavailableError extends Error {
   constructor(context: string) {
     super(`directory_unavailable: ${context}`);
     this.name = "DirectoryUnavailableError";
+  }
+}
+
+export class InvalidMerchantCursorError extends Error {
+  constructor() {
+    super("invalid_merchant_cursor");
+    this.name = "InvalidMerchantCursorError";
   }
 }
 
@@ -101,50 +109,66 @@ export type ListMerchantsParams = {
   limit?: number;
 };
 
-type CursorToken = { name: string; id: string; distanceKm?: number | null };
+type CursorToken = {
+  v: 1;
+  name: string;
+  id: string;
+  distanceKm: number | null;
+  scope: string;
+};
 
 /**
- * The RPC's own cursor semantics are just `WHERE name > p_cursor` (a bare
- * name string) — it has no composite tiebreaker and no distance awareness
- * for nearby mode. That's an Akiba-Platform-side gap (see plan/report).
- * From here we can only: (a) keep passing the plain name the RPC expects,
- * and (b) wrap what we hand back to the client in an opaque token carrying
- * `id`/`distanceKm` too, so the client can de-duplicate reliably across
- * pages even when two merchants share a name.
+ * Cursors are opaque to clients but contain every SQL sort key. `scope`
+ * binds a cursor to the filters/coordinates that produced it so a stale
+ * cursor cannot silently skip results after filters change.
  */
 function encodeCursor(token: CursorToken): string {
   return Buffer.from(JSON.stringify(token), "utf8").toString("base64url");
 }
 
-function decodeCursor(cursor: string | undefined): CursorToken | null {
-  if (!cursor) return null;
-  try {
-    const parsed = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
-    if (parsed && typeof parsed.name === "string") return parsed as CursorToken;
-  } catch {
-    // Ignore a malformed/foreign cursor rather than 500ing — treat as "start over".
-  }
-  return null;
+function cursorScope(params: ListMerchantsParams): string {
+  return createHash("sha256")
+    .update(JSON.stringify({
+      q: params.q ?? null,
+      category: params.category ?? null,
+      city: params.city ?? null,
+      lat: params.lat ?? null,
+      lng: params.lng ?? null,
+      radiusKm: params.radiusKm ?? null,
+      mode: params.mode ?? "all",
+    }))
+    .digest("base64url")
+    .slice(0, 16);
 }
 
-/**
- * Known Akiba-Platform RPC gaps this function cannot fix from hub-page
- * (flagged for a follow-up migration, not addressed here per scope):
- *  - default ordering is `name ASC` only, with no category `sort_order`
- *    tiebreak, so "category order, then name" can only be approximated
- *    within a single page, not across pages;
- *  - a radius filter doesn't exclude NULL-distance (no-coordinates) rows at
- *    the SQL level — mitigated below by dropping them client-side;
- *  - `primary_location` carries no `openingHours`/`timezone`, so directory
- *    cards cannot show a truthful "Open now" state.
- */
+function decodeCursor(cursor: string | undefined, expectedScope: string): CursorToken | null {
+  if (!cursor) return null;
+  if (cursor.length > 2048) throw new InvalidMerchantCursorError();
+  try {
+    const parsed = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
+    if (
+      parsed?.v === 1 &&
+      typeof parsed.name === "string" &&
+      typeof parsed.id === "string" &&
+      (parsed.distanceKm === null || typeof parsed.distanceKm === "number") &&
+      parsed.scope === expectedScope
+    ) {
+      return parsed as CursorToken;
+    }
+  } catch {
+    throw new InvalidMerchantCursorError();
+  }
+  throw new InvalidMerchantCursorError();
+}
+
 export async function listPublicMerchants(
   params: ListMerchantsParams
 ): Promise<MerchantDirectoryResponse> {
   const admin = createAdminClient();
-  const limit = params.limit ?? 20;
+  const limit = Math.min(Math.max(params.limit ?? 20, 1), 50);
   const nearby = params.lat != null && params.lng != null;
-  const cursorToken = decodeCursor(params.cursor);
+  const scope = cursorScope(params);
+  const cursorToken = decodeCursor(params.cursor, scope);
 
   // Over-fetch by one row so "is there a next page" doesn't depend on the
   // fragile "page came back full" heuristic.
@@ -156,7 +180,13 @@ export async function listPublicMerchants(
     p_lng: params.lng ?? null,
     p_radius_km: params.radiusKm ?? null,
     p_mode: params.mode ?? "all",
-    p_cursor: cursorToken?.name ?? null,
+    p_cursor: cursorToken
+      ? JSON.stringify({
+          name: cursorToken.name,
+          id: cursorToken.id,
+          distanceKm: cursorToken.distanceKm,
+        })
+      : null,
     p_limit: limit + 1,
   });
 
@@ -177,17 +207,17 @@ export async function listPublicMerchants(
   const hasMore = rows.length > limit;
   const page = hasMore ? rows.slice(0, limit) : rows;
 
-  // The RPC bug: a radius filter should exclude merchants with no
-  // coordinates (distance unknowable), but it currently treats a NULL
-  // distance as passing. Mitigate here until the RPC is fixed upstream.
-  const filteredPage =
-    params.radiusKm != null ? page.filter((r) => r.distance_km != null) : page;
-
-  const merchants = filteredPage.map(mapSummary);
-  const last = rows[Math.min(limit, rows.length) - 1];
+  const merchants = page.map(mapSummary);
+  const last = page[page.length - 1];
   const nextCursor =
     hasMore && last
-      ? encodeCursor({ name: last.name, id: last.id, distanceKm: last.distance_km })
+      ? encodeCursor({
+          v: 1,
+          name: last.name,
+          id: last.id,
+          distanceKm: last.distance_km,
+          scope,
+        })
       : null;
 
   return {
