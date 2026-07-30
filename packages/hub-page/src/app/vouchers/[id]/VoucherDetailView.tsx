@@ -15,7 +15,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ShoppingBag, QrCode, X, Loader2, Clock } from "lucide-react";
+import { AlertTriangle, ShoppingBag, QrCode, X, Loader2, Clock } from "lucide-react";
 import clsx from "clsx";
 
 export type VoucherType = "free" | "percent_off" | "fixed_off";
@@ -76,6 +76,7 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [currentStatus, setCurrentStatus] = useState<DetailVoucher["status"]>(voucher.status);
   const [processingError, setProcessingError] = useState<string | null>(null);
+  const [processingTerminal, setProcessingTerminal] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const showQrRef = useRef(false);
@@ -95,7 +96,7 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
   // Pending on-chain purchases become usable without requiring the user to
   // leave and revisit the page. Terminal failures are also surfaced directly.
   useEffect(() => {
-    if (currentStatus !== "pending") return;
+    if (currentStatus !== "pending" || processingTerminal) return;
 
     let cancelled = false;
     const poll = async () => {
@@ -108,6 +109,7 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
           voucher_status: DetailVoucher["status"];
           intent_state: string | null;
           failure_reason: string | null;
+          recovery_state: string | null;
         };
         if (cancelled) return;
         setCurrentStatus(data.voucher_status);
@@ -115,6 +117,12 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
           setProcessingError(data.failure_reason ?? "This purchase could not be completed.");
         } else if (data.intent_state === "reconciliation_required") {
           setProcessingError("The transaction is taking longer than expected. Support has been notified.");
+          setProcessingTerminal(true);
+        } else if (data.recovery_state === "burn_ambiguous") {
+          setProcessingError(
+            "This purchase did not complete and no confirmed Miles charge was recorded. Support is clearing it so you can try again.",
+          );
+          setProcessingTerminal(true);
         }
       } catch {
         // Polling is best-effort; the next interval retries.
@@ -127,7 +135,7 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [currentStatus, voucher.id]);
+  }, [currentStatus, processingTerminal, voucher.id]);
 
   // Mint a token + render its QR onto the canvas.
   const presentToken = useCallback(async () => {
@@ -298,7 +306,9 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
               statusColors[currentStatus] ?? "bg-akiba-card text-akiba-muted"
             )}
           >
-            {currentStatus === "pending" ? "Processing" : currentStatus}
+            {currentStatus === "pending"
+              ? processingTerminal ? "Needs review" : "Processing"
+              : currentStatus}
           </span>
         </div>
 
@@ -330,8 +340,12 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
             <div className="text-center text-sm text-akiba-muted">
               {currentStatus === "pending" ? (
                 <div className="flex flex-col items-center gap-2">
-                  <Loader2 className="h-5 w-5 animate-spin text-akiba-teal" />
-                  <p>Your Miles transaction is processing. This page updates automatically.</p>
+                  {processingTerminal
+                    ? <AlertTriangle className="h-5 w-5 text-amber-600" />
+                    : <Loader2 className="h-5 w-5 animate-spin text-akiba-teal" />}
+                  {!processingTerminal && (
+                    <p>Your Miles transaction is processing. This page updates automatically.</p>
+                  )}
                   {processingError && <p className="text-red-600">{processingError}</p>}
                 </div>
               ) : (

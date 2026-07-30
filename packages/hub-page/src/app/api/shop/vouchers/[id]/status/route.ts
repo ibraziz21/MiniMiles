@@ -30,7 +30,7 @@ export async function GET(
   const [{ data: voucher }, { data: intent }] = await Promise.all([
     admin
       .from("issued_vouchers")
-      .select("id, status, burn_tx_hash")
+      .select("id, status, burn_tx_hash, recovery_state")
       .eq("id", id)
       .maybeSingle(),
     admin
@@ -51,6 +51,7 @@ export async function GET(
       failure_code: intent?.failure_code ?? null,
       failure_reason: intent?.failure_reason ?? null,
       tx_hash: intent?.submitted_tx_hash ?? voucher.burn_tx_hash ?? null,
+      recovery_state: voucher.recovery_state ?? null,
     },
     { headers: { "Cache-Control": "no-store" } },
   );

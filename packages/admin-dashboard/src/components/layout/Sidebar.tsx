@@ -64,6 +64,7 @@ const navSections: Array<{ label: string; items: NavItem[] }> = [
     label: "Operations",
     items: [
       { href: "/merchants", label: "Merchants", icon: Store },
+      { href: "/directory-reviews", label: "Profile Reviews", icon: ClipboardCheck },
       { href: "/leads", label: "Leads", icon: Inbox },
       { href: "/orders", label: "Orders", icon: ShoppingBag },
       { href: "/fulfillment", label: "Fulfilment", icon: PackageCheck },

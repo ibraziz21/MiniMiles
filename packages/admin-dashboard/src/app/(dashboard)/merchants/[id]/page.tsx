@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { MerchantControls } from "@/components/merchants/MerchantControls";
 import { AddMerchantNote } from "@/components/merchants/AddMerchantNote";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
 
 async function getMerchantDetail(id: string) {
   const [partnerRes, settingsRes, ordersRes, productsRes, vouchersRes, teamRes, notesRes] = await Promise.all([
@@ -66,6 +66,16 @@ export default async function MerchantDetailPage({ params }: { params: { id: str
           <ArrowLeft className="h-3.5 w-3.5" />
           Back to merchants
         </Link>
+
+        {settings?.directory_status && (
+          <Link
+            href={`/directory-reviews/${params.id}`}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[#238D9D]/30 bg-[#238D9D]/5 px-3 py-2 text-sm font-medium text-[#176B78] hover:bg-[#238D9D]/10"
+          >
+            <ShieldCheck className="h-4 w-4" />
+            Review public profile · {String(settings.directory_status).replaceAll("_", " ")}
+          </Link>
+        )}
 
         {/* Summary */}
         <div className="grid gap-4 sm:grid-cols-3">
