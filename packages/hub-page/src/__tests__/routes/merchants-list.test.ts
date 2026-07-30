@@ -21,6 +21,22 @@ vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({ from: mockFrom, rpc: mockRpc }),
 }));
 
+// Enrichment (top offers, MerchantValueCard mapping, signed-in balance) is
+// covered by its own unit tests (lib/merchants/enrich.test.ts) — mocked here
+// so this route test only exercises param handling/dispatch/error-shape,
+// and doesn't need to also stub resolveHubProfile/getUserBalance.
+vi.mock("@/lib/merchants/enrich", () => ({
+  getTopOffers: async () => ({}),
+  getSignedInBalance: async () => null,
+  toMerchantValueSummary: (
+    m: { id: string },
+    _offer: unknown,
+    _balance: unknown,
+    _intentLabel: unknown,
+    voucherCount?: number
+  ) => ({ id: m.id, voucherCount, reasons: [] }),
+}));
+
 function setupAdmin() {
   mockRpc.mockImplementation((name: string, args: Record<string, unknown>) => {
     if (name === "list_public_merchants") {

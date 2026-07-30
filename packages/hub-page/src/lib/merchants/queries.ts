@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { expandQueryAlias } from "./aliases";
 import type {
   MerchantDirectoryResponse,
   PublicMerchantDetail,
@@ -169,11 +170,15 @@ export async function listPublicMerchants(
   const nearby = params.lat != null && params.lng != null;
   const scope = cursorScope(params);
   const cursorToken = decodeCursor(params.cursor, scope);
+  // Controlled alias expansion (spec §8.1) — applied only to the RPC's
+  // query text, not to cursor scoping/`applied.category`/etc, which stay
+  // keyed on what the caller actually asked for.
+  const expandedQ = params.q ? expandQueryAlias(params.q) : params.q;
 
   // Over-fetch by one row so "is there a next page" doesn't depend on the
   // fragile "page came back full" heuristic.
   const { data, error } = await admin.rpc("list_public_merchants", {
-    p_q: params.q ?? null,
+    p_q: expandedQ ?? null,
     p_category: params.category ?? null,
     p_city: params.city ?? null,
     p_lat: params.lat ?? null,

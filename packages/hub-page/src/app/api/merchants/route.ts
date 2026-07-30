@@ -5,6 +5,7 @@ import {
   getCanonicalVoucherCounts,
   InvalidMerchantCursorError,
 } from "@/lib/merchants/queries";
+import { getTopOffers, toMerchantValueSummary, getSignedInBalance } from "@/lib/merchants/enrich";
 
 // A live-inventory directory (publish state, open/closed, voucher
 // availability) must never be served from a stale static/ISR cache —
@@ -66,28 +67,35 @@ export async function GET(request: Request) {
   try {
     const result = await listPublicMerchants({ q, category, city, lat, lng, radiusKm, mode, cursor, limit });
 
-    // Canonical voucher-count parity (§6): replace the RPC's naive
+    // Canonical voucher-count parity + strongest-offer summary
+    // (home-redesign-spec.md §7/§15 Phase 2): replace the RPC's naive
     // active+unexpired `voucher_count` with the same availability rule
-    // used by `/vouchers` and the merchant detail page — one shared
-    // availability call per page, personalized only when signed in. Since
-    // this route is `force-dynamic`, a signed-in user's cooldown never
-    // leaks into a cached anonymous response.
-    if (result.merchants.length > 0) {
-      const supabase = await createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const counts = await getCanonicalVoucherCounts(
-        result.merchants.map((m) => m.id),
-        user?.id ?? null
-      );
-      result.merchants = result.merchants.map((m) => ({
-        ...m,
-        voucherCount: counts[m.id] ?? 0,
-      }));
+    // used by `/vouchers` and the merchant detail page, and enrich each
+    // result into the shared MerchantValueCard shape (top offer, reasons,
+    // Miles-affordability when signed in). One shared availability/offer
+    // call per page. Since this route is `force-dynamic`, a signed-in
+    // user's cooldown/balance never leaks into a cached anonymous response.
+    if (result.merchants.length === 0) {
+      return NextResponse.json({ ...result, merchants: [] });
     }
 
-    return NextResponse.json(result);
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const partnerIds = result.merchants.map((m) => m.id);
+
+    const [counts, offers, balance] = await Promise.all([
+      getCanonicalVoucherCounts(partnerIds, user?.id ?? null),
+      getTopOffers(partnerIds, user?.id ?? null),
+      getSignedInBalance(user?.id ?? null, user?.email ?? null),
+    ]);
+
+    const merchants = result.merchants.map((m) =>
+      toMerchantValueSummary(m, offers[m.id], balance, q ?? null, counts[m.id] ?? 0)
+    );
+
+    return NextResponse.json({ ...result, merchants });
   } catch (error) {
     if (error instanceof InvalidMerchantCursorError) {
       return NextResponse.json({ error: "invalid_cursor" }, { status: 400 });

@@ -273,7 +273,9 @@ export function CartDrawer({ open, onClose }: { open: boolean; onClose: () => vo
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    // z-[60]: above the mobile BottomNav/PassFab (both z-50) — a modal must
+    // never render underneath persistent nav chrome.
+    <div className="fixed inset-0 z-[60] flex justify-end">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={step === "cart" ? resetAndClose : undefined} />
 
       <div className="relative flex h-full w-full max-w-md flex-col bg-white shadow-2xl">

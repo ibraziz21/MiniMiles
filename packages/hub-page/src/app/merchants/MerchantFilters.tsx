@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Search, Store, MapPin, X, LocateFixed, Globe, RefreshCw, Loader2 } from "lucide-react";
 import clsx from "clsx";
-import { MerchantCard } from "@/components/merchants/MerchantCard";
+import { MerchantValueCard } from "@/components/home/MerchantValueCard";
 import { track } from "@/lib/analytics/track";
-import type { PublicMerchantSummary } from "@/lib/merchants/types";
+import type { MerchantValueSummary } from "@/lib/home/types";
 
 type Category = { slug: string; name: string };
 type Mode = "all" | "physical" | "online";
@@ -33,7 +33,7 @@ export function MerchantFilters({
   cities,
   initialFilters,
 }: {
-  initialMerchants: PublicMerchantSummary[];
+  initialMerchants: MerchantValueSummary[];
   initialNextCursor: string | null;
   categories: Category[];
   cities: string[];
@@ -69,7 +69,7 @@ export function MerchantFilters({
       if (cursor) params.set("cursor", cursor);
       const res = await fetch(`/api/merchants?${params.toString()}`);
       if (!res.ok) throw new Error("directory_unavailable");
-      return (await res.json()) as { merchants: PublicMerchantSummary[]; next_cursor: string | null };
+      return (await res.json()) as { merchants: MerchantValueSummary[]; next_cursor: string | null };
     },
     []
   );
@@ -287,8 +287,15 @@ export function MerchantFilters({
       ) : (
         <>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {merchants.map((m) => (
-              <MerchantCard key={m.id} merchant={m} />
+            {merchants.map((m, i) => (
+              <MerchantValueCard
+                key={m.id}
+                merchant={m}
+                sectionId="directory"
+                position={i}
+                event="merchant_directory_card_tap"
+                eventProps={{ merchant_id: m.id, position: i, reason_kinds: m.reasons.map((r) => r.kind) }}
+              />
             ))}
           </div>
           {nextCursor && (
