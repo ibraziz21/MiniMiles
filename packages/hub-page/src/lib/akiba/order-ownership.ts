@@ -1,15 +1,21 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
- * All wallet addresses linked to a hub user, lowercased. Order ownership
- * checks must consider every linked wallet, not just the first — a user can
- * have placed an order under any of them.
+ * Verified wallet addresses linked to a hub user, lowercased. Order
+ * ownership checks must consider every verified linked wallet, not just the
+ * first — a user can have placed an order under any of them. A
+ * `legacy_unverified` wallet cannot authorize order access
+ * (production-readiness-security-spec.md §3.6, §6.2).
  */
 export async function getOwnedAddresses(
   admin: ReturnType<typeof createAdminClient>,
   userId: string
 ): Promise<string[]> {
-  const { data } = await admin.from("hub_user_wallets").select("address").eq("user_id", userId);
+  const { data } = await admin
+    .from("hub_user_wallets")
+    .select("address")
+    .eq("user_id", userId)
+    .eq("verification_status", "verified");
   return (data ?? []).map((r: { address: string }) => r.address.toLowerCase());
 }
 

@@ -18,9 +18,11 @@ type Props = {
     slug: string;
     name: string;
   };
+  /** Tighter sizing for dense grids (e.g. the merchant page's paginated product grid). */
+  compact?: boolean;
 };
 
-export function AddToCart({ product, merchant }: Props) {
+export function AddToCart({ product, merchant, compact = false }: Props) {
   const { add, confirmSwitch, merchantName } = useCart();
   const [state, setState] = useState<"idle" | "confirm" | "added">("idle");
 
@@ -81,14 +83,25 @@ export function AddToCart({ product, merchant }: Props) {
   }
 
   if (state === "added") {
-    return (
+    return compact ? (
+      <button disabled className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg bg-green-500 py-1.5 text-xs font-semibold text-white">
+        <CheckCircle2 className="h-3.5 w-3.5" /> Added
+      </button>
+    ) : (
       <button disabled className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-green-500 py-2.5 text-sm font-semibold text-white">
         <CheckCircle2 className="h-4 w-4" /> Added to cart
       </button>
     );
   }
 
-  return (
+  return compact ? (
+    <button
+      onClick={handleAdd}
+      className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg bg-akiba-ink py-1.5 text-xs font-semibold text-white transition hover:bg-akiba-teal"
+    >
+      <Plus className="h-3.5 w-3.5" /> Add
+    </button>
+  ) : (
     <button
       onClick={handleAdd}
       className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-akiba-ink py-2.5 text-sm font-semibold text-white transition hover:bg-akiba-teal"

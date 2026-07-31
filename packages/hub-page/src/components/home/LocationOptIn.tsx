@@ -59,8 +59,8 @@ export function LocationOptIn({ cities }: { cities: string[] }) {
   if (status === "denied" || status === "unavailable") {
     if (cities.length === 0) return null;
     return (
-      <section className="mb-5" aria-live="polite">
-        <h2 className="mb-2.5 text-sm font-semibold uppercase tracking-wide text-akiba-muted">Browse by city</h2>
+      <section className="mb-4" aria-live="polite">
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-akiba-muted">Browse by city</h2>
         <div className="flex flex-wrap gap-2">
           {cities.slice(0, 6).map((city) => (
             <a
@@ -77,13 +77,13 @@ export function LocationOptIn({ cities }: { cities: string[] }) {
   }
 
   return (
-    <section className="mb-5 rounded-2xl border border-akiba-line bg-white p-4">
+    <section className="mb-4 rounded-2xl border border-akiba-line bg-white p-3.5">
       <p className="font-semibold text-akiba-ink">Find value near you</p>
       <p className="mt-1 text-sm text-akiba-muted">Use your location to compare nearby Akiba merchants.</p>
       <button
         onClick={handleUseLocation}
         disabled={status === "locating"}
-        className="mt-3 flex items-center gap-2 rounded-full bg-akiba-teal px-4 py-2 text-sm font-semibold text-white transition active:scale-[0.98] disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-ink"
+        className="mt-2.5 flex items-center gap-2 rounded-full bg-akiba-teal px-4 py-2 text-sm font-semibold text-white transition active:scale-[0.98] disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-ink"
       >
         <LocateFixed className="h-4 w-4" />
         {status === "locating" ? "Locating…" : "Use my location"}

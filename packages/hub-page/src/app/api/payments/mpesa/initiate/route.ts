@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { stkPush, normalizePhone, USD_TO_KES, isMpesaConfigured } from "@/lib/mpesa";
+import { mpesaInitiationFlag } from "@/lib/featureFlags.server";
 
 export async function POST(req: NextRequest) {
-  if (!isMpesaConfigured()) {
+  if (!isMpesaConfigured() || !mpesaInitiationFlag().enabled) {
     return NextResponse.json({ error: "M-Pesa not configured" }, { status: 503 });
   }
 

@@ -13,7 +13,7 @@ export function MerchantRail({ section, seeAllHref }: { section: HomeFeedSection
   if (section.merchants.length === 0) return null;
 
   return (
-    <section className="mb-5" aria-label={section.title}>
+    <section className="mb-4" aria-label={section.title}>
       <SectionViewTracker sectionId={section.id} personalized={section.personalized} />
       <div className="mb-2.5 flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-akiba-muted">{section.title}</h2>

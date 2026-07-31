@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { Search, Store, MapPin, X, LocateFixed, Globe, RefreshCw, Loader2 } from "lucide-react";
+import { Search, Store, MapPin, X, LocateFixed, Globe, RefreshCw, Loader2, SlidersHorizontal } from "lucide-react";
 import clsx from "clsx";
 import { MerchantValueCard } from "@/components/home/MerchantValueCard";
 import { track } from "@/lib/analytics/track";
@@ -176,91 +176,94 @@ export function MerchantFilters({
   }, [filters.q]);
 
   const hasFilter = filters.q || filters.category || filters.city || filters.mode !== "all" || nearMe;
+  const activeFilterCount =
+    (filters.mode !== "all" ? 1 : 0) + (filters.city ? 1 : 0) + (filters.category ? 1 : 0);
 
   function clearAll() {
     setFilters({ q: "", category: "", city: "", mode: "all" });
     setNearMe(null);
   }
 
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const hasSheetFilters = cities.length > 1 || categories.length > 0;
+
   return (
     <div>
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-akiba-muted" />
-          <input
-            type="text"
-            aria-label="Search merchants, categories, cities"
-            placeholder="Search merchants, categories, cities…"
-            value={filters.q}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-xl border border-akiba-line bg-white py-2.5 pl-9 pr-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus:border-akiba-teal"
-          />
-          {filters.q && (
+      {/* One compact, always-visible row — search, near-me, and everything
+          else (mode/city/category) tucked behind "Filters" so the page
+          doesn't need scrolling just to get past the controls. */}
+      <div className="sticky top-16 z-30 -mx-4 border-b border-akiba-line bg-akiba-paper/95 px-4 py-3 backdrop-blur-sm">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-akiba-muted" />
+            <input
+              type="text"
+              aria-label="Search merchants, categories, cities"
+              placeholder="Search merchants…"
+              value={filters.q}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-xl border border-akiba-line bg-white py-2.5 pl-9 pr-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus:border-akiba-teal"
+            />
+            {filters.q && (
+              <button
+                aria-label="Clear search"
+                onClick={() => setSearch("")}
+                className="absolute right-3 top-2.5 text-akiba-muted hover:text-akiba-ink focus-visible:ring-2 focus-visible:ring-akiba-teal"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          <button
+            onClick={handleNearMe}
+            aria-label="Use my location"
+            aria-pressed={!!nearMe}
+            className={clsx(
+              "flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl border transition focus-visible:ring-2 focus-visible:ring-akiba-teal",
+              nearMe
+                ? "border-akiba-teal bg-akiba-teal text-white"
+                : "border-akiba-line bg-white text-akiba-ink hover:border-akiba-teal/40"
+            )}
+          >
+            {nearMeStatus === "locating" ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
+          </button>
+
+          {hasSheetFilters && (
             <button
-              aria-label="Clear search"
-              onClick={() => setSearch("")}
-              className="absolute right-3 top-2.5 text-akiba-muted hover:text-akiba-ink focus-visible:ring-2 focus-visible:ring-akiba-teal"
+              onClick={() => setSheetOpen(true)}
+              className="relative flex h-[42px] shrink-0 items-center gap-1.5 rounded-xl border border-akiba-line bg-white px-3.5 text-sm font-semibold text-akiba-ink transition hover:border-akiba-teal/40 focus-visible:ring-2 focus-visible:ring-akiba-teal"
             >
-              <X className="h-4 w-4" />
+              <SlidersHorizontal className="h-4 w-4" /> Filters
+              {activeFilterCount > 0 && (
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-akiba-teal text-[10px] font-bold text-white">
+                  {activeFilterCount}
+                </span>
+              )}
             </button>
           )}
         </div>
-        <button
-          onClick={handleNearMe}
-          aria-pressed={!!nearMe}
-          className={clsx(
-            "flex items-center justify-center gap-1.5 rounded-xl border px-4 py-2.5 text-sm font-semibold transition focus-visible:ring-2 focus-visible:ring-akiba-teal",
-            nearMe
-              ? "border-akiba-teal bg-akiba-teal text-white"
-              : "border-akiba-line bg-white text-akiba-ink hover:border-akiba-teal/40"
-          )}
-        >
-          <LocateFixed className="h-4 w-4" />
-          {nearMeStatus === "locating" ? "Locating…" : nearMe ? "Near me on" : "Near me"}
-        </button>
+
+        {nearMeStatus === "denied" && (
+          <p className="mt-2 text-xs text-akiba-muted" role="status">
+            Location permission was denied — you can still browse by category and city.
+          </p>
+        )}
       </div>
 
-      {nearMeStatus === "denied" && (
-        <p className="mb-4 text-xs text-akiba-muted" role="status">
-          Location permission was denied — you can still browse by category and city.
-        </p>
-      )}
+      <FiltersSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        filters={filters}
+        setMode={setMode}
+        setCity={setCity}
+        setCategory={setCategory}
+        cities={cities}
+        categories={categories}
+        onClearAll={clearAll}
+      />
 
-      {/* Operating-model filter */}
-      <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Filter by operating model">
-        {([
-          { value: "all", label: "All", icon: <Store className="h-3 w-3" /> },
-          { value: "physical", label: "In store", icon: <Store className="h-3 w-3" /> },
-          { value: "online", label: "Online", icon: <Globe className="h-3 w-3" /> },
-        ] as const).map((opt) => (
-          <FilterChip
-            key={opt.value}
-            label={opt.label}
-            icon={opt.icon}
-            active={filters.mode === opt.value}
-            onClick={() => setMode(opt.value)}
-          />
-        ))}
-      </div>
-
-      {cities.length > 1 && (
-        <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Filter by city">
-          <FilterChip label="All cities" icon={<MapPin className="h-3 w-3" />} active={!filters.city} onClick={() => setCity("")} />
-          {cities.map((c) => (
-            <FilterChip key={c} label={c} icon={<MapPin className="h-3 w-3" />} active={filters.city === c} onClick={() => setCity(filters.city === c ? "" : c)} />
-          ))}
-        </div>
-      )}
-
-      {categories.length > 0 && (
-        <div className="mb-6 flex flex-wrap gap-2" role="group" aria-label="Filter by category">
-          <FilterChip label="All categories" icon={<Store className="h-3 w-3" />} active={!filters.category} onClick={() => setCategory("")} />
-          {categories.map((c) => (
-            <FilterChip key={c.slug} label={c.name} active={filters.category === c.slug} onClick={() => setCategory(filters.category === c.slug ? "" : c.slug)} />
-          ))}
-        </div>
-      )}
-
+      <div className="pt-4">
       {error ? (
         <div className="flex flex-col items-center rounded-2xl border border-dashed border-akiba-line bg-white py-14 text-center">
           <Store className="mb-3 h-10 w-10 text-akiba-line" />
@@ -286,7 +289,7 @@ export function MerchantFilters({
         </div>
       ) : (
         <>
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
             {merchants.map((m, i) => (
               <MerchantValueCard
                 key={m.id}
@@ -312,13 +315,120 @@ export function MerchantFilters({
           )}
         </>
       )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Mode/city/category live here instead of inline chip rows — with a full
+ * category taxonomy (a dozen-plus categories) plus every directory city,
+ * showing them all inline was the "too many categories" clutter problem.
+ * A sheet keeps the persistent page chrome to one compact row.
+ */
+function FiltersSheet({
+  open,
+  onClose,
+  filters,
+  setMode,
+  setCity,
+  setCategory,
+  cities,
+  categories,
+  onClearAll,
+}: {
+  open: boolean;
+  onClose: () => void;
+  filters: Filters;
+  setMode: (m: Mode) => void;
+  setCity: (c: string) => void;
+  setCategory: (c: string) => void;
+  cities: string[];
+  categories: Category[];
+  onClearAll: () => void;
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
+      <div className="relative max-h-[85vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:max-w-md sm:rounded-3xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-sterling text-lg font-semibold text-akiba-ink">Filters</h2>
+          <button
+            onClick={onClose}
+            aria-label="Close filters"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-akiba-muted hover:bg-akiba-card hover:text-akiba-ink focus-visible:ring-2 focus-visible:ring-akiba-teal"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mb-5">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-akiba-muted">Where</p>
+          <div className="flex gap-2" role="group" aria-label="Filter by operating model">
+            {([
+              { value: "all", label: "All", icon: <Store className="h-3 w-3" /> },
+              { value: "physical", label: "In store", icon: <Store className="h-3 w-3" /> },
+              { value: "online", label: "Online", icon: <Globe className="h-3 w-3" /> },
+            ] as const).map((opt) => (
+              <FilterChip
+                key={opt.value}
+                label={opt.label}
+                icon={opt.icon}
+                active={filters.mode === opt.value}
+                onClick={() => setMode(opt.value)}
+              />
+            ))}
+          </div>
+        </div>
+
+        {cities.length > 1 && (
+          <div className="mb-5">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-akiba-muted">City</p>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by city">
+              <FilterChip label="All cities" icon={<MapPin className="h-3 w-3" />} active={!filters.city} onClick={() => setCity("")} />
+              {cities.map((c) => (
+                <FilterChip key={c} label={c} icon={<MapPin className="h-3 w-3" />} active={filters.city === c} onClick={() => setCity(filters.city === c ? "" : c)} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {categories.length > 0 && (
+          <div className="mb-5">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-akiba-muted">Category</p>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by category">
+              <FilterChip label="All categories" icon={<Store className="h-3 w-3" />} active={!filters.category} onClick={() => setCategory("")} />
+              {categories.map((c) => (
+                <FilterChip key={c.slug} label={c.name} active={filters.category === c.slug} onClick={() => setCategory(filters.category === c.slug ? "" : c.slug)} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={onClearAll}
+            className="flex-1 rounded-full border border-akiba-line py-2.5 text-sm font-semibold text-akiba-ink transition hover:border-akiba-teal/40 focus-visible:ring-2 focus-visible:ring-akiba-teal"
+          >
+            Clear all
+          </button>
+          <button
+            onClick={onClose}
+            className="flex-1 rounded-full bg-akiba-teal py-2.5 text-sm font-semibold text-white transition hover:bg-[#1E7E8D] focus-visible:ring-2 focus-visible:ring-akiba-ink"
+          >
+            Show results
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
 function SkeletonGrid() {
   return (
-    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label="Loading merchants">
+    <div className="grid gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3" aria-busy="true" aria-label="Loading merchants">
       {Array.from({ length: 6 }).map((_, i) => (
         <div key={i} className="h-64 animate-pulse rounded-2xl border border-akiba-line bg-akiba-card" />
       ))}
@@ -332,7 +442,7 @@ function FilterChip({ label, icon, active, onClick }: { label: string; icon?: Re
       onClick={onClick}
       aria-pressed={active}
       className={clsx(
-        "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition focus-visible:ring-2 focus-visible:ring-akiba-teal",
+        "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition focus-visible:ring-2 focus-visible:ring-akiba-teal",
         active
           ? "border-akiba-teal bg-akiba-teal text-white"
           : "border-akiba-line bg-white text-akiba-muted hover:border-akiba-teal/40 hover:text-akiba-ink"

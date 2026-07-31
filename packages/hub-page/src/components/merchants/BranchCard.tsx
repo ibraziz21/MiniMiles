@@ -33,14 +33,14 @@ export function BranchCard({ location }: { location: PublicMerchantLocation }) {
           href={buildDirectionsUrl(location)}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1.5 rounded-full border border-akiba-line px-3 py-1.5 text-xs font-semibold text-akiba-ink hover:border-akiba-teal/40"
+          className="flex items-center gap-1.5 rounded-full border border-akiba-line px-3.5 py-2 text-xs font-semibold text-akiba-ink transition hover:border-akiba-teal/40 active:scale-95"
         >
           <Navigation className="h-3.5 w-3.5" /> Directions
         </a>
         {location.publicPhone && (
           <a
             href={`tel:${location.publicPhone}`}
-            className="flex items-center gap-1.5 rounded-full border border-akiba-line px-3 py-1.5 text-xs font-semibold text-akiba-ink hover:border-akiba-teal/40"
+            className="flex items-center gap-1.5 rounded-full border border-akiba-line px-3.5 py-2 text-xs font-semibold text-akiba-ink transition hover:border-akiba-teal/40 active:scale-95"
           >
             <Phone className="h-3.5 w-3.5" /> Call
           </a>
@@ -50,7 +50,7 @@ export function BranchCard({ location }: { location: PublicMerchantLocation }) {
             href={`https://wa.me/${location.publicWhatsapp.replace(/[^\d]/g, "")}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 rounded-full border border-akiba-line px-3 py-1.5 text-xs font-semibold text-akiba-ink hover:border-akiba-teal/40"
+            className="flex items-center gap-1.5 rounded-full border border-akiba-line px-3.5 py-2 text-xs font-semibold text-akiba-ink transition hover:border-akiba-teal/40 active:scale-95"
           >
             <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
           </a>

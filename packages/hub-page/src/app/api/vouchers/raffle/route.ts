@@ -44,15 +44,17 @@ export async function POST(req: NextRequest) {
   const contract = sourceConfig.contract_address as string | null;
   const campaign = sourceConfig.campaign_id as string | null;
 
-  // Load user wallets
+  // Load user wallets — only verified wallets authorize a reward claim
+  // (production-readiness-security-spec.md §3.6, §8.1).
   const { data: walletRows } = await admin
     .from("hub_user_wallets")
     .select("address")
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .eq("verification_status", "verified");
   const allAddresses = (walletRows ?? []).map((r: { address: string }) => r.address.toLowerCase());
 
   if (allAddresses.length === 0) {
-    return NextResponse.json({ error: "No linked wallet — connect a wallet to claim wins" }, { status: 400 });
+    return NextResponse.json({ error: "No verified wallet — link and verify a wallet to claim wins" }, { status: 400 });
   }
 
   // Look up confirmed winner in raffle_winners (populated by trusted indexer)

@@ -66,10 +66,11 @@ export async function POST(request: Request) {
     .select("address")
     .eq("user_id", user.id)
     .eq("address", user_address.toLowerCase())
+    .eq("verification_status", "verified")
     .maybeSingle();
 
   if (!wallet) {
-    return NextResponse.json({ error: "Wallet not linked to your account" }, { status: 403 });
+    return NextResponse.json({ error: "Wallet not linked or not verified for your account" }, { status: 403 });
   }
 
   // ── Signature verification (message includes nonce + timestamp) ──────────────

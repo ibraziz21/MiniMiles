@@ -17,7 +17,7 @@ export function VoucherCard({
     : null;
 
   return (
-    <div className="rounded-xl bg-akiba-card p-3">
+    <div className="rounded-xl bg-akiba-card p-3.5">
       <div className="flex items-start gap-3">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-akiba-teal/10">
           <Tag className="h-4 w-4 text-akiba-teal" />

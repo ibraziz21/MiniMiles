@@ -49,10 +49,15 @@ export async function syncWalletsFromUsersTable(
     // Use the most recent address for the minipay slot; skip the rest if taken.
     if (hasMinipaySlot) break;
 
+    // Auto-imported from a legacy `users` row matched by email — not
+    // signature-proven, so it must land as legacy_unverified, never
+    // verified (production-readiness-security-spec.md §3.4, §3.6).
+    // ignoreDuplicates:true means an existing (verified or not) row for
+    // this ecosystem is left untouched on conflict.
     const { error } = await admin
       .from("hub_user_wallets")
       .upsert(
-        { user_id: authUserId, ecosystem: "minipay", address },
+        { user_id: authUserId, ecosystem: "minipay", address, verification_status: "legacy_unverified" },
         { onConflict: "user_id,ecosystem", ignoreDuplicates: true }
       );
 

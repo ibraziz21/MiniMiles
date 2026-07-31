@@ -23,10 +23,10 @@ export function WalletPickerModal({ options }: { options: WalletOption[] }) {
     setSaving(true);
     setError(null);
 
-    const res = await fetch("/api/me/wallets", {
+    const res = await fetch("/api/me/wallets/select-legacy", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ecosystem: "minipay", address: chosen }),
+      body: JSON.stringify({ address: chosen }),
     });
 
     if (!res.ok) {

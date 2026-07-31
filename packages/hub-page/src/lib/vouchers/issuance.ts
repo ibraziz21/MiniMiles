@@ -66,7 +66,8 @@ export async function issueVoucher(
   const { data: linkedWallets, error: walletsErr } = await admin
     .from("hub_user_wallets")
     .select("address")
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .eq("verification_status", "verified");
   if (walletsErr) {
     return { ok: false, error: "Could not resolve linked wallets", httpStatus: 503 };
   }

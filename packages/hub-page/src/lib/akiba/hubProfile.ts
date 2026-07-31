@@ -54,8 +54,16 @@ export async function resolveHubProfile(opts: {
 
   if (!activeRow && rows.length === 1) {
     activeRow = rows[0];
+    // Auto-linked from a legacy `users` row, not signature-proven — must
+    // land as legacy_unverified (production-readiness-security-spec.md
+    // §3.4). ignoreDuplicates:true leaves an existing row untouched.
     const { data: linkedWallet } = await admin.from("hub_user_wallets").upsert(
-      { user_id: userId, ecosystem: "minipay", address: activeRow.user_address.toLowerCase() },
+      {
+        user_id: userId,
+        ecosystem: "minipay",
+        address: activeRow.user_address.toLowerCase(),
+        verification_status: "legacy_unverified",
+      },
       { onConflict: "user_id,ecosystem", ignoreDuplicates: true },
     ).select("user_id").maybeSingle();
 

@@ -16,9 +16,11 @@ vi.mock("@/lib/supabase/server", () => ({
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     from: () => ({
-      select: () => ({
-        eq: async () => ({ data: [{ address: "0xABC" }], error: null }),
-      }),
+      select: () => {
+        const result = Promise.resolve({ data: [{ address: "0xABC" }], error: null });
+        const chain = Object.assign(result, { eq: () => chain });
+        return chain;
+      },
     }),
     rpc: state.rpc,
   }),

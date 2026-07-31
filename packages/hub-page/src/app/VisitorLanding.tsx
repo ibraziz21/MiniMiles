@@ -20,16 +20,16 @@ export async function VisitorLanding() {
   const limitedTime = feed.sections.find((s) => s.id === "limited_time") ?? null;
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-5 sm:py-8">
+    <main className="mx-auto max-w-2xl px-4 pt-4 pb-2 sm:pt-8 sm:pb-4">
       <HomeViewTracker variant="visitor" />
 
-      <div className="mb-5">
+      <div className="mb-4">
         <h1 className="font-sterling text-2xl font-semibold text-akiba-ink">
           Find the best place to buy what you need.
         </h1>
       </div>
 
-      <div className="mb-5">
+      <div className="mb-4">
         <HomeIntentSearch placeholder="Search merchants or what you need…" />
       </div>
 
@@ -40,18 +40,6 @@ export async function VisitorLanding() {
       <LocationOptIn cities={cities} />
 
       {limitedTime && <MerchantRail section={limitedTime} seeAllHref="/vouchers" />}
-
-      <section className="mt-2 flex items-center justify-between rounded-2xl border border-akiba-line bg-akiba-tint px-4 py-3.5">
-        <p className="text-sm text-akiba-ink">
-          Sign up for <span className="font-semibold">Miles</span>, vouchers, and personalized picks.
-        </p>
-        <a
-          href="/login?next=/welcome"
-          className="shrink-0 rounded-full bg-akiba-teal px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1E7E8D]"
-        >
-          Get Akiba Pass
-        </a>
-      </section>
     </main>
   );
 }

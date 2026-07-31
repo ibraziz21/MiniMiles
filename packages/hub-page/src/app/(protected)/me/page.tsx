@@ -11,8 +11,10 @@ import { getRecentActivity } from "@/lib/akiba/activity";
 import { getUserBalance } from "@/lib/akiba/balance";
 import { resolveHubProfile } from "@/lib/akiba/hubProfile";
 import { getOrCreatePass } from "@/lib/akiba/pass";
-import { ArrowUpRight, MapPin, Tag } from "lucide-react";
+import { ArrowUpRight, Tag } from "lucide-react";
 import { MilesIcon } from "@/components/MilesIcon";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { CountryEditor } from "./CountryEditor";
 
 export const metadata = { title: "My Profile — Akiba Pass" };
 
@@ -52,6 +54,16 @@ export default async function MePage() {
     email: user.email ?? null,
     limit: 6,
   });
+
+  // Hub-native country (merchant-shopping-quests-spec.md §5 "Country") —
+  // prefilled from the legacy wallet-row country when unset, but this table
+  // is the quest verifier of record.
+  const { data: hubProfile } = await createAdminClient()
+    .from("hub_user_profiles")
+    .select("country")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const hubCountry = hubProfile?.country ?? activeRow?.country ?? null;
 
   return (
     <>
@@ -148,15 +160,10 @@ export default async function MePage() {
           />
         </div>
 
-        {/* Profile chips — secondary info, desktop only */}
-        {activeRow && (activeRow.country || (activeRow.interests ?? []).length > 0) && (
-          <div className="mb-6 hidden flex-wrap gap-2 sm:flex">
-            {activeRow.country && (
-              <span className="flex items-center gap-1.5 rounded-full border border-akiba-line bg-akiba-card px-3 py-1 text-xs font-medium text-akiba-muted">
-                <MapPin className="h-3 w-3" /> {activeRow.country}
-              </span>
-            )}
-            {(activeRow.interests ?? []).map((interest: string) => (
+        {/* Profile chips — desktop only */}
+        <div className="mb-6 hidden flex-wrap gap-2 sm:flex">
+          <CountryEditor initialCountry={hubCountry} />
+          {activeRow && (activeRow.interests ?? []).map((interest: string) => (
               <span
                 key={interest}
                 className="flex items-center gap-1.5 rounded-full border border-akiba-teal/20 bg-akiba-tint px-3 py-1 text-xs font-medium text-akiba-teal"
@@ -164,8 +171,7 @@ export default async function MePage() {
                 <Tag className="h-3 w-3" /> {INTEREST_LABELS[interest] ?? interest}
               </span>
             ))}
-          </div>
-        )}
+        </div>
 
         {/* No wallet found */}
         {!walletAddress && !needsPicker && (

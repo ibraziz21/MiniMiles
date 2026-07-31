@@ -145,11 +145,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Merchant has no wallet configured" }, { status: 400 });
   }
 
-  // ── Resolve ALL linked wallet addresses  (#9 fix) ─────────────────────────
+  // ── Resolve ALL verified linked wallet addresses  (#9 fix; verification
+  // required per production-readiness-security-spec.md §3.6) ────────────────
   const { data: walletRows } = await admin
     .from("hub_user_wallets")
     .select("address")
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .eq("verification_status", "verified");
 
   const allAddresses = (walletRows ?? []).map((r: { address: string }) => r.address.toLowerCase());
   const primaryAddress = allAddresses[0] ?? (user.email ?? user.id);
@@ -748,11 +750,12 @@ export async function GET() {
 
   const admin = createAdminClient();
 
-  // Fetch ALL linked wallet addresses (#9 fix: not just the first one)
+  // Fetch ALL verified linked wallet addresses (#9 fix: not just the first one)
   const { data: walletRows } = await admin
     .from("hub_user_wallets")
     .select("address")
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .eq("verification_status", "verified");
 
   if (!walletRows || walletRows.length === 0) return NextResponse.json({ orders: [] });
 

@@ -77,11 +77,13 @@ function setupAdmin() {
     }
     if (table === "hub_user_wallets") {
       return {
-        select: () => ({
-          eq: () => ({
+        select: () => {
+          const node: { eq: () => typeof node; order: () => Promise<unknown> } = {
+            eq: () => node,
             order: async () => ({ data: state.wallets, error: null }),
-          }),
-        }),
+          };
+          return node;
+        },
       };
     }
     if (table === "minipoint_burn_jobs") {

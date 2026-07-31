@@ -68,13 +68,11 @@ function setupAdmin() {
       };
     }
     if (table === "hub_user_wallets") {
-      return {
-        select: () => ({
-          eq: () => ({
-            eq: () => terminal(state.linkedWallet),
-          }),
-        }),
-      };
+      const node: { eq: () => typeof node } & ReturnType<typeof terminal> = Object.assign(
+        terminal(state.linkedWallet),
+        { eq: () => node }
+      );
+      return { select: () => node };
     }
     if (table === "spend_voucher_templates") {
       return {

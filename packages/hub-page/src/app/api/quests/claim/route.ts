@@ -1,79 +1,85 @@
+// POST /api/quests/claim — merchant-shopping-quests-spec.md §6.
+// Replaces the previous quest_id -> MiniPay wallet -> Platform claim
+// contract. No wallet is required: ownership is resolved from the caller's
+// email + linked wallets, cross-checked against Hub's own quest-status
+// derivation before ever calling Platform, and Platform enforces the same
+// ownership check server-side against `identities` (see
+// hub-account-first-quest-claims-spec.md in the Akiba-Platform repo).
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { buildIdentities } from "@/lib/akiba/identities";
+import { getHubQuestStatuses } from "@/lib/akiba/questStatus";
+import { isHubQuestsEnabledFor } from "@/lib/akiba/hubQuestRollout";
 
 export async function POST(request: Request) {
-  // ── Auth ──────────────────────────────────────────────────────────────────
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const body = await request.json().catch(() => null) as Record<string, unknown> | null;
-  const quest_id = body?.quest_id;
-  if (typeof quest_id !== "string" || !quest_id) {
-    return NextResponse.json({ error: "quest_id is required" }, { status: 400 });
+  if (!isHubQuestsEnabledFor(user.email ?? user.id)) {
+    return NextResponse.json({ error: "Not available yet" }, { status: 403 });
   }
 
-  // ── MiniPay wallet resolution ──────────────────────────────────────────────
-  // Quests are claimed against a MiniPay wallet — the platform uses it to
-  // verify on-chain eligibility and allocate miles to the correct address.
-  const admin = createAdminClient();
-  const { data: wallets } = await admin
-    .from("hub_user_wallets")
-    .select("address, ecosystem")
-    .eq("user_id", user.id)
-    .eq("ecosystem", "minipay")
-    .order("linked_at", { ascending: false })
-    .limit(1);
-
-  if (!wallets || wallets.length === 0) {
-    return NextResponse.json(
-      { error: "Link a MiniPay wallet to claim quests." },
-      { status: 400 }
-    );
+  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  const rewardId = body?.rewardId;
+  if (typeof rewardId !== "string" || !rewardId) {
+    return NextResponse.json({ error: "rewardId is required" }, { status: 400 });
   }
 
-  const address = (wallets[0] as { address: string }).address.toLowerCase();
+  const email = user.email ?? null;
+  const identities = await buildIdentities({ userId: user.id, email });
 
-  // ── Akiba Platform claim ──────────────────────────────────────────────────
+  // Hub's own authoritative ownership check — never trust a client-supplied
+  // rewardId blindly. Only proceed if this reward surfaced as `claimable`
+  // for one of the caller's own quests.
+  const statuses = await getHubQuestStatuses({ hubUserId: user.id, email });
+  const owned = statuses.find((q) => q.rewardId === rewardId && q.state === "claimable");
+  if (!owned) {
+    return NextResponse.json({ error: "Reward not found or not claimable" }, { status: 403 });
+  }
+
   const api = process.env.AKIBA_API_URL;
   const key = process.env.AKIBA_API_KEY;
-
   if (!api || !key) {
     return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
   }
 
   let platformRes: Response;
   try {
-    platformRes = await fetch(`${api}/api/v1/hub/quests/${quest_id}/claim`, {
+    platformRes = await fetch(`${api}/api/v1/rewards/${rewardId}/claim`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${key}`,
+        Authorization: `Bearer ${key}`,
       },
-      body: JSON.stringify({
-        address,
-        ecosystem: "minipay",
-        user_id: user.id,
-      }),
+      body: JSON.stringify({ identities }),
     });
   } catch {
-    return NextResponse.json({ error: "Could not reach Akiba Platform" }, { status: 503 });
+    return NextResponse.json(
+      { state: "reward_failed", reason: "platform_unavailable" },
+      { status: 503 },
+    );
   }
 
-  const data = await platformRes.json().catch(() => ({})) as Record<string, unknown>;
+  const data = (await platformRes.json().catch(() => ({}))) as {
+    success?: boolean;
+    data?: { status?: string };
+    error?: { code?: string; message?: string };
+  };
 
-  if (!platformRes.ok) {
-    // 404 from Platform = claim endpoint not yet live for this quest.
-    if (platformRes.status === 404) {
-      return NextResponse.json(
-        { error: "This quest cannot be claimed directly yet. Check back soon." },
-        { status: 503 }
-      );
-    }
-    const msg = (data.error ?? data.message ?? "Claim failed") as string;
-    return NextResponse.json({ error: msg }, { status: platformRes.status });
+  if (!platformRes.ok || !data.success) {
+    return NextResponse.json(
+      {
+        state: "reward_failed",
+        reason: data.error?.code ?? `platform_${platformRes.status}`,
+        error: data.error?.message ?? "Claim failed",
+      },
+      { status: platformRes.status },
+    );
   }
 
-  return NextResponse.json(data, { status: 200 });
+  return NextResponse.json({
+    state: data.data?.status === "claimed" ? "completed" : "claimable",
+    miles: owned.miles,
+    rewardId,
+  });
 }

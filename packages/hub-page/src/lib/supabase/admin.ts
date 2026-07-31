@@ -1,9 +1,8 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { getServerEnv } from "@/lib/env.server";
 
 // Service-role client — server-side ONLY, never import in client components
 export function createAdminClient() {
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_KEY!
-  );
+  const env = getServerEnv();
+  return createSupabaseClient(env.supabase.url, env.supabase.serviceKey);
 }

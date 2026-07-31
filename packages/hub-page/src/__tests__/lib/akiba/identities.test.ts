@@ -10,9 +10,11 @@ let mockWallets: string[] = [];
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     from: () => ({
-      select: () => ({
-        eq: async () => ({ data: mockWallets.map((address) => ({ address })), error: null }),
-      }),
+      select: () => {
+        const result = Promise.resolve({ data: mockWallets.map((address) => ({ address })), error: null });
+        const chain = Object.assign(result, { eq: () => chain });
+        return chain;
+      },
     }),
   }),
 }));

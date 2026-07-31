@@ -26,17 +26,17 @@ export async function MemberHome({ user }: { user: User }) {
   const limitedTime = feed.sections.find((s) => s.id === "limited_time") ?? null;
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-5 sm:py-8">
+    <main className="mx-auto max-w-2xl px-4 pt-4 pb-2 sm:pt-8 sm:pb-4">
       <HomeViewTracker variant="member" />
 
-      <div className="mb-5">
+      <div className="mb-4">
         <h1 className="font-sterling text-2xl font-semibold text-akiba-ink">
           Welcome back, {firstName} 👋
         </h1>
         <p className="mt-1 text-akiba-muted">What are you looking for today?</p>
       </div>
 
-      <div className="mb-5">
+      <div className="mb-4">
         <HomeIntentSearch placeholder="Search merchants or what you need…" />
       </div>
 

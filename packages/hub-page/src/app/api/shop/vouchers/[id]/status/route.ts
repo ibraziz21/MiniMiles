@@ -18,7 +18,8 @@ export async function GET(
   const { data: walletRows } = await admin
     .from("hub_user_wallets")
     .select("address")
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .eq("verification_status", "verified");
   const addresses = (walletRows ?? []).map(
     (row: { address: string }) => row.address.toLowerCase(),
   );

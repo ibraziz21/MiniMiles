@@ -1,11 +1,18 @@
 "use client";
 
+// Retained for future paid partner inventory (merchant-shopping-quests-spec.md
+// §7) — not mounted while SHOW_PARTNER_QUESTS is false. handleClaim below
+// still posts the OLD { quest_id } contract to /api/quests/claim, which now
+// expects { rewardId } (see the account-first Hub claim route) — this must be
+// adapted to the same account-first status/reward ownership contract before
+// SHOW_PARTNER_QUESTS is ever re-enabled.
 import { useState } from "react";
 import { Clock, CheckCircle2, Loader2, ExternalLink, Wallet } from "lucide-react";
 import { MilesAmount } from "@/components/MilesIcon";
 import clsx from "clsx";
+import type { ChainMeta } from "./chainMeta";
 
-export type Quest = {
+export type PartnerQuest = {
   id: string;
   title: string;
   description: string;
@@ -18,14 +25,6 @@ export type Quest = {
   ends_at?: string;
   action_url?: string;
   completed?: boolean;
-};
-
-export type ChainMeta = {
-  label: string;
-  emoji: string;
-  badgeCls: string;
-  iconBg: string;
-  logoSrc: string | null;
 };
 
 type ClaimStatus = "idle" | "loading" | "success" | "error";
@@ -46,12 +45,12 @@ const DIFFICULTY_BADGE: Record<string, string> = {
   hard:   "bg-red-50 text-red-700",
 };
 
-export function QuestCard({
+export function PartnerQuestCard({
   quest: q,
   chainMeta: meta,
   isSignedIn,
 }: {
-  quest: Quest;
+  quest: PartnerQuest;
   chainMeta: ChainMeta;
   isSignedIn: boolean;
 }) {

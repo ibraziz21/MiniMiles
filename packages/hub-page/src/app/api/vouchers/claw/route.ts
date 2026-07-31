@@ -92,15 +92,17 @@ export async function POST(req: NextRequest) {
   // Default allowed classes: Common(2), Rare(3), Epic(4), Legendary(5)
   const allowedClasses  = (sourceConfig.allowed_reward_classes as number[] | null) ?? [2, 3, 4, 5];
 
-  // Load user wallets
+  // Load user wallets — only verified wallets authorize a reward claim
+  // (production-readiness-security-spec.md §3.6, §8.1).
   const { data: walletRows } = await admin
     .from("hub_user_wallets")
     .select("address")
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .eq("verification_status", "verified");
   const allAddresses = (walletRows ?? []).map((r: { address: string }) => r.address.toLowerCase());
 
   if (allAddresses.length === 0) {
-    return NextResponse.json({ error: "No linked wallet — connect a wallet to claim wins" }, { status: 400 });
+    return NextResponse.json({ error: "No verified wallet — link and verify a wallet to claim wins" }, { status: 400 });
   }
 
   // Verify on-chain session

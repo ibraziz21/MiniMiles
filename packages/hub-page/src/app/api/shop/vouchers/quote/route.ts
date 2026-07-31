@@ -57,6 +57,7 @@ export async function POST(request: Request) {
     .from("hub_user_wallets")
     .select("address, is_primary, linked_at")
     .eq("user_id", user.id)
+    .eq("verification_status", "verified")
     .order("linked_at", { ascending: false });
   const walletRows = (linkedWallets ?? []) as Array<{
     address: string;

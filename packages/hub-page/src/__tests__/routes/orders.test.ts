@@ -141,16 +141,16 @@ describe("POST /api/shop/orders — secondary-wallet voucher release", () => {
 
     // Build a thenable result for list-style Supabase queries (no .maybeSingle())
     const walletListResult = { data: wallets, error: null };
-    const walletEqResult = {
-      then: <T>(resolve: (v: typeof walletListResult) => T) =>
-        Promise.resolve(walletListResult).then(resolve),
+    const walletEqResult: { then: <T>(resolve: (v: typeof walletListResult) => T) => Promise<T>; eq: () => typeof walletEqResult } = {
+      then: (resolve) => Promise.resolve(walletListResult).then(resolve),
+      eq: () => walletEqResult,
     };
 
     fromImpl = (table) => {
       if (table === "merchant_products") return makeChain(PRODUCT);
       if (table === "partner_settings")  return makeChain(SETTINGS);
       if (table === "hub_user_wallets") {
-        // Route does: .select("address").eq("user_id", id)  then awaits directly
+        // Route does: .select("address").eq("user_id", id).eq("verification_status", "verified") then awaits directly
         return {
           select: () => ({ eq: () => walletEqResult }),
           eq:     () => walletEqResult,
@@ -333,9 +333,9 @@ describe("POST /api/shop/orders — M-Pesa callback verification", () => {
 
   function walletListChain(rows: Array<{ address: string }>) {
     const result = { data: rows, error: null };
-    const thenable = {
-      then: <T>(resolve: (value: typeof result) => T) =>
-        Promise.resolve(result).then(resolve),
+    const thenable: { then: <T>(resolve: (value: typeof result) => T) => Promise<T>; eq: () => typeof thenable } = {
+      then: (resolve) => Promise.resolve(result).then(resolve),
+      eq: () => thenable,
     };
     return {
       select: () => ({ eq: () => thenable }),
@@ -524,9 +524,9 @@ describe("POST /api/shop/orders — digital product_type", () => {
 
   function walletListChain(rows: Array<{ address: string }>) {
     const result = { data: rows, error: null };
-    const thenable = {
-      then: <T>(resolve: (value: typeof result) => T) =>
-        Promise.resolve(result).then(resolve),
+    const thenable: { then: <T>(resolve: (value: typeof result) => T) => Promise<T>; eq: () => typeof thenable } = {
+      then: (resolve) => Promise.resolve(result).then(resolve),
+      eq: () => thenable,
     };
     return { select: () => ({ eq: () => thenable }) } as unknown as Chain;
   }
@@ -689,9 +689,9 @@ describe("POST /api/shop/orders — Platform reward integration", () => {
 
   function walletListChain(rows: Array<{ address: string }>) {
     const result = { data: rows, error: null };
-    const thenable = {
-      then: <T>(resolve: (value: typeof result) => T) =>
-        Promise.resolve(result).then(resolve),
+    const thenable: { then: <T>(resolve: (value: typeof result) => T) => Promise<T>; eq: () => typeof thenable } = {
+      then: (resolve) => Promise.resolve(result).then(resolve),
+      eq: () => thenable,
     };
     return { select: () => ({ eq: () => thenable }) } as unknown as Chain;
   }

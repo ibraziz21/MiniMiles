@@ -6,14 +6,18 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 const EXPIRING_SOON_DAYS = 7;
 
-/** All wallet addresses linked to this Hub user — matches the resolution
- *  GET /api/shop/vouchers/my uses (a user can have more than one). */
+/** Verified wallet addresses linked to this Hub user — matches the resolution
+ *  GET /api/shop/vouchers/my uses (a user can have more than one). Only
+ *  `verified` wallets authorize asset/reward lookups
+ *  (production-readiness-security-spec.md §3.4/§3.6) — a `legacy_unverified`
+ *  row is visible in the wallet UI but cannot be used here. */
 export async function getLinkedWalletAddresses(userId: string): Promise<string[]> {
   const admin = createAdminClient();
   const { data } = await admin
     .from("hub_user_wallets")
     .select("address")
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .eq("verification_status", "verified");
   return (data ?? []).map((r) => r.address.toLowerCase());
 }
 

@@ -19,9 +19,11 @@ vi.mock("@/lib/supabase/admin", () => ({
     from: (table: string) => {
       if (table === "hub_user_wallets") {
         return {
-          select: () => ({
-            eq: async () => ({ data: [{ address: "0xabc" }], error: null }),
-          }),
+          select: () => {
+            const result = Promise.resolve({ data: [{ address: "0xabc" }], error: null });
+            const chain = Object.assign(result, { eq: () => chain });
+            return chain;
+          },
         };
       }
 

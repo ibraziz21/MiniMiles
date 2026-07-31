@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Plus, ExternalLink, RefreshCw, Loader2 } from "lucide-react";
-import clsx from "clsx";
 
 type Props = {
   minipayAddress: string | null;  // auto-resolved from users table
@@ -15,33 +14,61 @@ type Props = {
 
 export function LinkedWallets({ minipayAddress, hasMultiple, userId, variant = "default" }: Props) {
   const router = useRouter();
-  const [linking, setLinking] = useState(false);
-  const [input, setInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Linking now proves ownership with a signed challenge
+  // (production-readiness-security-spec.md §3.2) instead of accepting a
+  // bare pasted address — the wallet the user connects is the one that
+  // signs, so there is no separate "enter an address" step.
   async function linkBase() {
-    if (!input.match(/^0x[0-9a-fA-F]{40}$/)) {
-      setError("Enter a valid EVM address (0x…)");
+    if (!window.ethereum) {
+      setError("No wallet detected. Open in Base App or install a compatible wallet.");
       return;
     }
     setSaving(true);
     setError(null);
-    const res = await fetch("/api/me/wallets", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ecosystem: "base", address: input }),
-    });
-    setSaving(false);
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Failed to link wallet");
-      return;
+    try {
+      const accounts = (await window.ethereum.request({ method: "eth_requestAccounts" })) as string[];
+      const address = accounts[0];
+      if (!address) throw new Error("No account returned by wallet");
+
+      const chainIdHex = (await window.ethereum.request({ method: "eth_chainId" })) as string;
+      const chainId = parseInt(chainIdHex, 16);
+
+      const challengeRes = await fetch("/api/me/wallets/challenge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ecosystem: "base", address, chainId }),
+      });
+      if (!challengeRes.ok) {
+        const data = await challengeRes.json().catch(() => ({}));
+        throw new Error(data.error ?? "Failed to start wallet verification");
+      }
+      const { challengeId, message } = (await challengeRes.json()) as { challengeId: string; message: string };
+
+      const signature = (await window.ethereum.request({
+        method: "personal_sign",
+        params: [message, address],
+      })) as string;
+
+      const verifyRes = await fetch("/api/me/wallets/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ challengeId, signature }),
+      });
+      if (!verifyRes.ok) {
+        const data = await verifyRes.json().catch(() => ({}));
+        throw new Error(data.error ?? "Failed to verify wallet signature");
+      }
+
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
     }
-    setLinking(false);
-    setInput("");
-    router.refresh();
   }
 
   async function switchWallet() {
@@ -132,38 +159,23 @@ export function LinkedWallets({ minipayAddress, hasMultiple, userId, variant = "
                 Set up <ExternalLink className="h-3 w-3" />
               </a>
               <button
-                onClick={() => { setLinking((v) => !v); setError(null); setInput(""); }}
-                className={clsx(
-                  "flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-semibold transition",
-                  linking
-                    ? "border-akiba-teal bg-akiba-teal text-white"
-                    : "border-akiba-teal/30 bg-akiba-tint text-akiba-teal hover:bg-akiba-teal hover:text-white"
-                )}
+                onClick={linkBase}
+                disabled={saving}
+                className="flex items-center gap-1 rounded-lg border border-akiba-teal/30 bg-akiba-tint px-3 py-1.5 text-xs font-semibold text-akiba-teal transition hover:bg-akiba-teal hover:text-white disabled:opacity-50"
               >
-                <Plus className="h-3.5 w-3.5" /> Link
+                {saving ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Plus className="h-3.5 w-3.5" />
+                )}
+                {saving ? "Verifying…" : "Connect & verify"}
               </button>
             </div>
           </div>
 
-          {linking && (
+          {error && (
             <div className="border-t border-akiba-line px-4 py-3">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="0x… (Base address)"
-                  className="flex-1 rounded-xl border border-akiba-line bg-akiba-card px-3 py-2 font-mono text-xs text-akiba-ink placeholder:text-akiba-muted/40 focus:border-akiba-teal focus:outline-none"
-                />
-                <button
-                  onClick={linkBase}
-                  disabled={saving || !input}
-                  className="rounded-xl bg-akiba-teal px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#1E7E8D] disabled:opacity-50"
-                >
-                  {saving ? "Saving…" : "Save"}
-                </button>
-              </div>
-              {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
+              <p className="text-xs text-red-500">{error}</p>
             </div>
           )}
         </div>

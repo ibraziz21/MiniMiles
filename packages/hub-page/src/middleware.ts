@@ -1,9 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { getOrCreateCorrelationId, CORRELATION_ID_HEADER } from "@/lib/correlation";
 
 const PROTECTED = ["/me", "/pass", "/welcome"];
 
 export async function middleware(request: NextRequest) {
+  const correlationId = getOrCreateCorrelationId(request.headers);
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -38,7 +40,9 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", pathname);
-    return NextResponse.redirect(url);
+    const redirect = NextResponse.redirect(url);
+    redirect.headers.set(CORRELATION_ID_HEADER, correlationId);
+    return redirect;
   }
 
   // Redirect logged-in users away from /login
@@ -47,9 +51,12 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = next;
     url.searchParams.delete("next");
-    return NextResponse.redirect(url);
+    const redirect = NextResponse.redirect(url);
+    redirect.headers.set(CORRELATION_ID_HEADER, correlationId);
+    return redirect;
   }
 
+  supabaseResponse.headers.set(CORRELATION_ID_HEADER, correlationId);
   return supabaseResponse;
 }
 

@@ -37,7 +37,8 @@ export async function POST(
   const { data: walletRows } = await admin
     .from("hub_user_wallets")
     .select("address")
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .eq("verification_status", "verified");
   const walletAddresses = (walletRows ?? []).map((r: { address: string }) => r.address.toLowerCase());
 
   // Generate secure token server-side — raw token never stored
@@ -98,7 +99,8 @@ export async function DELETE(
   const { data: walletRows } = await admin
     .from("hub_user_wallets")
     .select("address")
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .eq("verification_status", "verified");
   const walletAddresses = (walletRows ?? []).map((r: { address: string }) => r.address.toLowerCase());
 
   const { error } = await admin.rpc("revoke_voucher_presentation_atomic", {

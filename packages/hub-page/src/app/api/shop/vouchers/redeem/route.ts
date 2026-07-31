@@ -56,6 +56,7 @@ export async function POST(request: Request) {
       .select("address")
       .eq("user_id", user.id)
       .eq("address", walletAddress)
+      .eq("verification_status", "verified")
       .maybeSingle();
     if (!linkedWallet) {
       return NextResponse.json(

@@ -9,15 +9,19 @@
  *
  * Required env var:
  *   HUB_PASS_SECRET  — 32+ char random string, never exposed to clients.
- *   Falls back to SUPABASE_SERVICE_KEY for zero-config local dev.
+ *   No fallback to SUPABASE_SERVICE_KEY: a Pass secret must be its own
+ *   credential so rotating it never invalidates database access, and vice
+ *   versa (production-readiness-security-spec.md §10.2). getServerEnv()
+ *   already fails production startup if this is unset.
  */
 
 import { createHmac, timingSafeEqual } from "crypto";
+import { getServerEnv } from "@/lib/env.server";
 
 const EXPIRY_SECONDS = 24 * 60 * 60; // 24 hours
 
 function secret(): string {
-  const s = process.env.HUB_PASS_SECRET ?? process.env.SUPABASE_SERVICE_KEY ?? "";
+  const s = getServerEnv().hubPassSecret ?? "";
   if (!s) {
     console.warn("[pass-token] HUB_PASS_SECRET is not set — tokens will not verify correctly");
   }

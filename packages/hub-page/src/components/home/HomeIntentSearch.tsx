@@ -68,7 +68,7 @@ export function HomeIntentSearch({ placeholder }: { placeholder: string }) {
           onKeyDown={(e) => {
             if (e.key === "Enter") submit(value);
           }}
-          className="w-full rounded-2xl border border-akiba-line bg-white py-3.5 pl-12 pr-12 text-base outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus:border-akiba-teal"
+          className="w-full rounded-2xl border border-akiba-line bg-white py-3 pl-12 pr-12 text-base outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus:border-akiba-teal"
         />
         {value && (
           <button
