@@ -8,6 +8,7 @@ import {
 import { buildDirectionsUrl, formatAddress } from "@/lib/merchants/directions";
 import { BranchCard } from "@/components/merchants/BranchCard";
 import { VoucherCard } from "@/components/merchants/VoucherCard";
+import { ExpandableDescription } from "@/components/merchants/ExpandableDescription";
 import { ProductGrid } from "./ProductGrid";
 import { TrackedAnchor } from "@/components/TrackedAnchor";
 import { MerchantViewTracker } from "@/components/merchants/MerchantViewTracker";
@@ -225,9 +226,7 @@ export default async function MerchantPage({ params }: { params: { slug: string 
 
         {/* Bio — the full description lives right under the identity row,
             not in a separate "About" section further down the page. */}
-        {merchant.description && (
-          <p className="mt-4 whitespace-pre-line text-sm leading-relaxed text-akiba-muted">{merchant.description}</p>
-        )}
+        {merchant.description && <ExpandableDescription text={merchant.description} />}
 
         {/* What they offer — folded into the profile block too, a light
             label rather than a full section heading since it's still part
