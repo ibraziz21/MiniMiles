@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import clsx from "clsx";
 import { MilesAmount } from "@/components/MilesIcon";
+import { recordDealViewProof } from "@/lib/akiba/dealViewProof";
 
 function redeemErrorMessage(status: number, serverMessage?: string): string {
   if (status === 401) return "Sign in to redeem";
@@ -35,10 +36,13 @@ export function GetVoucherButton({
   templateId,
   milesCost,
   isSignedIn,
+  onInteract,
 }: {
   templateId: string;
   milesCost: number;
   isSignedIn: boolean;
+  /** Called once the member's first real redeem attempt starts (signed in). */
+  onInteract?: () => void;
 }) {
   const router = useRouter();
 
@@ -53,6 +57,10 @@ export function GetVoucherButton({
       router.push("/login");
       return;
     }
+    // Selecting the voucher's primary action is a genuine offer interaction
+    // (spec §8.1) — record it regardless of where the member arrived from.
+    recordDealViewProof(templateId);
+    onInteract?.();
     setRedeemStatus("quoting");
     setRedeemError(null);
 

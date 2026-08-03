@@ -45,7 +45,7 @@ export const HUB_QUEST_CATALOG: QuestCatalogEntry[] = [
     description: "Check out an active offer or voucher from our merchants.",
     miles: 5,
     frequency: "once",
-    actionHref: "/vouchers",
+    actionHref: "/vouchers?quest=deal_viewed",
     platformQuestId: envQuestId("DEAL_VIEWED"),
     requiresWallet: false,
   },

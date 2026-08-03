@@ -54,6 +54,12 @@ function platformConfigured(): boolean {
   return Boolean(process.env.AKIBA_API_URL && process.env.AKIBA_API_KEY);
 }
 
+// Bounded so one slow/hanging Platform request can't hold the whole
+// /api/quests/status render indefinitely (hub-quest-event-delivery-spec.md
+// §9.3) — there's no bulk status endpoint yet, so this is per-quest-per-
+// identity today; the timeout is the floor until that exists.
+const PLATFORM_REQUEST_TIMEOUT_MS = 8_000;
+
 async function platformGet<T>(path: string): Promise<{ ok: true; data: T } | { ok: false; reason: string }> {
   if (!platformConfigured()) return { ok: false, reason: "platform_not_configured" };
   const AKIBA_API_URL = process.env.AKIBA_API_URL!;
@@ -63,6 +69,7 @@ async function platformGet<T>(path: string): Promise<{ ok: true; data: T } | { o
     const res = await fetch(`${AKIBA_API_URL}${path}`, {
       headers: { Authorization: `Bearer ${AKIBA_API_KEY}` },
       cache: "no-store",
+      signal: AbortSignal.timeout(PLATFORM_REQUEST_TIMEOUT_MS),
     });
     if (!res.ok) return { ok: false, reason: `platform_${res.status}` };
     const body = await res.json();
@@ -70,6 +77,70 @@ async function platformGet<T>(path: string): Promise<{ ok: true; data: T } | { o
   } catch (err) {
     console.error("[questStatus] platform request failed:", err);
     return { ok: false, reason: "platform_unavailable" };
+  }
+}
+
+// Distinguishes "Hub hasn't delivered this yet" from "Platform hasn't
+// completed it yet" (spec §9.2's two different "verifying" copy states) by
+// checking the outbox row this quest's domain write enqueued. Returns null
+// when there's nothing to check (no outbox tracking for this quest, e.g.
+// sponsored_game_played, or the lookup itself couldn't run) — callers treat
+// null the same as "released" and fall through to the Platform check.
+async function resolveOutboxStatus(
+  quest: QuestCatalogEntry,
+  ctx: { hubUserId: string; wallets: string[] },
+): Promise<"pending" | "processing" | "failed" | null> {
+  const admin = createAdminClient();
+
+  async function lookup(idempotencyKey: string): Promise<"pending" | "processing" | "failed" | null> {
+    const { data } = await admin
+      .from("internal_event_jobs")
+      .select("status")
+      .eq("idempotency_key", idempotencyKey)
+      .maybeSingle();
+    const status = data?.status as string | undefined;
+    return status === "pending" || status === "processing" || status === "failed" ? status : null;
+  }
+
+  switch (quest.key) {
+    case "pass_activated":
+      return lookup(`pass:${ctx.hubUserId}`);
+    case "profile_country_set":
+      return lookup(`profile_country:${ctx.hubUserId}`);
+    case "deal_viewed": {
+      const { data } = await admin
+        .from("hub_quest_action_proofs")
+        .select("action_ref")
+        .eq("hub_user_id", ctx.hubUserId)
+        .eq("quest_key", "deal_viewed")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!data?.action_ref) return null;
+      return lookup(`deal-viewed:${ctx.hubUserId}:${data.action_ref}`);
+    }
+    case "voucher_redeemed": {
+      const filter =
+        ctx.wallets.length > 0
+          ? `hub_user_id.eq.${ctx.hubUserId},user_address.in.(${ctx.wallets.join(",")})`
+          : `hub_user_id.eq.${ctx.hubUserId}`;
+      const { data } = await admin
+        .from("issued_vouchers")
+        .select("id")
+        .eq("status", "redeemed")
+        .or(filter)
+        .order("redeemed_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!data?.id) return null;
+      // Best-effort: the merchant-scan redemption path keys the outbox row
+      // by voucher ID this way; the online-order path's key is caller-built
+      // and not guessable here, so a miss just falls through to the
+      // Platform check rather than misreporting.
+      return lookup(`vredeem:${data.id}`);
+    }
+    default:
+      return null;
   }
 }
 
@@ -181,6 +252,14 @@ async function resolveOneQuest(
 
   if (!quest.platformQuestId) {
     return { ...base, state: "verifying", reason: "quest_not_configured" };
+  }
+
+  const outboxStatus = await resolveOutboxStatus(quest, { hubUserId: ctx.hubUserId, wallets: ctx.wallets });
+  if (outboxStatus === "pending" || outboxStatus === "processing") {
+    return { ...base, state: "verifying", reason: "outbox_pending" };
+  }
+  if (outboxStatus === "failed") {
+    return { ...base, state: "verifying", reason: "outbox_failed" };
   }
 
   const range = quest.frequency === "weekly" ? weekRange(scopeKey) : undefined;

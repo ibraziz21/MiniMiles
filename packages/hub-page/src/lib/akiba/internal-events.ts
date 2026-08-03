@@ -49,6 +49,7 @@ export async function sendInternalEvent(job: {
         occurredAt: job.occurred_at,
         metadata: job.metadata,
       }),
+      signal: AbortSignal.timeout(10_000),
     });
   } catch (e) {
     console.error("[internal-events] network error calling Platform:", e);

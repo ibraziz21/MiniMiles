@@ -78,6 +78,7 @@ export function HubQuestCard({
         state={state}
         isSignedIn={isSignedIn}
         onClaim={handleClaim}
+        onRetryStatus={onClaimed}
       />
     </div>
   );
@@ -88,11 +89,13 @@ function CardCta({
   state,
   isSignedIn,
   onClaim,
+  onRetryStatus,
 }: {
   quest: HubQuestStatus;
   state: HubQuestStatus["state"];
   isSignedIn: boolean;
   onClaim: () => void;
+  onRetryStatus: () => void;
 }) {
   const baseBtn = "mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold transition";
 
@@ -112,9 +115,33 @@ function CardCta({
         </a>
       );
     case "verifying":
+      // Splits the single "verifying" state into distinct member-facing
+      // copy (spec §9.2) — a misconfigured quest and a slow Platform look
+      // very different to an operator, and should look different to a
+      // member too instead of one indefinite spinner for every cause.
+      if (quest.reason === "quest_not_configured") {
+        return (
+          <div className={clsx(baseBtn, "bg-akiba-card text-akiba-muted")}>
+            This quest is temporarily unavailable.
+          </div>
+        );
+      }
+      if (quest.reason === "platform_unavailable" || quest.reason === "reward_lookup_failed") {
+        return (
+          <button
+            onClick={onRetryStatus}
+            className={clsx(baseBtn, "bg-amber-50 text-amber-700 hover:bg-amber-100")}
+          >
+            <AlertTriangle className="h-4 w-4" /> Taking longer than usual · Retry status
+          </button>
+        );
+      }
       return (
         <div className={clsx(baseBtn, "bg-akiba-card text-akiba-muted")}>
-          <Loader2 className="h-4 w-4 animate-spin" /> Verifying…
+          <Loader2 className="h-4 w-4 animate-spin" />
+          {quest.reason === "outbox_pending" || quest.reason === "outbox_failed"
+            ? "Verifying your activity…"
+            : "Preparing your reward…"}
         </div>
       );
     case "claiming":

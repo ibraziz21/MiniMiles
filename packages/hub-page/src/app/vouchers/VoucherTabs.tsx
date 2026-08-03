@@ -3,10 +3,11 @@
 import { useState, useEffect } from "react";
 import {
   Tag, ExternalLink, ShoppingBag, Smartphone,
-  QrCode, ChevronRight, Loader2,
+  QrCode, ChevronRight, Loader2, CheckCircle2,
 } from "lucide-react";
 import clsx from "clsx";
 import { GetVoucherButton } from "@/components/vouchers/GetVoucherButton";
+import { recordDealViewProof } from "@/lib/akiba/dealViewProof";
 
 type VoucherTemplate = {
   id: string;
@@ -59,9 +60,18 @@ const TAB_LABELS: Record<Tab, string> = {
 export function VoucherTabs({
   templates,
   isSignedIn,
+  questMode = false,
 }: {
   templates: VoucherTemplate[];
   isSignedIn: boolean;
+  /**
+   * Arrived via the "Browse this week's merchant deals" quest CTA
+   * (questCatalog.ts actionHref, ?quest=deal_viewed) — only then do offer
+   * cards show the lightweight "progress saved" acknowledgement (spec §8.1
+   * step 5). Resolved server-side from the page's searchParams, not
+   * useSearchParams, so this stays statically renderable.
+   */
+  questMode?: boolean;
 }) {
   const [tab, setTab] = useState<Tab>("available");
   const [myVouchers, setMyVouchers] = useState<IssuedVoucher[]>([]);
@@ -123,7 +133,7 @@ export function VoucherTabs({
         ) : (
           <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {templates.map((t) => (
-              <AvailableCard key={t.id} template={t} isSignedIn={isSignedIn} />
+              <AvailableCard key={t.id} template={t} isSignedIn={isSignedIn} questMode={questMode} />
             ))}
           </div>
         ))}
@@ -196,11 +206,14 @@ function discountLabel(t: VoucherTemplate): string {
 function AvailableCard({
   template: t,
   isSignedIn,
+  questMode,
 }: {
   template: VoucherTemplate;
   isSignedIn: boolean;
+  questMode: boolean;
 }) {
   const merchant = t.partners;
+  const [interacted, setInteracted] = useState(false);
 
   return (
     <div className="flex flex-col overflow-hidden rounded-2xl border border-akiba-line bg-white">
@@ -242,13 +255,30 @@ function AvailableCard({
 
       {/* Primary CTA — canonical quote/confirm/redeem flow */}
       <div className="px-3 pb-3 sm:px-4">
-        <GetVoucherButton templateId={t.id} milesCost={t.miles_cost} isSignedIn={isSignedIn} />
+        <GetVoucherButton
+          templateId={t.id}
+          milesCost={t.miles_cost}
+          isSignedIn={isSignedIn}
+          onInteract={questMode ? () => setInteracted(true) : undefined}
+        />
+        {questMode && interacted && (
+          <p className="mt-2 flex items-center justify-center gap-1.5 text-xs font-medium text-akiba-teal">
+            <CheckCircle2 className="h-3.5 w-3.5" /> Quest progress saved —{" "}
+            <a href="/quests" className="underline">go to Quests</a>
+          </p>
+        )}
       </div>
 
       {/* Secondary — merchant link */}
       {merchant && (
         <a
           href={`/merchants/${merchant.slug}`}
+          onClick={() => {
+            // Following the merchant-offer action is a genuine interaction
+            // (spec §8.1) in its own right, independent of the primary CTA.
+            recordDealViewProof(t.id);
+            if (questMode) setInteracted(true);
+          }}
           className="flex items-center justify-center gap-1.5 border-t border-akiba-line bg-akiba-card py-2 text-xs font-semibold text-akiba-teal transition hover:bg-akiba-tint sm:py-2.5"
         >
           <ExternalLink className="h-3 w-3" /> View {merchant.name}

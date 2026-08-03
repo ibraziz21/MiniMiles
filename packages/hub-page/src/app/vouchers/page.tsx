@@ -63,9 +63,14 @@ const HOW_IT_WORKS = [
   { n: "3", short: "Show at checkout", long: "Show the QR or code at checkout" },
 ];
 
-export default async function VouchersPage() {
+export default async function VouchersPage({
+  searchParams,
+}: {
+  searchParams: { quest?: string };
+}) {
   const { data: { user } } = await (await createClient()).auth.getUser();
   const templates = await getAllTemplates(user?.id ?? null);
+  const questMode = searchParams.quest === "deal_viewed";
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-5 sm:py-8 sm:px-6 lg:px-8">
@@ -110,7 +115,7 @@ export default async function VouchersPage() {
       </div>
 
       {/* ── Tabs + cards ─────────────────────────────────────────────────── */}
-      <VoucherTabs templates={templates} isSignedIn={!!user} />
+      <VoucherTabs templates={templates} isSignedIn={!!user} questMode={questMode} />
 
     </main>
   );

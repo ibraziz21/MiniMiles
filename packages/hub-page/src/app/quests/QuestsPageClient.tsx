@@ -5,13 +5,20 @@
 // server-seeded, then refreshed from GET /api/quests/status whenever the tab
 // regains focus (returning from an internal action route like /pass or
 // /vouchers) — never trusts localStorage as authoritative completion state.
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { MilesAmount } from "@/components/MilesIcon";
 import clsx from "clsx";
 import { HubQuestCard } from "./HubQuestCard";
 import type { HubQuestStatus } from "@/lib/akiba/questStatus";
 
 type Tab = "active" | "completed";
+
+// Bounded backoff while any quest is "verifying" (spec §9.1) — immediate on
+// focus, then widening gaps, settling at 30s. Stops on its own once nothing
+// is verifying; the 10-minute ceiling below is the hard backstop against a
+// tab left open indefinitely on a quest that's stuck.
+const VERIFYING_POLL_SCHEDULE_MS = [5_000, 10_000, 20_000, 30_000];
+const MAX_CONTINUOUS_POLL_MS = 10 * 60 * 1000;
 
 export function QuestsPageClient({
   initialQuests,
@@ -52,6 +59,34 @@ export function QuestsPageClient({
       window.removeEventListener("focus", refresh);
     };
   }, [refresh]);
+
+  // Bounded-backoff polling while any quest is "verifying" (spec §9.1) —
+  // re-schedules itself each time `refresh()` produces a new `quests` array,
+  // widening the gap along VERIFYING_POLL_SCHEDULE_MS until it settles at
+  // the last entry. Stops on its own once nothing is verifying, the tab is
+  // hidden, or MAX_CONTINUOUS_POLL_MS has elapsed since polling started.
+  const pollStepRef = useRef(0);
+  const pollStartedAtRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const anyVerifying = quests.some((q) => q.state === "verifying");
+    if (!anyVerifying) {
+      pollStepRef.current = 0;
+      pollStartedAtRef.current = null;
+      return;
+    }
+    if (pollStartedAtRef.current === null) pollStartedAtRef.current = Date.now();
+    if (document.visibilityState !== "visible") return;
+    if (Date.now() - pollStartedAtRef.current > MAX_CONTINUOUS_POLL_MS) return;
+
+    const delay =
+      VERIFYING_POLL_SCHEDULE_MS[Math.min(pollStepRef.current, VERIFYING_POLL_SCHEDULE_MS.length - 1)];
+    const timer = setTimeout(() => {
+      pollStepRef.current += 1;
+      refresh();
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [quests, refresh]);
 
   const completed = quests.filter((q) => q.state === "completed");
   const active = quests.filter((q) => q.state !== "completed");

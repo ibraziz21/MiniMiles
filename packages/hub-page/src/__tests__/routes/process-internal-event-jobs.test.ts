@@ -59,13 +59,13 @@ describe("POST /api/internal/process-internal-event-jobs", () => {
       if (name === "claim_internal_event_jobs") {
         return Promise.resolve({
           data: [
-            { id: "job-1", event_type: "pass_activated", idempotency_key: "pass:user-1", identities: [], occurred_at: "2026-01-01T00:00:00Z", metadata: {} },
-            { id: "job-2", event_type: "voucher_redeemed", idempotency_key: "vredeem:v-1", identities: [], occurred_at: "2026-01-01T00:00:00Z", metadata: {} },
+            { id: "job-1", event_type: "pass_activated", idempotency_key: "pass:user-1", identities: [], occurred_at: "2026-01-01T00:00:00Z", metadata: {}, attempts: 1 },
+            { id: "job-2", event_type: "voucher_redeemed", idempotency_key: "vredeem:v-1", identities: [], occurred_at: "2026-01-01T00:00:00Z", metadata: {}, attempts: 1 },
           ],
           error: null,
         });
       }
-      if (name === "complete_internal_event_job") return Promise.resolve({ data: null, error: null });
+      if (name === "complete_internal_event_job") return Promise.resolve({ data: true, error: null });
       return Promise.resolve({ data: null, error: null });
     });
 
@@ -85,11 +85,11 @@ describe("POST /api/internal/process-internal-event-jobs", () => {
     mockRpc.mockImplementation((name: string) => {
       if (name === "claim_internal_event_jobs") {
         return Promise.resolve({
-          data: [{ id: "job-1", event_type: "pass_activated", idempotency_key: "pass:user-1", identities: [], occurred_at: "2026-01-01T00:00:00Z", metadata: {} }],
+          data: [{ id: "job-1", event_type: "pass_activated", idempotency_key: "pass:user-1", identities: [], occurred_at: "2026-01-01T00:00:00Z", metadata: {}, attempts: 1 }],
           error: null,
         });
       }
-      if (name === "complete_internal_event_job") return Promise.resolve({ data: null, error: null });
+      if (name === "complete_internal_event_job") return Promise.resolve({ data: true, error: null });
       return Promise.resolve({ data: null, error: null });
     });
 
@@ -99,7 +99,7 @@ describe("POST /api/internal/process-internal-event-jobs", () => {
     expect(json.released).toBe(0);
     expect(json.retried).toBe(1);
     expect(mockRpc).toHaveBeenCalledWith("complete_internal_event_job", expect.objectContaining({
-      p_job_id: "job-1", p_ok: false, p_error: "Platform unavailable",
+      p_job_id: "job-1", p_ok: false, p_retryable: true, p_error_detail: "Platform unavailable",
     }));
   });
 

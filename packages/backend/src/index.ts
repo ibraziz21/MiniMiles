@@ -12,6 +12,7 @@ import { startProsperityPassWorker, releaseCurrentPassLock } from "./prosperityP
 import { startCrackPotSweeper, runCrackPotSweep } from "./crackpotSweeper";
 import { startVaultEventWatcher } from "./vaultEventWatcher";
 import { startVaultRewardScheduler } from "./vaultRewardScheduler";
+import { startHubQuestEventWorker, getHubQuestEventHealth } from "./hubQuestEventWorker";
 
 dotenv.config();
 
@@ -26,6 +27,12 @@ app.use("/games/farkle", farkleRouter);
 
 app.get("/", (_req, res) => {
   res.send("Welcome to the Minimiles Daily Quests Backend!");
+});
+
+// Aggregate-only health surface (hub-quest-event-delivery-spec.md §12.3) —
+// never identities, metadata, idempotency keys, job IDs, or upstream bodies.
+app.get("/health", async (_req, res) => {
+  res.json({ hubQuestEvents: await getHubQuestEventHealth() });
 });
 
 // Manual one-shot CrackPot sweep (protected)
@@ -84,6 +91,7 @@ const server = app.listen(PORT, () => {
     startVaultEventWatcher();
     startVaultRewardScheduler();
     startFarkleSettlementWorker();
+    startHubQuestEventWorker();
   }
 });
 
