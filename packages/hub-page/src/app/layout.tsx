@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import "./globals.css";
 import { SiteHeader } from "@/components/SiteHeader";
 import { BottomNav, PassFab } from "@/components/NavLinks";
@@ -7,6 +8,8 @@ import { CartProvider } from "@/lib/cart";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { PushResubscribe } from "@/components/PushResubscribe";
+
+const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
 const sterling = localFont({
   src: [
@@ -55,6 +58,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <PassFab />
           <InstallPrompt />
         </CartProvider>
+        {gaMeasurementId && <GoogleAnalytics gaId={gaMeasurementId} />}
       </body>
     </html>
   );
