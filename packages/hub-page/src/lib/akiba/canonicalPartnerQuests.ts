@@ -1,5 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getLinkedWalletAddresses } from "@/lib/akiba/myVouchers";
+import {
+  getLinkedWalletAddresses,
+  isMissingWalletVerificationColumn,
+} from "@/lib/akiba/myVouchers";
 import { HUB_QUEST_CATALOG, getQuestCatalogEntry, type QuestCatalogEntry } from "@/lib/akiba/questCatalog";
 import { isoWeek, weekRange } from "@/lib/akiba/isoWeek";
 import { readChainBalance } from "@/lib/akiba/balance";
@@ -202,7 +205,7 @@ export async function verifyHubQuestEvidence(input: {
   return { eligible: false, reason: "unknown-quest" };
 }
 
-async function primaryVerifiedWallet(hubUserId: string): Promise<string | null> {
+export async function primaryVerifiedWallet(hubUserId: string): Promise<string | null> {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("hub_user_wallets")
@@ -213,7 +216,13 @@ async function primaryVerifiedWallet(hubUserId: string): Promise<string | null> 
     .order("linked_at", { ascending: true })
     .limit(1)
     .maybeSingle();
-  if (error) throw error;
+  if (error) {
+    // Keep the quest page available during a staggered database rollout. A
+    // pre-051 wallet row is deliberately not trusted as verified; the user is
+    // handled as walletless until ownership verification is available.
+    if (isMissingWalletVerificationColumn(error)) return null;
+    throw error;
+  }
   return data?.address?.toLowerCase() ?? null;
 }
 
