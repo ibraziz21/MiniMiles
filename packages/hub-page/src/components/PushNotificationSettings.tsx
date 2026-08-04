@@ -92,7 +92,7 @@ export function PushNotificationSettings() {
     }
   }
 
-  async function handleTogglePreference(key: "orders" | "vouchers", value: boolean) {
+  async function handleTogglePreference(key: "orders" | "vouchers" | "rewards", value: boolean) {
     if (!info) return;
     setInfo({ ...info, preferences: { ...info.preferences, [key]: value } });
     await fetch("/api/me/push/preferences", {
@@ -207,6 +207,14 @@ export function PushNotificationSettings() {
               type="checkbox"
               checked={info.preferences.vouchers}
               onChange={(e) => handleTogglePreference("vouchers", e.target.checked)}
+            />
+          </label>
+          <label className="flex items-center justify-between text-sm text-akiba-ink">
+            Referral rewards
+            <input
+              type="checkbox"
+              checked={info.preferences.rewards}
+              onChange={(e) => handleTogglePreference("rewards", e.target.checked)}
             />
           </label>
         </div>

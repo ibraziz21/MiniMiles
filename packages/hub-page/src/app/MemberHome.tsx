@@ -4,8 +4,10 @@ import { IntentShortcuts } from "@/components/home/IntentShortcuts";
 import { MerchantRail } from "@/components/home/MerchantRail";
 import { LocationOptIn } from "@/components/home/LocationOptIn";
 import { RewardsSnapshot } from "@/components/home/RewardsSnapshot";
+import { ReferralCard } from "@/components/home/ReferralCard";
 import { resolveHubProfile } from "@/lib/akiba/hubProfile";
 import { getHomeFeed } from "@/lib/home/feed";
+import { getReferralDashboard, type ReferralDashboard } from "@/lib/akiba/referralDashboard";
 import { listDirectoryCities } from "@/lib/merchants/queries";
 import type { User } from "@supabase/supabase-js";
 
@@ -15,10 +17,14 @@ import type { User } from "@supabase/supabase-js";
 export async function MemberHome({ user }: { user: User }) {
   const email = user.email ?? null;
 
-  const [{ displayName }, feed, cities] = await Promise.all([
+  const [{ displayName }, feed, cities, referralDashboard] = await Promise.all([
     resolveHubProfile({ userId: user.id, email }),
     getHomeFeed({ userId: user.id, userEmail: email }),
     listDirectoryCities().catch(() => [] as string[]),
+    getReferralDashboard(user.id).catch((err) => {
+      console.error("[home] referral dashboard failed:", err);
+      return null as ReferralDashboard | null;
+    }),
   ]);
 
   const firstName = displayName.split(" ")[0] || displayName;
@@ -55,6 +61,15 @@ export async function MemberHome({ user }: { user: User }) {
           hasPass={feed.rewards.hasPass}
         />
       )}
+
+      {/* Only surface the card when there's something to show: either the
+          program is actively taking new invites, or this member already
+          has referral history (kept visible even if the program later
+          pauses — an existing referral stays valid regardless). */}
+      {referralDashboard &&
+        (referralDashboard.program.status === "active" || referralDashboard.summary.friendsJoined > 0) && (
+          <ReferralCard dashboard={referralDashboard} />
+        )}
     </main>
   );
 }

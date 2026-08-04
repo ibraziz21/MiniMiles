@@ -132,4 +132,35 @@ describe("merchant voucher scan routes", () => {
     expect(body).toEqual({ ok: true, voucher_id: "voucher-1", offer_title: "Lunch" });
     expect(JSON.stringify(body)).not.toContain(TOKEN);
   });
+
+  it("passes the KES amount into the atomic redemption/outbox RPC", async () => {
+    state.rpc.mockResolvedValue({
+      data: [{ ok: true, voucher_id: "voucher-1", offer_title: "Lunch" }],
+      error: null,
+    });
+
+    const response = await redeem(request("/api/vouchers/scan/redeem", TOKEN, 10));
+    expect(response.status).toBe(200);
+
+    expect(state.rpc).toHaveBeenCalledWith("redeem_voucher_in_store_atomic", {
+      p_token_hash: expect.any(String),
+      p_partner_id: "partner-1",
+      p_merchant_user_id: "merchant-user-1",
+      p_gross_amount_cusd: 10,
+      p_external_reference: null,
+      p_gross_amount_kes: 1300,
+    });
+    expect(state.rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a successful scan successful because qualification is deferred to the outbox", async () => {
+    state.rpc.mockResolvedValue({
+      data: [{ ok: true, voucher_id: "voucher-2", offer_title: "Lunch" }],
+      error: null,
+    });
+
+    const response = await redeem(request("/api/vouchers/scan/redeem", TOKEN, 10));
+    expect(response.status).toBe(200);
+    expect(state.rpc).toHaveBeenCalledTimes(1);
+  });
 });

@@ -28,12 +28,16 @@ interface SubscriptionRow {
 type PreferenceRow = {
   orders_enabled: boolean;
   vouchers_enabled: boolean;
+  rewards_enabled: boolean;
 };
 
 function categoryEnabled(prefs: PreferenceRow | null, category: string): boolean {
-  if (!prefs) return true; // no row yet == defaults (orders/vouchers on)
-  if (category === "orders" || category === "refunds") return prefs.orders_enabled;
-  if (category === "vouchers") return prefs.vouchers_enabled;
+  // No preferences row yet: orders/vouchers default on, rewards defaults
+  // off (hub_notification_preferences.rewards_enabled default false,
+  // 047_web_push_notifications.sql) — referral push is opt-in, not opt-out.
+  if (category === "orders" || category === "refunds") return prefs ? prefs.orders_enabled : true;
+  if (category === "vouchers") return prefs ? prefs.vouchers_enabled : true;
+  if (category === "rewards") return prefs ? prefs.rewards_enabled : false;
   return false;
 }
 
@@ -82,7 +86,32 @@ export async function processPushJobs(): Promise<{
   const webpush = getWebPushClient();
 
   for (const job of claimed) {
-    const rendered = renderTemplate(job.template);
+    let renderMetadata = job.metadata;
+    const isAmountBearingReferral = [
+      "referral_signup_held",
+      "referral_signup_released",
+      "referral_activation_held",
+      "referral_activation_released",
+    ].includes(job.template);
+    if (
+      isAmountBearingReferral &&
+      typeof renderMetadata.amountMiles !== "number" &&
+      typeof renderMetadata.referralId === "string"
+    ) {
+      const { data: referral } = await admin
+        .from("hub_referrals")
+        .select("signup_reward_miles, activation_reward_miles")
+        .eq("id", renderMetadata.referralId)
+        .maybeSingle();
+      const amountMiles = job.template.includes("activation")
+        ? referral?.activation_reward_miles
+        : referral?.signup_reward_miles;
+      if (typeof amountMiles === "number") {
+        renderMetadata = { ...renderMetadata, amountMiles };
+      }
+    }
+
+    const rendered = renderTemplate(job.template, renderMetadata);
     if (!rendered) {
       await admin.rpc("complete_web_push_job", {
         p_job_id: job.job_id,
@@ -95,7 +124,7 @@ export async function processPushJobs(): Promise<{
 
     const { data: prefs } = await admin
       .from("hub_notification_preferences")
-      .select("orders_enabled, vouchers_enabled")
+      .select("orders_enabled, vouchers_enabled, rewards_enabled")
       .eq("hub_user_id", job.hub_user_id)
       .maybeSingle();
 

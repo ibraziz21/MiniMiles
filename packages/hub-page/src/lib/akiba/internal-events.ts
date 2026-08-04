@@ -18,6 +18,56 @@ export type InternalEventResult = {
   error?: string;
 };
 
+async function qualifyReferralCandidate(job: {
+  occurred_at: string;
+  metadata: Record<string, unknown>;
+}): Promise<InternalEventResult> {
+  const referredUserId = job.metadata.referredUserId;
+  const qualificationType = job.metadata.qualificationType;
+  const qualificationReference = job.metadata.qualificationReference;
+  const grossAmountKes = job.metadata.grossAmountKes;
+
+  if (
+    typeof referredUserId !== "string" ||
+    typeof qualificationType !== "string" ||
+    typeof qualificationReference !== "string" ||
+    typeof grossAmountKes !== "number" ||
+    !Number.isFinite(grossAmountKes)
+  ) {
+    return { ok: false, error: "Invalid referral activation candidate metadata" };
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc("qualify_referral_activation", {
+    p_referred_user_id: referredUserId,
+    p_qualification_type: qualificationType,
+    p_qualification_reference: qualificationReference,
+    p_gross_amount_kes: grossAmountKes,
+    p_occurred_at: job.occurred_at,
+  });
+
+  if (error) return { ok: false, error: error.message };
+
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { ok?: boolean; error_code?: string | null }
+    | null;
+  if (row?.ok) return { ok: true };
+
+  // These are completed evaluations, not delivery failures. Replaying them
+  // cannot make the candidate eligible later and would only churn the queue.
+  const terminal = new Set([
+    "no_referral",
+    "invalid_type",
+    "predates_pass_creation",
+    "activation_window_expired",
+    "below_threshold",
+    "duplicate_proof",
+  ]);
+  if (row?.error_code && terminal.has(row.error_code)) return { ok: true };
+
+  return { ok: false, error: row?.error_code ?? "Referral qualification failed" };
+}
+
 export async function sendInternalEvent(job: {
   event_type: string;
   idempotency_key: string;
@@ -25,6 +75,24 @@ export async function sendInternalEvent(job: {
   occurred_at: string;
   metadata: Record<string, unknown>;
 }): Promise<InternalEventResult> {
+  if (job.event_type === "referral_activation_candidate") {
+    return qualifyReferralCandidate(job);
+  }
+
+  // Merchant quest completion/reward is now written through the shared
+  // canonical registry. Acknowledging these legacy outbox jobs locally keeps
+  // their durable audit trail while preventing Platform from issuing a second
+  // reward for the same api_partner_quests action.
+  if (new Set([
+    "pass_activated",
+    "deal_viewed",
+    "sponsored_game_played",
+    "profile_country_set",
+    "voucher_redeemed",
+  ]).has(job.event_type)) {
+    return { ok: true };
+  }
+
   const AKIBA_API_URL = process.env.AKIBA_API_URL ?? "";
   const AKIBA_API_KEY = process.env.AKIBA_API_KEY ?? "";
 

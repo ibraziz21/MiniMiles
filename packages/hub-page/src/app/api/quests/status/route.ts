@@ -7,8 +7,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getHubQuestStatuses } from "@/lib/akiba/questStatus";
-import { getLedgerBalance } from "@/lib/akiba/activity";
-import { getLinkedWalletAddresses } from "@/lib/akiba/myVouchers";
+import { getHubCanonicalBalance } from "@/lib/akiba/canonicalPartnerQuests";
 import { isHubQuestsEnabledFor } from "@/lib/akiba/hubQuestRollout";
 
 export async function GET() {
@@ -25,11 +24,9 @@ export async function GET() {
     );
   }
 
-  const wallets = await getLinkedWalletAddresses(user.id);
-
   const [quests, balance] = await Promise.all([
     getHubQuestStatuses({ hubUserId: user.id, email }),
-    getLedgerBalance({ email, walletAddress: wallets[0] ?? null }),
+    getHubCanonicalBalance({ hubUserId: user.id, email }),
   ]);
 
   return NextResponse.json(

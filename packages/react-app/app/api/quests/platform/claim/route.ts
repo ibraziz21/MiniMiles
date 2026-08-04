@@ -18,8 +18,9 @@ import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth";
 import { fetchPlatform } from "@/lib/akiba/platformClient";
 import { invalidateCachedQuests } from "@/lib/akiba/platformQuestCache";
+import { CANONICAL_API_PARTNER_QUEST_IDS } from "@/lib/merchantDiscoveryQuests";
 
-type UpstreamReward = { walletAddress: string | null; status: string };
+type UpstreamReward = { walletAddress: string | null; status: string; questId?: string };
 
 export async function POST(req: Request) {
   const session = await requireSession();
@@ -37,6 +38,12 @@ export async function POST(req: Request) {
   }
   if ((rewardResult.data.walletAddress ?? "").toLowerCase() !== wallet) {
     return NextResponse.json({ error: "Reward does not belong to this wallet" }, { status: 403 });
+  }
+  if (rewardResult.data.questId && CANONICAL_API_PARTNER_QUEST_IDS.has(rewardResult.data.questId)) {
+    return NextResponse.json(
+      { error: "This quest is managed by the shared completion service" },
+      { status: 409 },
+    );
   }
 
   const claimResult = await fetchPlatform(`/api/v1/rewards/${rewardId}/claim`, { method: "POST", body: "{}" });

@@ -302,6 +302,64 @@ async function recordMerchantQuestWorkerEvents(
   }
 }
 
+function canonicalDeliveryId(job: any): string | null {
+  return job.api_partner_quest_delivery_id ?? job.payload?.canonicalDeliveryId ?? null;
+}
+
+async function completeCanonicalPartnerDeliveries(jobs: any[], txHash: string) {
+  const deliveryIds = [...new Set(jobs.map(canonicalDeliveryId).filter(Boolean))] as string[];
+  for (const deliveryId of deliveryIds) {
+    const { error } = await withTimeout(
+      supabase.rpc("complete_api_partner_quest_delivery", {
+        p_delivery_id: deliveryId,
+        p_external_ref: txHash,
+      }),
+      SUPABASE_TIMEOUT_MS,
+      `complete canonical partner delivery ${deliveryId}`,
+    );
+    if (error) {
+      // The mint is already confirmed. Reconciliation below will retry this
+      // database mirror; never throw and accidentally submit another mint.
+      console.warn("[mintWorker] canonical delivery completion:", error.message);
+    }
+  }
+}
+
+async function failCanonicalPartnerDelivery(job: any, reason: string) {
+  const deliveryId = canonicalDeliveryId(job);
+  if (!deliveryId) return;
+  const { error } = await withTimeout(
+    supabase.rpc("fail_api_partner_quest_delivery", {
+      p_delivery_id: deliveryId,
+      p_error: reason,
+    }),
+    SUPABASE_TIMEOUT_MS,
+    `fail canonical partner delivery ${deliveryId}`,
+  );
+  if (error) console.warn("[mintWorker] canonical delivery failure:", error.message);
+}
+
+async function reconcileCanonicalPartnerDeliveries() {
+  const { data: jobs, error } = await withTimeout(
+    supabase
+      .from("minipoint_mint_jobs")
+      .select("api_partner_quest_delivery_id, payload, tx_hash")
+      .eq("status", "completed")
+      .not("api_partner_quest_delivery_id", "is", null)
+      .order("updated_at", { ascending: false })
+      .limit(1000),
+    SUPABASE_TIMEOUT_MS,
+    "load canonical partner delivery reconciliation",
+  );
+  if (error) {
+    console.warn("[mintWorker] canonical delivery reconciliation lookup:", error.message);
+    return;
+  }
+  for (const job of jobs ?? []) {
+    if (job.tx_hash) await completeCanonicalPartnerDeliveries([job], job.tx_hash);
+  }
+}
+
 // A mint can confirm even if the follow-up weekly completion write encounters
 // a transient database error. Rebuild those derived rows from completed jobs
 // without ever resubmitting the on-chain mint.
@@ -524,6 +582,7 @@ async function applyBatchPayloads(jobs: any[], txHash: string) {
   }
 
   await recordMerchantQuestWorkerEvents(jobs, "reward_completed", { txHash });
+  await completeCanonicalPartnerDeliveries(jobs, txHash);
 }
 
 // ── Mint helpers ──────────────────────────────────────────────────────────────
@@ -598,14 +657,17 @@ async function handleFailedJobs(failed: { job: any; msg: string; err: any }[]) {
 
     if (kind === "blacklisted") {
       await permanentlyFail(job.id, "blacklisted");
+      await failCanonicalPartnerDelivery(job, "blacklisted");
       await recordMerchantQuestWorkerEvents([job], "reward_failed", {
         reason: "blacklisted",
       });
     } else if (kind === "unauthorized" || kind === "null-address" || isPermanentContractError(err) || isBlacklistedError({ message: msg })) {
       await permanentlyFail(job.id, reason);
+      await failCanonicalPartnerDelivery(job, reason);
       await recordMerchantQuestWorkerEvents([job], "reward_failed", { reason });
     } else if ((job.attempts ?? 0) >= MAX_JOB_ATTEMPTS) {
       await permanentlyFail(job.id, msg);
+      await failCanonicalPartnerDelivery(job, msg);
       await recordMerchantQuestWorkerEvents([job], "reward_failed", {
         reason: msg.slice(0, 500),
       });
@@ -749,6 +811,8 @@ export async function runDrain() {
       await resetStalledJobs();
       setRunPhase(owner, "reconcile-weekly-partner-completions");
       await reconcileWeeklyPartnerCompletions();
+      setRunPhase(owner, "reconcile-canonical-partner-deliveries");
+      await reconcileCanonicalPartnerDeliveries();
 
       while (true) {
         setRunPhase(owner, "renew-lock");

@@ -69,7 +69,7 @@ export function QuestsPageClient({
   const pollStartedAtRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const anyVerifying = quests.some((q) => q.state === "verifying");
+    const anyVerifying = quests.some((q) => q.state === "verifying" || q.state === "reward_pending");
     if (!anyVerifying) {
       pollStepRef.current = 0;
       pollStartedAtRef.current = null;

@@ -3,7 +3,7 @@
 // Card for the account-first Hub quest catalog
 // (merchant-shopping-quests-spec.md §6 "Card states"). Renders the 8 states
 // from the spec exactly: signed out / needs action / wallet required /
-// verifying / claimable / claiming / completed / failed-with-non-repeating-retry.
+// verifying / eligible / claiming / reward-pending / completed / failed.
 import { useState } from "react";
 import { CheckCircle2, Loader2, ArrowRight, AlertTriangle, Wallet } from "lucide-react";
 import { MilesAmount } from "@/components/MilesIcon";
@@ -23,14 +23,13 @@ export function HubQuestCard({
   const [claimError, setClaimError] = useState<string | null>(null);
 
   async function handleClaim() {
-    if (!quest.rewardId) return;
     setClaiming(true);
     setClaimError(null);
     try {
       const res = await fetch("/api/quests/claim", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rewardId: quest.rewardId }),
+        body: JSON.stringify({ questKey: quest.key }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
@@ -92,7 +91,7 @@ function CardCta({
   onRetryStatus,
 }: {
   quest: HubQuestStatus;
-  state: HubQuestStatus["state"];
+  state: HubQuestStatus["state"] | "claiming";
   isSignedIn: boolean;
   onClaim: () => void;
   onRetryStatus: () => void;
@@ -150,7 +149,7 @@ function CardCta({
           <Loader2 className="h-4 w-4 animate-spin" /> Claiming…
         </div>
       );
-    case "claimable":
+    case "eligible":
       return (
         <button
           onClick={onClaim}
@@ -166,6 +165,12 @@ function CardCta({
           Claimed · <MilesAmount amount={quest.miles} size="sm" prefix="+" className="text-green-700" />
         </div>
       );
+    case "reward_pending":
+      return (
+        <div className={clsx(baseBtn, "bg-akiba-card text-akiba-muted")}>
+          <Loader2 className="h-4 w-4 animate-spin" /> Reward pending…
+        </div>
+      );
     case "reward_failed":
       return (
         <button
@@ -173,6 +178,15 @@ function CardCta({
           className={clsx(baseBtn, "bg-red-50 text-red-700 hover:bg-red-100")}
         >
           <AlertTriangle className="h-4 w-4" /> Reward needs attention · Retry
+        </button>
+      );
+    case "service_unavailable":
+      return (
+        <button
+          onClick={onRetryStatus}
+          className={clsx(baseBtn, "bg-amber-50 text-amber-700 hover:bg-amber-100")}
+        >
+          <AlertTriangle className="h-4 w-4" /> Temporarily unavailable · Retry
         </button>
       );
     case "needs_action":

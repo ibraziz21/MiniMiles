@@ -22,8 +22,33 @@ const TEMPLATES: Record<string, RenderedNotification> = {
     title: "Voucher purchase needs review",
     body: "Your Miles are protected while we verify the transaction.",
   },
+  referral_manual_review: {
+    title: "Reward under review",
+    body: "A referral reward needs more time for review.",
+  },
 };
 
-export function renderTemplate(template: string): RenderedNotification | null {
+export function renderTemplate(
+  template: string,
+  metadata: Record<string, unknown> = {}
+): RenderedNotification | null {
+  const configuredMiles = metadata.amountMiles;
+  const miles = typeof configuredMiles === "number" && Number.isFinite(configuredMiles)
+    ? configuredMiles
+    : template.includes("activation") ? 100 : 50;
+
+  if (template === "referral_signup_held") {
+    return { title: "Friend joined!", body: `A friend joined with your invite. ${miles} Miles are pending.` };
+  }
+  if (template === "referral_signup_released") {
+    return { title: "Miles earned", body: `You earned ${miles} Miles for a referral.` };
+  }
+  if (template === "referral_activation_held") {
+    return { title: "Friend became active!", body: `Your friend became active. ${miles} Miles are pending.` };
+  }
+  if (template === "referral_activation_released") {
+    return { title: "Referral complete!", body: `You earned another ${miles} Miles. Referral complete!` };
+  }
+
   return TEMPLATES[template] ?? null;
 }

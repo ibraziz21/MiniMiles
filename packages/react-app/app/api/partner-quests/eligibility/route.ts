@@ -17,6 +17,7 @@ import {
   isMerchantDiscoveryQuestId,
   verifyMerchantQuestAction,
 } from "@/lib/server/merchantQuestVerification";
+import { getCanonicalMerchantQuestDeliveries } from "@/lib/server/canonicalPartnerQuests";
 import { shouldGateMerchantQuest } from "@/lib/server/merchantQuestRollout";
 
 export async function GET(req: NextRequest) {
@@ -72,6 +73,24 @@ export async function GET(req: NextRequest) {
   // Check if already claimed. "Play the sponsored leaderboard" resets weekly,
   // so it tracks completion in partner_quest_weekly_claims instead — the
   // once-ever partner_engagements check doesn't apply to it.
+  if (isMerchantDiscoveryQuestId(questId)) {
+    try {
+      const canonical = (await getCanonicalMerchantQuestDeliveries(userLc)).get(questId);
+      if (canonical?.status === "completed") {
+        return NextResponse.json({ eligible: false, reason: "already-claimed" });
+      }
+      if (canonical?.status === "pending" || canonical?.status === "processing") {
+        return NextResponse.json({ eligible: false, reason: "reward-pending" });
+      }
+    } catch (error) {
+      console.error("[partner-quests/eligibility] canonical completion lookup", error);
+      return NextResponse.json(
+        { error: "Could not verify quest completion" },
+        { status: 503 },
+      );
+    }
+  }
+
   if (questId !== QUEST_SPONSORED_LEADERBOARD) {
     const { data: existing } = await supabase
       .from("partner_engagements")

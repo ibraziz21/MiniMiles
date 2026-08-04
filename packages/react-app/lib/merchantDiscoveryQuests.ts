@@ -17,6 +17,14 @@ export const MERCHANT_DISCOVERY_QUEST_IDS = [
   QUEST_REDEEM_VOUCHER,
 ] as const;
 
+export const CANONICAL_API_PARTNER_QUEST_IDS = new Set([
+  "216cd2c5-74c9-4e79-80ba-612ecaff4aaf",
+  "83f26878-c33a-4c40-b0d0-6f7bfdf33355",
+  "7161b80b-ba30-404e-aba3-3faa24f763c7",
+  "a2a2cce0-6607-4648-a7fc-698d0ee5a489",
+  "2d3b9bb5-e3f2-49cf-8ca9-7369a2e03ff0",
+]);
+
 export type MerchantDiscoveryQuestId =
   (typeof MERCHANT_DISCOVERY_QUEST_IDS)[number];
 

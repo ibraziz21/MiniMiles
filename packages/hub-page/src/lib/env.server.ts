@@ -36,6 +36,7 @@ export type ServerEnv = {
     webhookSecret: string | null;
   };
   hubPassSecret: string | null;
+  hubReferralSecret: string | null;
   internalWebhookSecret: string | null;
   cronSecret: string | null;
   directoryRevalidationSecret: string | null;
@@ -157,11 +158,18 @@ export function getServerEnv(env: NodeJS.ProcessEnv = process.env): ServerEnv {
   }
 
   const akibaApiUrl = trimmedOrNull(env.AKIBA_API_URL);
+  const akibaApiKey = trimmedOrNull(env.AKIBA_API_KEY);
   if (akibaApiUrl && !isValidUrl(akibaApiUrl)) {
     problems.push("AKIBA_API_URL must be a valid URL when set");
   }
   if (isProduction && akibaApiUrl && isLocalhostUrl(akibaApiUrl)) {
     problems.push("AKIBA_API_URL cannot point at localhost in production");
+  }
+  if (isProduction && !akibaApiUrl) {
+    problems.push("AKIBA_API_URL is required in production for Miles and referral delivery");
+  }
+  if (isProduction && !akibaApiKey) {
+    problems.push("AKIBA_API_KEY is required in production for Miles and referral delivery");
   }
 
   const hubPassSecret = trimmedOrNull(env.HUB_PASS_SECRET);
@@ -175,6 +183,22 @@ export function getServerEnv(env: NodeJS.ProcessEnv = process.env): ServerEnv {
   }
   if (hubPassSecret && supabaseServiceKey && hubPassSecret === supabaseServiceKey) {
     problems.push("HUB_PASS_SECRET must not equal SUPABASE_SERVICE_KEY");
+  }
+
+  const hubReferralSecret = trimmedOrNull(env.HUB_REFERRAL_SECRET);
+  if (isProduction && !hubReferralSecret) {
+    problems.push(
+      "HUB_REFERRAL_SECRET is required in production (no fallback to HUB_PASS_SECRET or SUPABASE_SERVICE_KEY)"
+    );
+  }
+  if (hubReferralSecret && hubReferralSecret.length < MIN_SECRET_LENGTH) {
+    problems.push(`HUB_REFERRAL_SECRET must be at least ${MIN_SECRET_LENGTH} characters`);
+  }
+  if (hubReferralSecret && supabaseServiceKey && hubReferralSecret === supabaseServiceKey) {
+    problems.push("HUB_REFERRAL_SECRET must not equal SUPABASE_SERVICE_KEY");
+  }
+  if (hubReferralSecret && hubPassSecret && hubReferralSecret === hubPassSecret) {
+    problems.push("HUB_REFERRAL_SECRET must not equal HUB_PASS_SECRET");
   }
 
   const internalWebhookSecret = trimmedOrNull(env.INTERNAL_WEBHOOK_SECRET);
@@ -271,12 +295,13 @@ export function getServerEnv(env: NodeJS.ProcessEnv = process.env): ServerEnv {
     celo: { rpcUrl: celoRpcUrl, minipointsAddress },
     akiba: {
       apiUrl: akibaApiUrl,
-      apiKey: trimmedOrNull(env.AKIBA_API_KEY),
+      apiKey: akibaApiKey,
       partnerSlug: trimmedOrNull(env.AKIBA_PARTNER_SLUG),
       partnerKeyId: trimmedOrNull(env.AKIBA_PARTNER_KEY_ID),
       webhookSecret: trimmedOrNull(env.AKIBA_WEBHOOK_SECRET),
     },
     hubPassSecret,
+    hubReferralSecret,
     internalWebhookSecret,
     cronSecret,
     directoryRevalidationSecret,

@@ -1,4 +1,10 @@
 import { supabase } from "@/lib/supabaseClient";
+import type { MerchantDiscoveryQuestId } from "@/lib/merchantDiscoveryQuests";
+import {
+  failCanonicalDelivery,
+  reserveCanonicalWalletQuest,
+  retryCanonicalDelivery,
+} from "@/lib/server/canonicalPartnerQuests";
 
 type DailyEngagementPayload = {
   kind: "daily_engagement";
@@ -18,6 +24,7 @@ type PartnerEngagementPayload = {
   pointsAwarded: number;
   basePoints?: number;
   vaultBoost?: QuestVaultBoost;
+  canonicalDeliveryId?: string;
 };
 
 type PartnerWeeklyEngagementPayload = {
@@ -29,6 +36,7 @@ type PartnerWeeklyEngagementPayload = {
   pointsAwarded: number;
   basePoints?: number;
   vaultBoost?: QuestVaultBoost;
+  canonicalDeliveryId?: string;
 };
 
 type ProfileMilestonePayload = {
@@ -196,17 +204,22 @@ async function ensureMintJob(opts: {
   points: number;
   reason: string;
   payload: MintJobPayload;
+  canonicalDeliveryId?: string;
 }) {
+  const insertRow: Record<string, unknown> = {
+    idempotency_key: opts.idempotencyKey,
+    user_address: opts.userAddress.toLowerCase(),
+    points: opts.points,
+    reason: opts.reason,
+    status: "pending",
+    payload: opts.payload,
+  };
+  if (opts.canonicalDeliveryId) {
+    insertRow.api_partner_quest_delivery_id = opts.canonicalDeliveryId;
+  }
   const { data, error } = await supabase
     .from("minipoint_mint_jobs")
-    .insert({
-      idempotency_key: opts.idempotencyKey,
-      user_address: opts.userAddress.toLowerCase(),
-      points: opts.points,
-      reason: opts.reason,
-      status: "pending",
-      payload: opts.payload,
-    })
+    .insert(insertRow)
     .select("*")
     .single();
 
@@ -323,8 +336,13 @@ export async function claimQueuedPartnerReward(opts: {
   questId: string;
   points: number;
   reason: string;
+  canonicalQuest?: {
+    questId: MerchantDiscoveryQuestId;
+    verificationSource: string;
+    proofRef: string;
+  };
 }) {
-  const { userAddress, questId, points, reason } = opts;
+  const { userAddress, questId, points, reason, canonicalQuest } = opts;
   const userLc = userAddress.toLowerCase();
 
   const { data: existing, error: checkError } = await supabase
@@ -340,21 +358,51 @@ export async function claimQueuedPartnerReward(opts: {
   const idempotencyKey = `partner:${questId}:${userLc}`;
   const reward = await computeQuestReward(userLc, points);
 
-  const queuedJob = await ensureMintJob({
-    idempotencyKey,
-    userAddress: userLc,
-    points: reward.awardedPoints,
-    reason,
-    payload: {
-      kind: "partner_engagement",
+  const canonical = canonicalQuest
+    ? await reserveCanonicalWalletQuest({
+        walletAddress: userLc,
+        questId: canonicalQuest.questId,
+        scopeKey: "lifetime",
+        verificationSource: canonicalQuest.verificationSource,
+        proofRef: canonicalQuest.proofRef,
+        awardedPoints: reward.awardedPoints,
+      })
+    : null;
+  if (canonical?.status === "completed") {
+    return { ok: false as const, code: "already" as const };
+  }
+  if (canonical?.status === "failed") {
+    await retryCanonicalDelivery(canonical.deliveryId);
+  }
+
+  let queuedJob;
+  try {
+    queuedJob = await ensureMintJob({
+      idempotencyKey,
       userAddress: userLc,
-      questId,
-      claimedAt: new Date().toISOString(),
-      pointsAwarded: reward.awardedPoints,
-      basePoints: reward.basePoints,
-      vaultBoost: reward.vaultBoost,
-    },
-  });
+      points: reward.awardedPoints,
+      reason,
+      canonicalDeliveryId: canonical?.deliveryId,
+      payload: {
+        kind: "partner_engagement",
+        userAddress: userLc,
+        questId,
+        claimedAt: new Date().toISOString(),
+        pointsAwarded: reward.awardedPoints,
+        basePoints: reward.basePoints,
+        vaultBoost: reward.vaultBoost,
+        canonicalDeliveryId: canonical?.deliveryId,
+      },
+    });
+  } catch (error) {
+    if (canonical) {
+      await failCanonicalDelivery(
+        canonical.deliveryId,
+        error instanceof Error ? error.message : "mint job enqueue failed",
+      ).catch(() => undefined);
+    }
+    throw error;
+  }
 
   return {
     ok: true as const,
@@ -366,6 +414,7 @@ export async function claimQueuedPartnerReward(opts: {
     vaultBoost: reward.vaultBoost,
     jobId: queuedJob.job.id,
     retried: queuedJob.revived,
+    canonicalDeliveryId: canonical?.deliveryId,
   };
 }
 
@@ -380,8 +429,13 @@ export async function claimQueuedPartnerWeeklyReward(opts: {
   points: number;
   isoWeek: string;
   reason: string;
+  canonicalQuest?: {
+    questId: MerchantDiscoveryQuestId;
+    verificationSource: string;
+    proofRef: string;
+  };
 }) {
-  const { userAddress, questId, points, isoWeek, reason } = opts;
+  const { userAddress, questId, points, isoWeek, reason, canonicalQuest } = opts;
   const userLc = userAddress.toLowerCase();
 
   const { data: existing, error: checkError } = await supabase
@@ -398,22 +452,52 @@ export async function claimQueuedPartnerWeeklyReward(opts: {
   const idempotencyKey = `partner-weekly:${questId}:${userLc}:${isoWeek}`;
   const reward = await computeQuestReward(userLc, points);
 
-  const queuedJob = await ensureMintJob({
-    idempotencyKey,
-    userAddress: userLc,
-    points: reward.awardedPoints,
-    reason,
-    payload: {
-      kind: "partner_weekly_engagement",
+  const canonical = canonicalQuest
+    ? await reserveCanonicalWalletQuest({
+        walletAddress: userLc,
+        questId: canonicalQuest.questId,
+        scopeKey: isoWeek,
+        verificationSource: canonicalQuest.verificationSource,
+        proofRef: canonicalQuest.proofRef,
+        awardedPoints: reward.awardedPoints,
+      })
+    : null;
+  if (canonical?.status === "completed") {
+    return { ok: false as const, code: "already" as const };
+  }
+  if (canonical?.status === "failed") {
+    await retryCanonicalDelivery(canonical.deliveryId);
+  }
+
+  let queuedJob;
+  try {
+    queuedJob = await ensureMintJob({
+      idempotencyKey,
       userAddress: userLc,
-      questId,
-      isoWeek,
-      claimedAt: new Date().toISOString(),
-      pointsAwarded: reward.awardedPoints,
-      basePoints: reward.basePoints,
-      vaultBoost: reward.vaultBoost,
-    },
-  });
+      points: reward.awardedPoints,
+      reason,
+      canonicalDeliveryId: canonical?.deliveryId,
+      payload: {
+        kind: "partner_weekly_engagement",
+        userAddress: userLc,
+        questId,
+        isoWeek,
+        claimedAt: new Date().toISOString(),
+        pointsAwarded: reward.awardedPoints,
+        basePoints: reward.basePoints,
+        vaultBoost: reward.vaultBoost,
+        canonicalDeliveryId: canonical?.deliveryId,
+      },
+    });
+  } catch (error) {
+    if (canonical) {
+      await failCanonicalDelivery(
+        canonical.deliveryId,
+        error instanceof Error ? error.message : "mint job enqueue failed",
+      ).catch(() => undefined);
+    }
+    throw error;
+  }
 
   return {
     ok: true as const,
@@ -425,6 +509,7 @@ export async function claimQueuedPartnerWeeklyReward(opts: {
     vaultBoost: reward.vaultBoost,
     jobId: queuedJob.job.id,
     retried: queuedJob.revived,
+    canonicalDeliveryId: canonical?.deliveryId,
   };
 }
 

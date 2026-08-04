@@ -12,6 +12,7 @@ import {
   type MerchantDiscoveryQuestId,
   type MerchantQuestStatus,
 } from "@/lib/merchantDiscoveryQuests";
+import { getCanonicalMerchantQuestDeliveries } from "@/lib/server/canonicalPartnerQuests";
 
 export type MerchantQuestVerification = {
   eligible: boolean;
@@ -204,7 +205,7 @@ export async function getMerchantQuestStatuses(
     mintJobKey(questId, userLc, week),
   );
 
-  const [engagementsResult, weeklyResult, jobsResult, verificationResults] =
+  const [engagementsResult, weeklyResult, jobsResult, verificationResults, canonicalDeliveries] =
     await Promise.all([
       supabase
         .from("partner_engagements")
@@ -228,6 +229,7 @@ export async function getMerchantQuestStatuses(
           verifyMerchantQuestAction(questId, userLc),
         ),
       ),
+      getCanonicalMerchantQuestDeliveries(userLc),
     ]);
 
   throwQueryError("engagement status lookup", engagementsResult.error);
@@ -242,6 +244,17 @@ export async function getMerchantQuestStatuses(
   );
 
   return MERCHANT_DISCOVERY_QUEST_IDS.map((questId, index) => {
+    const canonical = canonicalDeliveries.get(questId);
+    if (canonical?.status === "completed") {
+      return { questId, state: "completed" };
+    }
+    if (canonical?.status === "pending" || canonical?.status === "processing") {
+      return { questId, state: "queued" };
+    }
+    if (canonical?.status === "failed") {
+      return { questId, state: "failed", reason: "reward-job-failed" };
+    }
+
     const jobState = jobsByKey.get(
       mintJobKey(questId, userLc, week),
     ) as MerchantQuestMintJobState;

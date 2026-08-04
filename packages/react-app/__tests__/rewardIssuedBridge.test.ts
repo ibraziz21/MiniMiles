@@ -126,6 +126,28 @@ describe("POST /api/internal/reward-issued", () => {
     });
   });
 
+  it("acknowledges a canonical api_partner_quests reward without minting it twice", async () => {
+    const { POST } = await import("@/app/api/internal/reward-issued/route");
+    const body = JSON.stringify({
+      event: "reward_issued",
+      data: {
+        rewardId: "r-canonical",
+        questId: "216cd2c5-74c9-4e79-80ba-612ecaff4aaf",
+        amount: 20,
+        currency: "AKIBA_MILES",
+        identityType: "wallet",
+        identityValue: "0xABC",
+      },
+      timestamp: "2026-01-01T00:00:00Z",
+      deliveryId: "d-canonical",
+    });
+
+    const res = await POST(makeRequest(body, sign(body)));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, skipped: "canonical partner quest" });
+    expect(mockEnqueuePlatformReward).not.toHaveBeenCalled();
+  });
+
   it("returns 500 when enqueuePlatformReward throws, so Platform's delivery worker retries", async () => {
     mockEnqueuePlatformReward.mockRejectedValueOnce(new Error("db down"));
     const { POST } = await import("@/app/api/internal/reward-issued/route");

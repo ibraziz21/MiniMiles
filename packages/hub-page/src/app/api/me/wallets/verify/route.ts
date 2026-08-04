@@ -11,6 +11,7 @@ import {
   hashChallengeSecret,
   verifySignedMessage,
 } from "@/lib/wallet-link";
+import { linkVerifiedWalletToHubCanonical } from "@/lib/akiba/canonicalPartnerQuests";
 
 export async function POST(request: Request) {
   if (!walletLinkingFlag().enabled) {
@@ -103,6 +104,22 @@ export async function POST(request: Request) {
     hubUserId: user.id,
     hubEmail: user.email ?? null,
   });
+
+  try {
+    await linkVerifiedWalletToHubCanonical({
+      hubUserId: user.id,
+      email: user.email ?? null,
+      wallet: challenge.address,
+    });
+  } catch (error) {
+    // The wallet has been cryptographically linked, but quest identity must
+    // not silently diverge. Return a retryable error and leave an operator-visible log.
+    console.error("[wallets/verify] canonical quest identity link failed:", error);
+    return NextResponse.json(
+      { error: "Wallet linked, but reward history sync is still pending" },
+      { status: 503 },
+    );
+  }
 
   await reemitPassActivated({ userId: user.id, email: user.email ?? null });
 

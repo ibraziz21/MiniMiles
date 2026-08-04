@@ -38,6 +38,10 @@ vi.mock("@/lib/akiba/legacyUsersBridge", () => ({
   bridgeLegacyUsersRow: vi.fn(async () => ({ ok: true, incidentRecorded: false })),
 }));
 
+vi.mock("@/lib/akiba/canonicalPartnerQuests", () => ({
+  linkVerifiedWalletToHubCanonical: vi.fn(async () => "canonical-1"),
+}));
+
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     from: (table: string) => {

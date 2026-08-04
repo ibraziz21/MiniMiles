@@ -15,6 +15,8 @@ import {
   Undo2,
   Users,
   Inbox,
+  Share2,
+  Search,
   Gamepad2,
   Dice5,
   Ticket,
@@ -72,6 +74,17 @@ const navSections: Array<{ label: string; items: NavItem[] }> = [
       { href: "/finance", label: "Finance", icon: Landmark },
       { href: "/refunds", label: "Refunds", icon: Undo2 },
       { href: "/settlement", label: "Settlement", icon: Landmark },
+      {
+        href: "/referrals",
+        label: "Referrals",
+        icon: Share2,
+        children: [
+          { href: "/referrals", label: "Overview", icon: LayoutDashboard },
+          { href: "/referrals/queue", label: "Review Queue", icon: ClipboardCheck },
+          { href: "/referrals/lookup", label: "Lookup", icon: Search },
+          { href: "/referrals/program", label: "Program", icon: Settings },
+        ],
+      },
       { href: "/users", label: "Users & Wallets", icon: Users },
       {
         href: "/games",

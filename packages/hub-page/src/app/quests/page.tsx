@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getHubQuestStatuses, type HubQuestStatus } from "@/lib/akiba/questStatus";
-import { getLedgerBalance } from "@/lib/akiba/activity";
-import { getLinkedWalletAddresses } from "@/lib/akiba/myVouchers";
+import { getHubCanonicalBalance } from "@/lib/akiba/canonicalPartnerQuests";
 import { isHubQuestsEnabledFor } from "@/lib/akiba/hubQuestRollout";
 import { QuestsPageClient } from "./QuestsPageClient";
 
@@ -16,10 +15,9 @@ export default async function QuestsPage() {
   let balance = 0;
   const rolloutEnabled = user ? isHubQuestsEnabledFor(user.email ?? user.id) : false;
   if (user && rolloutEnabled) {
-    const wallets = await getLinkedWalletAddresses(user.id);
     [quests, balance] = await Promise.all([
       getHubQuestStatuses({ hubUserId: user.id, email: user.email ?? null }),
-      getLedgerBalance({ email: user.email ?? null, walletAddress: wallets[0] ?? null }),
+      getHubCanonicalBalance({ hubUserId: user.id, email: user.email ?? null }),
     ]);
   }
 

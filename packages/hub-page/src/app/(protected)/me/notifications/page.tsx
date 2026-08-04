@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ArrowLeft, Bell, Package, Truck, CheckCircle2, XCircle, RotateCcw, Ticket, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Bell, Package, Truck, CheckCircle2, XCircle, RotateCcw, Ticket, AlertTriangle, Gift } from "lucide-react";
 import { PushNotificationSettings } from "@/components/PushNotificationSettings";
 
 export const metadata = { title: "Notifications — Akiba Pass" };
@@ -18,6 +18,11 @@ const TEMPLATE_CONFIG: Record<string, { label: string; icon: React.ReactNode }> 
   voucher_ready:          { label: "Voucher ready",             icon: <Ticket className="h-4 w-4" /> },
   voucher_failed:         { label: "Voucher purchase failed",   icon: <XCircle className="h-4 w-4" /> },
   voucher_reconciliation: { label: "Voucher purchase in review", icon: <AlertTriangle className="h-4 w-4" /> },
+  referral_signup_held:        { label: "Friend joined — Miles pending",   icon: <Gift className="h-4 w-4" /> },
+  referral_signup_released:    { label: "Referral Miles earned",           icon: <Gift className="h-4 w-4" /> },
+  referral_activation_held:    { label: "Friend became active — Miles pending", icon: <Gift className="h-4 w-4" /> },
+  referral_activation_released:{ label: "Referral complete",               icon: <Gift className="h-4 w-4" /> },
+  referral_manual_review:      { label: "Referral reward under review",    icon: <AlertTriangle className="h-4 w-4" /> },
 };
 
 type NotificationRow = {

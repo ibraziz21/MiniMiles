@@ -76,6 +76,21 @@ async function recordMerchantQuestCompletions(jobs: any[], txHash: string) {
   }
 }
 
+async function completeCanonicalPartnerDeliveries(jobs: any[], txHash: string) {
+  const deliveryIds = [...new Set(
+    jobs
+      .map((job) => job.api_partner_quest_delivery_id ?? job.payload?.canonicalDeliveryId)
+      .filter(Boolean),
+  )] as string[];
+  for (const deliveryId of deliveryIds) {
+    const { error } = await supabase.rpc("complete_api_partner_quest_delivery", {
+      p_delivery_id: deliveryId,
+      p_external_ref: txHash,
+    });
+    if (error) console.warn("[drain] canonical partner delivery:", error.message);
+  }
+}
+
 async function applyBatchPayloads(jobs: any[], txHash: string) {
   const dailyRows = jobs
     .filter((j) => j.payload?.kind === "daily_engagement")
@@ -145,7 +160,10 @@ async function applyBatchPayloads(jobs: any[], txHash: string) {
     .update({ status: "completed", tx_hash: txHash, updated_at: new Date().toISOString() })
     .in("id", ids);
   if (completeErr) console.error("[drain] bulk complete update:", completeErr.message);
-  if (!completeErr) await recordMerchantQuestCompletions(jobs, txHash);
+  if (!completeErr) {
+    await recordMerchantQuestCompletions(jobs, txHash);
+    await completeCanonicalPartnerDeliveries(jobs, txHash);
+  }
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────

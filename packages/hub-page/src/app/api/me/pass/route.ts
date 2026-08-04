@@ -12,6 +12,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getOrCreatePass } from "@/lib/akiba/pass";
+import { REFERRAL_COOKIE_NAME } from "@/lib/akiba/referral-token";
 
 export async function GET() {
   const supabase = await createClient();
@@ -36,8 +37,12 @@ export async function GET() {
     return NextResponse.json({ error: "Could not issue pass" }, { status: 500 });
   }
 
-  return NextResponse.json({
+  const res = NextResponse.json({
     publicPassId,
     qrPayload: `akiba-pass:v1:${publicPassId}`,
   });
+  // Always clear — see join-complete/route.ts for why isNew=false (Pass
+  // already existed) must clear it too, not just a fresh bind.
+  res.cookies.delete(REFERRAL_COOKIE_NAME);
+  return res;
 }

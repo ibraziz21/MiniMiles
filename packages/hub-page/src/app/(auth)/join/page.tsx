@@ -26,8 +26,16 @@ export default function JoinPage() {
   const [startedAt] = useState(() => Date.now());
 
   const supabase = createClient();
+  const isReferral = src === "referral";
 
-  useEffect(() => { track("join_view", { src }); }, [src]);
+  useEffect(() => {
+    track("join_view", { src });
+    // UX-only signal (referral-system-spec.md §13.1) — never drives referral
+    // state or rewards; actual attribution already happened server-side
+    // when /r/[code] accepted the click.
+    if (isReferral) track("referral_join_attributed");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [src]);
 
   async function sendOtp() {
     setLoading(true);
@@ -90,10 +98,16 @@ export default function JoinPage() {
 
         <div className="rounded-2xl border border-akiba-line bg-white p-8 shadow-soft">
           <h1 className="font-sterling text-2xl font-semibold text-akiba-ink">
-            Sign up in 1 minute
+            {isReferral ? "You were invited to Akiba Pass" : "Sign up in 1 minute"}
           </h1>
           <p className="mt-1 text-sm text-akiba-muted">
-            Earn points on this purchase.
+            {isReferral
+              // Distinguishes the friend's own normal onboarding rewards from
+              // the referrer's reward — never states a Miles amount here
+              // (spec §3.1/§9.3: the referrer's 150 is never promised to the
+              // friend, and this app has no separate V1 friend bonus).
+              ? "Create your own Akiba Pass and start earning Miles when you shop and use rewards."
+              : "Earn points on this purchase."}
           </p>
 
           <div className="mt-6 space-y-4">

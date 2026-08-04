@@ -5,6 +5,12 @@
 **Status:** Proposed  
 **Scope:** Review and implementation specification only
 
+> **Cross-app update:** `canonical-cross-app-partner-quest-spec.md` supersedes
+> this document's completion, identity, and reward-delivery decisions. The
+> catalog intent and Hub-owned evidence rules here remain useful, but both apps
+> must now read one canonical completion registry and preserve React's existing
+> wallet mint path.
+
 ## 1. Decision
 
 Replace the current partner/on-chain quest presentation on `/quests` with

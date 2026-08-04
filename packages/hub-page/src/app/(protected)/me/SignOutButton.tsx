@@ -14,6 +14,13 @@ export function SignOutButton() {
     // next signed-in user on a shared device.
     await cleanupPushBeforeLogout();
 
+    // Referral attribution is HttpOnly, so client JS can't clear it
+    // directly — a shared-device account switch must not let a stale
+    // attribution cookie from this session bind to the next signup
+    // (referral-system-spec.md §8 "logout/account switch"). Best-effort:
+    // sign-out must proceed even if this fails.
+    await fetch("/api/auth/clear-referral-attribution", { method: "POST" }).catch(() => {});
+
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/");

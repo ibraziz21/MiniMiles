@@ -37,19 +37,31 @@ export async function GET(request: Request) {
   const since = new Date(Date.now() - hours * 60 * 60_000).toISOString();
 
   const admin = createAdminClient();
-  const { data: jobs, error } = await admin
-    .from("internal_event_jobs")
-    .select("event_type, status, attempts, last_error, created_at, updated_at")
-    .in("event_type", HUB_QUEST_EVENT_TYPES)
-    .gte("created_at", since)
-    .limit(5000);
+  const [jobsResult, bindingsResult, deliveriesResult] = await Promise.all([
+    admin
+      .from("internal_event_jobs")
+      .select("event_type, status, attempts, last_error, created_at, updated_at")
+      .in("event_type", HUB_QUEST_EVENT_TYPES)
+      .gte("created_at", since)
+      .limit(5000),
+    admin
+      .from("quest_catalog_bindings")
+      .select("quest_key, api_partner_quest_id, react_partner_quest_id, frequency, base_points, active"),
+    admin
+      .from("api_partner_quest_reward_deliveries")
+      .select("status, mode, updated_at, last_error")
+      .in("status", ["pending", "processing", "failed"])
+      .limit(5000),
+  ]);
+
+  const error = jobsResult.error ?? bindingsResult.error ?? deliveriesResult.error;
 
   if (error) {
     console.error("[internal/quests-health] query failed:", error.message);
     return NextResponse.json({ error: "Quest health data is unavailable" }, { status: 503 });
   }
 
-  const rows = jobs ?? [];
+  const rows = jobsResult.data ?? [];
   const stuckCutoff = Date.now() - STUCK_PROCESSING_MINUTES * 60_000;
 
   const byQuest: Record<string, { pending: number; processing: number; released: number; failed: number }> = {};
@@ -93,12 +105,35 @@ export async function GET(request: Request) {
     warnings.push(`${recentFailures.length} job(s) with retry attempts or failures in the last ${hours}h`);
   }
 
+  const expectedKeys = new Set(HUB_QUEST_EVENT_TYPES);
+  const bindings = bindingsResult.data ?? [];
+  const activeBindingKeys = new Set(bindings.filter((row) => row.active).map((row) => row.quest_key));
+  const missingBindings = [...expectedKeys].filter((key) => !activeBindingKeys.has(key));
+  if (missingBindings.length > 0) warnings.push(`Missing active catalog bindings: ${missingBindings.join(", ")}`);
+
+  const canonicalDeliveries = deliveriesResult.data ?? [];
+  const stuckCanonicalDeliveries = canonicalDeliveries.filter(
+    (row) => (row.status === "pending" || row.status === "processing") && new Date(row.updated_at).getTime() < stuckCutoff,
+  );
+  if (stuckCanonicalDeliveries.length > 0) {
+    warnings.push(`${stuckCanonicalDeliveries.length} canonical delivery job(s) stuck for over ${STUCK_PROCESSING_MINUTES} minutes`);
+  }
+
   return NextResponse.json(
     {
       window: { hours, since },
       byQuest,
       stuckProcessing,
       recentFailures: recentFailures.slice(0, 50),
+      catalogBindings: bindings,
+      missingBindings,
+      canonicalDeliveries: {
+        pending: canonicalDeliveries.filter((row) => row.status === "pending").length,
+        processing: canonicalDeliveries.filter((row) => row.status === "processing").length,
+        failed: canonicalDeliveries.filter((row) => row.status === "failed").length,
+        stuck: stuckCanonicalDeliveries.length,
+      },
+      healthy: warnings.length === 0,
       warnings,
       rollout: getHubQuestRolloutSummary(),
     },

@@ -21,11 +21,12 @@ const KNOWN_USER_ROW = { full_name: "Alice K.", username: "alicek" };
 // Must be prefixed "mock" so Vitest's vi.mock hoisting allows reference.
 let mockPassExists = true;
 const mockRpc = vi.fn(async (fn: string) => {
-  if (fn === "create_or_get_hub_pass") {
+  if (fn === "create_or_get_hub_pass_with_referral") {
     return {
       data: [{
         public_pass_id: mockPassExists ? KNOWN_PASS_ID : NEW_PASS_ID,
         is_new: !mockPassExists,
+        referral_outcome: "none",
       }],
       error: null,
     };
@@ -47,9 +48,10 @@ vi.mock("@/lib/supabase/server", () => ({
 // ── Mock admin client ─────────────────────────────────────────────────────────
 // Routes table queries to the appropriate fixture based on table name.
 // GET /api/me/pass now delegates to getOrCreatePass, which calls the
-// create_or_get_hub_pass RPC rather than querying hub_user_passes directly
-// (044_internal_event_outbox.sql) — resolve/regenerate still hit the table
-// directly, so `.from()` is still exercised by those two describe blocks.
+// create_or_get_hub_pass_with_referral RPC rather than querying
+// hub_user_passes directly (053_referral_system.sql) — resolve/regenerate
+// still hit the table directly, so `.from()` is still exercised by those
+// two describe blocks.
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     from: (table: string) => {
@@ -115,13 +117,14 @@ describe("GET /api/me/pass", () => {
     expect(typeof json.qrPayload).toBe("string");
   });
 
-  it("uses the canonical three-argument RPC signature", async () => {
+  it("uses the canonical RPC signature, resolving referral context server-side", async () => {
     await passGET();
 
-    expect(mockRpc).toHaveBeenCalledWith("create_or_get_hub_pass", {
+    expect(mockRpc).toHaveBeenCalledWith("create_or_get_hub_pass_with_referral", {
       p_user_id: "user-uuid",
       p_email: "alice@example.com",
       p_src: "organic",
+      p_referral_token_hash: null,
     });
   });
 

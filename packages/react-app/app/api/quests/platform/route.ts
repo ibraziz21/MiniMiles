@@ -17,6 +17,7 @@ import { requireSession } from "@/lib/auth";
 import { fetchPlatform } from "@/lib/akiba/platformClient";
 import { getCachedQuests, setCachedQuests } from "@/lib/akiba/platformQuestCache";
 import type { PlatformQuestDto, PlatformQuestStatus } from "@/lib/akiba/platformQuestCache";
+import { CANONICAL_API_PARTNER_QUEST_IDS } from "@/lib/merchantDiscoveryQuests";
 
 export const dynamic = "force-dynamic";
 
@@ -75,7 +76,10 @@ export async function GET() {
 
   const quests: PlatformQuestDto[] = await Promise.all(
     questsResult.data
-      .filter((q) => q.status === "active" || q.status === "live")
+      .filter((q) =>
+        (q.status === "active" || q.status === "live") &&
+        !CANONICAL_API_PARTNER_QUEST_IDS.has(q.questId),
+      )
       .map(async (q) => {
         const { status, rewardId } = await resolveQuestStatus(q.questId, wallet);
         return {

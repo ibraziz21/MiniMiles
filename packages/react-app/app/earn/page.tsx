@@ -130,10 +130,20 @@ export default function EarnPage() {
   useEffect(() => {
     if (!address) return;
     (async () => {
-      const b = await getakibaMilesBalance();
-      setBalance(b);
+      const onchain = Number(await getakibaMilesBalance());
+      let offchain = 0;
+      try {
+        const response = await fetch("/api/miles/canonical-balance", { cache: "no-store" });
+        if (response.ok) {
+          const body = await response.json() as { offchain?: number };
+          offchain = Number(body.offchain ?? 0);
+        }
+      } catch {
+        // Keep the confirmed on-chain component visible during a ledger outage.
+      }
+      setBalance(String(onchain + offchain));
     })();
-  }, [address, getakibaMilesBalance]);
+  }, [address, getakibaMilesBalance, merchantQuestStatus]);
 
   useEffect(() => {
     const fetchVaultBalance = async () => {
@@ -187,6 +197,8 @@ export default function EarnPage() {
   return (
     <main className="pb-24 font-sterling">
       <AppHeader />
+
+      {isAuthenticated && <MiniPointsCard points={Number(balance)} />}
 
       {showVault && (
       <div className="px-4">

@@ -3,8 +3,8 @@
 // Retained for future paid partner inventory (merchant-shopping-quests-spec.md
 // §7) — not mounted while SHOW_PARTNER_QUESTS is false. handleClaim below
 // still posts the OLD { quest_id } contract to /api/quests/claim, which now
-// expects { rewardId } (see the account-first Hub claim route) — this must be
-// adapted to the same account-first status/reward ownership contract before
+// expects a canonical { questKey } — this must be adapted to the shared
+// catalog/status contract before
 // SHOW_PARTNER_QUESTS is ever re-enabled.
 import { useState } from "react";
 import { Clock, CheckCircle2, Loader2, ExternalLink, Wallet } from "lucide-react";

@@ -14,6 +14,7 @@ import { NextResponse } from "next/server";
 import { verifyRewardWebhookSignature } from "@/lib/akiba/verifyRewardWebhook";
 import type { RewardIssuedDelivery } from "@/lib/akiba/verifyRewardWebhook";
 import { enqueuePlatformReward } from "@/lib/minipointQueue";
+import { CANONICAL_API_PARTNER_QUEST_IDS } from "@/lib/merchantDiscoveryQuests";
 
 export async function POST(req: Request) {
   const rawBody = await req.text();
@@ -40,6 +41,12 @@ export async function POST(req: Request) {
   // identity never linked a mini-app wallet). Ack so Platform doesn't retry.
   if (data.identityType !== "wallet") {
     return NextResponse.json({ ok: true, skipped: "non-wallet identity" });
+  }
+
+  // These five quests are paid by the shared canonical delivery registry.
+  // Acknowledge the legacy Platform webhook without minting a second reward.
+  if (CANONICAL_API_PARTNER_QUEST_IDS.has(data.questId)) {
+    return NextResponse.json({ ok: true, skipped: "canonical partner quest" });
   }
 
   try {

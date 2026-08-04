@@ -31,6 +31,7 @@ const HUB_QUEST_EVENT_TYPES = [
   "sponsored_game_played",
   "profile_country_set",
   "voucher_redeemed",
+  "referral_activation_candidate",
 ] as const;
 
 const WORKER_ID = `${process.pid}-${randomUUID().slice(0, 8)}`;
@@ -113,8 +114,68 @@ async function completeJob(
   }
 }
 
+async function deliverReferralActivationCandidate(job: ClaimedEventJob): Promise<
+  | { action: "release" }
+  | { action: "retry"; errorCode: string; errorDetail: string }
+  | { action: "fail"; errorCode: string; errorDetail: string; alert: boolean }
+> {
+  const referredUserId = job.metadata.referredUserId;
+  const qualificationType = job.metadata.qualificationType;
+  const qualificationReference = job.metadata.qualificationReference;
+  const grossAmountKes = job.metadata.grossAmountKes;
+
+  if (
+    typeof referredUserId !== "string" ||
+    typeof qualificationType !== "string" ||
+    typeof qualificationReference !== "string" ||
+    typeof grossAmountKes !== "number" ||
+    !Number.isFinite(grossAmountKes)
+  ) {
+    return {
+      action: "fail",
+      errorCode: "invalid_referral_candidate",
+      errorDetail: "Referral activation candidate metadata is incomplete",
+      alert: true,
+    };
+  }
+
+  const { data, error } = await supabase.rpc("qualify_referral_activation", {
+    p_referred_user_id: referredUserId,
+    p_qualification_type: qualificationType,
+    p_qualification_reference: qualificationReference,
+    p_gross_amount_kes: grossAmountKes,
+    p_occurred_at: job.occurred_at,
+  });
+  if (error) {
+    return { action: "retry", errorCode: "qualification_rpc_error", errorDetail: error.message };
+  }
+
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { ok?: boolean; error_code?: string | null }
+    | null;
+  if (row?.ok) return { action: "release" };
+
+  const terminal = new Set([
+    "no_referral",
+    "invalid_type",
+    "predates_pass_creation",
+    "activation_window_expired",
+    "below_threshold",
+    "duplicate_proof",
+  ]);
+  if (row?.error_code && terminal.has(row.error_code)) return { action: "release" };
+
+  return {
+    action: "retry",
+    errorCode: row?.error_code ?? "qualification_failed",
+    errorDetail: "Referral activation candidate could not be qualified",
+  };
+}
+
 async function handleJob(job: ClaimedEventJob): Promise<"released" | "retried" | "failed"> {
-  const outcome = await deliverHubQuestEvent(job, TIMEOUT_MS);
+  const outcome = job.event_type === "referral_activation_candidate"
+    ? await deliverReferralActivationCandidate(job)
+    : await deliverHubQuestEvent(job, TIMEOUT_MS);
 
   if (outcome.action === "release") {
     await completeJob(job.id, true, false);

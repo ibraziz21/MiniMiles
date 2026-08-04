@@ -39,7 +39,10 @@ function makeChain(table: string) {
 const mockFrom = vi.fn((table: string) => makeChain(table));
 
 vi.mock("@/lib/supabaseClient", () => ({
-  supabase: { from: (table: string) => mockFrom(table) },
+  supabase: {
+    from: (table: string) => mockFrom(table),
+    rpc: async () => ({ data: "canonical-1", error: null }),
+  },
 }));
 
 describe("merchant quest verification", () => {
@@ -133,5 +136,34 @@ describe("merchant quest verification", () => {
       ...MERCHANT_DISCOVERY_QUEST_IDS,
     ]);
     expect(statuses).toHaveLength(5);
+  });
+
+  it("treats the canonical delivery as complete even without a legacy engagement", async () => {
+    tableResults.set("api_partner_quest_completions", {
+      data: [{ id: "completion-1", quest_key: "pass_activated", scope_key: "lifetime" }],
+      error: null,
+    });
+    tableResults.set("api_partner_quest_reward_deliveries", {
+      data: [{
+        id: "delivery-1",
+        completion_id: "completion-1",
+        status: "completed",
+        mode: "offchain_ledger",
+        awarded_points: 20,
+        external_ref: "ledger-1",
+      }],
+      error: null,
+    });
+    tableResults.set("partner_engagements", { data: [], error: null });
+    tableResults.set("partner_quest_weekly_claims", { data: null, error: null });
+    tableResults.set("minipoint_mint_jobs", { data: [], error: null });
+    tableResults.set("merchant_quest_action_proofs", { data: null, error: null });
+    tableResults.set("game_weekly_campaigns", { data: null, error: null });
+    tableResults.set("users", { data: null, error: null });
+    tableResults.set("issued_vouchers", { data: null, error: null });
+
+    const { getMerchantQuestStatuses } = await import("@/lib/server/merchantQuestVerification");
+    const statuses = await getMerchantQuestStatuses("0xabc");
+    expect(statuses.find((status) => status.questId === QUEST_AKIBA_PASS)?.state).toBe("completed");
   });
 });

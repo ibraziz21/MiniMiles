@@ -6,6 +6,14 @@
 **Related:** `hub-quest-event-delivery-spec.md` (see §11 "Backlog recovery" and
 §16 "Non-goals" for the decisions this runbook does not revisit)
 
+> **Superseded for the five merchant quests:**
+> `canonical-cross-app-partner-quest-spec.md` and migration 054 replace their
+> Platform event/reward delivery with the shared canonical registry. Do not
+> execute this runbook for `pass_activated`, `deal_viewed`,
+> `sponsored_game_played`, `profile_country_set`, or `voucher_redeemed` after
+> that cutover. The outbox rows are retained as audit records and acknowledged
+> locally so they cannot issue a second reward.
+
 This is the operator sequence for Slice E — turning `packages/backend`'s
 `HubQuestEventWorker` into the production publisher for Hub's
 `internal_event_jobs` outbox, and retiring the Vercel cron path. Nothing here

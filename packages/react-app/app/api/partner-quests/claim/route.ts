@@ -10,6 +10,10 @@ import { isoWeek } from "@/lib/games/week";
 import { QUEST_SPONSORED_LEADERBOARD } from "@/lib/merchantDiscoveryQuests";
 import { recordMerchantQuestEvent } from "@/lib/server/merchantQuestAudit";
 import { shouldGateMerchantQuest } from "@/lib/server/merchantQuestRollout";
+import {
+  isMerchantDiscoveryQuestId,
+  verifyMerchantQuestAction,
+} from "@/lib/server/merchantQuestVerification";
 
 /* ─── env / clients ─────────────────────────────────────── */
 
@@ -91,6 +95,12 @@ export async function POST(request: Request) {
       }
 
       if (existing && existing.length > 0) {
+        if (isMerchantDiscoveryQuestId(questId)) {
+          return NextResponse.json(
+            { completed: true, already: true, queued: false },
+            { status: 200 },
+          );
+        }
         return NextResponse.json(
           { error: "Quest already claimed" },
           { status: 400 }
@@ -118,6 +128,34 @@ export async function POST(request: Request) {
       );
     }
 
+    const isCanonicalMerchantQuest = isMerchantDiscoveryQuestId(questId);
+    if (isCanonicalMerchantQuest) {
+      let verification;
+      try {
+        verification = await verifyMerchantQuestAction(questId, userLc);
+      } catch (error) {
+        console.error("[partner-claim] merchant verification failed:", error);
+        return NextResponse.json(
+          { error: "Could not verify merchant quest progress" },
+          { status: 503 },
+        );
+      }
+      if (!verification.eligible) {
+        return NextResponse.json(
+          { error: "Quest action is not verified", reason: verification.reason },
+          { status: 409 },
+        );
+      }
+    }
+
+    const canonicalQuest = isCanonicalMerchantQuest
+      ? {
+          questId,
+          verificationSource: "react-first-party",
+          proofRef: `react:${questId}:${userLc}:${claimWeek ?? "lifetime"}`,
+        }
+      : undefined;
+
     const result = isWeeklyQuest
       ? await claimQueuedPartnerWeeklyReward({
           userAddress: userLc,
@@ -125,15 +163,23 @@ export async function POST(request: Request) {
           points,
           isoWeek: claimWeek!,
           reason: `partner-quest:${questId}`,
+          canonicalQuest,
         })
       : await claimQueuedPartnerReward({
           userAddress: userLc,
           questId,
           points,
           reason: `partner-quest:${questId}`,
+          canonicalQuest,
         });
 
     if (!result.ok && result.code === "already") {
+      if (isCanonicalMerchantQuest) {
+        return NextResponse.json(
+          { completed: true, already: true, queued: false },
+          { status: 200 },
+        );
+      }
       return NextResponse.json(
         { error: "Quest already claimed" },
         { status: 400 }

@@ -11,6 +11,10 @@
     {
       "path": "/api/internal/process-push-jobs",
       "schedule": "*/1 * * * *"
+    },
+    {
+      "path": "/api/internal/process-referral-reward-jobs",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

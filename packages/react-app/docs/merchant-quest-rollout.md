@@ -10,7 +10,11 @@ on PostHog.
 2. Apply `sql/merchant_quest_action_proofs.sql`.
 3. Apply `sql/merchant_quest_reward_delivery.sql`.
 4. Apply `sql/merchant_quest_rollout_observability.sql`.
-5. Deploy the React application and mint worker from the same release.
+5. Apply root migration `supabase/migrations/054_canonical_partner_quest_completion.sql`.
+6. Deploy the React application, Hub, and mint worker from the same release.
+
+Migration 054 must precede the application deploy: React reserves canonical
+completion before queueing, and Hub uses its atomic off-chain ledger RPC.
 
 The event table is service-role-only. Do not add public read policies.
 

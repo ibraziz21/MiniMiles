@@ -41,6 +41,7 @@ const MIGRATION_PATH_007 = resolve(__dirname, "../../../../../supabase/migration
 const MIGRATION_PATH_031 = resolve(__dirname, "../../../../../supabase/migrations/031_hub_order_legacy_columns.sql");
 const MIGRATION_PATH_045 = resolve(__dirname, "../../../../../supabase/migrations/045_weekly_leaderboard_channel.sql");
 const MIGRATION_PATH_046 = resolve(__dirname, "../../../../../supabase/migrations/046_hub_miles_spend_intents.sql");
+const MIGRATION_PATH_054 = resolve(__dirname, "../../../../../supabase/migrations/054_canonical_partner_quest_completion.sql");
 
 const SETUP_SQL = `
 -- Drop and recreate the public schema so each test run starts from a clean slate.
@@ -289,10 +290,75 @@ beforeAll(async () => {
   await pool.query(readFileSync(MIGRATION_PATH_031, "utf-8"));
   await pool.query(readFileSync(MIGRATION_PATH_045, "utf-8"));
   await pool.query(readFileSync(MIGRATION_PATH_046, "utf-8"));
+  await pool.query(readFileSync(MIGRATION_PATH_054, "utf-8"));
 }, 30_000);
 
 afterAll(async () => {
   await pool.end();
+});
+
+describe("Canonical cross-app partner quests (054)", () => {
+  it("is safe to apply again", async () => {
+    await expect(pool.query(readFileSync(MIGRATION_PATH_054, "utf-8"))).resolves.not.toThrow();
+  });
+
+  it("credits a walletless quest once under concurrent retries", async () => {
+    const { rows: [user] } = await pool.query(
+      `INSERT INTO auth.users (email) VALUES ('walletless-quest@test.com') RETURNING id`,
+    );
+    const { rows: [participant] } = await pool.query(
+      `SELECT resolve_partner_quest_canonical($1, $2, NULL) AS canonical_id`,
+      [user.id, "walletless-quest@test.com"],
+    );
+
+    const claim = () => pool.query(
+      `SELECT * FROM reserve_api_partner_quest_claim(
+        $1, 'pass_activated', 'lifetime', 'hub-first-party',
+        'hub_user_pass:test-pass', 'hub-page', 'offchain_ledger', NULL, NULL
+      )`,
+      [participant.canonical_id],
+    );
+    const [first, second] = await Promise.all([claim(), claim()]);
+
+    expect(first.rows[0].delivery_id).toBe(second.rows[0].delivery_id);
+    expect(first.rows[0].delivery_status).toBe("completed");
+    const { rows: [ledger] } = await pool.query(
+      `SELECT count(*)::int AS count, sum(amount)::int AS amount
+       FROM miles_ledger
+       WHERE canonical_id=$1 AND source_type='quest' AND direction='credit'`,
+      [participant.canonical_id],
+    );
+    expect(ledger).toEqual({ count: 1, amount: 20 });
+  });
+
+  it("merges a pre-existing React wallet participant into the Hub participant", async () => {
+    const wallet = "0x" + "7".repeat(40);
+    const { rows: [walletParticipant] } = await pool.query(
+      `SELECT resolve_partner_quest_canonical(NULL, NULL, $1) AS canonical_id`,
+      [wallet],
+    );
+    const { rows: [user] } = await pool.query(
+      `INSERT INTO auth.users (email) VALUES ('quest-merge@test.com') RETURNING id`,
+    );
+    const { rows: [hubParticipant] } = await pool.query(
+      `SELECT resolve_partner_quest_canonical($1, $2, NULL) AS canonical_id`,
+      [user.id, "quest-merge@test.com"],
+    );
+    expect(walletParticipant.canonical_id).not.toBe(hubParticipant.canonical_id);
+
+    const { rows: [merged] } = await pool.query(
+      `SELECT link_partner_quest_wallet_identity($1, $2, $3) AS canonical_id`,
+      [user.id, "quest-merge@test.com", wallet],
+    );
+    expect(merged.canonical_id).toBe(hubParticipant.canonical_id);
+
+    const { rows: [link] } = await pool.query(
+      `SELECT canonical_id FROM identity_links
+       WHERE identity_type='wallet' AND identity_value=$1`,
+      [wallet],
+    );
+    expect(link.canonical_id).toBe(hubParticipant.canonical_id);
+  });
 });
 
 // ── #1 Migration applies cleanly ─────────────────────────────────────────────

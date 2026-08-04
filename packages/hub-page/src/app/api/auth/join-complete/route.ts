@@ -11,6 +11,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveHubProfile } from "@/lib/akiba/hubProfile";
 import { getOrCreatePass } from "@/lib/akiba/pass";
+import { REFERRAL_COOKIE_NAME } from "@/lib/akiba/referral-token";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -32,5 +33,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Could not create pass" }, { status: 500 });
   }
 
-  return NextResponse.json({ publicPassId });
+  const res = NextResponse.json({ publicPassId });
+  // Always clear, new Pass or not (§8: "Clear the attribution cookie after
+  // successful bind, explicit replacement, expiry, logout/account switch,
+  // or discovery that a Pass already exists"). A first-ever Pass consumes
+  // the click at bind time; a returning user hitting this route is exactly
+  // the "Pass already exists" case — leaving the cookie set there is what
+  // let it leak onto a later, unrelated signup on the same browser.
+  res.cookies.delete(REFERRAL_COOKIE_NAME);
+  return res;
 }
