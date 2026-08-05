@@ -16,12 +16,16 @@ export function isIos(): boolean {
   return /iphone|ipad|ipod/i.test(navigator.userAgent);
 }
 
-export function isIosStandalone(): boolean {
+export function isStandaloneApp(): boolean {
   if (typeof window === "undefined") return false;
   return (
     ("standalone" in window.navigator && Boolean((window.navigator as { standalone?: boolean }).standalone)) ||
     window.matchMedia("(display-mode: standalone)").matches
   );
+}
+
+export function isIosStandalone(): boolean {
+  return isStandaloneApp();
 }
 
 export function detectPlatform(): Platform {

@@ -8,6 +8,7 @@ import { CartProvider } from "@/lib/cart";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { PushResubscribe } from "@/components/PushResubscribe";
+import { PushOptInPrompt } from "@/components/PushOptInPrompt";
 
 const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
@@ -22,7 +23,7 @@ const sterling = localFont({
   variable: "--font-sterling",
 });
 
-const siteUrl = "https://hub.akibamiles.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://pass.akibamiles.com";
 
 export const viewport = {
   themeColor: "#238D9D",
@@ -57,6 +58,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <BottomNav />
           <PassFab />
           <InstallPrompt />
+          <PushOptInPrompt />
         </CartProvider>
         {gaMeasurementId && <GoogleAnalytics gaId={gaMeasurementId} />}
       </body>
