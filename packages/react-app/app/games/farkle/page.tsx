@@ -9,8 +9,8 @@ import {
   ArrowLeft, Trophy, Sword,
   WarningCircle, SpinnerGap, Info, X,
 } from "@phosphor-icons/react";
-import { MilesAmount } from "@/components/games/miles-amount";
-import { akibaMilesSymbol, usdtSymbol } from "@/lib/svg";
+import { MilesAmount } from "@akiba/skill-games/components";
+import { akibaMilesSymbol, akibaMilesSymbolAlt, usdtSymbol } from "@/lib/svg";
 import type { BalancesResponse, FarkleMode, TurnState } from "@/lib/farkle/types";
 import { scoreDice, getScoringIndices } from "@/lib/farkle/engine";
 import type { DiceValue } from "@/lib/farkle/engine";
@@ -1001,7 +1001,7 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onFindLobby, onChall
         busy:     buyingTickets,
         error:    ticketError,
         busyLabel: "Buying…",
-        costNode: <>+5 · <MilesAmount value={25} size={11} variant="alt" /></>,
+        costNode: <>+5 · <MilesAmount value={25} icon={<Image src={akibaMilesSymbolAlt} width={11} height={11} alt="" />} /></>,
         perMatch: "1 ticket per match",
         emptyHint: "Buy a pack to start dueling",
         addedMsg:  "✓ Added 5 tickets!",
@@ -1032,7 +1032,7 @@ function ModeSelect({ balances, selectedMode, onSelectMode, onFindLobby, onChall
       label:      "Quick Duel",
       target:     "1,500 pts",
       entry:      "1 ticket",
-      reward:     <span className="inline-flex items-center gap-1">10 <MilesAmount value={10} size={11} variant="alt" /></span>,
+      reward:     <span className="inline-flex items-center gap-1">10 <MilesAmount value={10} icon={<Image src={akibaMilesSymbolAlt} width={11} height={11} alt="" />} /></span>,
       token:      "miles",
       panelClass: "bg-[#E8F7F9] border-[#238D9D]/20",
       badgeClass: "bg-[#238D9D]/10 text-[#238D9D]",
@@ -2837,7 +2837,7 @@ function ResultScreen({ result, myAddress, mode, onPlayAgain, onBackToFarkle }: 
             {showPending ? (
               <span className="flex items-center gap-1"><SpinnerGap size={13} className="animate-spin" /> Confirming…</span>
             ) : (
-              <span>+<MilesAmount value={isWinner ? 10 : 5} size={13} /></span>
+              <span>+<MilesAmount value={isWinner ? 10 : 5} icon={<Image src={akibaMilesSymbol} width={13} height={13} alt="" />} /></span>
             )}
           </span>
         </div>

@@ -51,12 +51,13 @@ export const HUB_QUEST_CATALOG: QuestCatalogEntry[] = [
     description: "Play this week's sponsored challenge for bonus Miles.",
     miles: 25,
     frequency: "weekly",
-    actionHref: process.env.NEXT_PUBLIC_REACT_APP_URL
-      ? `${process.env.NEXT_PUBLIC_REACT_APP_URL}/earn`
-      : "/earn",
+    // walletless-pass-skill-games-spec.md §13 — Pass's own /games now
+    // completes this quest without a wallet; React's /earn remains a valid
+    // path too (evidence checks both canonical and legacy wallet sessions).
+    actionHref: "/games",
     apiPartnerQuestId: "7161b80b-ba30-404e-aba3-3faa24f763c7",
     reactPartnerQuestId: "c94ded62-19e8-4d04-910b-56e0dd1bec34",
-    requiresWallet: true,
+    requiresWallet: false,
   },
   {
     key: "profile_country_set",

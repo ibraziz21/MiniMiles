@@ -30,8 +30,8 @@ export default function manifest(): MetadataRoute.Manifest {
         icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }],
       },
       {
-        name: "Rewards",
-        url: "/rewards",
+        name: "Games",
+        url: "/games",
         icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }],
       },
     ],

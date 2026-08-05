@@ -3,6 +3,7 @@ import express from "express";
 import * as dotenv from "dotenv";
 import questRouter from "./questRoutes";
 import gamesRouter from "./games/routes";
+import gamesWeb2Router from "./games/web2Routes";
 import farkleRouter from "./farkle/routes";
 import { startFarkleSettlementWorker } from "./farkle/service";
 import { startMintWorker, runDrain, releaseCurrentLock } from "./mintWorker";
@@ -23,6 +24,7 @@ const crackPotEnabled = process.env.CRACKPOT_ENABLED === "true";
 // Mount the quest routes at /claim
 app.use("/claim", questRouter);
 app.use("/games", gamesRouter);
+app.use("/games/web2", gamesWeb2Router);
 app.use("/games/farkle", farkleRouter);
 
 app.get("/", (_req, res) => {

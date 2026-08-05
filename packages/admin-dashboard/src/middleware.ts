@@ -6,6 +6,7 @@ import type { AdminSessionData } from "@/types";
 
 const PUBLIC_PATHS = [
   "/login",
+  "/push-preview",
   "/api/auth/login",
   "/api/auth/logout",
   "/api/auth/bootstrap",

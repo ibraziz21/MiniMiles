@@ -19,6 +19,7 @@ const SHOW_DELAY_MS = 1_200;
 
 type PushInfo = {
   vapid_public_key: string | null;
+  preferences?: { marketing?: boolean };
 };
 
 export function PushOptInPrompt() {
@@ -27,6 +28,8 @@ export function PushOptInPrompt() {
   const [vapidPublicKey, setVapidPublicKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [announcementOptIn, setAnnouncementOptIn] = useState(false);
+  const [alreadySubscribed, setAlreadySubscribed] = useState(false);
 
   useEffect(() => {
     if (pathname === "/me/notifications") {
@@ -69,12 +72,15 @@ export function PushOptInPrompt() {
         standalone: true,
         permission,
         hasSubscription,
+        marketingEnabled: Boolean(info.preferences?.marketing),
         hasVapidKey: Boolean(info.vapid_public_key),
         recentlyDismissed,
       });
 
       if (!shouldShow || cancelled) return;
       setVapidPublicKey(info.vapid_public_key);
+      setAnnouncementOptIn(Boolean(info.preferences?.marketing));
+      setAlreadySubscribed(hasSubscription);
       showTimer = window.setTimeout(() => {
         if (!cancelled) setVisible(true);
       }, SHOW_DELAY_MS);
@@ -130,10 +136,22 @@ export function PushOptInPrompt() {
     setBusy(true);
     setError(null);
     try {
-      await subscribeDevice(vapidPublicKey);
+      if (!alreadySubscribed) await subscribeDevice(vapidPublicKey);
+      if (announcementOptIn) {
+        const response = await fetch("/api/me/push/preferences", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ marketing: true }),
+        });
+        if (!response.ok) throw new Error("MARKETING_PREFERENCE_FAILED");
+      } else {
+        window.localStorage.setItem(PUSH_PROMPT_DISMISS_KEY, String(Date.now()));
+      }
       setVisible(false);
-    } catch {
-      if (Notification.permission === "denied") {
+    } catch (cause) {
+      if (cause instanceof Error && cause.message === "MARKETING_PREFERENCE_FAILED") {
+        setError("Notifications are on, but we couldn’t save your announcement preference. Please retry.");
+      } else if (Notification.permission === "denied") {
         setError("Notifications are blocked. You can enable them later in your phone settings.");
       } else {
         setError("We couldn’t turn notifications on. Please try again.");
@@ -179,7 +197,7 @@ export function PushOptInPrompt() {
             </div>
             <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/75">
               <Sparkles className="h-3.5 w-3.5" />
-             You're Early...
+                You&apos;re Early...
             </div>
             <h2 id="push-opt-in-title" className="font-sterling text-3xl font-semibold leading-tight">
               Big things are coming to Akiba
@@ -195,11 +213,22 @@ export function PushOptInPrompt() {
           <div className="flex items-start gap-3 rounded-2xl bg-akiba-paper p-4">
             <Store className="mt-0.5 h-5 w-5 shrink-0 text-akiba-teal" />
             <div>
-              <p className="text-sm font-semibold text-akiba-ink">Useful updates, never noise</p>
-              <p className="mt-1 text-xs leading-5 text-akiba-muted">
-                Order and voucher alerts are available now. Feature and merchant announcements will stay
-                optional when they launch.
-              </p>
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={announcementOptIn}
+                  onChange={(event) => setAnnouncementOptIn(event.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-akiba-teal"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-akiba-ink">
+                    Tell me about new features and merchants
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-akiba-muted">
+                    Optional occasional announcements. You can switch these off anytime.
+                  </span>
+                </span>
+              </label>
             </div>
           </div>
 
@@ -209,11 +238,15 @@ export function PushOptInPrompt() {
             <button
               type="button"
               onClick={enableNotifications}
-              disabled={busy}
+              disabled={busy || (alreadySubscribed && !announcementOptIn)}
               className="flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-akiba-teal px-5 font-sterling text-base font-semibold text-white transition hover:bg-[#1E7E8D] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <BellRing className="h-4 w-4" />}
-              {busy ? "Turning them on…" : "Keep me in the loop"}
+              {busy
+                ? "Turning them on…"
+                : alreadySubscribed
+                  ? "Turn on announcements"
+                  : "Keep me in the loop"}
             </button>
             <button
               type="button"

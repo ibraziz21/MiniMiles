@@ -1,14 +1,14 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { ShoppingBag, Sparkles, Zap, Tag, User, QrCode } from "lucide-react";
+import { ShoppingBag, Gamepad2, Zap, Tag, User, QrCode } from "lucide-react";
 import clsx from "clsx";
 import { track } from "@/lib/analytics/track";
 
 const LINKS = [
   { href: "/merchants", label: "Merchants", icon: ShoppingBag },
   { href: "/vouchers",  label: "Vouchers",  icon: Tag },
-  { href: "/rewards",   label: "Rewards",   icon: Sparkles },
+  { href: "/games",     label: "Games",     icon: Gamepad2 },
   { href: "/quests",    label: "Quests",    icon: Zap },
 ];
 
@@ -72,7 +72,7 @@ const NAV_ITEMS = [
   { href: "/merchants", label: "Merchants", icon: ShoppingBag },
   { href: "/quests",    label: "Quests",    icon: Zap },
   { href: "/vouchers",  label: "Vouchers",  icon: Tag },
-  { href: "/rewards",   label: "Rewards",   icon: Sparkles },
+  { href: "/games",     label: "Games",     icon: Gamepad2 },
 ];
 
 export function BottomNav() {

@@ -25,6 +25,7 @@ import {
   ScrollText,
   ShieldCheck,
   Settings,
+  BellRing,
   LogOut,
   ChevronDown,
   ChevronRight,
@@ -86,6 +87,7 @@ const navSections: Array<{ label: string; items: NavItem[] }> = [
         ],
       },
       { href: "/users", label: "Users & Wallets", icon: Users },
+      { href: "/push-notifications", label: "Push Notifications", icon: BellRing },
       {
         href: "/games",
         label: "Games",

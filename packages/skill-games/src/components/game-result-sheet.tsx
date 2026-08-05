@@ -1,15 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
-import posthog from "posthog-js";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "./ui/sheet";
 import { Trophy, ArrowCounterClockwise, Star, XCircle, CheckCircle, CircleNotch } from "@phosphor-icons/react";
-import type { GameResult, GameType } from "@/lib/games/types";
-import { computeDeltaNudge, type StandingEntry } from "@/lib/games/deltaNudge";
+import { GAMEPLAY_CONFIGS } from "../core/config";
+import type { GameResult } from "../core/types";
 import { MilesAmount } from "./miles-amount";
-
-const GAME_NAMES: Record<GameType, string> = { rule_tap: "Rule Tap", memory_flip: "Memory Flip" };
 
 function SettlementBadge({ status }: { status: "idle" | "submitting" | "queued" | "settled" | "rejected" | "error" }) {
   if (status === "submitting") {
@@ -55,53 +52,51 @@ function SettlementBadge({ status }: { status: "idle" | "submitting" | "queued" 
   return null;
 }
 
+export type WeeklyStanding = {
+  rank: number;
+  /** Pre-computed nudge copy, e.g. "3 pts from 3rd place — a $5 voucher". Host-only concept (§13 excludes it from Pass v1). */
+  nudgeCopy?: string | null;
+  /** Nudge situation label, forwarded to `track` for the impression event. */
+  nudgeSituation?: string | null;
+};
+
 export function GameResultSheet({
   open,
   onOpenChange,
   result,
   settlementStatus,
-  weeklyRank,
-  weeklyEntries = [],
-  rank3Label = null,
+  milesIcon,
+  standingsHref,
+  weeklyStanding = null,
   onPlayAgain,
+  playAgainDisabled = false,
+  playAgainDisabledLabel = "5/5 played today",
+  track,
 }: {
-  open:             boolean;
-  onOpenChange:     (open: boolean) => void;
-  result:           GameResult | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  result: GameResult | null;
   settlementStatus: "idle" | "submitting" | "queued" | "settled" | "rejected" | "error";
-  weeklyRank?:      number | null;
-  /** This week's board for the game — powers the delta nudge line. */
-  weeklyEntries?:   StandingEntry[];
-  /** Prize label for rank 3 this week, e.g. "10% off". */
-  rank3Label?:      string | null;
-  onPlayAgain:      () => void;
+  milesIcon: ReactNode;
+  standingsHref: string;
+  /** Host-computed weekly standing — omit entirely for hosts with no weekly leaderboard (e.g. Pass v1, §12). */
+  weeklyStanding?: WeeklyStanding | null;
+  onPlayAgain: () => void;
+  /** True once the host's daily cap is reached — Pass disables Play Again as soon as the 5th start is reserved (§6.3). */
+  playAgainDisabled?: boolean;
+  playAgainDisabledLabel?: string;
+  /** Transport-neutral analytics callback — this component never imports an analytics SDK directly. */
+  track?: (event: string, properties?: Record<string, unknown>) => void;
 }) {
-  const hasReward    = result && (result.rewardMiles || result.rewardStable);
-  const isTopThree   = weeklyRank != null && weeklyRank >= 1 && weeklyRank <= 3;
-  const gameType     = result?.gameType;
-  const gameName     = gameType ? GAME_NAMES[gameType] : null;
-
-  const myBestScore = weeklyRank != null
-    ? weeklyEntries.find((e) => e.rank === weeklyRank)?.score ?? result?.score ?? null
-    : null;
-
-  // Post-game, a rank is only meaningful once the run settled onto the board
-  // — skip the "not played this week" case entirely here (that's for the
-  // challenge page, not a just-played result).
-  const nudge = gameName && weeklyRank != null
-    ? computeDeltaNudge({
-        myRank: weeklyRank,
-        myScore: myBestScore,
-        entries: weeklyEntries,
-        rank3Label,
-        gameName,
-      })
-    : null;
+  const hasReward = result && (result.rewardMiles || result.rewardStable);
+  const isTopThree = weeklyStanding != null && weeklyStanding.rank >= 1 && weeklyStanding.rank <= 3;
+  const gameType = result?.gameType;
+  const gameName = gameType ? GAMEPLAY_CONFIGS[gameType].name : null;
 
   useEffect(() => {
-    if (nudge) posthog.capture("delta_nudge_impression", { situation: nudge.situation });
+    if (weeklyStanding?.nudgeCopy) track?.("delta_nudge_impression", { situation: weeklyStanding.nudgeSituation });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nudge?.situation]);
+  }, [weeklyStanding?.nudgeSituation]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -138,7 +133,7 @@ export function GameResultSheet({
                 <p className="text-xs text-[#817E7E] font-poppins">Reward</p>
                 <div className="text-base font-bold text-[#1A1A1A] mt-0.5 flex items-center gap-1 flex-wrap">
                   {hasReward ? (
-                    <MilesAmount value={result.rewardMiles ?? 0} size={16} />
+                    <MilesAmount value={result.rewardMiles ?? 0} icon={milesIcon} />
                   ) : (
                     <span className="text-sm font-medium text-[#817E7E]">No reward this round</span>
                   )}
@@ -152,18 +147,18 @@ export function GameResultSheet({
             </div>
 
             {/* Weekly rank + delta nudge */}
-            {weeklyRank != null && (
+            {weeklyStanding != null && (
               <div className={`mx-5 mt-2 rounded-xl border px-4 py-3 ${
                 isTopThree
                   ? "bg-[#FFF6D8] border-[#B7791F22]"
                   : "bg-[#FAFAFA] border-[#F0F0F0]"
               }`}>
                 <p className="text-base font-bold text-[#1A1A1A]">
-                  You&apos;re <span className="text-[#238D9D]">#{weeklyRank}</span>
+                  You&apos;re <span className="text-[#238D9D]">#{weeklyStanding.rank}</span>
                   {gameName ? ` in ${gameName}` : ""} this week
                 </p>
-                {nudge && (
-                  <p className="mt-1 text-xs font-semibold text-[#238D9D]">{nudge.copy}</p>
+                {weeklyStanding.nudgeCopy && (
+                  <p className="mt-1 text-xs font-semibold text-[#238D9D]">{weeklyStanding.nudgeCopy}</p>
                 )}
               </div>
             )}
@@ -179,14 +174,19 @@ export function GameResultSheet({
           <button
             type="button"
             onClick={onPlayAgain}
-            className="flex items-center justify-center gap-2 rounded-xl bg-[#238D9D] py-3.5 text-sm font-bold text-white"
+            disabled={playAgainDisabled}
+            className="flex items-center justify-center gap-2 rounded-xl bg-[#238D9D] py-3.5 text-sm font-bold text-white disabled:bg-[#F0F0F0] disabled:text-[#888]"
           >
-            <ArrowCounterClockwise size={16} weight="bold" />
-            Play again
+            {playAgainDisabled ? playAgainDisabledLabel : (
+              <>
+                <ArrowCounterClockwise size={16} weight="bold" />
+                Play again
+              </>
+            )}
           </button>
           <Link
-            href="/games/challenge"
-            onClick={() => posthog.capture("result_sheet_standings_tap", { game: gameType })}
+            href={standingsHref}
+            onClick={() => track?.("result_sheet_standings_tap", { game: gameType })}
             className="flex items-center justify-center gap-2 rounded-xl bg-[#238D9D1A] px-4 py-3.5 text-sm font-bold text-[#238D9D]"
           >
             <Trophy size={16} weight="bold" />

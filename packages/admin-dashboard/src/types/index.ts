@@ -226,6 +226,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, Set<string>> = {
     "audit.read",
     "incidents.read", "incidents.write",
     "referrals.read", "referrals.write",
+    "notifications.read", "notifications.write",
   ]),
   finance_admin: new Set([
     "finance.read", "finance.write",
@@ -234,12 +235,14 @@ export const ROLE_PERMISSIONS: Record<AdminRole, Set<string>> = {
     "orders.read",
     "audit.read",
     "referrals.read",
+    "notifications.read",
   ]),
   insights_admin: new Set([
     "leads.read", "leads.write",
     "polls.read", "polls.write",
     "insights.read", "insights.write",
     "audit.read",
+    "notifications.read",
   ]),
   readonly: new Set([
     "merchants.read", "orders.read", "users.read",
@@ -247,6 +250,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, Set<string>> = {
     "finance.read", "polls.read", "insights.read",
     "vouchers.read", "audit.read",
     "referrals.read",
+    "notifications.read",
   ]),
 };
 

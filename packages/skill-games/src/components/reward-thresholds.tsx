@@ -1,7 +1,14 @@
-import type { RewardThreshold } from "@/lib/games/types";
+import type { ReactNode } from "react";
+import type { RewardThreshold } from "../core/types";
 import { MilesAmount } from "./miles-amount";
 
-export function RewardThresholds({ thresholds }: { thresholds: RewardThreshold[] }) {
+export function RewardThresholds({
+  thresholds,
+  milesIcon,
+}: {
+  thresholds: RewardThreshold[];
+  milesIcon: ReactNode;
+}) {
   return (
     <div className="space-y-2">
       {thresholds.map((threshold) => (
@@ -14,7 +21,7 @@ export function RewardThresholds({ thresholds }: { thresholds: RewardThreshold[]
             <p className="text-xs text-[#817E7E]">{threshold.minScore}+ score</p>
           </div>
           <p className="font-semibold text-[#238D9D] flex items-center gap-1">
-            <MilesAmount value={threshold.miles} size={14} />
+            <MilesAmount value={threshold.miles} icon={milesIcon} />
             {threshold.stable ? ` + $${threshold.stable.toFixed(2)}` : ""}
           </p>
         </div>

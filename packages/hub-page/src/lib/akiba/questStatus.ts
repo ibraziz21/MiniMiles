@@ -93,8 +93,9 @@ export async function getHubQuestStatuses(opts: {
 
   let canonicalDeliveries;
   let legacy: LegacyState;
+  let canonicalId: string;
   try {
-    const canonicalId = await resolveHubQuestCanonical(opts);
+    canonicalId = await resolveHubQuestCanonical(opts);
     [canonicalDeliveries, legacy] = await Promise.all([
       getCanonicalHubDeliveries(canonicalId),
       loadLegacyState(wallets),
@@ -156,7 +157,7 @@ export async function getHubQuestStatuses(opts: {
     }
 
     try {
-      const evidence = await verifyHubQuestEvidence({ quest, hubUserId: opts.hubUserId, wallets });
+      const evidence = await verifyHubQuestEvidence({ quest, hubUserId: opts.hubUserId, wallets, canonicalId });
       return evidence.eligible
         ? { ...base, state: "eligible" as const }
         : { ...base, state: "needs_action" as const, reason: evidence.reason };

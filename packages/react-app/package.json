@@ -11,6 +11,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@akiba/skill-games": "workspace:*",
     "@divvi/referral-sdk": "^2.3.0",
     "@headlessui/react": "^2.1.10",
     "@heroicons/react": "^2.1.5",

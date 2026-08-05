@@ -1,39 +1,36 @@
-export type GameType = "rule_tap" | "memory_flip";
+import type { GameplayConfig, GameResult, GameType } from "@akiba/skill-games/core";
+
+export type {
+  GameType,
+  GamePhase,
+  RewardThreshold,
+  RuleTapTileKind,
+  RuleTapTileColor,
+  RuleTapRule,
+  RuleTapTile,
+  RuleTapAction,
+  RuleTapReplay,
+  MemoryFlipAction,
+  MemoryFlipReplay,
+  GameReplay,
+  GameResult,
+} from "@akiba/skill-games/core";
 
 /** Games that run on the weekly leaderboard / campaign system. */
 export const WEEKLY_GAME_TYPES: GameType[] = ["rule_tap", "memory_flip"];
 
-export type GamePhase =
-  | "idle"
-  | "starting"
-  | "countdown"
-  | "playing"
-  | "evaluating"
-  | "submitting"
-  | "settled"
-  | "error";
-
-export type RewardThreshold = {
-  label: string;
-  minScore: number;
-  miles: number;
-  stable: number;
-  note?: string;
-};
-
-export type GameConfig = {
-  type: GameType;
+/**
+ * React's full game config: shared gameplay shape (name, duration, scoring)
+ * layered with React-only economy policy (contract tickets, daily cap,
+ * cooldown, weekly prize). Pass's adapter defines its own economy layer —
+ * see `@akiba/skill-games` §5.1 — free entry and daily cap 5.
+ */
+export type GameConfig = GameplayConfig & {
   chainGameType: number;
-  name: string;
-  shortName: string;
-  description: string;
   route: string;
   entryCostMiles: number;
   maxRewardMiles: number;
   maxRewardStable: number;
-  durationSeconds: number;
-  thresholds: RewardThreshold[];
-  leaderboardSort: "score_desc" | "time_asc";
   dailyPlayCap: number;
   cooldownSeconds: number;
   /** Weekly leaderboard prize — set to 0 to disable for that week */
@@ -51,68 +48,6 @@ export type GameSession = {
   expiresAt: string;
   onchainTxHash?: string;
   status: "created" | "playing" | "submitted" | "settled" | "rejected";
-};
-
-export type RuleTapTileKind = "star" | "circle" | "square" | "diamond";
-export type RuleTapTileColor = "blue" | "green" | "red" | "gold";
-
-export type RuleTapRule = {
-  instruction: string;
-  targets: Array<{ color: RuleTapTileColor; kind: RuleTapTileKind }>;
-  avoids: Array<{ color: RuleTapTileColor; kind: RuleTapTileKind }>;
-};
-
-export type RuleTapTile = {
-  id: string;
-  index: number;
-  color: RuleTapTileColor;
-  kind: RuleTapTileKind;
-  activeFromMs: number;
-  activeToMs: number;
-};
-
-export type RuleTapAction = {
-  type: "tap";
-  offsetMs: number;
-  tileIndex: number;
-};
-
-export type RuleTapReplay = {
-  sessionId: string;
-  seed: string;
-  startedAt: string;
-  durationMs: number;
-  actions: RuleTapAction[];
-};
-
-export type MemoryFlipAction = {
-  type: "flip";
-  offsetMs: number;
-  cardIndex: number;
-};
-
-export type MemoryFlipReplay = {
-  sessionId: string;
-  seed: string;
-  startedAt: string;
-  durationMs: number;
-  actions: MemoryFlipAction[];
-};
-
-export type GameReplay = RuleTapReplay | MemoryFlipReplay;
-
-export type GameResult = {
-  sessionId: string;
-  gameType: GameType;
-  score: number;
-  mistakes: number;
-  moves?: number;
-  matches?: number;
-  completed: boolean;
-  elapsedMs: number;
-  rewardMiles: number;
-  rewardStable: number;
-  reason?: string;
 };
 
 export type SettlementPayload = {

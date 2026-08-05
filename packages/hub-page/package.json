@@ -4,15 +4,16 @@
   "private": true,
   "packageManager": "pnpm@10.26.2",
   "scripts": {
-    "dev": "node ../../scripts/with-available-port.mjs --prefer 3003 -- next dev",
+    "dev": "node ../../scripts/with-available-port.mjs -- next dev",
     "build": "next build",
-    "start": "node ../../scripts/with-available-port.mjs --prefer 3003 -- next start",
+    "start": "node ../../scripts/with-available-port.mjs -- next start",
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.config.integration.ts"
   },
   "dependencies": {
+    "@akiba/skill-games": "workspace:*",
     "@next/third-parties": "^16.3.0",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",

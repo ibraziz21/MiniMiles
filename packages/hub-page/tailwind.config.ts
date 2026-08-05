@@ -5,6 +5,7 @@ const config: Config = {
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
+    "../skill-games/src/**/*.{ts,tsx}",
   ],
   theme: {
     extend: {
@@ -22,6 +23,8 @@ const config: Config = {
       fontFamily: {
         sterling: ["var(--font-sterling)", "Georgia", "serif"],
         sans: ["DM Sans", "ui-sans-serif", "system-ui", "sans-serif"],
+        // Shared @akiba/skill-games components use font-poppins for body copy.
+        poppins: ["Poppins", "sans-serif"],
       },
       boxShadow: {
         soft: "0 24px 80px rgba(13, 14, 12, 0.08)",

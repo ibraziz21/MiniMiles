@@ -7,6 +7,7 @@ import {
   Store,
   ShoppingBag,
   ArrowUpRight,
+  Gamepad2,
 } from "lucide-react";
 import { MilesIcon } from "@/components/MilesIcon";
 import type { ActivityItem, ActivityKind } from "@/lib/akiba/activity";
@@ -19,6 +20,7 @@ const KIND_ICON: Record<ActivityKind, React.ReactNode> = {
   voucher_redeem: <QrCode className="h-4 w-4 text-emerald-600" />,
   merchant_award: <Store className="h-4 w-4 text-akiba-teal" />,
   miles_spent: <ShoppingBag className="h-4 w-4 text-akiba-muted" />,
+  skill_game_reward: <Gamepad2 className="h-4 w-4 text-akiba-teal" />,
 };
 
 function relativeTime(ts: number): string {

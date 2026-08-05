@@ -7,6 +7,7 @@ export type PushPromptEligibility = {
   standalone: boolean;
   permission: NotificationPermission;
   hasSubscription: boolean;
+  marketingEnabled: boolean;
   hasVapidKey: boolean;
   recentlyDismissed: boolean;
 };
@@ -17,7 +18,7 @@ export function shouldOfferPushPrompt(input: PushPromptEligibility): boolean {
     input.supported &&
     input.standalone &&
     input.permission !== "denied" &&
-    !input.hasSubscription &&
+    (!input.hasSubscription || !input.marketingEnabled) &&
     input.hasVapidKey &&
     !input.recentlyDismissed
   );

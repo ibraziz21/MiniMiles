@@ -1,24 +1,63 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { GameHeader } from "@/components/games/game-header";
-import { GameIntroSheet } from "@/components/games/game-intro-sheet";
-import { GameResultSheet } from "@/components/games/game-result-sheet";
+import Image from "next/image";
+import posthog from "posthog-js";
+import {
+  GameHeader,
+  GameIntroSheet,
+  GameResultSheet,
+  MemoryGrid,
+  MemoryStats,
+  MilesAmount,
+} from "@akiba/skill-games/components";
+import { useMemoryFlipGame } from "@akiba/skill-games/client";
+import type { MemoryFlipPlayTransport } from "@akiba/skill-games/client";
 import { LeaderboardCard } from "@/components/games/leaderboard-card";
-import { MemoryGrid } from "@/components/games/memory-flip/memory-grid";
-import { MemoryStats } from "@/components/games/memory-flip/memory-stats";
 import { BuyPlaysSheet } from "@/components/games/buy-plays-sheet";
 import { useGameSession } from "@/hooks/games/useGameSession";
-import { useMemoryFlipGame } from "@/hooks/games/useMemoryFlipGame";
 import { useSettlement } from "@/hooks/games/useSettlement";
 import { useCredits } from "@/hooks/games/useCredits";
 import { useWeeklyLeaderboard } from "@/hooks/games/useWeeklyLeaderboard";
 import { useWeeklyCampaign } from "@/hooks/games/useWeeklyCampaign";
 import { Brain, ArrowCounterClockwise, Trophy, ShoppingCart } from "@phosphor-icons/react";
-import { MilesAmount } from "@/components/games/miles-amount";
 import { rewardForScore } from "@/lib/games/score";
+import { computeDeltaNudge } from "@/lib/games/deltaNudge";
 import { AKIBA_SKILL_GAMES_ADDRESS } from "@/lib/games/contracts";
+import { akibaMilesSymbol, akibaMilesSymbolAlt } from "@/lib/svg";
 import type { GameResult } from "@/lib/games/types";
+
+// Server-authoritative play is used when a contract is configured. Set
+// NEXT_PUBLIC_SKILL_GAMES_SERVER_AUTH="false" to fall back to the legacy
+// client-side flow (kill-switch if the /session/* backend has issues).
+const SERVER_AUTH =
+  !!process.env.NEXT_PUBLIC_AKIBA_SKILL_GAMES_ADDRESS &&
+  process.env.NEXT_PUBLIC_SKILL_GAMES_SERVER_AUTH !== "false";
+
+// Wraps React's existing `/api/games/session/*` wire contract (unchanged) as
+// the transport the shared hook expects. Server authority, request/response
+// shapes, and error handling are identical to before this package existed.
+function buildMemoryFlipTransport(sessionId: string, walletAddress: string): MemoryFlipPlayTransport {
+  return {
+    async init() {
+      const res = await fetch("/api/games/session/init", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, walletAddress, gameType: "memory_flip" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? `init-${res.status}`);
+      return data;
+    },
+    async flip(cardIndex, offsetMs) {
+      await fetch("/api/games/session/flip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, walletAddress, cardIndex, offsetMs }),
+      });
+    },
+  };
+}
 
 export default function MemoryFlipPage() {
   const [introOpen,    setIntroOpen]    = useState(true);
@@ -28,7 +67,13 @@ export default function MemoryFlipPage() {
 
   const sessionFlow = useGameSession("memory_flip");
   const settlement  = useSettlement("memory_flip");
-  const game        = useMemoryFlipGame(sessionFlow.session?.sessionId, sessionFlow.address, sessionFlow.session?.seed);
+  const game        = useMemoryFlipGame(
+    sessionFlow.session?.sessionId,
+    sessionFlow.session?.seed,
+    sessionFlow.session && SERVER_AUTH
+      ? buildMemoryFlipTransport(sessionFlow.session.sessionId, sessionFlow.session.walletAddress)
+      : undefined
+  );
   const { status: creditStatus, buying, buyError, refresh: refreshCredits, buyCredits } = useCredits("memory_flip", sessionFlow.address);
   const weeklyLb    = useWeeklyLeaderboard("memory_flip");
   const { campaign } = useWeeklyCampaign();
@@ -58,10 +103,15 @@ export default function MemoryFlipPage() {
       setIntroOpen(false);
       setResultOpen(false);
       game.reset();
-      // Pass the freshly created session in so init() uses THIS round's id/wallet,
+      // Pass the freshly created session in so init() uses THIS round's id/transport,
       // not a stale closure from before startSession() resolved.
       setTimeout(() => {
-        if (session) game.begin({ sessionId: session.sessionId, walletAddress: session.walletAddress });
+        if (session) {
+          game.begin({
+            sessionId: session.sessionId,
+            transport: SERVER_AUTH ? buildMemoryFlipTransport(session.sessionId, session.walletAddress) : undefined,
+          });
+        }
       }, 50);
       void refreshCredits();
     } catch (err) {
@@ -77,7 +127,7 @@ export default function MemoryFlipPage() {
     // Use the session's own wallet so finish matches the wallet init persisted.
     const wallet = sessionFlow.session?.walletAddress ?? sessionFlow.address;
     // Provisional result shown immediately; the authoritative result (server-auth
-    // mode) replaces it once /session/finish responds.
+    // mode) replaces it once finish responds.
     const { rewardMiles, rewardStable } = rewardForScore("memory_flip", game.score);
     setLocalResult({
       sessionId:   sessionId ?? "",
@@ -119,6 +169,18 @@ export default function MemoryFlipPage() {
   const isDone     = game.phase === "settled" || game.phase === "error";
   const weeklyRank = weeklyLb.myBest?.rank ?? null;
   const rank3Label = campaign?.tiers.find((t) => t.rank === 3)?.label ?? null;
+  const myBestWeeklyScore = weeklyRank != null
+    ? weeklyLb.entries.find((e) => e.rank === weeklyRank)?.score ?? result?.score ?? null
+    : null;
+  const nudge = weeklyRank != null
+    ? computeDeltaNudge({
+        myRank: weeklyRank,
+        myScore: myBestWeeklyScore,
+        entries: weeklyLb.entries,
+        rank3Label,
+        gameName: sessionFlow.config.name,
+      })
+    : null;
 
   const startLabel = sessionFlow.isStarting
     ? "Starting round…"
@@ -126,7 +188,13 @@ export default function MemoryFlipPage() {
 
   return (
     <main className="min-h-screen pb-28 font-sterling bg-[#F7F4FF]">
-      <GameHeader title="Memory Flip" subtitle="Find all 8 matching pairs before the timer ends." />
+      <GameHeader
+        title="Memory Flip"
+        subtitle="Find all 8 matching pairs before the timer ends."
+        gamesHomeHref="/games"
+        brandLabel="AkibaMiles"
+        milesIcon={<Image src={akibaMilesSymbolAlt} width={14} height={14} alt="" />}
+      />
 
       <div className="mt-3 space-y-3">
         {/* Stats bar */}
@@ -191,8 +259,8 @@ export default function MemoryFlipPage() {
                 <p className="text-white font-bold text-lg">Memory Flip</p>
                 <p className="text-white/70 text-sm font-poppins mt-0.5 flex items-center gap-1 justify-center flex-wrap">
                   {hasCredits
-                    ? <>1 ticket · Win up to <MilesAmount value={12} size={13} variant="alt" /></>
-                    : <>1 ticket per round · Win up to <MilesAmount value={12} size={13} variant="alt" /></>}
+                    ? <>1 ticket · Win up to <MilesAmount value={12} icon={<Image src={akibaMilesSymbolAlt} width={13} height={13} alt="" />} /></>
+                    : <>1 ticket per round · Win up to <MilesAmount value={12} icon={<Image src={akibaMilesSymbolAlt} width={13} height={13} alt="" />} /></>}
                 </p>
 
                 <div className="flex items-center justify-center gap-3 mt-2">
@@ -245,7 +313,14 @@ export default function MemoryFlipPage() {
       <GameIntroSheet
         open={introOpen}
         onOpenChange={setIntroOpen}
-        config={sessionFlow.config}
+        entryMode="ticket"
+        gameName={sessionFlow.config.name}
+        gameDescription={sessionFlow.config.description}
+        shortName={sessionFlow.config.shortName}
+        maxRewardMiles={sessionFlow.config.maxRewardMiles}
+        thresholds={sessionFlow.config.thresholds}
+        milesIcon={<Image src={akibaMilesSymbol} width={14} height={14} alt="" />}
+        dailyPlayCap={sessionFlow.config.dailyPlayCap}
         loading={sessionFlow.isStarting}
         onPlay={startRound}
         credits={credits}
@@ -272,13 +347,16 @@ export default function MemoryFlipPage() {
         onOpenChange={setResultOpen}
         result={result}
         settlementStatus={settlement.status}
-        weeklyRank={weeklyRank}
-        weeklyEntries={weeklyLb.entries}
-        rank3Label={rank3Label}
+        milesIcon={<Image src={akibaMilesSymbol} width={14} height={14} alt="" />}
+        standingsHref="/games/challenge"
+        weeklyStanding={
+          weeklyRank != null ? { rank: weeklyRank, nudgeCopy: nudge?.copy ?? null, nudgeSituation: nudge?.situation ?? null } : null
+        }
         onPlayAgain={() => {
           setResultOpen(false);
           startRound();
         }}
+        track={(event, properties) => posthog.capture(event, properties)}
       />
 
       <BuyPlaysSheet

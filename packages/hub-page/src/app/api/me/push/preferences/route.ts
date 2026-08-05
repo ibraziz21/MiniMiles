@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSameOriginRequest } from "@/lib/push/origin";
 
-const ALLOWED_KEYS = new Set(["orders", "vouchers", "rewards"]);
+const ALLOWED_KEYS = new Set(["orders", "vouchers", "rewards", "marketing"]);
 
 export async function PATCH(req: Request) {
   if (!isSameOriginRequest(req)) {
@@ -21,13 +21,6 @@ export async function PATCH(req: Request) {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
-
-  if ("marketing" in body) {
-    return NextResponse.json(
-      { error: "Marketing push is not available yet" },
-      { status: 422 }
-    );
   }
 
   const update: Record<string, boolean> = {};

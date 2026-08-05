@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ArrowLeft, Bell, Package, Truck, CheckCircle2, XCircle, RotateCcw, Ticket, AlertTriangle, Gift } from "lucide-react";
+import { ArrowLeft, Bell, Package, Truck, CheckCircle2, XCircle, RotateCcw, Ticket, AlertTriangle, Gift, Sparkles, Store } from "lucide-react";
 import { PushNotificationSettings } from "@/components/PushNotificationSettings";
 
 export const metadata = { title: "Notifications — Akiba Pass" };
@@ -23,6 +23,9 @@ const TEMPLATE_CONFIG: Record<string, { label: string; icon: React.ReactNode }> 
   referral_activation_held:    { label: "Friend became active — Miles pending", icon: <Gift className="h-4 w-4" /> },
   referral_activation_released:{ label: "Referral complete",               icon: <Gift className="h-4 w-4" /> },
   referral_manual_review:      { label: "Referral reward under review",    icon: <AlertTriangle className="h-4 w-4" /> },
+  feature_announcement:        { label: "Akiba feature update",            icon: <Sparkles className="h-4 w-4" /> },
+  merchant_announcement:       { label: "New Akiba merchant",              icon: <Store className="h-4 w-4" /> },
+  general_announcement:        { label: "Akiba update",                    icon: <Bell className="h-4 w-4" /> },
 };
 
 type NotificationRow = {
@@ -87,13 +90,22 @@ export default async function NotificationsPage() {
         <div className="space-y-2">
           {notifications.map((n) => {
             const cfg = TEMPLATE_CONFIG[n.template] ?? { label: n.template, icon: <Bell className="h-4 w-4" /> };
+            const announcementTitle =
+              n.template.endsWith("_announcement") && typeof n.metadata.title === "string"
+                ? n.metadata.title
+                : null;
+            const announcementBody =
+              n.template.endsWith("_announcement") && typeof n.metadata.body === "string"
+                ? n.metadata.body
+                : null;
             return (
               <div key={n.id} className="flex items-start gap-3 rounded-2xl border border-akiba-line bg-white p-4">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-akiba-tint text-akiba-teal">
                   {cfg.icon}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium text-akiba-ink">{cfg.label}</p>
+                  <p className="font-medium text-akiba-ink">{announcementTitle ?? cfg.label}</p>
+                  {announcementBody && <p className="mt-0.5 text-sm text-akiba-muted">{announcementBody}</p>}
                   {n.order_id ? (
                     <a href="/me/orders" className="text-xs text-akiba-teal hover:underline">
                       View order

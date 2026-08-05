@@ -1,7 +1,7 @@
 "use client";
 
 import { Circle, Diamond, Star, Square } from "@phosphor-icons/react";
-import type { RuleTapTile } from "@/lib/games/types";
+import type { RuleTapTile } from "../../core/types";
 
 const colorClass = {
   blue:  "bg-[#DDF8FF] text-[#238D9D] border-[#238D9D33]",

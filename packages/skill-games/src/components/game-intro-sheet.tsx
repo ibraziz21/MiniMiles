@@ -1,9 +1,10 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import type { ReactNode } from "react";
+import { Button } from "./ui/button";
+import { Sheet, SheetContent, SheetTitle } from "./ui/sheet";
 import { Trophy, ShoppingCart, Ticket } from "@phosphor-icons/react";
-import type { GameConfig } from "@/lib/games/types";
+import type { RewardThreshold } from "../core/types";
 import { MilesAmount } from "./miles-amount";
 
 const TIER_COLORS = [
@@ -15,7 +16,15 @@ const TIER_COLORS = [
 export function GameIntroSheet({
   open,
   onOpenChange,
-  config,
+  entryMode,
+  gameName,
+  gameDescription,
+  shortName,
+  maxRewardMiles,
+  thresholds,
+  milesIcon,
+  dailyPlayCap,
+  playsRemaining,
   rules,
   onPlay,
   loading,
@@ -28,18 +37,28 @@ export function GameIntroSheet({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  config: GameConfig;
+  /** "free" shows remaining daily starts and no ticket/purchase CTA. */
+  entryMode: "free" | "ticket";
+  gameName: string;
+  gameDescription: string;
+  shortName: string;
+  maxRewardMiles: number;
+  thresholds: RewardThreshold[];
+  milesIcon: ReactNode;
+  dailyPlayCap: number;
+  /** Free mode only — starts left today. */
+  playsRemaining?: number;
   rules: string[];
   onPlay: () => void;
   loading?: boolean;
   disabled?: boolean;
   disabledReason?: string;
   error?: string | null;
-  /** Current tickets the player holds for this game */
+  /** Ticket mode only — tickets the player holds for this game. */
   credits?: number;
-  /** True when a ticket is required (live contract) but the player has none */
+  /** Ticket mode only — true when a ticket is required but the player has none. */
   mustBuy?: boolean;
-  /** Open the buy-tickets sheet */
+  /** Ticket mode only — open the buy-tickets sheet. */
   onBuyTickets?: () => void;
 }) {
   const hasTicket = credits > 0;
@@ -48,41 +67,51 @@ export function GameIntroSheet({
       <SheetContent side="bottom" className="rounded-t-2xl bg-white px-0 pb-8 max-h-[92vh] overflow-y-auto" aria-describedby={undefined}>
         {/* Header band */}
         <div className="px-5 pt-2 pb-4 border-b border-[#F0F0F0]">
-          <SheetTitle className="text-xl font-bold text-[#1A1A1A]">{config.name}</SheetTitle>
-          <p className="text-sm text-[#525252] font-poppins mt-0.5">{config.description}</p>
+          <SheetTitle className="text-xl font-bold text-[#1A1A1A]">{gameName}</SheetTitle>
+          <p className="text-sm text-[#525252] font-poppins mt-0.5">{gameDescription}</p>
         </div>
 
-        {/* Entry banner — a ticket is required to play */}
-        {mustBuy ? (
+        {/* Entry banner */}
+        {entryMode === "free" ? (
+          <div className="mx-5 mt-4 rounded-xl bg-[#F0FDFF] border border-[#238D9D22] px-4 py-3">
+            <p className="text-sm font-semibold text-[#238D9D] flex items-center gap-1.5">
+              Free play
+            </p>
+            <p className="text-xs text-[#525252] font-poppins mt-0.5 flex items-center gap-1 flex-wrap">
+              Win up to <MilesAmount value={maxRewardMiles} icon={milesIcon} />
+              {playsRemaining != null ? ` · ${playsRemaining} of ${dailyPlayCap} starts left today` : ` · daily limit ${dailyPlayCap} ${shortName} rounds`}
+            </p>
+          </div>
+        ) : mustBuy ? (
           <div className="mx-5 mt-4 rounded-xl bg-[#FFF8EC] border border-[#E0A23055] px-4 py-3">
             <p className="text-sm font-semibold text-[#B7791F] flex items-center gap-1.5 flex-wrap">
               <Ticket size={15} weight="fill" /> You need a ticket to play
             </p>
             <p className="text-xs text-[#8a6a22] font-poppins mt-0.5 flex items-center gap-1 flex-wrap">
-              1 {config.shortName} ticket per round · win up to <MilesAmount value={config.maxRewardMiles} size={12} />
+              1 {shortName} ticket per round · win up to <MilesAmount value={maxRewardMiles} icon={milesIcon} />
             </p>
           </div>
         ) : hasTicket ? (
           <div className="mx-5 mt-4 rounded-xl bg-[#F0FDFF] border border-[#238D9D22] px-4 py-3">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-semibold text-[#238D9D] flex items-center gap-1.5">
-                <Ticket size={15} weight="fill" /> Uses 1 {config.shortName} ticket
+                <Ticket size={15} weight="fill" /> Uses 1 {shortName} ticket
               </p>
               <span className="text-xs font-semibold text-[#238D9D] bg-[#238D9D14] rounded-full px-2 py-0.5">
                 {credits} left
               </span>
             </div>
             <p className="text-xs text-[#525252] font-poppins mt-1 flex items-center gap-1 flex-wrap">
-              Win up to <MilesAmount value={config.maxRewardMiles} size={12} /> · daily limit {config.dailyPlayCap} {config.shortName} rounds
+              Win up to <MilesAmount value={maxRewardMiles} icon={milesIcon} /> · daily limit {dailyPlayCap} {shortName} rounds
             </p>
           </div>
         ) : (
           <div className="mx-5 mt-4 rounded-xl bg-[#F0FDFF] border border-[#238D9D22] px-4 py-3">
             <p className="text-sm font-semibold text-[#238D9D] flex items-center gap-1.5">
-              <Ticket size={15} weight="fill" /> 1 {config.shortName} ticket entry
+              <Ticket size={15} weight="fill" /> 1 {shortName} ticket entry
             </p>
             <p className="text-xs text-[#525252] font-poppins mt-0.5 flex items-center gap-1 flex-wrap">
-              Win up to <MilesAmount value={config.maxRewardMiles} size={12} /> · daily limit {config.dailyPlayCap} {config.shortName} rounds
+              Win up to <MilesAmount value={maxRewardMiles} icon={milesIcon} /> · daily limit {dailyPlayCap} {shortName} rounds
             </p>
           </div>
         )}
@@ -109,7 +138,7 @@ export function GameIntroSheet({
             <p className="text-xs font-semibold uppercase tracking-widest text-[#817E7E]">Reward tiers</p>
           </div>
           <div className="space-y-2">
-            {config.thresholds.map((t, i) => {
+            {thresholds.map((t, i) => {
               const colors = TIER_COLORS[Math.min(i, TIER_COLORS.length - 1)];
               return (
                 <div
@@ -121,7 +150,7 @@ export function GameIntroSheet({
                     <p className="text-xs text-[#817E7E]">{t.minScore}+ score</p>
                   </div>
                   <p className={`text-sm font-bold ${colors.text} flex items-center gap-1`}>
-                    <MilesAmount value={t.miles} size={14} />
+                    <MilesAmount value={t.miles} icon={milesIcon} />
                     {t.stable ? ` + $${t.stable.toFixed(2)}` : ""}
                   </p>
                 </div>
@@ -140,17 +169,25 @@ export function GameIntroSheet({
             <div className="w-full rounded-xl bg-[#F0F0F0] py-4 text-sm font-semibold text-[#888] text-center">
               {disabledReason ?? "Unavailable"}
             </div>
-          ) : mustBuy ? (
+          ) : entryMode === "ticket" && mustBuy ? (
             <button
               type="button"
               onClick={onBuyTickets}
               className="w-full rounded-xl bg-[#238D9D] py-4 text-base font-bold text-white hover:bg-[#1a7a8a] flex items-center justify-center gap-1.5 active:scale-[0.99]"
             >
-              <ShoppingCart size={16} weight="fill" /> Buy {config.shortName} tickets
+              <ShoppingCart size={16} weight="fill" /> Buy {shortName} tickets
             </button>
           ) : (
             <Button
-              title={loading ? "Starting round…" : hasTicket ? "Play now · 1 ticket →" : "Play now →"}
+              title={
+                loading
+                  ? "Starting round…"
+                  : entryMode === "free"
+                    ? "Play now →"
+                    : hasTicket
+                      ? "Play now · 1 ticket →"
+                      : "Play now →"
+              }
               loading={loading}
               widthFull
               className="rounded-xl bg-[#238D9D] py-5 text-base font-bold text-white hover:bg-[#1a7a8a]"

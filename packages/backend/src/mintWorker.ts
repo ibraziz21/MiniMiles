@@ -360,6 +360,67 @@ async function reconcileCanonicalPartnerDeliveries() {
   }
 }
 
+// ── Walletless skill-game reward deliveries (walletless-pass-skill-games-spec.md §11.3) ──
+// Identical shape to the canonical-partner-quest delivery hooks above.
+
+function skillGameDeliveryId(job: any): string | null {
+  return job.skill_game_reward_delivery_id ?? job.payload?.skillGameDeliveryId ?? null;
+}
+
+async function completeSkillGameDeliveries(jobs: any[], txHash: string) {
+  const deliveryIds = [...new Set(jobs.map(skillGameDeliveryId).filter(Boolean))] as string[];
+  for (const deliveryId of deliveryIds) {
+    const { error } = await withTimeout(
+      supabase.rpc("complete_skill_game_reward_delivery", {
+        p_delivery_id: deliveryId,
+        p_tx_hash: txHash,
+      }),
+      SUPABASE_TIMEOUT_MS,
+      `complete skill game delivery ${deliveryId}`,
+    );
+    if (error) {
+      // The mint is already confirmed. Reconciliation below will retry this
+      // database mirror; never throw and accidentally submit another mint.
+      console.warn("[mintWorker] skill game delivery completion:", error.message);
+    }
+  }
+}
+
+async function failSkillGameDelivery(job: any, reason: string) {
+  const deliveryId = skillGameDeliveryId(job);
+  if (!deliveryId) return;
+  const { error } = await withTimeout(
+    supabase.rpc("fail_skill_game_reward_delivery", {
+      p_delivery_id: deliveryId,
+      p_error: reason,
+    }),
+    SUPABASE_TIMEOUT_MS,
+    `fail skill game delivery ${deliveryId}`,
+  );
+  if (error) console.warn("[mintWorker] skill game delivery failure:", error.message);
+}
+
+async function reconcileSkillGameDeliveries() {
+  const { data: jobs, error } = await withTimeout(
+    supabase
+      .from("minipoint_mint_jobs")
+      .select("skill_game_reward_delivery_id, payload, tx_hash")
+      .eq("status", "completed")
+      .not("skill_game_reward_delivery_id", "is", null)
+      .order("updated_at", { ascending: false })
+      .limit(1000),
+    SUPABASE_TIMEOUT_MS,
+    "load skill game delivery reconciliation",
+  );
+  if (error) {
+    console.warn("[mintWorker] skill game delivery reconciliation lookup:", error.message);
+    return;
+  }
+  for (const job of jobs ?? []) {
+    if (job.tx_hash) await completeSkillGameDeliveries([job], job.tx_hash);
+  }
+}
+
 // A mint can confirm even if the follow-up weekly completion write encounters
 // a transient database error. Rebuild those derived rows from completed jobs
 // without ever resubmitting the on-chain mint.
@@ -583,6 +644,7 @@ async function applyBatchPayloads(jobs: any[], txHash: string) {
 
   await recordMerchantQuestWorkerEvents(jobs, "reward_completed", { txHash });
   await completeCanonicalPartnerDeliveries(jobs, txHash);
+  await completeSkillGameDeliveries(jobs, txHash);
 }
 
 // ── Mint helpers ──────────────────────────────────────────────────────────────
@@ -658,16 +720,19 @@ async function handleFailedJobs(failed: { job: any; msg: string; err: any }[]) {
     if (kind === "blacklisted") {
       await permanentlyFail(job.id, "blacklisted");
       await failCanonicalPartnerDelivery(job, "blacklisted");
+      await failSkillGameDelivery(job, "blacklisted");
       await recordMerchantQuestWorkerEvents([job], "reward_failed", {
         reason: "blacklisted",
       });
     } else if (kind === "unauthorized" || kind === "null-address" || isPermanentContractError(err) || isBlacklistedError({ message: msg })) {
       await permanentlyFail(job.id, reason);
       await failCanonicalPartnerDelivery(job, reason);
+      await failSkillGameDelivery(job, reason);
       await recordMerchantQuestWorkerEvents([job], "reward_failed", { reason });
     } else if ((job.attempts ?? 0) >= MAX_JOB_ATTEMPTS) {
       await permanentlyFail(job.id, msg);
       await failCanonicalPartnerDelivery(job, msg);
+      await failSkillGameDelivery(job, msg);
       await recordMerchantQuestWorkerEvents([job], "reward_failed", {
         reason: msg.slice(0, 500),
       });
@@ -813,6 +878,8 @@ export async function runDrain() {
       await reconcileWeeklyPartnerCompletions();
       setRunPhase(owner, "reconcile-canonical-partner-deliveries");
       await reconcileCanonicalPartnerDeliveries();
+      setRunPhase(owner, "reconcile-skill-game-deliveries");
+      await reconcileSkillGameDeliveries();
 
       while (true) {
         setRunPhase(owner, "renew-lock");

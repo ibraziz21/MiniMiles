@@ -1,7 +1,6 @@
 import Link from "next/link";
-import Image from "next/image";
+import type { ReactNode } from "react";
 import { CaretLeft } from "@phosphor-icons/react";
-import { akibaMilesSymbolAlt } from "@/lib/svg";
 
 const GAME_THEMES: Record<string, { gradient: string; badge: string }> = {
   "Rule Tap": {
@@ -14,7 +13,20 @@ const GAME_THEMES: Record<string, { gradient: string; badge: string }> = {
   },
 };
 
-export function GameHeader({ title, subtitle }: { title: string; subtitle: string }) {
+export function GameHeader({
+  title,
+  subtitle,
+  gamesHomeHref,
+  brandLabel,
+  milesIcon,
+}: {
+  title: string;
+  subtitle: string;
+  /** Where "All Games" links back to — differs per host (`/games`). */
+  gamesHomeHref: string;
+  brandLabel: string;
+  milesIcon: ReactNode;
+}) {
   const theme = GAME_THEMES[title] ?? GAME_THEMES["Rule Tap"];
 
   return (
@@ -25,13 +37,13 @@ export function GameHeader({ title, subtitle }: { title: string; subtitle: strin
 
       <div className="relative z-10">
         <div className="flex items-center justify-between mb-2">
-          <Link href="/games" className="inline-flex items-center gap-1 text-sm font-medium text-white/80">
+          <Link href={gamesHomeHref} className="inline-flex items-center gap-1 text-sm font-medium text-white/80">
             <CaretLeft size={15} />
             All Games
           </Link>
           <div className="flex items-center gap-1.5 rounded-full bg-white/20 px-2.5 py-1">
-            <Image src={akibaMilesSymbolAlt} width={14} height={14} alt="" />
-            <span className="text-[11px] font-semibold text-white/90">AkibaMiles</span>
+            {milesIcon}
+            <span className="text-[11px] font-semibold text-white/90">{brandLabel}</span>
           </div>
         </div>
         <div className="flex items-center gap-2">

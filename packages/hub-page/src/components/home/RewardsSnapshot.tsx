@@ -19,7 +19,7 @@ export function RewardsSnapshot({
       <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-akiba-muted">Your rewards</p>
       <div className="flex items-center gap-3">
         <TrackedLink
-          href="/rewards"
+          href="/games"
           event="home_rewards_tap"
           eventProps={{ target: "miles" }}
           className="flex flex-1 items-center gap-2 rounded-xl bg-akiba-tint px-3.5 py-3 transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"

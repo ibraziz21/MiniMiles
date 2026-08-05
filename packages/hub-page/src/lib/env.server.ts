@@ -37,6 +37,10 @@ export type ServerEnv = {
   };
   hubPassSecret: string | null;
   hubReferralSecret: string | null;
+  gamesBackend: {
+    url: string | null;
+    assertionSecret: string | null;
+  };
   internalWebhookSecret: string | null;
   cronSecret: string | null;
   directoryRevalidationSecret: string | null;
@@ -201,6 +205,27 @@ export function getServerEnv(env: NodeJS.ProcessEnv = process.env): ServerEnv {
     problems.push("HUB_REFERRAL_SECRET must not equal HUB_PASS_SECRET");
   }
 
+  const gamesBackendUrl = trimmedOrNull(env.GAMES_BACKEND_URL);
+  const gamesAssertionSecret = trimmedOrNull(env.GAMES_SERVICE_ASSERTION_SECRET);
+  if (gamesBackendUrl && !isValidUrl(gamesBackendUrl)) {
+    problems.push("GAMES_BACKEND_URL must be a valid URL when set");
+  }
+  if (isProduction && gamesBackendUrl && isLocalhostUrl(gamesBackendUrl)) {
+    problems.push("GAMES_BACKEND_URL cannot point at localhost in production");
+  }
+  if (isProduction && !gamesAssertionSecret) {
+    problems.push("GAMES_SERVICE_ASSERTION_SECRET is required in production (no fallback)");
+  }
+  if (gamesAssertionSecret && gamesAssertionSecret.length < MIN_SECRET_LENGTH) {
+    problems.push(`GAMES_SERVICE_ASSERTION_SECRET must be at least ${MIN_SECRET_LENGTH} characters`);
+  }
+  if (gamesAssertionSecret && supabaseServiceKey && gamesAssertionSecret === supabaseServiceKey) {
+    problems.push("GAMES_SERVICE_ASSERTION_SECRET must not equal SUPABASE_SERVICE_KEY");
+  }
+  if (gamesAssertionSecret && hubPassSecret && gamesAssertionSecret === hubPassSecret) {
+    problems.push("GAMES_SERVICE_ASSERTION_SECRET must not equal HUB_PASS_SECRET");
+  }
+
   const internalWebhookSecret = trimmedOrNull(env.INTERNAL_WEBHOOK_SECRET);
   if (isProduction && !internalWebhookSecret) {
     problems.push("INTERNAL_WEBHOOK_SECRET is required in production");
@@ -302,6 +327,7 @@ export function getServerEnv(env: NodeJS.ProcessEnv = process.env): ServerEnv {
     },
     hubPassSecret,
     hubReferralSecret,
+    gamesBackend: { url: gamesBackendUrl, assertionSecret: gamesAssertionSecret },
     internalWebhookSecret,
     cronSecret,
     directoryRevalidationSecret,

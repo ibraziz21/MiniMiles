@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { CheckCircle, Ticket, X, Warning } from "@phosphor-icons/react";
 import { PLAY_BUNDLES } from "@/hooks/games/useCredits";
 import type { CreditStatus } from "@/hooks/games/useCredits";
 import type { GameType } from "@/lib/games/types";
 import { GAME_CONFIGS } from "@/lib/games/config";
-import { MilesAmount } from "./miles-amount";
+import { akibaMilesSymbol } from "@/lib/svg";
+import { MilesAmount } from "@akiba/skill-games/components";
 
 interface Props {
   open:         boolean;
@@ -128,7 +130,7 @@ export function BuyPlaysSheet({ open, onClose, gameType, creditStatus, onBuy, bu
             )}
 
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-              Choose a bundle — <MilesAmount value={costEach} size={12} /> each
+              Choose a bundle — <MilesAmount value={costEach} icon={<Image src={akibaMilesSymbol} width={12} height={12} alt="" />} /> each
             </p>
             <div className="grid grid-cols-3 gap-2 mb-5">
               {PLAY_BUNDLES.map((b) => {
@@ -152,7 +154,7 @@ export function BuyPlaysSheet({ open, onClose, gameType, creditStatus, onBuy, bu
                     <p className="text-xl font-bold text-gray-900">{b.count}</p>
                     <p className="text-xs text-gray-500">{gameLabel} tickets</p>
                     <div className="mt-1">
-                      <MilesAmount value={totalCost} size={13} className="font-semibold text-gray-700" />
+                      <MilesAmount value={totalCost} icon={<Image src={akibaMilesSymbol} width={13} height={13} alt="" />} className="font-semibold text-gray-700" />
                     </div>
                   </button>
                 );
@@ -161,7 +163,7 @@ export function BuyPlaysSheet({ open, onClose, gameType, creditStatus, onBuy, bu
 
             {selected && (
               <p className="text-xs text-center text-gray-500 mb-3 flex items-center justify-center gap-1 flex-wrap">
-                You'll spend <MilesAmount value={selected * costEach} size={12} className="font-semibold text-gray-800" /> for <span className="font-semibold text-gray-800">{selected} {gameLabel} ticket{selected !== 1 ? "s" : ""}</span>.
+                You'll spend <MilesAmount value={selected * costEach} icon={<Image src={akibaMilesSymbol} width={12} height={12} alt="" />} className="font-semibold text-gray-800" /> for <span className="font-semibold text-gray-800">{selected} {gameLabel} ticket{selected !== 1 ? "s" : ""}</span>.
               </p>
             )}
 

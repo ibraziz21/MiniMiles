@@ -45,11 +45,14 @@ describe("Hub canonical quest status", () => {
     );
   });
 
-  it("keeps non-wallet evidence eligible while gating only the sponsored game", async () => {
+  it("keeps non-wallet evidence eligible, including the sponsored game (walletless-pass-skill-games-spec.md §13)", async () => {
     const { getHubQuestStatuses } = await import("@/lib/akiba/questStatus");
     const statuses = await getHubQuestStatuses({ hubUserId: "hub-user-1", email: "member@example.com" });
     expect(statuses.find((quest) => quest.key === "profile_country_set")?.state).toBe("eligible");
-    expect(statuses.find((quest) => quest.key === "sponsored_game_played")?.state).toBe("wallet_required");
+    // §13 — sponsored_game_played no longer requires a wallet: a walletless
+    // canonical session is sufficient evidence, so a walletless member sees
+    // "eligible" here rather than "wallet_required".
+    expect(statuses.find((quest) => quest.key === "sponsored_game_played")?.state).toBe("eligible");
     expect(statuses.find((quest) => quest.key === "voucher_redeemed")?.state).toBe("needs_action");
   });
 });

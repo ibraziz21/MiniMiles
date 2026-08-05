@@ -1,4 +1,4 @@
-import type { RuleTapRule } from "@/lib/games/types";
+import type { RuleTapRule } from "../../core/types";
 
 export function RuleBanner({ rule }: { rule: RuleTapRule }) {
   return (

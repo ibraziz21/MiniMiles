@@ -1,50 +1,35 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { GAME_CONFIGS } from "@/lib/games/config";
-import { generateRuleTapSession } from "@/lib/games/replay-validation";
-import { scoreRuleTap } from "@/lib/games/score";
-import type { GamePhase, RuleTapAction, RuleTapReplay, RuleTapRule, RuleTapTile } from "@/lib/games/types";
+import { GAMEPLAY_CONFIGS } from "../core/config";
+import { scoreRuleTap } from "../core/score";
+import type { GamePhase, RuleTapAction, RuleTapReplay, RuleTapRule, RuleTapTile } from "../core/types";
+import { generateRuleTapSession } from "./mockGenerators";
+import type { RuleTapPlayTransport } from "./transport";
 
-// Server-authoritative play is used when a contract is configured. Set
-// NEXT_PUBLIC_SKILL_GAMES_SERVER_AUTH="false" to fall back to the legacy
-// client-side flow (kill-switch if the /session/* backend has issues).
-const SERVER_AUTH =
-  !!process.env.NEXT_PUBLIC_AKIBA_SKILL_GAMES_ADDRESS &&
-  process.env.NEXT_PUBLIC_SKILL_GAMES_SERVER_AUTH !== "false";
 const TICK_POLL_MS = 250;
 
-type ServerRule = { target: { color: string; kind: string }; avoid: { color: string; kind: string } };
-
-function toFrontendRule(r: ServerRule): RuleTapRule {
-  const instruction =
-    r.target.color === r.avoid.color
-      ? `Tap only ${r.target.color} ${r.target.kind}s`
-      : `Tap ${r.target.color} ${r.target.kind}s, avoid ${r.avoid.color} ${r.avoid.kind}s`;
-  return {
-    instruction,
-    targets: [r.target as RuleTapRule["targets"][number]],
-    avoids: [r.avoid as RuleTapRule["avoids"][number]],
-  };
-}
+type BeginOverride = { sessionId?: string; seed?: string; transport?: RuleTapPlayTransport };
 
 /**
  * Rule Tap play hook.
  *
- * Server-auth mode (production): the timeline lives on the backend. `begin()`
- * calls /session/init (returns only the rule), then the hook polls /session/tick
- * for tiles that have already activated — future tiles are never disclosed, so
- * the board can't be precomputed. Each tap is POSTed to /session/tap and scored
- * on the server clock. The local render loop is aligned to the server's elapsed
- * time so tiles appear/disappear in step with how taps will be judged.
+ * Server mode (a `transport` is supplied): the timeline lives on the host's
+ * server. `begin()` calls `transport.init()` (returns only the rule), then
+ * the hook polls `transport.tick()` for tiles that have already activated —
+ * future tiles are never disclosed, so the board can't be precomputed. Each
+ * tap is sent via `transport.tap()` and scored on the server clock. The
+ * local render loop is aligned to the server's elapsed time so tiles
+ * appear/disappear in step with how taps will be judged.
  *
- * Mock mode (no contract / dev): the timeline is generated locally from the seed
- * and play is resolved client-side, producing a `replay` for the legacy verifier.
+ * Mock mode (no `transport`): the timeline is generated locally from the
+ * seed and play is resolved client-side. This path carries no anti-cheat
+ * guarantees and must never be treated as an authoritative result.
  */
-export function useRuleTapGame(sessionId?: string, walletAddress?: string, seed?: string) {
-  const config = GAME_CONFIGS.rule_tap;
+export function useRuleTapGame(sessionId?: string, seed?: string, transport?: RuleTapPlayTransport) {
+  const config = GAMEPLAY_CONFIGS.rule_tap;
   const durationMs = config.durationSeconds * 1000;
-  const serverMode = SERVER_AUTH && !!sessionId && !!walletAddress;
+  const serverMode = !!sessionId && !!transport;
 
   const [phase, setPhase] = useState<GamePhase>("idle");
   const [countdown, setCountdown] = useState(3);
@@ -64,9 +49,9 @@ export function useRuleTapGame(sessionId?: string, walletAddress?: string, seed?
   const serverSyncRef = useRef<{ serverElapsedMs: number; atLocal: number }>({ serverElapsedMs: 0, atLocal: 0 });
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Captured at begin() so init/tick/tap in a round all use the SAME id/wallet,
+  // Captured at begin() so init/tick/tap in a round all use the SAME id/transport,
   // immune to stale closures from the page's deferred begin() call.
-  const activeRef = useRef<{ sessionId?: string; walletAddress?: string; serverMode: boolean }>({ serverMode: false });
+  const activeRef = useRef<{ sessionId?: string; transport?: RuleTapPlayTransport; serverMode: boolean }>({ serverMode: false });
 
   // Mock-mode timeline (client-side).
   const generated = useMemo(() => generateRuleTapSession(seed ?? "idle"), [seed]);
@@ -108,36 +93,29 @@ export function useRuleTapGame(sessionId?: string, walletAddress?: string, seed?
   }, [serverMode]);
 
   const pollTick = useCallback(async () => {
+    const t = activeRef.current.transport;
+    if (!t) return;
     try {
-      const res = await fetch("/api/games/session/tick", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: activeRef.current.sessionId ?? sessionId,
-          walletAddress: activeRef.current.walletAddress ?? walletAddress,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) return;
+      const data = await t.tick();
       serverSyncRef.current = { serverElapsedMs: data.elapsedMs ?? 0, atLocal: Date.now() };
-      if (Array.isArray(data.tiles)) setServerTiles(data.tiles as RuleTapTile[]);
+      if (Array.isArray(data.tiles)) setServerTiles(data.tiles);
     } catch {
       /* transient — next poll recovers */
     }
-  }, [sessionId, walletAddress]);
+  }, []);
 
   const beginPlaying = useCallback(() => {
     startedAtRef.current = Date.now();
     setPhase("playing");
   }, []);
 
-  const begin = useCallback((override?: { sessionId?: string; walletAddress?: string }) => {
-    // Resolve the round's id/wallet at call time (the page passes the freshly
-    // created session in) and pin it for the round.
+  const begin = useCallback((override?: BeginOverride) => {
+    // Resolve the round's id/transport at call time (the page passes the
+    // freshly created session in) and pin it for the round.
     const sid = override?.sessionId ?? sessionId;
-    const w = override?.walletAddress ?? walletAddress;
-    const sm = SERVER_AUTH && !!sid && !!w;
-    activeRef.current = { sessionId: sid, walletAddress: w, serverMode: sm };
+    const t = override?.transport ?? transport;
+    const sm = !!sid && !!t;
+    activeRef.current = { sessionId: sid, transport: t, serverMode: sm };
 
     reset();
     setPhase("countdown");
@@ -148,21 +126,15 @@ export function useRuleTapGame(sessionId?: string, walletAddress?: string, seed?
       if (next > 0) return;
       clearInterval(countdownTimer);
 
-      if (!sm) {
+      if (!sm || !t) {
         beginPlaying();
         return;
       }
 
       void (async () => {
         try {
-          const res = await fetch("/api/games/session/init", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sessionId: sid, walletAddress: w, gameType: "rule_tap" }),
-          });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data?.error ?? `init-${res.status}`);
-          if (data.rule) setServerRule(toFrontendRule(data.rule as ServerRule));
+          const data = await t.init();
+          if (data.rule) setServerRule(data.rule);
           serverSyncRef.current = { serverElapsedMs: 0, atLocal: Date.now() };
           beginPlaying();
           void pollTick();
@@ -173,7 +145,7 @@ export function useRuleTapGame(sessionId?: string, walletAddress?: string, seed?
         }
       })();
     }, 650);
-  }, [beginPlaying, pollTick, reset, sessionId, walletAddress]);
+  }, [beginPlaying, pollTick, reset, sessionId, transport]);
 
   // Render loop — advance the clock (server-aligned in server mode).
   useEffect(() => {
@@ -208,7 +180,8 @@ export function useRuleTapGame(sessionId?: string, walletAddress?: string, seed?
 
   const tapServer = useCallback(
     async (index: number) => {
-      const tile = activeTiles.find((t) => t.index === index);
+      const t = activeRef.current.transport;
+      const tile = activeTiles.find((tl) => tl.index === index);
       const target = (serverRule ?? generated.rule).targets[0];
       const optimisticHit = !!tile && tile.color === target.color && tile.kind === target.kind;
       // Optimistic feedback for snappiness; score/mistakes reconcile from server.
@@ -216,22 +189,12 @@ export function useRuleTapGame(sessionId?: string, walletAddress?: string, seed?
       setCombo((prev) => (optimisticHit ? prev + 1 : 0));
       setLastDelta(optimisticHit ? 1 : -2);
 
+      if (!t) return;
       try {
-        const res = await fetch("/api/games/session/tap", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sessionId: activeRef.current.sessionId ?? sessionId,
-            walletAddress: activeRef.current.walletAddress ?? walletAddress,
-            tileIndex: index,
-            // The moment we tapped (server-aligned). The server judges against
-            // this, not the POST arrival time, so the round-trip doesn't make a
-            // valid tap land after the tile's window.
-            offsetMs: Math.round(effectiveElapsed()),
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) return;
+        // The moment we tapped (server-aligned). The server judges against
+        // this, not the request arrival time, so the round-trip doesn't make a
+        // valid tap land after the tile's window.
+        const data = await t.tap(index, Math.round(effectiveElapsed()));
         // Server is authoritative on the running totals.
         setScore(Number(data.correct ?? 0));
         setMistakes(Number(data.mistakes ?? 0));
@@ -240,7 +203,7 @@ export function useRuleTapGame(sessionId?: string, walletAddress?: string, seed?
         /* transient — totals reconcile on the next successful tap/finish */
       }
     },
-    [activeTiles, flashFeedback, generated.rule, serverRule, sessionId, walletAddress]
+    [activeTiles, effectiveElapsed, flashFeedback, generated.rule, serverRule]
   );
 
   const tapMock = useCallback(
@@ -289,8 +252,9 @@ export function useRuleTapGame(sessionId?: string, walletAddress?: string, seed?
     countdown,
     remainingMs,
     elapsedMs,
-    // `score` is the display score; the authoritative score comes from /finish.
-    // In server mode (score, mistakes) are the server's running totals.
+    // `score` is the display score; the authoritative score comes from the
+    // host's finish call. In server mode (score, mistakes) are the server's
+    // running totals.
     score: scoreRuleTap(score, mistakes),
     rawScore: score,
     mistakes,

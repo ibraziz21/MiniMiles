@@ -133,8 +133,10 @@ export async function verifyHubQuestEvidence(input: {
   quest: QuestCatalogEntry;
   hubUserId: string;
   wallets: string[];
+  /** Required for sponsored_game_played (§13) — canonical ownership is the primary path. */
+  canonicalId?: string;
 }): Promise<HubQuestEvidence> {
-  const { quest, hubUserId, wallets } = input;
+  const { quest, hubUserId, wallets, canonicalId } = input;
   const admin = createAdminClient();
 
   if (quest.key === "pass_activated") {
@@ -175,7 +177,11 @@ export async function verifyHubQuestEvidence(input: {
   }
 
   if (quest.key === "sponsored_game_played") {
-    if (wallets.length === 0) return { eligible: false, reason: "wallet-required" };
+    // §13 — walletless canonical ownership is the primary path; a verified
+    // React wallet session remains a migration fallback. Neither a wallet
+    // nor the game's own round Miles are required — an accepted sponsored
+    // session is the quest action, regardless of round reward.
+    if (!canonicalId && wallets.length === 0) return { eligible: false, reason: "no-identity" };
     const monday = weekRange(isoWeek()).from.slice(0, 10);
     const { data: campaign, error: campaignError } = await admin
       .from("game_weekly_campaigns")
@@ -188,16 +194,19 @@ export async function verifyHubQuestEvidence(input: {
     const gameTypes = Array.isArray(campaign?.game_types) ? campaign.game_types : [];
     if (gameTypes.length === 0) return { eligible: false, reason: "no-active-sponsored-campaign" };
     const range = weekRange(isoWeek());
-    const { data: session, error: sessionError } = await admin
+    let query = admin
       .from("skill_game_sessions")
       .select("session_id")
-      .in("wallet_address", wallets)
       .eq("accepted", true)
       .in("game_type", gameTypes)
       .gte("created_at", range.from)
-      .lt("created_at", range.to)
-      .limit(1)
-      .maybeSingle();
+      .lt("created_at", range.to);
+    query = canonicalId && wallets.length > 0
+      ? query.or(`canonical_id.eq.${canonicalId},wallet_address.in.(${wallets.join(",")})`)
+      : canonicalId
+        ? query.eq("canonical_id", canonicalId)
+        : query.in("wallet_address", wallets);
+    const { data: session, error: sessionError } = await query.limit(1).maybeSingle();
     if (sessionError) throw sessionError;
     return session ? { eligible: true, proofRef: `skill_game_session:${session.session_id}` } : { eligible: false, reason: "no-sponsored-session-this-week" };
   }
@@ -292,12 +301,12 @@ export async function claimHubCanonicalQuest(input: {
   const quest = getQuestCatalogEntry(input.questKey);
   if (!quest) throw new Error("unknown-quest");
   const wallets = await getLinkedWalletAddresses(input.hubUserId);
-  const evidence = await verifyHubQuestEvidence({ quest, hubUserId: input.hubUserId, wallets });
+  const canonicalId = await resolveHubQuestCanonical(input);
+  const evidence = await verifyHubQuestEvidence({ quest, hubUserId: input.hubUserId, wallets, canonicalId });
   if (!evidence.eligible || !evidence.proofRef) {
     return { ok: false as const, code: "not-eligible" as const, reason: evidence.reason };
   }
 
-  const canonicalId = await resolveHubQuestCanonical(input);
   const wallet = await primaryVerifiedWallet(input.hubUserId);
   if (wallet) {
     const walletPolicy = await verifyWalletClaimPolicy(wallet);

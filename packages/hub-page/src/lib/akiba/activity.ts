@@ -22,7 +22,8 @@ export type ActivityKind =
   | "voucher_grant"
   | "voucher_redeem"
   | "merchant_award"
-  | "miles_spent";
+  | "miles_spent"
+  | "skill_game_reward";
 
 export type ActivityItem = {
   id: string;
@@ -311,18 +312,21 @@ export async function getRecentActivity(opts: {
         for (const row of (ledger ?? []) as any[]) {
           const partnerName: string | null = row.partners?.name ?? null;
           const isCredit = row.direction === "credit";
+          const isSkillGame = row.source_type === "skill_game";
           items.push({
             id: `ledger-${row.id}`,
             ts: ts(row.created_at),
-            kind: isCredit ? "merchant_award" : "miles_spent",
-            title: isCredit
-              ? partnerName
-                ? `Earned at ${partnerName}`
-                : "Miles awarded"
-              : partnerName
-                ? `Spent at ${partnerName}`
-                : "Miles spent",
-            detail: isCredit ? "In-store award" : "Redemption",
+            kind: isSkillGame ? "skill_game_reward" : isCredit ? "merchant_award" : "miles_spent",
+            title: isSkillGame
+              ? row.note || "Skill game reward"
+              : isCredit
+                ? partnerName
+                  ? `Earned at ${partnerName}`
+                  : "Miles awarded"
+                : partnerName
+                  ? `Spent at ${partnerName}`
+                  : "Miles spent",
+            detail: isSkillGame ? "Rule Tap / Memory Flip" : isCredit ? "In-store award" : "Redemption",
             miles: isCredit ? Number(row.amount) : -Number(row.amount),
           });
         }

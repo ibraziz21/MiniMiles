@@ -4,6 +4,7 @@ const path = require('path');
 const nextConfig = {
   outputFileTracingRoot: path.join(__dirname, '../../'),
   reactStrictMode: true,
+  transpilePackages: ['@akiba/skill-games'],
   webpack: (config) => {
     config.resolve.fallback = {
       fs: false,

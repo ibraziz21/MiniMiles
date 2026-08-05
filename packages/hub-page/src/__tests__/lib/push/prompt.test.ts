@@ -11,6 +11,7 @@ const eligible = {
   standalone: true,
   permission: "default" as const,
   hasSubscription: false,
+  marketingEnabled: false,
   hasVapidKey: true,
   recentlyDismissed: false,
 };
@@ -24,12 +25,25 @@ describe("push opt-in prompt eligibility", () => {
     ["signed out", { signedIn: false }],
     ["unsupported", { supported: false }],
     ["not installed", { standalone: false }],
-    ["already subscribed", { permission: "granted" as const, hasSubscription: true }],
+    ["already subscribed and opted into marketing", {
+      permission: "granted" as const,
+      hasSubscription: true,
+      marketingEnabled: true,
+    }],
     ["permission denied", { permission: "denied" as const }],
     ["VAPID unavailable", { hasVapidKey: false }],
     ["recently dismissed", { recentlyDismissed: true }],
   ])("does not offer when %s", (_label, overrides) => {
     expect(shouldOfferPushPrompt({ ...eligible, ...overrides })).toBe(false);
+  });
+
+  it("offers announcement consent to an existing transactional subscriber", () => {
+    expect(shouldOfferPushPrompt({
+      ...eligible,
+      permission: "granted",
+      hasSubscription: true,
+      marketingEnabled: false,
+    })).toBe(true);
   });
 
   it("snoozes a dismissal for fourteen days", () => {

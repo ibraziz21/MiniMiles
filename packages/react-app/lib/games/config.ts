@@ -1,53 +1,37 @@
+import { GAMEPLAY_CONFIGS } from "@akiba/skill-games/core";
 import type { GameConfig } from "./types";
 
 export const PER_GAME_DAILY_PLAY_CAP = 20;
 export const SHARED_DAILY_PLAY_CAP = PER_GAME_DAILY_PLAY_CAP;
 export const GAME_TYPES = ["rule_tap", "memory_flip"] as const;
 
+// Gameplay shape (name/duration/thresholds) comes from the shared package —
+// this layer adds only React's economy policy (contract tickets, daily cap,
+// cooldown, weekly prize). See @akiba/skill-games §5.1.
 export const GAME_CONFIGS: Record<string, GameConfig> = {
   rule_tap: {
-    type: "rule_tap",
+    ...GAMEPLAY_CONFIGS.rule_tap,
     chainGameType: 1,
-    name: "Rule Tap",
-    shortName: "Rule Tap",
-    description: "Read the rule, tap only the matching tiles, and avoid traps.",
     route: "/games/rule-tap",
     entryCostMiles: 5,
     maxRewardMiles: 12,
     maxRewardStable: 0,
-    durationSeconds: 20,
     dailyPlayCap: PER_GAME_DAILY_PLAY_CAP,
     cooldownSeconds: 15,
-    leaderboardSort: "score_desc",
     weeklyPrizeUsd: 10,
     weeklyPrizeMiles: 0,
-    thresholds: [
-      { label: "Warm up", minScore: 10, miles: 6,  stable: 0 },
-      { label: "Sharp",   minScore: 14, miles: 9,  stable: 0 },
-      { label: "Elite",   minScore: 18, miles: 12, stable: 0, note: "Top reward" },
-    ],
   },
   memory_flip: {
-    type: "memory_flip",
+    ...GAMEPLAY_CONFIGS.memory_flip,
     chainGameType: 2,
-    name: "Memory Flip",
-    shortName: "Memory",
-    description: "Match 8 hidden pairs before time runs out.",
     route: "/games/memory-flip",
     entryCostMiles: 5,
     maxRewardMiles: 12,
     maxRewardStable: 0,
-    durationSeconds: 60,
     dailyPlayCap: PER_GAME_DAILY_PLAY_CAP,
     cooldownSeconds: 20,
-    leaderboardSort: "score_desc",
     weeklyPrizeUsd: 10,
     weeklyPrizeMiles: 0,
-    thresholds: [
-      { label: "Memory",    minScore: 200, miles: 6,  stable: 0 },
-      { label: "Sharp",     minScore: 500, miles: 9,  stable: 0 },
-      { label: "Recall Pro",minScore: 750, miles: 12, stable: 0, note: "Top reward" },
-    ],
   },
 };
 

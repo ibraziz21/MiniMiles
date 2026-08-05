@@ -75,3 +75,27 @@ describe("renderTemplate — referral templates", () => {
     expect(renderTemplate("not_a_real_template")).toBeNull();
   });
 });
+
+describe("renderTemplate — announcement templates", () => {
+  it.each(["feature_announcement", "merchant_announcement", "general_announcement"])(
+    "renders safe admin-authored copy for %s",
+    (template) => {
+      expect(renderTemplate(template, { title: "Fresh at Akiba", body: "See what just landed." })).toEqual({
+        title: "Fresh at Akiba",
+        body: "See what just landed.",
+      });
+    },
+  );
+
+  it("rejects missing or oversized announcement copy", () => {
+    expect(renderTemplate("feature_announcement", { title: "", body: "Body" })).toBeNull();
+    expect(renderTemplate("feature_announcement", { title: "Title", body: "x".repeat(161) })).toBeNull();
+  });
+
+  it("renders the previously allowlisted refund_failed template", () => {
+    expect(renderTemplate("refund_failed")).toEqual({
+      title: "Refund needs attention",
+      body: "Open Akiba to review your refund status.",
+    });
+  });
+});

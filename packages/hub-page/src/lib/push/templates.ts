@@ -1,4 +1,4 @@
-export type PushCategory = "orders" | "refunds" | "vouchers";
+export type PushCategory = "orders" | "refunds" | "vouchers" | "rewards" | "marketing";
 
 export interface RenderedNotification {
   title: string;
@@ -16,6 +16,7 @@ const TEMPLATES: Record<string, RenderedNotification> = {
   order_cancelled: { title: "Order cancelled", body: "Open Akiba to see the order and refund status." },
   refund_initiated: { title: "Refund started", body: "Your refund is being processed." },
   refund_completed: { title: "Refund completed", body: "Your refund has been completed." },
+  refund_failed: { title: "Refund needs attention", body: "Open Akiba to review your refund status." },
   voucher_ready: { title: "Your voucher is ready", body: "Open Akiba to show its QR code." },
   voucher_failed: { title: "Voucher purchase not completed", body: "You were not charged. Open Akiba for details." },
   voucher_reconciliation: {
@@ -32,6 +33,13 @@ export function renderTemplate(
   template: string,
   metadata: Record<string, unknown> = {}
 ): RenderedNotification | null {
+  if (["feature_announcement", "merchant_announcement", "general_announcement"].includes(template)) {
+    const title = typeof metadata.title === "string" ? metadata.title.trim() : "";
+    const body = typeof metadata.body === "string" ? metadata.body.trim() : "";
+    if (!title || title.length > 60 || !body || body.length > 160) return null;
+    return { title, body };
+  }
+
   const configuredMiles = metadata.amountMiles;
   const miles = typeof configuredMiles === "number" && Number.isFinite(configuredMiles)
     ? configuredMiles
