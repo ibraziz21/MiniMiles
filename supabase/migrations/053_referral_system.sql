@@ -424,9 +424,17 @@ GRANT EXECUTE ON FUNCTION resolve_hub_user_id_from_address(text) TO service_role
 -- I, L, O, U), 8 chars = exactly 40 bits of entropy, no embedded identity.
 -- ════════════════════════════════════════════════════════════════════════
 
+-- SET search_path includes extensions: Supabase installs pgcrypto (which
+-- provides gen_random_bytes) into the `extensions` schema, not `public`,
+-- and this function has no SECURITY DEFINER of its own to otherwise pin a
+-- search_path — without this, resolution depends on the calling session's
+-- search_path, which is not guaranteed to include `extensions` (e.g. the
+-- Supabase SQL editor's default session doesn't), producing an
+-- intermittent "function gen_random_bytes(integer) does not exist" that
+-- only reproduces in some call contexts, not others.
 CREATE OR REPLACE FUNCTION generate_referral_code()
 RETURNS text
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = public, extensions AS $$
 DECLARE
   v_alphabet text := '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
   v_bytes    bytea := gen_random_bytes(5);

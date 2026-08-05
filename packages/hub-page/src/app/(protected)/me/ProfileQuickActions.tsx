@@ -5,6 +5,7 @@ import {
   QrCode,
   Wallet,
   Ticket,
+  Gift,
   Lock,
   X,
 } from "lucide-react";
@@ -65,6 +66,12 @@ export function ProfileQuickActions({ passSlot, walletsSlot, securitySlot }: Pro
       icon: <Ticket className="h-5 w-5 text-akiba-teal" />,
       label: "Orders",
       href: "/me/orders",
+    },
+    {
+      key: "referrals",
+      icon: <Gift className="h-5 w-5 text-akiba-teal" />,
+      label: "Referrals",
+      href: "/referrals",
     },
     ...(securitySlot
       ? [{
