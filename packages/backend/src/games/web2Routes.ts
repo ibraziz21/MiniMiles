@@ -38,6 +38,7 @@ import {
   buildRuleTapSession,
   finalizeRuleTap,
   revealedTiles,
+  ruleTapRuleView,
   RULE_TAP_DURATION_MS,
   RULE_TAP_GRID_SIZE,
   RULE_TAP_REVEAL_LEAD_MS,
@@ -214,7 +215,7 @@ router.post("/session/init", async (req: Request, res: Response) => {
         if (existing.game_type === "rule_tap") {
           return {
             gameType: "rule_tap" as const,
-            rule: existing.rule,
+            rule: ruleTapRuleView(existing.rule),
             durationMs: RULE_TAP_DURATION_MS,
             tickIntervalMs: RULE_TAP_TICK_MS,
             gridSize: RULE_TAP_GRID_SIZE,
@@ -255,7 +256,7 @@ router.post("/session/init", async (req: Request, res: Response) => {
         if (insErr) throw insErr;
         return {
           gameType: "rule_tap" as const,
-          rule,
+          rule: ruleTapRuleView(rule),
           durationMs: RULE_TAP_DURATION_MS,
           tickIntervalMs: RULE_TAP_TICK_MS,
           gridSize: RULE_TAP_GRID_SIZE,

@@ -54,6 +54,28 @@ export type RuleTapRule = {
   avoid: { color: Color; kind: Kind };
 };
 
+// Wire/view shape expected by the shared @akiba/skill-games package's
+// RuleTapRule (RuleBanner's `rule.instruction`, useRuleTapGame's
+// `rule.targets`/`rule.avoids`) — distinct from this engine's internal
+// singular target/avoid representation used for scoring + DB storage.
+// Copy of the instruction phrasing generated client-side by
+// mockGenerators.ts's generateRuleTapSession, so server- and mock-mode
+// rounds read identically.
+export type RuleTapRuleView = {
+  instruction: string;
+  targets: Array<{ color: Color; kind: Kind }>;
+  avoids: Array<{ color: Color; kind: Kind }>;
+};
+
+export function ruleTapRuleView(rule: RuleTapRule): RuleTapRuleView {
+  const { target, avoid } = rule;
+  const instruction =
+    target.color === avoid.color
+      ? `Tap only ${target.color} ${target.kind}s`
+      : `Tap ${target.color} ${target.kind}s, avoid ${avoid.color} ${avoid.kind}s`;
+  return { instruction, targets: [target], avoids: [avoid] };
+}
+
 function hashSeed(input: string): number {
   let h = 2166136261;
   for (let i = 0; i < input.length; i++) {
