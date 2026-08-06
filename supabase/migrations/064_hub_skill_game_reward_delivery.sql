@@ -206,7 +206,7 @@ BEGIN
       INSERT INTO miles_ledger (
         canonical_id, amount, direction, source_type, source_id, on_chain, note
       ) VALUES (
-        p_canonical_id, p_reward_miles, 'credit', 'skill_game', v_delivery.id, false,
+        p_canonical_id, p_reward_miles, 'credit', 'game', v_delivery.id, false,
         v_game_label || ' reward'
       ) RETURNING id INTO v_ledger_id;
 

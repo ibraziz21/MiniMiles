@@ -312,7 +312,7 @@ export async function getRecentActivity(opts: {
         for (const row of (ledger ?? []) as any[]) {
           const partnerName: string | null = row.partners?.name ?? null;
           const isCredit = row.direction === "credit";
-          const isSkillGame = row.source_type === "skill_game";
+          const isSkillGame = row.source_type === "game";
           items.push({
             id: `ledger-${row.id}`,
             ts: ts(row.created_at),
