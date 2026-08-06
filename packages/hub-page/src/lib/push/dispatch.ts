@@ -29,15 +29,17 @@ type PreferenceRow = {
   orders_enabled: boolean;
   vouchers_enabled: boolean;
   rewards_enabled: boolean;
+  marketing_enabled: boolean;
 };
 
-function categoryEnabled(prefs: PreferenceRow | null, category: string): boolean {
+export function categoryEnabled(prefs: PreferenceRow | null, category: string): boolean {
   // No preferences row yet: orders/vouchers default on, rewards defaults
   // off (hub_notification_preferences.rewards_enabled default false,
   // 047_web_push_notifications.sql) — referral push is opt-in, not opt-out.
   if (category === "orders" || category === "refunds") return prefs ? prefs.orders_enabled : true;
   if (category === "vouchers") return prefs ? prefs.vouchers_enabled : true;
   if (category === "rewards") return prefs ? prefs.rewards_enabled : false;
+  if (category === "marketing") return prefs ? prefs.marketing_enabled : false;
   return false;
 }
 
@@ -124,7 +126,7 @@ export async function processPushJobs(): Promise<{
 
     const { data: prefs } = await admin
       .from("hub_notification_preferences")
-      .select("orders_enabled, vouchers_enabled, rewards_enabled")
+      .select("orders_enabled, vouchers_enabled, rewards_enabled, marketing_enabled")
       .eq("hub_user_id", job.hub_user_id)
       .maybeSingle();
 
