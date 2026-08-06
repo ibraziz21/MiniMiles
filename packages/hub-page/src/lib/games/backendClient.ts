@@ -56,13 +56,11 @@ export type PlayStatus = {
 };
 
 export type StartResult = {
-  ok: boolean;
-  errorCode?: string;
-  sessionId?: string;
-  status?: string;
-  playsToday?: number;
-  playsRemaining?: number;
-  expiresAt?: string;
+  sessionId: string;
+  status: string;
+  playsToday: number;
+  playsRemaining: number;
+  expiresAt: string;
 };
 
 export type Identity = { canonicalId: string; hubUserId: string };

@@ -30,11 +30,10 @@ export async function POST(req: Request) {
   }
 
   try {
+    // gamesBackend.start() only ever returns normally on a 2xx response —
+    // call() throws GamesBackendError for anything else (caught below).
+    // The success payload has no `ok`/`errorCode` fields, so don't check them.
     const result = await gamesBackend.start(auth.context.identity, body.gameType, idempotencyKey);
-    if (!result.ok) {
-      const status = result.errorCode === "daily-cap-reached" || result.errorCode === "idempotency-conflict" ? 409 : 400;
-      return NextResponse.json({ error: result.errorCode }, { status });
-    }
     return NextResponse.json({
       sessionId: result.sessionId,
       gameType: body.gameType,

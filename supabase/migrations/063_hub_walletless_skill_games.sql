@@ -171,8 +171,10 @@ BEGIN
 
     SELECT count(*) INTO v_count
     FROM hub_skill_game_play_reservations
-    WHERE canonical_id = v_canonical AND game_type = p_game_type AND play_date = v_play_date
-      AND status IN ('reserved', 'started', 'finalized');
+    WHERE hub_skill_game_play_reservations.canonical_id = v_canonical
+      AND hub_skill_game_play_reservations.game_type = p_game_type
+      AND hub_skill_game_play_reservations.play_date = v_play_date
+      AND hub_skill_game_play_reservations.status IN ('reserved', 'started', 'finalized');
 
     RETURN QUERY SELECT true, NULL::text, v_existing.session_id, v_canonical, v_existing.status,
       v_count, greatest(0, p_daily_cap - v_count), v_existing.expires_at, v_next_reset;
@@ -181,15 +183,24 @@ BEGIN
 
   -- Void reserved rows whose short init window lapsed without ever reaching
   -- `started` — they never consumed a real play (§9.3 step 3).
+  -- Table-qualified throughout: canonical_id/status/expires_at are also
+  -- output columns of this function's RETURNS TABLE, so a bare reference is
+  -- ambiguous between the OUT param and the table column ("column reference
+  -- ... is ambiguous", caught in production 2026-08-06).
   UPDATE hub_skill_game_play_reservations
   SET status = 'voided', void_reason = 'init-window-expired'
-  WHERE canonical_id = v_canonical AND game_type = p_game_type AND play_date = v_play_date
-    AND status = 'reserved' AND expires_at < now();
+  WHERE hub_skill_game_play_reservations.canonical_id = v_canonical
+    AND hub_skill_game_play_reservations.game_type = p_game_type
+    AND hub_skill_game_play_reservations.play_date = v_play_date
+    AND hub_skill_game_play_reservations.status = 'reserved'
+    AND hub_skill_game_play_reservations.expires_at < now();
 
   SELECT count(*) INTO v_count
   FROM hub_skill_game_play_reservations
-  WHERE canonical_id = v_canonical AND game_type = p_game_type AND play_date = v_play_date
-    AND status IN ('reserved', 'started', 'finalized');
+  WHERE hub_skill_game_play_reservations.canonical_id = v_canonical
+    AND hub_skill_game_play_reservations.game_type = p_game_type
+    AND hub_skill_game_play_reservations.play_date = v_play_date
+    AND hub_skill_game_play_reservations.status IN ('reserved', 'started', 'finalized');
 
   IF v_count >= p_daily_cap THEN
     RETURN QUERY SELECT false, 'daily-cap-reached', NULL::text, v_canonical, NULL::text,
@@ -254,22 +265,32 @@ BEGIN
   -- cap forever: the UI disables Play at zero remaining, so the only other
   -- code path that voids expired rows (the reserve RPC) would never run
   -- again and the member would be stranded at "5/5" indefinitely.
+  -- Table-qualified throughout: canonical_id is also an output column of
+  -- this function's RETURNS TABLE, so a bare reference is ambiguous between
+  -- the OUT param and the table column ("column reference ... is
+  -- ambiguous", caught in production 2026-08-06).
   UPDATE hub_skill_game_play_reservations
   SET status = 'voided', void_reason = 'init-window-expired'
-  WHERE canonical_id = v_canonical AND game_type = p_game_type AND play_date = v_play_date
-    AND status = 'reserved' AND expires_at < now();
+  WHERE hub_skill_game_play_reservations.canonical_id = v_canonical
+    AND hub_skill_game_play_reservations.game_type = p_game_type
+    AND hub_skill_game_play_reservations.play_date = v_play_date
+    AND hub_skill_game_play_reservations.status = 'reserved'
+    AND hub_skill_game_play_reservations.expires_at < now();
 
   SELECT count(*) INTO v_count
   FROM hub_skill_game_play_reservations
-  WHERE canonical_id = v_canonical AND game_type = p_game_type AND play_date = v_play_date
-    AND status IN ('reserved', 'started', 'finalized');
+  WHERE hub_skill_game_play_reservations.canonical_id = v_canonical
+    AND hub_skill_game_play_reservations.game_type = p_game_type
+    AND hub_skill_game_play_reservations.play_date = v_play_date
+    AND hub_skill_game_play_reservations.status IN ('reserved', 'started', 'finalized');
 
   SELECT max(score) INTO v_best
   FROM skill_game_sessions
-  WHERE canonical_id = v_canonical AND game_type = p_game_type
-    AND accepted = true
-    AND created_at >= (v_play_date::timestamp AT TIME ZONE 'Africa/Nairobi')
-    AND created_at <  ((v_play_date + 1)::timestamp AT TIME ZONE 'Africa/Nairobi');
+  WHERE skill_game_sessions.canonical_id = v_canonical
+    AND skill_game_sessions.game_type = p_game_type
+    AND skill_game_sessions.accepted = true
+    AND skill_game_sessions.created_at >= (v_play_date::timestamp AT TIME ZONE 'Africa/Nairobi')
+    AND skill_game_sessions.created_at <  ((v_play_date + 1)::timestamp AT TIME ZONE 'Africa/Nairobi');
 
   RETURN QUERY SELECT v_canonical, v_count, greatest(0, p_daily_cap - v_count), v_next_reset, v_best;
 END;
