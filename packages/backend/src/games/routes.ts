@@ -1314,6 +1314,11 @@ async function retryPendingSettlements() {
       .from("skill_game_sessions")
       .select("session_id, wallet_address, game_type, score, reward_miles, reward_stable, accepted, anti_abuse_flags, seed_commitment, settle_tx_hash, settle_attempts, settled_at, settlement_sig, settlement_expiry")
       .eq("accepted", true)
+      // Walletless hub-page sessions (source_app='hub-page') are also written to this
+      // table (migration 064) and never get an on-chain settlement, so settled_at stays
+      // NULL forever for them — exclude by wallet_address to keep this sweep scoped to
+      // the legacy on-chain (react-app) rows it was built for.
+      .not("wallet_address", "is", null)
       .is("settled_at", null)
       .lt("settle_attempts", MAX_SETTLE_ATTEMPTS)
       .order("created_at", { ascending: true })
@@ -1329,11 +1334,15 @@ async function retryPendingSettlements() {
         continue;
       }
 
-      await queueSettlementForAcceptedRow(row as SkillGameSessionRow, {
-        sessionId: row.session_id,
-        walletAddress: row.wallet_address,
-        gameType: row.game_type,
-      });
+      try {
+        await queueSettlementForAcceptedRow(row as SkillGameSessionRow, {
+          sessionId: row.session_id,
+          walletAddress: row.wallet_address,
+          gameType: row.game_type,
+        });
+      } catch (err) {
+        console.error(`[games/settle-retry] failed for session ${row.session_id}:`, (err as Error)?.message ?? err);
+      }
     }
   } finally {
     retryPendingSettlementsRunning = false;
