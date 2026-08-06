@@ -166,12 +166,24 @@ BEGIN
   -- 8. reserve exactly one delivery (idempotent on session_id via unique constraint)
   SELECT * INTO v_delivery FROM skill_game_reward_deliveries WHERE session_id = p_session_id FOR UPDATE;
   IF v_delivery.id IS NULL THEN
-    -- 7. resolve the member's current cryptographically verified primary wallet
-    SELECT address INTO v_wallet
-    FROM hub_user_wallets
-    WHERE user_id = v_reservation.hub_user_id AND verification_status = 'verified'
-    ORDER BY is_primary DESC NULLS LAST, linked_at ASC
-    LIMIT 1;
+    -- 7. resolve the member's current cryptographically verified primary
+    -- wallet. Guarded the same way migration 054's backfill guards it: on a
+    -- database where migration 051 (verified_wallet_linking.sql) hasn't run
+    -- yet, hub_user_wallets.verification_status doesn't exist, and querying
+    -- it directly would throw 42703 undefined_column on every rewarded
+    -- finish. Treat that state as walletless (v_wallet stays NULL) rather
+    -- than failing the whole finalization — same "a pre-051 row is not
+    -- trusted as verified" stance migration 051 itself documents.
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'hub_user_wallets' AND column_name = 'verification_status'
+    ) THEN
+      SELECT address INTO v_wallet
+      FROM hub_user_wallets
+      WHERE user_id = v_reservation.hub_user_id AND verification_status = 'verified'
+      ORDER BY is_primary DESC NULLS LAST, linked_at ASC
+      LIMIT 1;
+    END IF;
 
     v_game_label := CASE v_reservation.game_type WHEN 'rule_tap' THEN 'Rule Tap' WHEN 'memory_flip' THEN 'Memory Flip' ELSE v_reservation.game_type END;
 

@@ -26,6 +26,11 @@
     "viem": "^2.21.34",
     "web-push": "^3.6.7"
   },
+  "dependenciesMeta": {
+    "@akiba/skill-games": {
+      "injected": true
+    }
+  },
   "devDependencies": {
     "@types/node": "^22.7.9",
     "@types/pg": "^8.20.0",

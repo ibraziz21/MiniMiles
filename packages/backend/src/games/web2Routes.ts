@@ -20,9 +20,7 @@ import { verifyServiceAssertion, type VerifiedAssertion } from "./serviceAsserti
 import {
   withServerSessionLock,
   stateFromRow,
-  saveServerState,
   ruleStateFromRow,
-  saveRuleTapState,
   type ServerSessionRow,
 } from "./serverSessionStore";
 import {
@@ -33,6 +31,7 @@ import {
   MEMORY_FLIP_DURATION_MS,
   newServerSeed,
   serverSeedHash,
+  type MemoryServerState,
 } from "./memoryFlipServer";
 import {
   applyTap,
@@ -305,35 +304,62 @@ router.post("/session/init", async (req: Request, res: Response) => {
   }
 });
 
-// Records an idempotent action receipt (§10.3). Returns the previously
-// recorded outcome on a repeated `actionId`; rejects reuse with a different
-// input. Caller applies the outcome atomically with the game-state write —
-// this runs after that write succeeds, inside the same session lock.
-async function recordActionReceipt(
+// Atomically saves the flip/tap engine state and records the action receipt
+// in one transaction (§10.3, apply_skill_game_flip_action/
+// apply_skill_game_tap_action in migration 063 — see that migration for why
+// this must be one RPC rather than two separate writes).
+async function saveFlipActionAtomic(
   sessionId: string,
+  expectedVersion: number,
+  state: MemoryServerState,
   actionId: string,
-  actionType: "flip" | "tap",
   input: unknown,
   outcome: unknown
-): Promise<void> {
-  const { count } = await supabase
-    .from("skill_game_session_actions")
-    .select("*", { count: "exact", head: true })
-    .eq("session_id", sessionId);
-  const sequenceNo = (count ?? 0) + 1;
-  const { error } = await supabase.from("skill_game_session_actions").insert({
-    session_id: sessionId,
-    action_id: actionId,
-    sequence_no: sequenceNo,
-    action_type: actionType,
-    input_hash: hashInput(input),
-    outcome,
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc("apply_skill_game_flip_action", {
+    p_session_id: sessionId,
+    p_expected_version: expectedVersion,
+    p_revealed: state.revealed,
+    p_matched: state.matched,
+    p_selected: state.selected,
+    p_action_offsets: state.actionOffsets,
+    p_moves: state.moves,
+    p_matches: state.matches,
+    p_mistakes: state.mistakes,
+    p_lock_until_ms: state.lockUntilMs,
+    p_completed: state.completed,
+    p_action_id: actionId,
+    p_input_hash: hashInput(input),
+    p_outcome: outcome,
   });
-  // A duplicate (session_id, action_id) or (session_id, sequence_no) here means
-  // a concurrent retry already recorded this action — the game-state write
-  // already happened exactly once (guarded by the optimistic version check),
-  // so losing this receipt write is harmless bookkeeping, not a double-apply.
-  if (error && error.code !== "23505") throw error;
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return Boolean(row?.saved);
+}
+
+async function saveTapActionAtomic(
+  sessionId: string,
+  expectedVersion: number,
+  state: RuleTapState,
+  actionId: string,
+  input: unknown,
+  outcome: unknown
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc("apply_skill_game_tap_action", {
+    p_session_id: sessionId,
+    p_expected_version: expectedVersion,
+    p_correct: state.correct,
+    p_mistakes: state.mistakes,
+    p_taps: state.taps,
+    p_counted_targets: state.countedTargets,
+    p_action_offsets: state.actionOffsets,
+    p_action_id: actionId,
+    p_input_hash: hashInput(input),
+    p_outcome: outcome,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return Boolean(row?.saved);
 }
 
 async function findActionReceipt(sessionId: string, actionId: string) {
@@ -385,11 +411,10 @@ router.post("/session/flip", async (req: Request, res: Response) => {
       const result = applyFlip(state, cardIndex, Date.now(), clientOffsetMs);
       if (!result.ok) return { status: 400, body: { error: result.reason } };
 
-      const saved = await saveServerState(sid, state, (row as ServerSessionRow).version);
+      const outcome = { value: result.value, pair: result.pair ?? null, state: result.state, completed: result.state.completed };
+      const saved = await saveFlipActionAtomic(sid, (row as ServerSessionRow).version, state, actionId, input, outcome);
       if (!saved) return { status: 409, body: { error: "concurrent-modification" } };
 
-      const outcome = { value: result.value, pair: result.pair ?? null, state: result.state, completed: result.state.completed };
-      await recordActionReceipt(sid, actionId, "flip", input, outcome);
       return { status: 200, body: outcome };
     });
 
@@ -483,11 +508,10 @@ router.post("/session/tap", async (req: Request, res: Response) => {
       const result = applyTap(state, tileIndex, Date.now(), clientOffsetMs);
       if (!result.ok) return { status: 400, body: { error: result.reason } };
 
-      const saved = await saveRuleTapState(sid, state, (row as ServerSessionRow).version);
+      const outcome = { hit: result.hit, duplicate: result.duplicate, correct: result.correct, mistakes: result.mistakes };
+      const saved = await saveTapActionAtomic(sid, (row as ServerSessionRow).version, state, actionId, input, outcome);
       if (!saved) return { status: 409, body: { error: "concurrent-modification" } };
 
-      const outcome = { hit: result.hit, duplicate: result.duplicate, correct: result.correct, mistakes: result.mistakes };
-      await recordActionReceipt(sid, actionId, "tap", input, outcome);
       return { status: 200, body: outcome };
     });
 

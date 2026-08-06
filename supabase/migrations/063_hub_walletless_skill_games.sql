@@ -248,6 +248,17 @@ BEGIN
   v_play_date  := (now() AT TIME ZONE 'Africa/Nairobi')::date;
   v_next_reset := ((v_play_date + 1)::timestamp AT TIME ZONE 'Africa/Nairobi');
 
+  -- Same cleanup as reserve_hub_skill_game_play step 3 — a reservation that
+  -- never reached `started` before its init window lapsed never consumed a
+  -- real play. Without this, a stale `reserved` row would count against the
+  -- cap forever: the UI disables Play at zero remaining, so the only other
+  -- code path that voids expired rows (the reserve RPC) would never run
+  -- again and the member would be stranded at "5/5" indefinitely.
+  UPDATE hub_skill_game_play_reservations
+  SET status = 'voided', void_reason = 'init-window-expired'
+  WHERE canonical_id = v_canonical AND game_type = p_game_type AND play_date = v_play_date
+    AND status = 'reserved' AND expires_at < now();
+
   SELECT count(*) INTO v_count
   FROM hub_skill_game_play_reservations
   WHERE canonical_id = v_canonical AND game_type = p_game_type AND play_date = v_play_date
@@ -286,6 +297,129 @@ CREATE TABLE IF NOT EXISTS public.skill_game_session_actions (
 ALTER TABLE public.skill_game_session_actions ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.skill_game_session_actions FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT ON public.skill_game_session_actions TO service_role;
+
+-- Atomic state-save + action-receipt writes for flip/tap (§10.3). Applying
+-- the engine's new state and recording the action receipt used to be two
+-- separate Backend-driven writes guarded only by a process-local in-memory
+-- lock (games/serverSessionStore.ts's withServerSessionLock) — safe within
+-- one backend instance, but a crash between the two writes, or a second
+-- instance racing the same session, could leave state applied without its
+-- receipt, so a legitimate browser retry would fail instead of replaying.
+-- Wrapping both writes in one PL/pgSQL function makes them one transaction:
+-- either both land or neither does. The optimistic version check still
+-- guards against a stale write (same role saveServerState/saveRuleTapState
+-- played), it's just now atomic with the receipt insert.
+CREATE OR REPLACE FUNCTION public.apply_skill_game_flip_action(
+  p_session_id       text,
+  p_expected_version integer,
+  p_revealed         jsonb,
+  p_matched          jsonb,
+  p_selected         jsonb,
+  p_action_offsets   jsonb,
+  p_moves            integer,
+  p_matches          integer,
+  p_mistakes         integer,
+  p_lock_until_ms    integer,
+  p_completed        boolean,
+  p_action_id        uuid,
+  p_input_hash       text,
+  p_outcome          jsonb
+)
+RETURNS TABLE(saved boolean, sequence_no integer)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_updated integer;
+  v_seq     integer;
+BEGIN
+  UPDATE skill_game_server_sessions SET
+    revealed = p_revealed,
+    matched = p_matched,
+    selected = p_selected,
+    action_offsets = p_action_offsets,
+    moves = p_moves,
+    matches = p_matches,
+    mistakes = p_mistakes,
+    lock_until_ms = p_lock_until_ms,
+    completed = p_completed,
+    version = p_expected_version + 1,
+    updated_at = now()
+  WHERE session_id = p_session_id AND version = p_expected_version;
+  GET DIAGNOSTICS v_updated = ROW_COUNT;
+
+  IF v_updated = 0 THEN
+    RETURN QUERY SELECT false, NULL::integer;
+    RETURN;
+  END IF;
+
+  SELECT count(*) + 1 INTO v_seq FROM skill_game_session_actions WHERE session_id = p_session_id;
+
+  INSERT INTO skill_game_session_actions (session_id, action_id, sequence_no, action_type, input_hash, outcome)
+  VALUES (p_session_id, p_action_id, v_seq, 'flip', p_input_hash, p_outcome)
+  ON CONFLICT (session_id, action_id) DO NOTHING;
+
+  RETURN QUERY SELECT true, v_seq;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.apply_skill_game_flip_action(text, integer, jsonb, jsonb, jsonb, jsonb, integer, integer, integer, integer, boolean, uuid, text, jsonb)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_skill_game_flip_action(text, integer, jsonb, jsonb, jsonb, jsonb, integer, integer, integer, integer, boolean, uuid, text, jsonb)
+  TO service_role;
+
+CREATE OR REPLACE FUNCTION public.apply_skill_game_tap_action(
+  p_session_id       text,
+  p_expected_version integer,
+  p_correct          integer,
+  p_mistakes         integer,
+  p_taps             integer,
+  p_counted_targets  jsonb,
+  p_action_offsets   jsonb,
+  p_action_id        uuid,
+  p_input_hash       text,
+  p_outcome          jsonb
+)
+RETURNS TABLE(saved boolean, sequence_no integer)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_updated integer;
+  v_seq     integer;
+BEGIN
+  UPDATE skill_game_server_sessions SET
+    correct = p_correct,
+    mistakes = p_mistakes,
+    taps = p_taps,
+    counted_targets = p_counted_targets,
+    action_offsets = p_action_offsets,
+    version = p_expected_version + 1,
+    updated_at = now()
+  WHERE session_id = p_session_id AND version = p_expected_version;
+  GET DIAGNOSTICS v_updated = ROW_COUNT;
+
+  IF v_updated = 0 THEN
+    RETURN QUERY SELECT false, NULL::integer;
+    RETURN;
+  END IF;
+
+  SELECT count(*) + 1 INTO v_seq FROM skill_game_session_actions WHERE session_id = p_session_id;
+
+  INSERT INTO skill_game_session_actions (session_id, action_id, sequence_no, action_type, input_hash, outcome)
+  VALUES (p_session_id, p_action_id, v_seq, 'tap', p_input_hash, p_outcome)
+  ON CONFLICT (session_id, action_id) DO NOTHING;
+
+  RETURN QUERY SELECT true, v_seq;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.apply_skill_game_tap_action(text, integer, integer, integer, integer, jsonb, jsonb, uuid, text, jsonb)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_skill_game_tap_action(text, integer, integer, integer, integer, jsonb, jsonb, uuid, text, jsonb)
+  TO service_role;
 
 -- ── 5. Service-assertion replay guard (§7.2) ────────────────────────────────
 -- Assertions expire within 60s; this table rejects a `jti` seen twice within
