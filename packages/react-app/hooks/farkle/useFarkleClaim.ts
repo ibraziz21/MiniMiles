@@ -9,6 +9,7 @@ import {
   GAME_CREDIT_VAULT_ADDRESS,
   gameCreditVaultAbi,
 } from "@/lib/farkle/contracts";
+import { withCeloAttribution } from "@/lib/celoAttribution";
 
 const CELO_RPC = process.env.NEXT_PUBLIC_CELO_RPC_URL ?? "https://forno.celo.org";
 const CELO_CHAIN_ID_HEX = `0x${celo.id.toString(16)}`;
@@ -227,6 +228,7 @@ export function useFarkleClaim(address: string | null | undefined) {
         functionName: "claimRewardCredits",
         args: [freshClaimable],
         gas: gasLimit,
+        dataSuffix: withCeloAttribution(),
       });
       setClaimTxHash(hash);
       console.log("[farkle-claim] tx submitted", { debugId, hash });

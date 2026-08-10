@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { celo } from "viem/chains";
 import { createPublicClient, createWalletClient, custom, http } from "viem";
 import { FARKLE_TICKET_ADDRESS, farkleTicketAbi } from "@/lib/farkle/contracts";
+import { withCeloAttribution } from "@/lib/celoAttribution";
 
 export function useFarkleTickets(address: string | null | undefined) {
   const [buying,     setBuying]     = useState(false);
@@ -38,6 +39,7 @@ export function useFarkleTickets(address: string | null | undefined) {
         abi:          farkleTicketAbi,
         functionName: "buyTicketPack",
         args:         [],
+        dataSuffix:   withCeloAttribution(),
       });
 
       setTxHash(hash);

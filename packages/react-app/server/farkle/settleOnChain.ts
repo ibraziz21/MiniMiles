@@ -21,6 +21,7 @@ import {
 } from "viem";
 import { privateKeyToAccount, nonceManager } from "viem/accounts";
 import { celo, base } from "viem/chains";
+import { withCeloAttribution } from "@/lib/celoAttribution";
 
 // ── Chain-specific config ─────────────────────────────────────────────────────
 
@@ -270,6 +271,8 @@ export async function settleFarkleOnChain(p: FarkleSettlementParams, chainId: nu
         functionName: "settleMatch",
         args: [input as any, signature],
         account: submitter,
+        // Attribution tags are a Celo-specific (ERC-8021) scheme.
+        dataSuffix: isBase ? undefined : withCeloAttribution(),
       });
       // The tx is broadcast at this point. settleMatch is replay-protected, so a
       // slow/failed confirmation is safe to retry/ignore — don't let the receipt

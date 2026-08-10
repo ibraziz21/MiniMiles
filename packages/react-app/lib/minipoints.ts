@@ -10,6 +10,7 @@ import {
 import { nonceManager, privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 import { supabase } from "@/lib/supabaseClient";
+import { withCeloAttribution } from "@/lib/celoAttribution";
 
 import MiniPointsAbi from "@/contexts/minimiles.json";
 
@@ -92,7 +93,7 @@ async function writeMiniPointsWithRetries(params: {
         functionName,
         args,
         account: clients.account,
-        ...(referralTag ? { dataSuffix: `0x${referralTag}` } : {}),
+        dataSuffix: withCeloAttribution(referralTag ? `0x${referralTag}` : null),
       });
 
       if (attachReferral) {

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@akiba/skill-games": "workspace:*",
+    "@celo/attribution-tags": "^0.3.0",
     "@divvi/referral-sdk": "^2.3.0",
     "@headlessui/react": "^2.1.10",
     "@heroicons/react": "^2.1.5",

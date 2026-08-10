@@ -25,6 +25,7 @@ import { NextResponse } from "next/server";
 import { createPublicClient, createWalletClient, http } from "viem";
 import { celo } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
+import { withCeloAttribution } from "@/lib/celoAttribution";
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 const REGISTRY = (
@@ -161,6 +162,7 @@ export async function POST(req: Request) {
       args: [vid],
       account,
       chain: celo,
+      dataSuffix: withCeloAttribution(),
     });
     await pub.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 60_000 });
 

@@ -24,6 +24,7 @@ import clawAbi from "@/contexts/akibaClawGame.json";
 import vaultAbi from "@/contexts/vault.json";
 import posthog from "posthog-js";
 import { isMiniPayProvider } from "@/lib/minipay";
+import { withCeloAttribution } from "@/lib/celoAttribution";
 
 /** USDT on Celo mainnet */
 const USDT_ADDRESS = (
@@ -211,6 +212,7 @@ function useWeb3Logic() {
         functionName: "transfer",
         account: address,
         args: [to, parseEther(amount)],
+        dataSuffix: withCeloAttribution(),
       });
       return publicClient.waitForTransactionReceipt({ hash: tx });
     },
@@ -253,7 +255,7 @@ function useWeb3Logic() {
       functionName: 'joinRaffle',
       account: address as `0x${string}`,
       args: [BigInt(roundId), BigInt(ticketCount)],
-      dataSuffix: `0x${referralTag.replace(/^0x/, '')}`,
+      dataSuffix: withCeloAttribution(`0x${referralTag.replace(/^0x/, '')}`),
     });
 
     try {
@@ -358,6 +360,7 @@ function useWeb3Logic() {
       functionName: "approve",
       account: address as `0x${string}`,
       args: [VAULT_ADDRESS, parseUnits(amount, 6)],
+      dataSuffix: withCeloAttribution(),
     });
 
     const receipt = await publicClient.waitForTransactionReceipt({
@@ -389,6 +392,7 @@ function useWeb3Logic() {
       functionName: "deposit",
       account: address as `0x${string}`,
       args: [parsedAmount],
+      dataSuffix: withCeloAttribution(),
     });
 
     const receipt = await publicClient.waitForTransactionReceipt({
@@ -420,6 +424,7 @@ function useWeb3Logic() {
       functionName: "withdraw",
       account: address as `0x${string}`,
       args: [parsedAmount],
+      dataSuffix: withCeloAttribution(),
     });
 
     const receipt = await publicClient.waitForTransactionReceipt({
@@ -466,6 +471,7 @@ function useWeb3Logic() {
       functionName: "approve",
       account: address as `0x${string}`,
       args: [crackpot, amount],
+      dataSuffix: withCeloAttribution(),
     });
 
     try {
@@ -500,6 +506,7 @@ function useWeb3Logic() {
       functionName: "enterGame",
       account: address as `0x${string}`,
       args: [version],
+      dataSuffix: withCeloAttribution(),
     });
 
     try {
@@ -525,7 +532,7 @@ function useWeb3Logic() {
       account: address as `0x${string}`,
       chain: celo,
     });
-    const hash = await walletClient.writeContract(request);
+    const hash = await walletClient.writeContract({ ...request, dataSuffix: withCeloAttribution() });
     const receipt = await writePublicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 90_000 });
 
     let sessionId: string | null = null;
@@ -573,6 +580,7 @@ function useWeb3Logic() {
       functionName: "burnVoucherReward",
       account: address as `0x${string}`,
       args: [sessionId],
+      dataSuffix: withCeloAttribution(),
     });
     await writePublicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 90_000 });
     return hash;

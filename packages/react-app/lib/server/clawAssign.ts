@@ -24,6 +24,7 @@ import { supabase } from "@/lib/supabaseClient";
 import batchRngAbi from "@/contexts/merkleBatchRng.json";
 import clawAbi from "@/contexts/akibaClawGame.json";
 import { getBatchPlayOutcomeAsync } from "./clawBatchStore";
+import { withCeloAttribution } from "@/lib/celoAttribution";
 
 const CLAW_GAME = (process.env.NEXT_PUBLIC_CLAW_GAME_ADDRESS ??
   "0x32cd4449A49786f8e9C68A5466d46E4dbC5197B3") as `0x${string}`;
@@ -218,6 +219,7 @@ export async function settleSession(
         args: [sessionId, outcome.rewardClass, proof],
         account,
         chain: celo,
+        dataSuffix: withCeloAttribution(),
       });
       await pub.waitForTransactionReceipt({ hash: commitHash, confirmations: 1, timeout: 60_000 });
       await logSettle(sessionIdStr, "commit_outcome", commitHash, true);
@@ -253,6 +255,7 @@ export async function settleSession(
         args: [sessionId],
         account,
         chain: celo,
+        dataSuffix: withCeloAttribution(),
       });
       await pub.waitForTransactionReceipt({ hash: settleHash, confirmations: 1, timeout: 60_000 });
       await logSettle(sessionIdStr, "settle_game", settleHash, true);
@@ -297,6 +300,7 @@ export async function settleSession(
       args: [sessionId],
       account,
       chain: celo,
+      dataSuffix: withCeloAttribution(),
     });
     await pub.waitForTransactionReceipt({ hash: claimHash, confirmations: 1, timeout: 90_000 });
     await logSettle(sessionIdStr, "claim_reward", claimHash, true);

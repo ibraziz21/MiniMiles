@@ -14,6 +14,7 @@ import {
 import { celo } from "viem/chains";
 import { nonceManager, privateKeyToAccount } from "viem/accounts";
 import { isBlacklisted } from "@/lib/blacklist";
+import { withCeloAttribution } from "@/lib/celoAttribution";
 
 const V1_ADDRESS = (
   process.env.MINIPOINTS_ADDRESS ?? "0xEeD878017f027FE96316007D0ca5fDA58Ee93a6b"
@@ -96,6 +97,7 @@ export async function POST(req: Request) {
       functionName: "claimV2TokensFor",
       args: [addr as `0x${string}`],
       account,
+      dataSuffix: withCeloAttribution(),
     });
 
     return NextResponse.json({

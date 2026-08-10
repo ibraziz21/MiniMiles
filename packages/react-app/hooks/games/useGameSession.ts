@@ -10,6 +10,7 @@ import { celo } from "viem/chains";
 import { createPublicClient, createWalletClient, custom, http, decodeEventLog } from "viem";
 import { seedCommitment as computeSeedCommitment } from "@/lib/games/replay-validation";
 import type { CreditStatus } from "./useCredits";
+import { withCeloAttribution } from "@/lib/celoAttribution";
 
 function localSessionId(gameType: GameType, walletAddress: string) {
   return `${gameType}-${Date.now().toString(36)}-${walletAddress.slice(-6).toLowerCase()}`;
@@ -163,6 +164,7 @@ export function useGameSession(gameType: GameType) {
           abi: akibaSkillGamesAbi,
           functionName: "startGame",
           args: [GAME_CONFIGS[gameType].chainGameType, onchainCommitment],
+          dataSuffix: withCeloAttribution(),
         });
 
         const receipt = await publicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 75_000 });

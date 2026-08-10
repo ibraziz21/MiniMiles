@@ -12,6 +12,13 @@ import {
 } from "viem";
 import { privateKeyToAccount, nonceManager } from "viem/accounts";
 import { celo, base } from "viem/chains";
+import { withCeloAttribution } from "@/lib/celoAttribution";
+
+// Attribution tags are a Celo-specific (ERC-8021) scheme — only tag
+// transactions actually going to the Celo contract, not the Base one.
+function attributionSuffix(chainId: number | undefined) {
+  return (chainId ?? celo.id) === celo.id ? withCeloAttribution() : undefined;
+}
 
 // ── Chain params ──────────────────────────────────────────────────────────────
 
@@ -193,7 +200,7 @@ export async function contractRecordEntry(
 ): Promise<`0x${string}`> {
   const { walletClient, address } = getClients(chainId);
   return sendTx(chainId, () =>
-    walletClient.writeContract({ address, abi: ABI, functionName: "recordEntry", args: [version, player] }),
+    walletClient.writeContract({ address, abi: ABI, functionName: "recordEntry", args: [version, player], dataSuffix: attributionSuffix(chainId) }),
   );
 }
 
@@ -216,6 +223,7 @@ export async function contractDeclareWinner(
       abi: ABI,
       functionName: "declareWinner",
       args: [version, winner, BigInt(guesses)],
+      dataSuffix: attributionSuffix(chainId),
     }),
   );
 
@@ -267,6 +275,7 @@ export async function contractOpenCycle(
       abi: ABI,
       functionName: "openCycle",
       args: [version, expiresAtUnix, secretCommitment],
+      dataSuffix: attributionSuffix(chainId),
     }),
   );
 }
@@ -359,7 +368,7 @@ export async function contractExpireCycle(
 ): Promise<`0x${string}`> {
   const { walletClient, address } = getClients(chainId);
   return sendTx(chainId, () =>
-    walletClient.writeContract({ address, abi: ABI, functionName: "expireCycle", args: [version] }),
+    walletClient.writeContract({ address, abi: ABI, functionName: "expireCycle", args: [version], dataSuffix: attributionSuffix(chainId) }),
   );
 }
 

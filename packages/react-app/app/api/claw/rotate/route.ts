@@ -16,6 +16,7 @@ import {
   logSettle,
 } from "@/lib/server/clawAssign";
 import { listRecentClawSessions, upsertClawSession } from "@/lib/server/clawSessions";
+import { withCeloAttribution } from "@/lib/celoAttribution";
 
 const CLAW_GAME = (process.env.NEXT_PUBLIC_CLAW_GAME_ADDRESS ??
   "0x32cd4449A49786f8e9C68A5466d46E4dbC5197B3") as `0x${string}`;
@@ -230,6 +231,7 @@ export async function POST(_req: Request) {
               args: [sessionId],
               account,
               chain: celo,
+              dataSuffix: withCeloAttribution(),
             });
             await pub.waitForTransactionReceipt({ hash: claimH, confirmations: 1, timeout: 90_000 });
             await logSettle(sessionIdStr, "autoclaim", claimH, true);

@@ -28,6 +28,7 @@ import FeedbackDialog from "./FeedbackDialog";
 import { createPublicClient, createWalletClient, custom, parseUnits } from "viem";
 import { celo } from "viem/chains";
 import { calculateOrderTotal } from "@/lib/spendOrderPricing";
+import { withCeloAttribution } from "@/lib/celoAttribution";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -446,6 +447,7 @@ export default function VoucherOrderSheet({
         args: [payToAddress, amountRaw],
         account: address as `0x${string}`,
         chain: celo,
+        dataSuffix: withCeloAttribution(),
       });
 
       // 2. Wait for confirmation — once confirmed the money is gone, store the hash immediately

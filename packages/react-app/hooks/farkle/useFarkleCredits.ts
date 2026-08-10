@@ -9,6 +9,7 @@ import {
   FARKLE_USDT_ADDRESS,
   erc20Abi,
 } from "@/lib/farkle/contracts";
+import { withCeloAttribution } from "@/lib/celoAttribution";
 
 type BuyStep = "idle" | "approving" | "buying" | "syncing";
 
@@ -96,6 +97,7 @@ export function useFarkleCredits(address: string | null | undefined) {
         const approveHash = await walletClient.writeContract({
           chain: celo, account, address: FARKLE_USDT_ADDRESS, abi: erc20Abi,
           functionName: "approve", args: [GAME_CREDIT_VAULT_ADDRESS, usdtAmount],
+          dataSuffix: withCeloAttribution(),
         });
         await publicClient.waitForTransactionReceipt({ hash: approveHash, confirmations: 1, timeout: 120_000 });
       }
@@ -104,6 +106,7 @@ export function useFarkleCredits(address: string | null | undefined) {
       const hash = await walletClient.writeContract({
         chain: celo, account, address: GAME_CREDIT_VAULT_ADDRESS, abi: gameCreditVaultAbi,
         functionName: "buyCredits", args: [BigInt(packId)],
+        dataSuffix: withCeloAttribution(),
       });
       setTxHash(hash);
       await publicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 120_000 });

@@ -6,6 +6,7 @@ import { createPublicClient, createWalletClient, custom, fallback, http } from "
 import { AKIBA_SKILL_GAMES_ADDRESS, akibaSkillGamesAbi } from "@/lib/games/contracts";
 import { GAME_CONFIGS, PER_GAME_DAILY_PLAY_CAP } from "@/lib/games/config";
 import type { GameType } from "@/lib/games/types";
+import { withCeloAttribution } from "@/lib/celoAttribution";
 
 export type CreditStatus = {
   credits:        number;
@@ -135,6 +136,7 @@ export function useCredits(gameType: GameType, walletAddress: string | null | un
         abi: akibaSkillGamesAbi,
         functionName: "buyCredits",
         args: [chainGameType, BigInt(count)],
+        dataSuffix: withCeloAttribution(),
       });
 
       await publicClient.waitForTransactionReceipt({ hash, confirmations: 1, timeout: 120_000 });
