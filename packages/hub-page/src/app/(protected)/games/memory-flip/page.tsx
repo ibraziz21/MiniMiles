@@ -265,7 +265,7 @@ export default function PassMemoryFlipPage() {
         result={result}
         settlementStatus={settlementStatus}
         milesIcon={<MilesIcon className="h-4 w-4" />}
-        standingsHref="/games"
+        standingsHref="/games?section=leaderboard&gameType=memory_flip"
         onPlayAgain={() => {
           track("game_play_again_tap", { gameType: "memory_flip" });
           setResultOpen(false);

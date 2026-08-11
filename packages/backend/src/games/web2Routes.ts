@@ -615,6 +615,7 @@ router.post("/session/finish", async (req: Request, res: Response) => {
         p_reward_stable: final.accepted ? final.rewardStable : 0,
         p_completed: final.completed,
         p_anti_abuse_flags: final.flags,
+        p_elapsed_ms: final.elapsedMs,
       });
       if (rpcError) throw rpcError;
       const persisted = Array.isArray(rpcData) ? rpcData[0] : rpcData;

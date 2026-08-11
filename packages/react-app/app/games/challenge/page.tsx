@@ -11,7 +11,6 @@ import Image from "next/image";
 import posthog from "posthog-js";
 import { ArrowLeft, Timer, Lightning, Brain, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { useWeb3 } from "@/contexts/useWeb3";
 import { useWeeklyCampaign, type WeeklyCampaign } from "@/hooks/games/useWeeklyCampaign";
 import { useWeeklyLeaderboard } from "@/hooks/games/useWeeklyLeaderboard";
 import { useWeekCountdown } from "@/hooks/games/useWeekCountdown";
@@ -118,7 +117,6 @@ function DeltaNudge({
 /* ─── This week board ─────────────────────────────────────────────────────── */
 
 function GameBoard({ gameType, campaign }: { gameType: GameType; campaign: WeeklyCampaign | null }) {
-  const { address } = useWeb3();
   const { entries, myBest, isLoading } = useWeeklyLeaderboard(gameType);
   const meta = GAME_META[gameType];
   const Icon = meta.icon;
@@ -174,11 +172,11 @@ function GameBoard({ gameType, campaign }: { gameType: GameType; campaign: Weekl
       {/* Board */}
       <div className="divide-y divide-[#F5F5F5]">
         {entries.slice(0, 10).map((entry) => (
-          <div key={`${entry.rank}-${entry.walletAddress}`}>
+          <div key={`${entry.rank}-${entry.playerKey}`}>
             <EntryRow
               entry={entry}
               rank={entry.rank}
-              isYou={!!address && entry.walletAddress.toLowerCase() === address.toLowerCase()}
+              isYou={entry.isYou}
               prizeLabel={prizeChipLabel(entry.rank, campaign)}
             />
             {entry.rank === 3 && entries.length > 3 && <PrizeZoneDivider />}
@@ -206,22 +204,41 @@ function GameBoard({ gameType, campaign }: { gameType: GameType; campaign: Weekl
 }
 
 /* ─── Last week ───────────────────────────────────────────────────────────── */
+// /api/games/challenge/last-week is untouched by the leaderboard rewrite —
+// it still shares lib/games/weeklyStandings.ts (wallet-keyed) with the
+// legacy settle-weekly-prizes/weekly-payout-snapshot admin routes. This is
+// a presentation-only adapter from that wallet-keyed shape into the
+// canonical EntryRowEntry contract EntryRow now expects — no wallet ever
+// reaches the DOM as a "you" comparison, it's just used to build a display
+// name/row key the same way the old inline logic did.
 
-type LastWeekWinner = {
+function shortAddress(addr: string) {
+  if (!addr || addr.length < 10) return addr;
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
+
+type LastWeekApiEntry = {
   rank: number;
   walletAddress: string;
   username: string | null;
   score: number;
-  prizeLabel: string | null;
 };
 
-type LastWeekStanding = EntryRowEntry & { rank: number };
+type LastWeekWinner = LastWeekApiEntry & { prizeLabel: string | null };
 
 type LastWeekGame = {
   gameType: GameType;
   winners: LastWeekWinner[];
-  standings: LastWeekStanding[];
+  standings: LastWeekApiEntry[];
 };
+
+function toEntryRowEntry(row: LastWeekApiEntry): EntryRowEntry {
+  return {
+    playerKey: row.walletAddress,
+    displayName: row.username ? `@${row.username}` : shortAddress(row.walletAddress),
+    score: row.score,
+  };
+}
 
 function useLastWeek() {
   const [data, setData] = useState<{ week: string; games: LastWeekGame[] } | null>(null);
@@ -260,7 +277,7 @@ function LastWeekBoard({ game }: { game: LastWeekGame }) {
           return (
             <div key={`${s.rank}-${s.walletAddress}`}>
               <EntryRow
-                entry={s}
+                entry={toEntryRowEntry(s)}
                 rank={s.rank}
                 isYou={false}
                 prizeLabel={winner?.prizeLabel ? `Won ${winner.prizeLabel}` : undefined}

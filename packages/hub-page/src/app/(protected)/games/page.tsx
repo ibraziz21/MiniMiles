@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Gamepad2, Zap, Brain, Trophy } from "lucide-react";
@@ -6,6 +7,7 @@ import { resolveHubQuestCanonical } from "@/lib/akiba/canonicalPartnerQuests";
 import { gamesBackend, GamesBackendError, type Identity } from "@/lib/games/backendClient";
 import { isGamesEnabledFor } from "@/lib/games/gamesRollout";
 import { MilesIcon } from "@/components/MilesIcon";
+import { LeaderboardSection } from "./LeaderboardSection";
 
 // Games home — walletless-pass-skill-games-spec.md §6.2. Only Memory Flip and
 // Rule Tap; deliberately does NOT reuse React's GamesHub (which also
@@ -101,6 +103,10 @@ export default async function GamesHomePage() {
           <GameLauncher key={game.type} game={game} status={statusByType[game.type]} />
         ))}
       </div>
+
+      <Suspense fallback={null}>
+        <LeaderboardSection />
+      </Suspense>
     </main>
   );
 }

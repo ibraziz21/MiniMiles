@@ -15,6 +15,8 @@ import { ArrowUpRight, Tag } from "lucide-react";
 import { MilesIcon } from "@/components/MilesIcon";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CountryEditor } from "./CountryEditor";
+import { UsernameEditor } from "./UsernameEditor";
+import { resolveHubQuestCanonical } from "@/lib/akiba/canonicalPartnerQuests";
 
 export const metadata = { title: "My Profile — Akiba Pass" };
 
@@ -64,6 +66,16 @@ export default async function MePage() {
     .eq("user_id", user.id)
     .maybeSingle();
   const hubCountry = hubProfile?.country ?? activeRow?.country ?? null;
+
+  // Leaderboard username (skill-games-leaderboards-spec.md §5.3) — same
+  // canonical resolution the games surfaces use, so the claimed name is the
+  // exact one that appears on the leaderboard.
+  const leaderboardCanonicalId = await resolveHubQuestCanonical({ hubUserId: user.id, email: user.email ?? null });
+  const { data: leaderboardProfile } = await createAdminClient()
+    .from("leaderboard_profiles")
+    .select("username")
+    .eq("canonical_id", leaderboardCanonicalId)
+    .maybeSingle();
 
   return (
     <>
@@ -158,6 +170,13 @@ export default async function MePage() {
             }
             securitySlot={<SetPasswordForm />}
           />
+        </div>
+
+        {/* Leaderboard username — visible on every screen size, unlike the
+            desktop-only chips below, since it's how a member is identified
+            on Rule Tap/Memory Flip standings. */}
+        <div className="mb-4">
+          <UsernameEditor initialUsername={leaderboardProfile?.username ?? null} />
         </div>
 
         {/* Profile chips — desktop only */}

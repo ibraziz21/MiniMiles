@@ -6,7 +6,7 @@
 // canonical identity and signs the service assertion server-side.
 // walletless-pass-skill-games-spec.md §7.1, §8.
 
-import type { MemoryFlipPlayTransport, RuleTapPlayTransport } from "@akiba/skill-games/client";
+import type { MemoryFlipPlayTransport, RuleTapPlayTransport, LeaderboardResponse } from "@akiba/skill-games/client";
 import type { GameType } from "@akiba/skill-games/core";
 
 export class GamesApiError extends Error {
@@ -113,4 +113,8 @@ export type RecoverResult = {
 
 export function recoverSession(sessionId: string): Promise<RecoverResult> {
   return getJson(`/api/games/session/recover?sessionId=${encodeURIComponent(sessionId)}`);
+}
+
+export function fetchLeaderboard(gameType: GameType, scope: "daily" | "weekly"): Promise<LeaderboardResponse> {
+  return getJson(`/api/games/leaderboard?gameType=${gameType}&period=${scope}`);
 }

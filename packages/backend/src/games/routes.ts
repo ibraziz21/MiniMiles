@@ -1751,6 +1751,8 @@ router.post("/session/finish", async (req, res) => {
         accepted: final.accepted,
         anti_abuse_flags: final.flags,
         seed_commitment: onchain?.seedCommitment ?? null,
+        elapsed_ms: final.elapsedMs,
+        finalized_at: new Date().toISOString(),
       });
 
       // Only settle on-chain when there's something to mint and the session is live.

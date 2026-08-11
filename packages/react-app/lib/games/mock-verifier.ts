@@ -8,19 +8,40 @@ import type {
   GameReplay,
   GameSession,
   GameType,
-  LeaderboardEntry,
   MemoryFlipReplay,
   RuleTapReplay,
   SettlementPayload,
   VerifierResponse,
-  WeeklyLeaderboardEntry,
 } from "./types";
+
+// Local-only mock leaderboard shape — deliberately not the real, canonical
+// `LeaderboardEntry` from ./types (which is wallet-free `playerKey`/
+// `displayName`, per skill-games-leaderboards-spec.md §4.2). Every method
+// that reads/writes these is already @deprecated below; nothing in the real
+// UI consumes them (the real leaderboard comes from GET /api/games/leaderboard).
+type MockLeaderboardEntry = {
+  rank: number;
+  walletAddress: string;
+  score: number;
+  mistakes?: number;
+  moves?: number;
+  elapsedMs: number;
+  rewardMiles: number;
+  rewardStable: number;
+  playedAt: string;
+};
+
+type MockWeeklyLeaderboardEntry = MockLeaderboardEntry & {
+  week: string;
+  prizeUsd: number;
+  prizeMiles: number;
+};
 
 type Store = {
   sessions: Record<string, GameSession>;
   results: Record<string, VerifierResponse>;
-  leaderboard: Record<string, LeaderboardEntry[]>;
-  weeklyLeaderboard: Record<string, WeeklyLeaderboardEntry[]>;
+  leaderboard: Record<string, MockLeaderboardEntry[]>;
+  weeklyLeaderboard: Record<string, MockWeeklyLeaderboardEntry[]>;
   walletStarts: Record<string, number[]>;
   /** Key: `gameType:wallet:YYYY-MM-DD` → count of sessions started that day */
   dailyPlays: Record<string, number>;
@@ -81,7 +102,7 @@ function mockSignature(payload: Omit<SettlementPayload, "signature">): `0x${stri
   return `0x${(h >>> 0).toString(16).padStart(64, "0")}`;
 }
 
-function sortLeaderboard(entries: LeaderboardEntry[]) {
+function sortLeaderboard(entries: MockLeaderboardEntry[]) {
   return entries.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
     if ((a.mistakes ?? 0) !== (b.mistakes ?? 0)) return (a.mistakes ?? 0) - (b.mistakes ?? 0);
@@ -94,7 +115,7 @@ function rankAndUpsert(gameType: GameType, walletAddress: string, response: Veri
   const dKey = todayKey(gameType);
   const daily = store.leaderboard[dKey] ?? seededLeaderboard(gameType);
   const dailyIdx = daily.findIndex((e) => e.walletAddress.toLowerCase() === walletAddress.toLowerCase());
-  const next: LeaderboardEntry = {
+  const next: MockLeaderboardEntry = {
     rank: 0,
     walletAddress,
     score: response.result.score,
@@ -114,9 +135,9 @@ function rankAndUpsert(gameType: GameType, walletAddress: string, response: Veri
 
   // --- Weekly ---
   const wKey = weekKey(gameType);
-  const weekly: WeeklyLeaderboardEntry[] = store.weeklyLeaderboard[wKey] ?? [];
+  const weekly: MockWeeklyLeaderboardEntry[] = store.weeklyLeaderboard[wKey] ?? [];
   const weeklyIdx = weekly.findIndex((e) => e.walletAddress.toLowerCase() === walletAddress.toLowerCase());
-  const wNext: WeeklyLeaderboardEntry = {
+  const wNext: MockWeeklyLeaderboardEntry = {
     ...next,
     week: isoWeek(),
     prizeUsd: 0,
@@ -127,12 +148,12 @@ function rankAndUpsert(gameType: GameType, walletAddress: string, response: Veri
   } else {
     weekly.push(wNext);
   }
-  store.weeklyLeaderboard[wKey] = (sortLeaderboard(weekly) as WeeklyLeaderboardEntry[])
+  store.weeklyLeaderboard[wKey] = (sortLeaderboard(weekly) as MockWeeklyLeaderboardEntry[])
     .slice(0, 50)
     .map((e, i) => ({ ...e, rank: i + 1 }));
 }
 
-function seededLeaderboard(_gameType: GameType): LeaderboardEntry[] {
+function seededLeaderboard(_gameType: GameType): MockLeaderboardEntry[] {
   return [];
 }
 
@@ -248,7 +269,7 @@ export const mockVerifier = {
   },
 
   /** @deprecated */
-  async fetchWeeklyLeaderboard(gameType: GameType): Promise<WeeklyLeaderboardEntry[]> {
+  async fetchWeeklyLeaderboard(gameType: GameType): Promise<MockWeeklyLeaderboardEntry[]> {
     const store = loadStore();
     return store.weeklyLeaderboard[weekKey(gameType)] ?? [];
   },

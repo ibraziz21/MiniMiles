@@ -93,7 +93,10 @@ not receive copied components that can drift independently.
 - React's `BuyPlaysSheet`, `useCredits`, contract-backed `useGameSession`, or
   skill-game settlement-status flow;
 - automatically bridging an existing off-chain ledger reward on-chain;
-- weekly merchant voucher-prize issuance in Pass v1.
+- public weekly merchant voucher-prize issuance in Pass v1. The dormant,
+  canonical-owner distribution facility is specified separately in
+  `skill-games-leaderboards-spec.md`; it remains disabled and unmarketed until
+  a future activation decision.
 
 Pass entries may appear in the shared score leaderboard and may satisfy the
 sponsored-game quest. Any future weekly voucher-prize eligibility needs a
@@ -731,6 +734,11 @@ may use the verified wallet and mint through the worker.
 
 ## 12. Leaderboards
 
+The implementation contract for standings, public usernames, canonical merging,
+and dormant prize distribution is
+`packages/hub-page/docs/skill-games-leaderboards-spec.md`. That document
+supersedes this section where they differ.
+
 Retain React's Today/This week presentation, but remove wallet-only assumptions.
 
 Each leaderboard row exposes a public `playerKey`, display name, score, reward,
@@ -747,8 +755,8 @@ from canonical ID. Display-name precedence is Hub profile name, React username,
 then a neutral `Player ####` alias or shortened legacy wallet.
 
 Pass v1 does not promise weekly voucher prizes. The UI must not show a merchant
-prize tier unless that prize pipeline explicitly supports canonical walletless
-ownership.
+prize tier unless the separately specified canonical prize pipeline has been
+explicitly enabled for publication and supports walletless ownership.
 
 ## 13. Sponsored-game partner quest
 

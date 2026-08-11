@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useWeb3 } from "@/contexts/useWeb3";
 import type { GameType, LeaderboardEntry } from "@/lib/games/types";
 
+// Viewer identity is resolved server-side from the session cookie
+// (skill-games-leaderboards-spec.md §5.1) — this hook no longer sends a
+// wallet address, and `myBest`/`isYou` come straight from the API.
 export function useLeaderboard(gameType: GameType) {
-  const { address } = useWeb3();
   const [entries,   setEntries]   = useState<LeaderboardEntry[]>([]);
   const [myBest,    setMyBest]    = useState<LeaderboardEntry | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -14,7 +15,6 @@ export function useLeaderboard(gameType: GameType) {
     setIsLoading(true);
     try {
       const params = new URLSearchParams({ gameType, period: "daily" });
-      if (address) params.set("wallet", address);
       const res  = await fetch(`/api/games/leaderboard?${params}`);
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
@@ -27,7 +27,7 @@ export function useLeaderboard(gameType: GameType) {
     } finally {
       setIsLoading(false);
     }
-  }, [address, gameType]);
+  }, [gameType]);
 
   useEffect(() => { refresh(); }, [refresh]);
 

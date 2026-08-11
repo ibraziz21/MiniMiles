@@ -72,28 +72,23 @@ export type VerifierResponse = {
   settleTxHash?: string;
 };
 
+// Canonical leaderboard entry shape (skill-games-leaderboards-spec.md §4.2),
+// served by GET /api/games/leaderboard. `playerKey` is opaque — safe to use
+// as a React key, never a wallet address or canonical UUID. Mirrors
+// `@akiba/skill-games/client`'s `LeaderboardEntry` so both apps' BFFs agree
+// on shape; kept as a local type (not a re-export) since this file's
+// `LeaderboardEntry` predates that package and several files still import it
+// from here.
 export type LeaderboardEntry = {
   rank: number;
-  walletAddress: string;
-  username?: string | null;
+  playerKey: string;
+  displayName: string;
   score: number;
-  mistakes?: number;
-  moves?: number;
-  elapsedMs: number;
   rewardMiles: number;
-  rewardStable: number;
+  elapsedMs: number | null;
   playedAt: string;
+  isYou: boolean;
 };
 
-/**
- * Weekly leaderboard — best single score per wallet across the week.
- * weeklyPrize fields are from GameConfig and used for display only on the frontend;
- * actual disbursement (USDT / voucher) is handled off-chain by the admin.
- */
-export type WeeklyLeaderboardEntry = LeaderboardEntry & {
-  /** ISO week string e.g. "2025-W16" */
-  week: string;
-  /** Rank-based prize assigned at week close — 0 if not yet awarded */
-  prizeUsd: number;
-  prizeMiles: number;
-};
+/** Weekly leaderboard — same shape, just a different query period. */
+export type WeeklyLeaderboardEntry = LeaderboardEntry;

@@ -807,6 +807,8 @@ async function localSessionFinish(body: any): Promise<HandlerResult> {
       accepted: final.accepted,
       anti_abuse_flags: final.flags,
       seed_commitment: onchain?.seedCommitment ?? null,
+      elapsed_ms: final.elapsedMs,
+      finalized_at: new Date().toISOString(),
     });
 
     let settlement: SettlementResult = { queued: false, settled: false };

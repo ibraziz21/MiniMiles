@@ -5,14 +5,12 @@ import { useLeaderboard } from "@/hooks/games/useLeaderboard";
 import { useWeeklyLeaderboard } from "@/hooks/games/useWeeklyLeaderboard";
 import { useWeeklyCampaign } from "@/hooks/games/useWeeklyCampaign";
 import { useWeekCountdown } from "@/hooks/games/useWeekCountdown";
-import { useWeb3 } from "@/contexts/useWeb3";
 import type { GameType } from "@/lib/games/types";
 import { Trophy, CalendarBlank, Gift, Timer } from "@phosphor-icons/react";
 import { EntryRow } from "@/components/games/leaderboard-shared";
 
 export function LeaderboardCard({ gameType }: { gameType: GameType }) {
   const [tab, setTab] = useState<"daily" | "weekly">("daily");
-  const { address } = useWeb3();
   const weekCountdown = useWeekCountdown();
   const daily  = useLeaderboard(gameType);
   const weekly = useWeeklyLeaderboard(gameType);
@@ -94,10 +92,10 @@ export function LeaderboardCard({ gameType }: { gameType: GameType }) {
       <div className="divide-y divide-[#F5F5F5]">
         {entries.slice(0, 5).map((entry) => (
           <EntryRow
-            key={`${entry.rank}-${entry.walletAddress}`}
+            key={`${entry.rank}-${entry.playerKey}`}
             entry={entry}
             rank={entry.rank}
-            isYou={!!address && entry.walletAddress.toLowerCase() === address.toLowerCase()}
+            isYou={entry.isYou}
           />
         ))}
         {entries.length === 0 && !isLoading && (

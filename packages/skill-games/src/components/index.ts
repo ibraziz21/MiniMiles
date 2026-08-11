@@ -7,6 +7,7 @@ export * from "./submitting-overlay";
 export * from "./game-header";
 export * from "./game-intro-sheet";
 export * from "./game-result-sheet";
+export * from "./leaderboard-card";
 export * from "./memory-flip/memory-card";
 export * from "./memory-flip/memory-grid";
 export * from "./memory-flip/memory-stats";

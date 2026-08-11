@@ -271,7 +271,7 @@ export default function PassRuleTapPage() {
         result={result}
         settlementStatus={settlementStatus}
         milesIcon={<MilesIcon className="h-4 w-4" />}
-        standingsHref="/games"
+        standingsHref="/games?section=leaderboard&gameType=rule_tap"
         onPlayAgain={() => {
           track("game_play_again_tap", { gameType: "rule_tap" });
           setResultOpen(false);

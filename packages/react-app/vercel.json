@@ -11,6 +11,10 @@
     {
       "path": "/api/internal/process-sponsored-game-jobs",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/admin/settle-skill-game-leaderboard",
+      "schedule": "10 21 * * 0"
     }
   ]
 }

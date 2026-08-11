@@ -70,14 +70,21 @@ export type LeaderboardEntry = {
   displayName: string;
   score: number;
   rewardMiles: number;
-  elapsedMs: number;
+  elapsedMs: number | null;
   playedAt: string;
   isYou: boolean;
+};
+
+export type LeaderboardPeriod = {
+  scope: "daily" | "weekly";
+  startsAt: string;
+  endsAt: string;
 };
 
 export type LeaderboardResponse = {
   entries: LeaderboardEntry[];
   myBest: LeaderboardEntry | null;
+  period: LeaderboardPeriod;
 };
 
 export type SkillGameAdapter = {
