@@ -26,6 +26,14 @@ export async function GET(req: Request) {
       nextResetAt: status.nextResetAt,
       bestScoreToday: status.bestScoreToday,
       serviceAvailable: true,
+      // Mastery economy v1 (§3.4) — undefined/null under the legacy economy.
+      economyVersion: status.economyVersion ?? "legacy",
+      bestTierToday: status.bestTierToday ?? null,
+      gameMilesToday: status.gameMilesToday ?? null,
+      gameMilesAvailableToday: status.gameMilesAvailableToday ?? null,
+      gameMilesThisMonth: status.gameMilesThisMonth ?? null,
+      monthlyGameMilesCap: status.monthlyGameMilesCap ?? null,
+      monthlyGameMilesRemaining: status.monthlyGameMilesRemaining ?? null,
     });
   } catch (err) {
     if (err instanceof GamesBackendError) {

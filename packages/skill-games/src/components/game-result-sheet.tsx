@@ -72,6 +72,7 @@ export function GameResultSheet({
   playAgainDisabled = false,
   playAgainDisabledLabel = "5/5 played today",
   track,
+  rewardSummaryOverride,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -87,6 +88,13 @@ export function GameResultSheet({
   playAgainDisabledLabel?: string;
   /** Transport-neutral analytics callback — this component never imports an analytics SDK directly. */
   track?: (event: string, properties?: Record<string, unknown>) => void;
+  /**
+   * Replaces the default "Reward: [Miles] / No reward this round" row
+   * content with host-supplied copy — e.g. Pass's mastery-tier result
+   * states ("Elite mastered — +3 Miles", "Monthly game Miles complete").
+   * Omit for unchanged behavior.
+   */
+  rewardSummaryOverride?: ReactNode;
 }) {
   const hasReward = result && (result.rewardMiles || result.rewardStable);
   const isTopThree = weeklyStanding != null && weeklyStanding.rank >= 1 && weeklyStanding.rank <= 3;
@@ -129,20 +137,24 @@ export function GameResultSheet({
 
             {/* Reward row */}
             <div className="mx-5 mt-4 rounded-xl border border-[#F0F0F0] bg-[#FAFAFA] px-4 py-3 flex items-center justify-between">
-              <div>
-                <p className="text-xs text-[#817E7E] font-poppins">Reward</p>
-                <div className="text-base font-bold text-[#1A1A1A] mt-0.5 flex items-center gap-1 flex-wrap">
-                  {hasReward ? (
-                    <MilesAmount value={result.rewardMiles ?? 0} icon={milesIcon} />
-                  ) : (
-                    <span className="text-sm font-medium text-[#817E7E]">No reward this round</span>
+              {rewardSummaryOverride ?? (
+                <>
+                  <div>
+                    <p className="text-xs text-[#817E7E] font-poppins">Reward</p>
+                    <div className="text-base font-bold text-[#1A1A1A] mt-0.5 flex items-center gap-1 flex-wrap">
+                      {hasReward ? (
+                        <MilesAmount value={result.rewardMiles ?? 0} icon={milesIcon} />
+                      ) : (
+                        <span className="text-sm font-medium text-[#817E7E]">No reward this round</span>
+                      )}
+                    </div>
+                  </div>
+                  {hasReward && (
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100">
+                      <Star size={18} weight="fill" className="text-amber-500" />
+                    </div>
                   )}
-                </div>
-              </div>
-              {hasReward && (
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100">
-                  <Star size={18} weight="fill" className="text-amber-500" />
-                </div>
+                </>
               )}
             </div>
 

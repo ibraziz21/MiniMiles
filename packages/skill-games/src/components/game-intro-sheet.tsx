@@ -34,6 +34,7 @@ export function GameIntroSheet({
   credits = 0,
   mustBuy = false,
   onBuyTickets,
+  entryBannerOverride,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -60,6 +61,13 @@ export function GameIntroSheet({
   mustBuy?: boolean;
   /** Ticket mode only — open the buy-tickets sheet. */
   onBuyTickets?: () => void;
+  /**
+   * Replaces the entire entry-banner block below with host-supplied content
+   * — e.g. Pass's mastery-economy framing ("earn up to 3 Miles from your
+   * best tier today"), which doesn't apply to the ticket/legacy-reward
+   * economy this component was written for. Omit for unchanged behavior.
+   */
+  entryBannerOverride?: ReactNode;
 }) {
   const hasTicket = credits > 0;
   return (
@@ -72,7 +80,9 @@ export function GameIntroSheet({
         </div>
 
         {/* Entry banner */}
-        {entryMode === "free" ? (
+        {entryBannerOverride ? (
+          <div className="mx-5 mt-4">{entryBannerOverride}</div>
+        ) : entryMode === "free" ? (
           <div className="mx-5 mt-4 rounded-xl bg-[#F0FDFF] border border-[#238D9D22] px-4 py-3">
             <p className="text-sm font-semibold text-[#238D9D] flex items-center gap-1.5">
               Free play

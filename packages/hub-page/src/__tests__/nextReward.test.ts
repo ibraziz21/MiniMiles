@@ -323,6 +323,70 @@ describe("getNextRewardWays", () => {
     expect(ways[0]).toMatchObject({ kind: "game", potentialMiles: 120, certainty: "up_to", href: "/games" });
   });
 
+  it("mastery-v1: uses gameMilesAvailableToday per game, not playsRemaining * legacy ceiling", async () => {
+    mockIsHubQuestsEnabledFor.mockReturnValue(false);
+    mockIsGamesEnabledFor.mockReturnValue(true);
+    mockResolveHubQuestCanonical.mockResolvedValue("canonical-1");
+    mockGamesBackendStatus.mockImplementation((_identity: unknown, gameType: string) =>
+      Promise.resolve({
+        canonicalId: "canonical-1",
+        playsToday: 0,
+        playsRemaining: 5,
+        nextResetAt: "",
+        bestScoreToday: null,
+        economyVersion: "mastery-v1",
+        gameMilesAvailableToday: gameType === "rule_tap" ? 3 : 2,
+        monthlyGameMilesRemaining: 40,
+      })
+    );
+
+    const ways = await getNextRewardWays({ hubUserId: "user-1", email: "a@example.com" });
+    // 3 (rule_tap) + 2 (memory_flip) = 5 — nowhere near playsRemaining(5) * 12 * 2 = 120.
+    expect(ways[0]).toMatchObject({ kind: "game", potentialMiles: 5, certainty: "up_to", href: "/games" });
+  });
+
+  it("mastery-v1: caps the combined total by the shared monthly allowance, not just the per-game daily ceiling", async () => {
+    mockIsHubQuestsEnabledFor.mockReturnValue(false);
+    mockIsGamesEnabledFor.mockReturnValue(true);
+    mockResolveHubQuestCanonical.mockResolvedValue("canonical-1");
+    mockGamesBackendStatus.mockImplementation(() =>
+      Promise.resolve({
+        canonicalId: "canonical-1",
+        playsToday: 0,
+        playsRemaining: 5,
+        nextResetAt: "",
+        bestScoreToday: null,
+        economyVersion: "mastery-v1",
+        gameMilesAvailableToday: 3, // 3 + 3 = 6 desired across both games
+        monthlyGameMilesRemaining: 2, // but only 2 Miles remain this month
+      })
+    );
+
+    const ways = await getNextRewardWays({ hubUserId: "user-1", email: "a@example.com" });
+    expect(ways[0]).toMatchObject({ kind: "game", potentialMiles: 2 });
+  });
+
+  it("mastery-v1: omits the game row once the monthly allowance is fully spent", async () => {
+    mockIsHubQuestsEnabledFor.mockReturnValue(false);
+    mockIsGamesEnabledFor.mockReturnValue(true);
+    mockResolveHubQuestCanonical.mockResolvedValue("canonical-1");
+    mockGamesBackendStatus.mockImplementation(() =>
+      Promise.resolve({
+        canonicalId: "canonical-1",
+        playsToday: 0,
+        playsRemaining: 5,
+        nextResetAt: "",
+        bestScoreToday: null,
+        economyVersion: "mastery-v1",
+        gameMilesAvailableToday: 3,
+        monthlyGameMilesRemaining: 0,
+      })
+    );
+
+    const ways = await getNextRewardWays({ hubUserId: "user-1", email: "a@example.com" });
+    expect(ways.some((w) => w.kind === "game")).toBe(false);
+  });
+
   it("omits the game row when every game-status call fails", async () => {
     mockIsHubQuestsEnabledFor.mockReturnValue(false);
     mockIsGamesEnabledFor.mockReturnValue(true);

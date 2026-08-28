@@ -15,7 +15,14 @@ import { LeaderboardSection } from "./LeaderboardSection";
 export const metadata = { title: "Games — Akiba Pass" };
 
 type LauncherStatus =
-  | { available: true; playsToday: number; playsRemaining: number; dailyCap: number; bestScoreToday: number | null }
+  | {
+      available: true;
+      playsToday: number;
+      playsRemaining: number;
+      dailyCap: number;
+      bestScoreToday: number | null;
+      isMasteryV1: boolean;
+    }
   | { available: false };
 
 const GAMES: Array<{
@@ -53,6 +60,7 @@ async function loadStatus(identity: Identity, gameType: "rule_tap" | "memory_fli
       playsRemaining: status.playsRemaining,
       dailyCap: 5,
       bestScoreToday: status.bestScoreToday,
+      isMasteryV1: status.economyVersion === "mastery-v1",
     };
   } catch (err) {
     if (!(err instanceof GamesBackendError)) {
@@ -143,9 +151,15 @@ function GameLauncher({
           </div>
 
           <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-white/85">
-            <span className="inline-flex items-center gap-1">
-              Win up to <MilesIcon className="h-3.5 w-3.5" /> 12
-            </span>
+            {status.available && status.isMasteryV1 ? (
+              <span className="inline-flex items-center gap-1">
+                Earn up to <MilesIcon className="h-3.5 w-3.5" /> 3 from your best tier today
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1">
+                Win up to <MilesIcon className="h-3.5 w-3.5" /> 12
+              </span>
+            )}
             {status.available ? (
               <span>{status.playsToday}/{status.dailyCap} played today</span>
             ) : null}

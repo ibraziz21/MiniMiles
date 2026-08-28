@@ -7,7 +7,7 @@
 // walletless-pass-skill-games-spec.md §7.1, §8.
 
 import type { MemoryFlipPlayTransport, RuleTapPlayTransport, LeaderboardResponse } from "@akiba/skill-games/client";
-import type { GameType } from "@akiba/skill-games/core";
+import type { GameType, MasteryTier } from "@akiba/skill-games/core";
 
 export class GamesApiError extends Error {
   status: number;
@@ -45,6 +45,16 @@ export type PlayStatus = {
   nextResetAt: string;
   bestScoreToday: number | null;
   serviceAvailable: boolean;
+  // Mastery economy v1 (skill-games-mastery-economy-and-direct-commerce-
+  // cleanup-v1-spec.md §3.4) — "legacy" (or absent) until the server-side
+  // kill switch is cut over; the mastery-only fields are null under legacy.
+  economyVersion?: "legacy" | "mastery-v1";
+  bestTierToday?: MasteryTier | null;
+  gameMilesToday?: number | null;
+  gameMilesAvailableToday?: number | null;
+  gameMilesThisMonth?: number | null;
+  monthlyGameMilesCap?: number | null;
+  monthlyGameMilesRemaining?: number | null;
 };
 
 export function fetchStatus(gameType: GameType): Promise<PlayStatus> {
@@ -83,6 +93,8 @@ export function buildRuleTapTransport(sessionId: string): RuleTapPlayTransport {
   };
 }
 
+export type RewardReason = "new_tier" | "tier_maintained" | "below_threshold" | "monthly_cap" | "rejected";
+
 export type FinishResult = {
   sessionId: string;
   accepted: boolean;
@@ -95,6 +107,16 @@ export type FinishResult = {
   reward: { mode: "offchain_ledger" | "onchain_mint" | "none"; status: string; deliveryId?: string };
   playsToday: number | null;
   playsRemaining: number | null;
+  // Mastery economy v1 (§3.4) — null under the legacy economy.
+  economyVersion?: "legacy" | "mastery-v1";
+  tierAchieved?: MasteryTier | null;
+  previousBestTier?: MasteryTier | null;
+  milesCreditedThisRound?: number | null;
+  gameMilesToday?: number | null;
+  gameMilesThisMonth?: number | null;
+  rewardReason?: RewardReason | null;
+  capLimitedMiles?: boolean | null;
+  leaderboardEligible?: boolean;
 };
 
 export function finishSession(sessionId: string): Promise<FinishResult> {

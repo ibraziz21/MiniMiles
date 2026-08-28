@@ -11,6 +11,13 @@
     "./client": "./src/client/index.ts",
     "./components": "./src/components/index.ts"
   },
+  "typesVersions": {
+    "*": {
+      "core": ["./src/core/index.ts"],
+      "client": ["./src/client/index.ts"],
+      "components": ["./src/components/index.ts"]
+    }
+  },
   "scripts": {
     "typecheck": "tsc --noEmit"
   },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   GameHeader,
   GameIntroSheet,
@@ -10,7 +10,7 @@ import {
   SubmittingOverlay,
 } from "@akiba/skill-games/components";
 import { useMemoryFlipGame } from "@akiba/skill-games/client";
-import { GAMEPLAY_CONFIGS } from "@akiba/skill-games/core";
+import { GAMEPLAY_CONFIGS, MASTERY_ECONOMY_V1 } from "@akiba/skill-games/core";
 import type { GameResult } from "@akiba/skill-games/core";
 import { MilesIcon } from "@/components/MilesIcon";
 import { track } from "@/lib/analytics/track";
@@ -24,6 +24,7 @@ import {
   type PlayStatus,
 } from "@/lib/games/clientTransport";
 import { GAME_DAILY_PLAY_CAP, GAME_MAX_REWARD_MILES } from "@/lib/games/gameRewardRules";
+import { isMasteryActive, masteryThresholds, MasteryEntryBanner, MasteryResultSummary } from "@/lib/games/masteryCopy";
 import { Brain, Trophy } from "lucide-react";
 
 const config = GAMEPLAY_CONFIGS.memory_flip;
@@ -42,7 +43,7 @@ export default function PassMemoryFlipPage() {
   const [status, setStatus] = useState<PlayStatus | null>(null);
   const [statusError, setStatusError] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [introOpen, setIntroOpen] = useState(true);
+  const [introOpen, setIntroOpen] = useState(false);
   const [resultOpen, setResultOpen] = useState(false);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
@@ -65,6 +66,18 @@ export default function PassMemoryFlipPage() {
     track("games_home_view", { gameType: "memory_flip" });
     void refreshStatus();
   }, [refreshStatus]);
+
+  // Auto-open the rules/reward sheet only once real status has resolved —
+  // status carries economyVersion, and opening it eagerly (before the fetch
+  // settles) could momentarily show legacy 6/9/12 tier numbers even when
+  // mastery-v1 is actually live for this member.
+  const autoOpenedIntroRef = useRef(false);
+  useEffect(() => {
+    if ((status || statusError) && !autoOpenedIntroRef.current && !sessionId) {
+      autoOpenedIntroRef.current = true;
+      setIntroOpen(true);
+    }
+  }, [status, statusError, sessionId]);
 
   const isDailyCapped = status ? status.playsRemaining <= 0 : false;
 
@@ -199,7 +212,16 @@ export default function PassMemoryFlipPage() {
                 <Brain size={36} className="mx-auto mb-2 text-purple-200" />
                 <p className="text-white font-bold text-lg">Memory Flip</p>
                 <p className="text-white/70 text-sm mt-0.5">
-                  Free to play · Win up to 12 <MilesIcon className="inline h-3 w-3 align-baseline" />
+                  {isMasteryActive(status) ? (
+                    <>
+                      Free to play · Earn up to {MASTERY_ECONOMY_V1.milesByTier.elite}{" "}
+                      <MilesIcon className="inline h-3 w-3 align-baseline" /> from your best tier today
+                    </>
+                  ) : (
+                    <>
+                      Free to play · Win up to 12 <MilesIcon className="inline h-3 w-3 align-baseline" />
+                    </>
+                  )}
                 </p>
                 <div className="mt-2 text-white/50 text-xs">
                   {status ? `${status.playsToday}/${status.dailyCap} played today` : statusError ? "Status unavailable" : "Loading…"}
@@ -243,8 +265,8 @@ export default function PassMemoryFlipPage() {
         gameName={config.name}
         gameDescription={config.description}
         shortName={config.shortName}
-        maxRewardMiles={GAME_MAX_REWARD_MILES}
-        thresholds={config.thresholds}
+        maxRewardMiles={isMasteryActive(status) ? MASTERY_ECONOMY_V1.milesByTier.elite : GAME_MAX_REWARD_MILES}
+        thresholds={isMasteryActive(status) ? masteryThresholds("memory_flip") : config.thresholds}
         milesIcon={<MilesIcon className="h-3 w-3" />}
         dailyPlayCap={GAME_DAILY_PLAY_CAP}
         playsRemaining={status?.playsRemaining}
@@ -253,11 +275,22 @@ export default function PassMemoryFlipPage() {
         disabled={statusError || isDailyCapped}
         disabledReason={statusError ? "Games are temporarily unavailable. Try again shortly." : isDailyCapped ? "5/5 played today · Come back tomorrow" : undefined}
         error={startError}
-        rules={[
-          "Flip two cards at a time and match all 8 pairs.",
-          "Cards lock briefly after each flip to keep the game fair.",
-          "Score 200+ to earn rewards. Faster and fewer moves scores higher.",
-        ]}
+        rules={
+          isMasteryActive(status)
+            ? [
+                "Flip two cards at a time and match all 8 pairs.",
+                "Cards lock briefly after each flip to keep the game fair.",
+                "Your best tier that day sets today's reward — improve your score to earn the difference.",
+              ]
+            : [
+                "Flip two cards at a time and match all 8 pairs.",
+                "Cards lock briefly after each flip to keep the game fair.",
+                "Score 200+ to earn rewards. Faster and fewer moves scores higher.",
+              ]
+        }
+        entryBannerOverride={
+          status && isMasteryActive(status) ? <MasteryEntryBanner shortName={config.shortName} status={status} /> : undefined
+        }
       />
 
       <GameResultSheet
@@ -275,6 +308,9 @@ export default function PassMemoryFlipPage() {
         playAgainDisabled={capped}
         playAgainDisabledLabel="5/5 played today"
         track={track}
+        rewardSummaryOverride={
+          finishResult && isMasteryActive(status) ? <MasteryResultSummary result={finishResult} /> : undefined
+        }
       />
     </main>
   );

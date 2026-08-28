@@ -20,6 +20,7 @@ import { isGamesEnabledFor } from "@/lib/games/gamesRollout";
 import { resolveHubQuestCanonical } from "@/lib/akiba/canonicalPartnerQuests";
 import { gamesBackend } from "@/lib/games/backendClient";
 import { GAME_TYPES, GAME_MAX_REWARD_MILES } from "@/lib/games/gameRewardRules";
+import { MASTERY_ECONOMY_V1 } from "@akiba/skill-games/core";
 
 export type OperatingModel = "physical" | "hybrid" | "online";
 
@@ -409,12 +410,27 @@ export async function getNextRewardWays(opts: { hubUserId: string; email: string
       );
       let potentialMiles = 0;
       let anyFulfilled = false;
+      // Mastery economy v1 (skill-games-mastery-economy-and-direct-commerce-
+      // cleanup-v1-spec.md §2.2-2.3): attempts don't stack — only the day's
+      // best tier pays, capped at 3/game/day and by the shared monthly
+      // allowance. playsRemaining * per-round-max only describes the legacy
+      // economy; using it under mastery-v1 would overstate this by up to 4x.
+      let monthlyRemaining: number | null = null;
       for (const result of results) {
-        if (result.status === "fulfilled") {
-          anyFulfilled = true;
-          potentialMiles += Math.max(result.value.playsRemaining, 0) * GAME_MAX_REWARD_MILES;
+        if (result.status !== "fulfilled") continue;
+        anyFulfilled = true;
+        const status = result.value;
+        if (status.economyVersion === "mastery-v1") {
+          potentialMiles += Math.max(status.gameMilesAvailableToday ?? MASTERY_ECONOMY_V1.milesByTier.elite, 0);
+          if (status.monthlyGameMilesRemaining != null) {
+            monthlyRemaining =
+              monthlyRemaining == null ? status.monthlyGameMilesRemaining : Math.min(monthlyRemaining, status.monthlyGameMilesRemaining);
+          }
+        } else {
+          potentialMiles += Math.max(status.playsRemaining, 0) * GAME_MAX_REWARD_MILES;
         }
       }
+      if (monthlyRemaining != null) potentialMiles = Math.min(potentialMiles, monthlyRemaining);
       if (anyFulfilled && potentialMiles > 0) {
         otherWays.push({
           kind: "game",

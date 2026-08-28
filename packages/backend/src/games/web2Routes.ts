@@ -52,6 +52,19 @@ const router = Router();
 const DAILY_CAP = Number(process.env.HUB_SKILL_GAME_DAILY_CAP ?? "5");
 const INIT_WINDOW_SECONDS = Number(process.env.HUB_SKILL_GAME_INIT_WINDOW_SECONDS ?? "120");
 
+// Server-controlled economy version + reward kill switch
+// (skill-games-mastery-economy-and-direct-commerce-cleanup-v1-spec.md
+// §10.1 — "Use a server-controlled economy version and reward kill
+// switch... New and legacy economies must never be selectable by the
+// client"). mastery-v1 is the default — no configuration needed for the
+// now-primary economy. Set SKILL_GAME_ECONOMY_VERSION=legacy explicitly to
+// roll back to the old 6/9/12 payout (the kill switch this spec asks for);
+// both RPCs (legacy finalize_hub_skill_game_session and mastery_v1's
+// finalize_hub_skill_game_session_mastery_v1) stay live the whole time —
+// this only decides which one this process calls.
+const SKILL_GAME_ECONOMY_VERSION: "legacy" | "mastery-v1" =
+  process.env.SKILL_GAME_ECONOMY_VERSION === "legacy" ? "legacy" : "mastery-v1";
+
 // ---------------------------------------------------------------------------
 // Auth — every route in this router requires a verified service assertion.
 // ---------------------------------------------------------------------------
@@ -97,13 +110,56 @@ router.get("/status", async (req: Request, res: Response) => {
       return;
     }
 
+    // §3.4 status response — mastery fields are additive and only
+    // meaningful once SKILL_GAME_ECONOMY_VERSION=mastery-v1; under legacy
+    // they stay null rather than fabricating figures for an inactive economy.
+    let mastery: {
+      bestTierToday: string;
+      gameMilesToday: number;
+      gameMilesAvailableToday: number;
+      gameMilesThisMonth: number;
+      monthlyGameMilesCap: number;
+      monthlyGameMilesRemaining: number;
+    } | null = null;
+
+    if (SKILL_GAME_ECONOMY_VERSION === "mastery-v1") {
+      const ownerCanonicalId = row.canonical_id ?? canonicalId;
+      const { data: masteryData, error: masteryError } = await supabase.rpc("hub_skill_game_mastery_status", {
+        p_canonical_id: ownerCanonicalId,
+        p_game_type: gameType,
+      });
+      if (masteryError) {
+        console.error("[games/web2/status] mastery status RPC failed:", masteryError.message);
+      } else {
+        const masteryRow = Array.isArray(masteryData) ? masteryData[0] : masteryData;
+        if (masteryRow) {
+          mastery = {
+            bestTierToday: masteryRow.best_tier_today,
+            gameMilesToday: masteryRow.game_miles_today,
+            gameMilesAvailableToday: masteryRow.game_miles_available_today,
+            gameMilesThisMonth: masteryRow.game_miles_this_month,
+            monthlyGameMilesCap: masteryRow.monthly_game_miles_cap,
+            monthlyGameMilesRemaining: masteryRow.monthly_game_miles_remaining,
+          };
+        }
+      }
+    }
+
     res.json({
       gameType,
+      economyVersion: SKILL_GAME_ECONOMY_VERSION,
       dailyCap: DAILY_CAP,
       playsToday: row.plays_today,
       playsRemaining: row.plays_remaining,
       nextResetAt: row.next_reset_at,
       bestScoreToday: row.best_score_today ?? null,
+      bestTierToday: mastery?.bestTierToday ?? null,
+      gameMilesToday: mastery?.gameMilesToday ?? null,
+      gameMilesAvailableToday: mastery?.gameMilesAvailableToday ?? null,
+      gameMilesThisMonth: mastery?.gameMilesThisMonth ?? null,
+      monthlyGameMilesCap: mastery?.monthlyGameMilesCap ?? null,
+      monthlyGameMilesRemaining: mastery?.monthlyGameMilesRemaining ?? null,
+      activeEvent: null, // campaign/event policy is Slice 3 (§4.2)
       serviceAvailable: true,
       canonicalId: row.canonical_id ?? canonicalId,
     });
@@ -606,20 +662,38 @@ router.post("/session/finish", async (req: Request, res: Response) => {
         }).eq("session_id", sid);
       }
 
-      const { data: rpcData, error: rpcError } = await supabase.rpc("finalize_hub_skill_game_session", {
-        p_session_id: sid,
-        p_canonical_id: canonicalId,
-        p_score: final.score,
-        p_accepted: final.accepted,
-        p_reward_miles: final.accepted ? final.rewardMiles : 0,
-        p_reward_stable: final.accepted ? final.rewardStable : 0,
-        p_completed: final.completed,
-        p_anti_abuse_flags: final.flags,
-        p_elapsed_ms: final.elapsedMs,
-      });
+      const isMasteryV1 = SKILL_GAME_ECONOMY_VERSION === "mastery-v1";
+
+      // §3.3/§10.1 — mastery-v1 never trusts a TS-computed Miles amount as
+      // authority; the RPC itself maps score->tier and computes the delta
+      // inside the same locked transaction that reads/updates the day/month
+      // rows. Scoring (score/accepted/completed/flags) is unchanged (§2.1)
+      // and still comes from the same finalizeRuleTap/finalizeMemoryFlip
+      // call above either way — only which RPC handles the *reward* differs.
+      const { data: rpcData, error: rpcError } = isMasteryV1
+        ? await supabase.rpc("finalize_hub_skill_game_session_mastery_v1", {
+            p_session_id: sid,
+            p_canonical_id: canonicalId,
+            p_score: final.score,
+            p_accepted: final.accepted,
+            p_completed: final.completed,
+            p_anti_abuse_flags: final.flags,
+          })
+        : await supabase.rpc("finalize_hub_skill_game_session", {
+            p_session_id: sid,
+            p_canonical_id: canonicalId,
+            p_score: final.score,
+            p_accepted: final.accepted,
+            p_reward_miles: final.accepted ? final.rewardMiles : 0,
+            p_reward_stable: final.accepted ? final.rewardStable : 0,
+            p_completed: final.completed,
+            p_anti_abuse_flags: final.flags,
+          });
       if (rpcError) throw rpcError;
       const persisted = Array.isArray(rpcData) ? rpcData[0] : rpcData;
       if (!persisted) return { status: 503, body: { error: "game-service-unavailable" } };
+
+      const rewardMiles = isMasteryV1 ? persisted.miles_credited_this_round : persisted.reward_miles;
 
       let rewardBody: { mode: "offchain_ledger" | "onchain_mint" | "none"; status: string; deliveryId?: string };
       if (!persisted.delivery_id) {
@@ -630,7 +704,7 @@ router.post("/session/finish", async (req: Request, res: Response) => {
           sessionId: sid,
           gameType,
           wallet: String(persisted.destination_wallet).toLowerCase(),
-          points: persisted.reward_miles,
+          points: rewardMiles,
         });
         rewardBody = { mode: "onchain_mint", status: persisted.delivery_status, deliveryId: persisted.delivery_id };
       } else {
@@ -647,14 +721,26 @@ router.post("/session/finish", async (req: Request, res: Response) => {
       });
       const statusRow = Array.isArray(statusData) ? statusData[0] : statusData;
 
+      // §3.4 finish response — mastery fields are additive; under the
+      // legacy economy they stay null (never fabricated) and the response
+      // shape is otherwise byte-for-byte what it was before this slice.
       return {
         status: 200,
         body: {
           sessionId: sid,
           accepted: persisted.accepted,
           score: persisted.score,
-          rewardMiles: persisted.reward_miles,
-          rewardStable: persisted.reward_stable,
+          economyVersion: SKILL_GAME_ECONOMY_VERSION,
+          rewardMiles,
+          rewardStable: isMasteryV1 ? 0 : persisted.reward_stable,
+          tierAchieved: isMasteryV1 ? persisted.tier_achieved : null,
+          previousBestTier: isMasteryV1 ? persisted.previous_best_tier : null,
+          milesCreditedThisRound: isMasteryV1 ? persisted.miles_credited_this_round : null,
+          gameMilesToday: isMasteryV1 ? persisted.game_miles_today : null,
+          gameMilesThisMonth: isMasteryV1 ? persisted.game_miles_this_month : null,
+          rewardReason: isMasteryV1 ? persisted.reward_reason : null,
+          capLimitedMiles: isMasteryV1 ? persisted.cap_limited_miles : null,
+          leaderboardEligible: final.accepted,
           completed: final.completed,
           elapsedMs: final.elapsedMs,
           antiAbuseFlags: final.flags,

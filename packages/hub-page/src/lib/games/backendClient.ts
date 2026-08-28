@@ -5,6 +5,7 @@
 
 import { getServerEnv } from "@/lib/env.server";
 import { signServiceAssertion } from "./serviceAssertion";
+import type { MasteryTier } from "@akiba/skill-games/core";
 
 export class GamesBackendError extends Error {
   status: number;
@@ -53,6 +54,17 @@ export type PlayStatus = {
   playsRemaining: number;
   nextResetAt: string;
   bestScoreToday: number | null;
+  // Mastery economy v1 fields (skill-games-mastery-economy-and-direct-
+  // commerce-cleanup-v1-spec.md §3.4) — present once the Backend's
+  // SKILL_GAME_ECONOMY_VERSION kill switch is set to "mastery-v1", null
+  // under the legacy economy.
+  economyVersion?: "legacy" | "mastery-v1";
+  bestTierToday?: MasteryTier | null;
+  gameMilesToday?: number | null;
+  gameMilesAvailableToday?: number | null;
+  gameMilesThisMonth?: number | null;
+  monthlyGameMilesCap?: number | null;
+  monthlyGameMilesRemaining?: number | null;
 };
 
 export type StartResult = {
