@@ -232,6 +232,47 @@ describe("getHomeFeed", () => {
     expect(nearby?.merchants[0].id).toBe("near-1");
   });
 
+  it("limited_time carries the merchant's uploaded banner through to bannerUrl", async () => {
+    state.merchants = [merchant()];
+    state.templates = [
+      {
+        id: "tpl-ltd", title: "t", voucher_type: "percent_off", discount_percent: 10, discount_cusd: null,
+        miles_cost: 20, expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+        partners: {
+          id: "banner-merchant", slug: "banner-merchant", name: "Banner Co", image_url: "https://logo.example/x.png",
+          partner_settings: { directory_status: "published", banner_url: "https://cdn.example/banner.jpg" },
+        },
+      },
+    ];
+    state.availableIds = ["tpl-ltd"];
+
+    const feed = await getHomeFeed({ userId: null });
+    const limitedTime = feed.sections.find((s) => s.id === "limited_time");
+
+    expect(limitedTime?.merchants[0].bannerUrl).toBe("https://cdn.example/banner.jpg");
+    expect(limitedTime?.merchants[0].logoUrl).toBe("https://logo.example/x.png");
+  });
+
+  it("limited_time defaults bannerUrl to null when the merchant hasn't set one", async () => {
+    state.merchants = [merchant()];
+    state.templates = [
+      {
+        id: "tpl-ltd-2", title: "t", voucher_type: "percent_off", discount_percent: 10, discount_cusd: null,
+        miles_cost: 20, expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+        partners: {
+          id: "no-banner-merchant", slug: "no-banner-merchant", name: "No Banner Co", image_url: null,
+          partner_settings: { directory_status: "published", banner_url: null },
+        },
+      },
+    ];
+    state.availableIds = ["tpl-ltd-2"];
+
+    const feed = await getHomeFeed({ userId: null });
+    const limitedTime = feed.sections.find((s) => s.id === "limited_time");
+
+    expect(limitedTime?.merchants[0].bannerUrl).toBeNull();
+  });
+
   it("isolates a failing section — limited_time erroring doesn't take down for_you", async () => {
     state.merchants = [merchant()];
     state.limitedTimeShouldError = true;

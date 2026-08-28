@@ -16,6 +16,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sendPurchaseEvent } from "@/lib/akiba/purchase-events";
 import type { PurchaseEventPayload, PurchaseEventResult } from "@/lib/akiba/purchase-events";
 import { emitQuestActions } from "@/lib/akiba/quest-events";
+import { produceMilesEarnedNotification } from "@/lib/akiba/milesEarnedNotification";
 
 // purchase_completed fires here, not at order creation (orders/route.ts only
 // emits first_purchase/first_voucher_redeemed): a reward job is only marked
@@ -74,7 +75,52 @@ export async function releaseRewardJob(
     console.error("[reward-release] complete_reward_job failed:", error.message);
   }
 
-  if (result.ok) await emitPurchaseCompletedQuest(payload);
+  if (result.ok) {
+    await emitPurchaseCompletedQuest(payload);
+    await emitMilesEarnedNotification(orderId, payload, result);
+  }
 
   return result;
+}
+
+// Fires the earned-Miles notification right after the credit this reward
+// job represents is authoritative (result.ok && rewardIssued) — never
+// before (akiba-pass-navigation-rewards-earned-notifications-v1-spec.md
+// §6.1). A failure here must not affect the reward itself, which has
+// already been recorded via complete_reward_job above.
+async function emitMilesEarnedNotification(
+  orderId: string,
+  payload: PurchaseEventPayload,
+  result: PurchaseEventResult
+): Promise<void> {
+  if (!result.rewardIssued || !Number.isInteger(result.milesAwarded) || result.milesAwarded <= 0) return;
+
+  const meta = (payload.metadata ?? {}) as Record<string, unknown>;
+  const hubUserId = meta.hubUserId;
+  if (typeof hubUserId !== "string") {
+    console.error("[reward-release] purchase payload missing hubUserId — skipping miles_earned notification");
+    return;
+  }
+
+  const admin = createAdminClient();
+  const { data: merchant } = await admin
+    .from("partners")
+    .select("name")
+    .eq("id", payload.merchantId)
+    .maybeSingle();
+
+  try {
+    await produceMilesEarnedNotification({
+      eventId: `hub-order:${orderId}`,
+      hubUserId,
+      merchantId: payload.merchantId,
+      merchantName: merchant?.name ?? "an Akiba merchant",
+      milesAwarded: result.milesAwarded,
+      source: "merchant_purchase",
+      occurredAt: new Date().toISOString(),
+      purchaseEventId: result.purchaseEventId,
+    });
+  } catch (err) {
+    console.error("[reward-release] produceMilesEarnedNotification failed:", err);
+  }
 }

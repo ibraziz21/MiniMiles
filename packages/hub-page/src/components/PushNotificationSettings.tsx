@@ -12,7 +12,7 @@ import {
 
 type PushInfo = {
   vapid_public_key: string | null;
-  preferences: { orders: boolean; vouchers: boolean; rewards: boolean; marketing: boolean };
+  preferences: { orders: boolean; vouchers: boolean; rewards: boolean; marketing: boolean; earnings: boolean };
 };
 
 type ViewState =
@@ -93,7 +93,7 @@ export function PushNotificationSettings() {
   }
 
   async function handleTogglePreference(
-    key: "orders" | "vouchers" | "rewards" | "marketing",
+    key: "orders" | "vouchers" | "rewards" | "marketing" | "earnings",
     value: boolean,
   ) {
     if (!info) return;
@@ -210,6 +210,14 @@ export function PushNotificationSettings() {
               type="checkbox"
               checked={info.preferences.vouchers}
               onChange={(e) => handleTogglePreference("vouchers", e.target.checked)}
+            />
+          </label>
+          <label className="flex items-center justify-between text-sm text-akiba-ink">
+            Miles earned from shopping
+            <input
+              type="checkbox"
+              checked={info.preferences.earnings}
+              onChange={(e) => handleTogglePreference("earnings", e.target.checked)}
             />
           </label>
           <label className="flex items-center justify-between text-sm text-akiba-ink">

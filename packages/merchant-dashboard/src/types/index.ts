@@ -93,6 +93,7 @@ export interface PartnerSettings {
   partner_id: string;
   store_active: boolean;
   logo_url: string | null;
+  banner_url: string | null;
   support_email: string | null;
   support_phone: string | null;
   delivery_cities: string[];

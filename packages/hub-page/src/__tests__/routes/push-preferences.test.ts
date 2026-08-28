@@ -48,6 +48,15 @@ describe("PATCH /api/me/push/preferences", () => {
     );
   });
 
+  it("stores explicit earnings consent", async () => {
+    const response = await route.PATCH(request({ earnings: false }));
+    expect(response.status).toBe(200);
+    expect(state.upsert).toHaveBeenCalledWith(
+      { hub_user_id: "user-1", earnings_enabled: false },
+      { onConflict: "hub_user_id" },
+    );
+  });
+
   it("rejects unknown or non-boolean preferences", async () => {
     expect((await route.PATCH(request({ sms: true }))).status).toBe(400);
     expect((await route.PATCH(request({ marketing: "yes" }))).status).toBe(400);

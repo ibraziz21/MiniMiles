@@ -1,28 +1,53 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { ShoppingBag, Gamepad2, Zap, Tag, User, QrCode } from "lucide-react";
+import { Compass, ShoppingBag, Sparkles, Tag, User, QrCode } from "lucide-react";
 import clsx from "clsx";
 import { track } from "@/lib/analytics/track";
 
-const LINKS = [
-  { href: "/merchants", label: "Merchants", icon: ShoppingBag },
-  { href: "/vouchers",  label: "Vouchers",  icon: Tag },
-  { href: "/games",     label: "Games",     icon: Gamepad2 },
-  { href: "/quests",    label: "Quests",    icon: Zap },
+// Primary navigation — akiba-pass-navigation-rewards-earned-notifications-v1-spec.md §3.
+// Explore · Merchants · Rewards · Earn · Me, with Pass as a distinct one-tap
+// action on both surfaces. Games, quests and referrals no longer occupy
+// primary-nav slots; they live inside /earn (§5).
+type PrimaryKey = "explore" | "merchants" | "rewards" | "earn" | "me";
+
+const PRIMARY_ITEMS: Array<{ key: PrimaryKey; href: string; label: string; icon: typeof Compass }> = [
+  { key: "explore",   href: "/",         label: "Explore",   icon: Compass },
+  { key: "merchants", href: "/merchants", label: "Merchants", icon: ShoppingBag },
+  { key: "rewards",   href: "/vouchers",  label: "Rewards",   icon: Tag },
+  { key: "earn",      href: "/earn",      label: "Earn",      icon: Sparkles },
 ];
+
+// §3.4 — explicit route-family map. Deliberately not `pathname.startsWith(href)`:
+// e.g. "/me" must not fall out of "/merchants" and "/pass" must mark no
+// primary item active (Pass is a distinct action, not a nav destination).
+export function resolveActivePrimary(pathname: string): PrimaryKey | null {
+  if (pathname === "/") return "explore";
+  if (pathname === "/merchants" || pathname.startsWith("/merchants/")) return "merchants";
+  if (pathname === "/shop" || pathname.startsWith("/shop/")) return "merchants";
+  if (pathname === "/vouchers" || pathname.startsWith("/vouchers/")) return "rewards";
+  if (pathname === "/my-vouchers") return "rewards";
+  if (pathname === "/earn") return "earn";
+  if (pathname === "/quests" || pathname.startsWith("/quests/")) return "earn";
+  if (pathname === "/games" || pathname.startsWith("/games/")) return "earn";
+  if (pathname === "/referrals") return "earn";
+  if (pathname === "/me" || pathname.startsWith("/me/")) return "me";
+  return null; // includes /pass — Pass only, no primary item is also marked active
+}
 
 export function NavLinks({ dark = false }: { dark?: boolean }) {
   const path = usePathname();
+  const activeKey = resolveActivePrimary(path);
 
   return (
     <>
-      {LINKS.map(({ href, label }) => {
-        const active = path === href || path.startsWith(href + "/");
+      {PRIMARY_ITEMS.map(({ key, href, label }) => {
+        const active = activeKey === key;
         return (
           <a
-            key={href}
+            key={key}
             href={href}
+            onClick={() => track("primary_nav_tap", { destination: key, surface: "desktop" })}
             className={clsx(
               "relative px-1 py-0.5 text-sm font-medium transition-colors",
               dark
@@ -60,26 +85,20 @@ export function NavLinks({ dark = false }: { dark?: boolean }) {
   );
 }
 
-// Bottom nav item order (mobile):
-//   Shop | Quests | Vouchers | Rewards | Profile
-//
-// Pass is no longer a bar slot — five evenly-spaced items was already tight,
-// and Pass is the product's core gesture (home-redesign-spec.md §4), so it
-// gets its own floating action button instead, always one tap away without
-// competing for bar space.
-
-const NAV_ITEMS = [
-  { href: "/merchants", label: "Merchants", icon: ShoppingBag },
-  { href: "/quests",    label: "Quests",    icon: Zap },
-  { href: "/vouchers",  label: "Vouchers",  icon: Tag },
-  { href: "/games",     label: "Games",     icon: Gamepad2 },
+// Mobile bottom nav — Explore | Merchants | Rewards | Earn | Me
+// (akiba-pass-navigation-rewards-earned-notifications-v1-spec.md §3.3).
+// Pass is not a bar slot — it floats above the bar as its own one-tap
+// gesture (PassFab below) so it never competes for bar space or obscures
+// the Earn/Me tap targets.
+const BOTTOM_NAV_ITEMS: Array<{ key: PrimaryKey; href: string; label: string; icon: typeof Compass }> = [
+  ...PRIMARY_ITEMS,
+  { key: "me", href: "/me", label: "Me", icon: User },
 ];
 
 export function BottomNav() {
   const path = usePathname();
   if (path === "/login") return null;
-
-  const profileActive = path === "/me" || path.startsWith("/me/");
+  const activeKey = resolveActivePrimary(path);
 
   return (
     <nav
@@ -91,12 +110,13 @@ export function BottomNav() {
       )}
     >
       <div className="flex h-16">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-          const active = path === href || path.startsWith(href + "/");
+        {BOTTOM_NAV_ITEMS.map(({ key, href, label, icon: Icon }) => {
+          const active = activeKey === key;
           return (
             <a
-              key={href}
+              key={key}
               href={href}
+              onClick={() => track("primary_nav_tap", { destination: key, surface: "mobile" })}
               className={clsx(
                 "flex flex-1 flex-col items-center justify-center gap-1 transition-colors",
                 active ? "text-akiba-teal" : "text-akiba-muted"
@@ -107,35 +127,14 @@ export function BottomNav() {
             </a>
           );
         })}
-
-        {/* ── Profile ─────────────────────────────────────────────────────── */}
-        <a
-          href="/me"
-          className={clsx(
-            "flex flex-1 flex-col items-center justify-center gap-1 transition-colors",
-            profileActive ? "text-akiba-teal" : "text-akiba-muted"
-          )}
-        >
-          <span
-            className={clsx(
-              "flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold",
-              profileActive
-                ? "bg-akiba-teal/15 text-akiba-teal"
-                : "bg-akiba-muted/10 text-akiba-muted"
-            )}
-          >
-            <User className="h-3.5 w-3.5" />
-          </span>
-          <span className="text-[10px] font-semibold tracking-wide">Profile</span>
-        </a>
       </div>
     </nav>
   );
 }
 
 // Pass FAB — floats above the bottom nav bar so it stays a one-tap gesture
-// without taking a slot in the (already full) bar. Mobile-only, matching
-// BottomNav's breakpoint.
+// without taking a slot in the bar. Mobile-only, matching BottomNav's
+// breakpoint. Positioned clear of the Earn/Me tap targets (§3.3).
 export function PassFab() {
   const path = usePathname();
   if (path === "/login") return null;

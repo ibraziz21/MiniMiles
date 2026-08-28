@@ -14,9 +14,10 @@
  *   "Close QR" → DELETE /api/shop/vouchers/[id]/presentation → clear token + QR
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, ShoppingBag, QrCode, X, Loader2, Clock } from "lucide-react";
 import clsx from "clsx";
+import { track } from "@/lib/analytics/track";
 
 export type VoucherType = "free" | "percent_off" | "fixed_off";
 
@@ -66,6 +67,7 @@ type PresentationResponse = {
 
 export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const t = voucher.template;
   const merchant = t?.partner;
 
@@ -136,6 +138,25 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
       window.clearInterval(timer);
     };
   }, [currentStatus, processingTerminal, voucher.id]);
+
+  // Next Reward Progress V1 (next-reward-progress-v1-spec.md §11) —
+  // "acquired" is the real terminal state, not the moment redemption was
+  // queued. Fires once, only for a voucher tagged as arriving from that
+  // surface (?source_surface=home|me), reusing the status-polling effect
+  // above rather than adding new polling. `template_id`/`merchant_id` aren't
+  // present on this DTO — the voucher and merchant slug are used instead
+  // rather than fabricating ids that were never fetched.
+  const acquiredFiredRef = useRef(false);
+  useEffect(() => {
+    const sourceSurface = searchParams.get("source_surface");
+    if (!sourceSurface || currentStatus !== "issued" || acquiredFiredRef.current) return;
+    acquiredFiredRef.current = true;
+    track("next_reward_voucher_acquired", {
+      voucher_id: voucher.id,
+      merchant_slug: merchant?.slug ?? null,
+      source_surface: sourceSurface,
+    });
+  }, [currentStatus, searchParams, voucher.id, merchant?.slug]);
 
   // Mint a token + render its QR onto the canvas.
   const presentToken = useCallback(async () => {

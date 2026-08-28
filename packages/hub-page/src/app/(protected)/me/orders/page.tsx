@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ShoppingBag, Clock, CheckCircle2, Truck, Package, ArrowLeft, Coins } from "lucide-react";
 import { getPurchaseEventForOrder } from "@/lib/akiba/purchase-events";
 import type { OrderRewardStatus } from "@/lib/akiba/purchase-events";
-import { DisputeButton } from "./DisputeButton";
+import { ConfirmReceiptAction } from "./ConfirmReceiptAction";
 import { RecoveryBanner } from "./RecoveryBanner";
 import { getOwnedAddresses } from "@/lib/akiba/order-ownership";
 
@@ -228,12 +228,7 @@ export default async function OrdersPage() {
 
                     <OrderTimeline order={order} />
 
-                    {order.status === "delivered" && (
-                      <>
-                        <ConfirmReceiptButton orderId={order.id} />
-                        <DisputeButton orderId={order.id} />
-                      </>
-                    )}
+                    {order.status === "delivered" && <ConfirmReceiptAction orderId={order.id} />}
                   </div>
                 </div>
               </div>
@@ -317,18 +312,3 @@ function RewardBadge({ reward }: { reward: OrderRewardStatus }) {
   return null;
 }
 
-function ConfirmReceiptButton({ orderId }: { orderId: string }) {
-  return (
-    <form
-      action={`/api/shop/orders/${orderId}/confirm`}
-      method="POST"
-    >
-      <button
-        type="submit"
-        className="mt-3 w-full rounded-xl bg-akiba-teal py-2 text-xs font-semibold text-white transition hover:bg-[#1E7E8D]"
-      >
-        Confirm received
-      </button>
-    </form>
-  );
-}

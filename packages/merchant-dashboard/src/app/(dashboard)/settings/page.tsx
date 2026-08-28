@@ -63,6 +63,7 @@ export default function SettingsPage() {
         body: JSON.stringify({
           store_active: settings.store_active,
           logo_url: settings.logo_url || null,
+          banner_url: settings.banner_url || null,
           support_email: settings.support_email || null,
           support_phone: settings.support_phone || null,
           delivery_cities: settings.delivery_cities,
@@ -133,6 +134,27 @@ export default function SettingsPage() {
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-700">Logo URL</label>
                 <Input value={settings?.logo_url ?? ""} onChange={(e) => update("logo_url", e.target.value)} placeholder="https://..." disabled={!isOwner} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">Banner Image URL</label>
+                <p className="text-xs text-gray-500">
+                  Shown as the cover photo on your Akiba merchant card. Landscape, at least 800×400px, works best — it
+                  will be cropped to fit a wide card.
+                </p>
+                <Input
+                  value={settings?.banner_url ?? ""}
+                  onChange={(e) => update("banner_url", e.target.value)}
+                  placeholder="https://..."
+                  disabled={!isOwner}
+                />
+                {settings?.banner_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={settings.banner_url}
+                    alt="Banner preview"
+                    className="mt-2 h-28 w-full max-w-md rounded-lg border border-gray-200 object-cover"
+                  />
+                )}
               </div>
             </CardContent>
           </Card>

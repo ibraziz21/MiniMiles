@@ -7,6 +7,8 @@ import { getOrCreatePass } from "@/lib/akiba/pass";
 import { getActiveVoucherSummary, getLinkedWalletAddresses } from "@/lib/akiba/myVouchers";
 import { listPublicMerchants } from "@/lib/merchants/queries";
 import { getTopOffers, toMerchantValueSummary, getPurchaseAffinity, type TopOffer } from "@/lib/merchants/enrich";
+import { getNextRewardSummary } from "@/lib/akiba/nextReward";
+import { isNextRewardEnabledFor } from "@/lib/akiba/nextRewardRollout";
 import { getActiveIntents, getIntentBySlug } from "./intents";
 import type { HomeFeedResponse, HomeFeedSection, MatchReason, MerchantValueSummary } from "./types";
 
@@ -29,7 +31,8 @@ async function buildForYouSection(
   intentQuery: string | null,
   intentLabel: string | null,
   balance: number | null,
-  limit: number
+  limit: number,
+  purchaseAffinity: Promise<Set<string>>
 ): Promise<HomeFeedSection> {
   const nearby = params.lat != null && params.lng != null;
   const { merchants } = await listPublicMerchants({
@@ -41,7 +44,7 @@ async function buildForYouSection(
 
   const [offers, affinity] = await Promise.all([
     getTopOffers(merchants.map((m) => m.id), params.userId),
-    getPurchaseAffinity(params.userId),
+    purchaseAffinity,
   ]);
   const hasAnyAffinityMatch = merchants.some((m) => affinity.has(m.id));
 
@@ -116,7 +119,7 @@ async function buildLimitedTimeSection(
       `id, title, voucher_type, discount_percent, discount_cusd, miles_cost, expires_at,
        partners!inner (
          id, slug, name, image_url, type, status,
-         partner_settings!inner ( directory_status )
+         partner_settings!inner ( directory_status, banner_url )
        )`
     )
     .eq("active", true)
@@ -144,10 +147,14 @@ async function buildLimitedTimeSection(
     )
   );
 
+  type RowPartner = {
+    id: string; slug: string; name: string; image_url: string | null;
+    partner_settings: { banner_url: string | null } | Array<{ banner_url: string | null }>;
+  };
   type Row = {
     id: string; title: string; voucher_type: VoucherTemplate["voucher_type"];
     discount_percent: number | null; discount_cusd: number | null; miles_cost: number; expires_at: string;
-    partners: { id: string; slug: string; name: string; image_url: string | null } | Array<{ id: string; slug: string; name: string; image_url: string | null }>;
+    partners: RowPartner | RowPartner[];
   };
 
   const merchants: MerchantValueSummary[] = [];
@@ -155,6 +162,7 @@ async function buildLimitedTimeSection(
     if (!availableIds.has(row.id)) continue;
     const partner = Array.isArray(row.partners) ? row.partners[0] : row.partners;
     if (!partner) continue;
+    const partnerSettings = Array.isArray(partner.partner_settings) ? partner.partner_settings[0] : partner.partner_settings;
 
     const offer: TopOffer = {
       templateId: row.id,
@@ -171,6 +179,7 @@ async function buildLimitedTimeSection(
       slug: partner.slug,
       name: partner.name,
       logoUrl: partner.image_url,
+      bannerUrl: partnerSettings?.banner_url ?? null,
       primaryCategory: null,
       matchedOffering: null,
       operatingModel: "hybrid",
@@ -213,26 +222,47 @@ export async function getHomeFeed(params: HomeFeedParams): Promise<HomeFeedRespo
   const intentQuery = intent?.query ?? null;
   const intentLabel = intent?.label ?? null;
 
+  // Shared across buildForYouSection and getNextRewardSummary so a signed-in
+  // load never queries merchant_transactions for purchase affinity twice.
+  const purchaseAffinityPromise = getPurchaseAffinity(params.userId);
+
   let balance: number | null = null;
   let rewards: HomeFeedResponse["rewards"] = null;
+  let nextReward: HomeFeedResponse["nextReward"] = null;
+
   if (params.userId) {
-    try {
-      const snapshot = await getRewardsSnapshot(params.userId, params.userEmail ?? null);
-      balance = snapshot.balance;
+    const identifier = params.userEmail ?? params.userId;
+    const [snapshotResult, nextRewardResult] = await Promise.allSettled([
+      getRewardsSnapshot(params.userId, params.userEmail ?? null),
+      isNextRewardEnabledFor(identifier)
+        ? purchaseAffinityPromise.then((purchaseAffinity) =>
+            getNextRewardSummary({ hubUserId: params.userId as string, email: params.userEmail ?? null, purchaseAffinity })
+          )
+        : Promise.resolve(null),
+    ]);
+
+    if (snapshotResult.status === "fulfilled") {
+      balance = snapshotResult.value.balance;
       rewards = {
-        milesBalance: snapshot.balance,
-        activeVoucherCount: snapshot.activeVoucherCount,
-        hasPass: snapshot.hasPass,
+        milesBalance: snapshotResult.value.balance,
+        activeVoucherCount: snapshotResult.value.activeVoucherCount,
+        hasPass: snapshotResult.value.hasPass,
       };
-    } catch (err) {
-      console.error("[home-feed] rewards snapshot failed:", err);
+    } else {
+      console.error("[home-feed] rewards snapshot failed:", snapshotResult.reason);
+    }
+
+    if (nextRewardResult.status === "fulfilled") {
+      nextReward = nextRewardResult.value;
+    } else {
+      console.error("[home-feed] next reward summary failed:", nextRewardResult.reason);
     }
   }
 
   const sections: HomeFeedSection[] = [];
 
   const results = await Promise.allSettled([
-    buildForYouSection(params, intentQuery, intentLabel, balance, limit),
+    buildForYouSection(params, intentQuery, intentLabel, balance, limit, purchaseAffinityPromise),
     buildNearbySection(params, balance, limit),
     buildLimitedTimeSection(params.userId, balance, limit),
   ]);
@@ -253,5 +283,6 @@ export async function getHomeFeed(params: HomeFeedParams): Promise<HomeFeedRespo
     intents: getActiveIntents(),
     sections,
     rewards,
+    nextReward,
   };
 }

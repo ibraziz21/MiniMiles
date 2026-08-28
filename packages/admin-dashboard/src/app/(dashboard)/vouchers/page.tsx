@@ -45,7 +45,10 @@ export default async function VouchersPage() {
     <div>
       <TopBar title="Vouchers & Rewards" subtitle="Voucher issuance, redemption, and template health" />
       <div className="space-y-6 p-6">
-        <div className="flex justify-end">
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button asChild>
+            <Link href="/vouchers/pricing">Voucher Pricing</Link>
+          </Button>
           <Button asChild variant="outline">
             <Link href="/vouchers/weekly-challenge">Weekly Leaderboard Challenge →</Link>
           </Button>

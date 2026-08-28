@@ -7,8 +7,10 @@ const nextConfig = {
     return [
       { source: "/shop", destination: "/merchants", permanent: true },
       { source: "/shop/:slug", destination: "/merchants/:slug", permanent: true },
-      // walletless-pass-skill-games-spec.md §6.1 — Games replaces Rewards.
-      { source: "/rewards", destination: "/games", permanent: true },
+      // akiba-pass-navigation-rewards-earned-notifications-v1-spec.md §4.2 —
+      // Rewards now means the merchant voucher inventory; the old
+      // cross-chain-campaign /rewards experience is retired in favor of it.
+      { source: "/rewards", destination: "/vouchers", permanent: true },
     ];
   },
 };

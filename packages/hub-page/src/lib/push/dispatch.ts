@@ -30,16 +30,19 @@ type PreferenceRow = {
   vouchers_enabled: boolean;
   rewards_enabled: boolean;
   marketing_enabled: boolean;
+  earnings_enabled: boolean;
 };
 
 export function categoryEnabled(prefs: PreferenceRow | null, category: string): boolean {
-  // No preferences row yet: orders/vouchers default on, rewards defaults
-  // off (hub_notification_preferences.rewards_enabled default false,
-  // 047_web_push_notifications.sql) — referral push is opt-in, not opt-out.
+  // No preferences row yet: orders/vouchers/earnings default on, rewards
+  // defaults off (hub_notification_preferences, 047_web_push_notifications.sql
+  // + 069_earnings_notifications.sql) — referral push is opt-in, earned-Miles
+  // push is opt-out (§6.6).
   if (category === "orders" || category === "refunds") return prefs ? prefs.orders_enabled : true;
   if (category === "vouchers") return prefs ? prefs.vouchers_enabled : true;
   if (category === "rewards") return prefs ? prefs.rewards_enabled : false;
   if (category === "marketing") return prefs ? prefs.marketing_enabled : false;
+  if (category === "earnings") return prefs ? prefs.earnings_enabled : true;
   return false;
 }
 
@@ -126,7 +129,7 @@ export async function processPushJobs(): Promise<{
 
     const { data: prefs } = await admin
       .from("hub_notification_preferences")
-      .select("orders_enabled, vouchers_enabled, rewards_enabled, marketing_enabled")
+      .select("orders_enabled, vouchers_enabled, rewards_enabled, marketing_enabled, earnings_enabled")
       .eq("hub_user_id", job.hub_user_id)
       .maybeSingle();
 

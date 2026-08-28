@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getOrCreateCorrelationId, CORRELATION_ID_HEADER } from "@/lib/correlation";
 
-const PROTECTED = ["/me", "/pass", "/welcome", "/referrals", "/games"];
+const PROTECTED = ["/me", "/pass", "/welcome", "/referrals", "/games", "/earn"];
 
 export async function middleware(request: NextRequest) {
   const correlationId = getOrCreateCorrelationId(request.headers);
@@ -61,5 +61,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/me/:path*", "/pass/:path*", "/welcome/:path*", "/referrals/:path*", "/games/:path*", "/games", "/login"],
+  matcher: ["/me/:path*", "/pass/:path*", "/welcome/:path*", "/referrals/:path*", "/games/:path*", "/games", "/earn/:path*", "/earn", "/login"],
 };

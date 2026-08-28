@@ -37,12 +37,22 @@ export function GetVoucherButton({
   milesCost,
   isSignedIn,
   onInteract,
+  onQueued,
+  sourceSurface,
 }: {
   templateId: string;
   milesCost: number;
   isSignedIn: boolean;
   /** Called once the member's first real redeem attempt starts (signed in). */
   onInteract?: () => void;
+  /** Called when redemption is accepted but issuance is still processing
+   *  (the async on-chain burn hasn't confirmed yet) — distinct from actually
+   *  acquiring the voucher, which VoucherDetailView reports once status
+   *  reaches "issued" (next-reward-progress-v1-spec.md §11). */
+  onQueued?: () => void;
+  /** Tags the /vouchers/{id} redirect so the detail page can attribute an
+   *  eventual acquisition back to the surface that started it. */
+  sourceSurface?: "home" | "me";
 }) {
   const router = useRouter();
 
@@ -104,9 +114,11 @@ export function GetVoucherButton({
       if (data.queued) {
         setQueuedVoucherId(data.voucher?.id ?? null);
         setRedeemStatus("queued");
+        onQueued?.();
         return;
       }
-      router.push(`/vouchers/${data.voucher!.id}`);
+      const suffix = sourceSurface ? `?source_surface=${sourceSurface}` : "";
+      router.push(`/vouchers/${data.voucher!.id}${suffix}`);
     } catch {
       setRedeemStatus("error");
       setRedeemError("Something went wrong. Please try again.");
@@ -133,7 +145,12 @@ export function GetVoucherButton({
         <div className="mb-2 rounded-lg bg-akiba-tint px-3 py-2 text-xs text-akiba-teal">
           Voucher processing.
           {queuedVoucherId && (
-            <a href={`/vouchers/${queuedVoucherId}`} className="ml-1 underline">Track status</a>
+            <a
+              href={`/vouchers/${queuedVoucherId}${sourceSurface ? `?source_surface=${sourceSurface}` : ""}`}
+              className="ml-1 underline"
+            >
+              Track status
+            </a>
           )}
         </div>
       )}
@@ -176,11 +193,13 @@ export function GetVoucherButton({
             {quote && (
               <div className="mt-3 space-y-1.5 text-sm text-akiba-muted">
                 {quote.ledger_points > 0 && (
-                  <p><span className="font-semibold text-akiba-ink">{quote.ledger_points} Miles</span> from your balance</p>
+                  <p className="flex items-center gap-1">
+                    <MilesAmount amount={quote.ledger_points} size="sm" className="text-akiba-ink" /> from your balance
+                  </p>
                 )}
                 {quote.onchain_points > 0 && (
                   <p>
-                    <span className="font-semibold text-akiba-ink">{quote.onchain_points} Miles</span>{" "}
+                    <MilesAmount amount={quote.onchain_points} size="sm" className="text-akiba-ink" />{" "}
                     will be burned from{" "}
                     {quote.wallet_address ? `${quote.wallet_address.slice(0, 6)}…${quote.wallet_address.slice(-4)}` : "your linked wallet"}
                   </p>

@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSameOriginRequest } from "@/lib/push/origin";
 
-const ALLOWED_KEYS = new Set(["orders", "vouchers", "rewards", "marketing"]);
+const ALLOWED_KEYS = new Set(["orders", "vouchers", "rewards", "marketing", "earnings"]);
 
 export async function PATCH(req: Request) {
   if (!isSameOriginRequest(req)) {

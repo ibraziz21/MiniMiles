@@ -59,6 +59,7 @@ export async function MemberHome({ user }: { user: User }) {
           milesBalance={feed.rewards.milesBalance}
           activeVoucherCount={feed.rewards.activeVoucherCount}
           hasPass={feed.rewards.hasPass}
+          nextReward={feed.nextReward}
         />
       )}
 

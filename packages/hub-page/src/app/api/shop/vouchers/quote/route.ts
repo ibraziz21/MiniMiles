@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { readChainBalanceStrict } from "@/lib/akiba/balance";
+import { getVoucherSpendableBalance } from "@/lib/akiba/voucherSpendableBalance";
 import { createHash } from "crypto";
 import { isHiddenPartner } from "@/lib/akiba/hidden-partners";
 
@@ -53,64 +53,29 @@ export async function POST(request: Request) {
   }
   const totalPoints = template.miles_cost as number;
 
-  const { data: linkedWallets } = await admin
-    .from("hub_user_wallets")
-    .select("address, is_primary, linked_at")
-    .eq("user_id", user.id)
-    .eq("verification_status", "verified")
-    .order("linked_at", { ascending: false });
-  const walletRows = (linkedWallets ?? []) as Array<{
-    address: string;
-    is_primary: boolean;
-    linked_at: string;
-  }>;
-  const wallets = walletRows.map((w) => w.address.toLowerCase());
-  const selectedWallet =
-    walletRows.find((w) => w.is_primary)?.address.toLowerCase() ??
-    wallets[0] ??
-    null;
-
-  const { data: canonicalIds, error: resolveErr } = await admin.rpc("resolve_canonical_ids", {
-    p_email: user.email ?? null,
-    p_wallets: wallets,
-  });
-  if (resolveErr) {
-    return NextResponse.json({ error: "Could not resolve identity" }, { status: 503 });
+  const spendable = await getVoucherSpendableBalance({ hubUserId: user.id, email: user.email ?? null });
+  if (!spendable.ok) {
+    const message = spendable.reason === "identity_unresolved"
+      ? "Could not resolve identity"
+      : "Could not read ledger balance";
+    return NextResponse.json({ error: message }, { status: 503 });
   }
 
-  const { data: availableLedger, error: ledgerErr } = await admin.rpc("available_ledger_points", {
-    p_canonical_ids: canonicalIds ?? [],
-  });
-  if (ledgerErr) {
-    return NextResponse.json({ error: "Could not read ledger balance" }, { status: 503 });
-  }
-
-  const ledgerPoints = Math.min(totalPoints, Math.max(availableLedger ?? 0, 0));
+  const ledgerPoints = Math.min(totalPoints, spendable.ledgerBalance);
   const onchainPoints = totalPoints - ledgerPoints;
-  const quoteWallet = onchainPoints > 0 ? selectedWallet : null;
+  const quoteWallet = onchainPoints > 0 ? spendable.walletAddress : null;
 
   if (onchainPoints > 0) {
     if (!quoteWallet) {
       return NextResponse.json({ error: "Connect a wallet to cover the remaining balance" }, { status: 400 });
     }
-    const chain = await readChainBalanceStrict(quoteWallet);
-    if (!chain.ok) {
+    if (spendable.chainStatus === "chain_unavailable") {
       return NextResponse.json({ error: "Could not verify your wallet balance — please retry" }, { status: 503 });
     }
-
-    const { data: reservedRows, error: reservedErr } = await admin
-      .from("minipoint_burn_jobs")
-      .select("points")
-      .eq("user_address", quoteWallet)
-      .in("status", ["pending", "processing", "reconciliation_required"]);
-    if (reservedErr) {
+    if (spendable.chainStatus === "reserved_unavailable") {
       return NextResponse.json({ error: "Could not verify reserved wallet balance" }, { status: 503 });
     }
-    const reserved = (reservedRows ?? []).reduce(
-      (sum: number, row: { points: number }) => sum + Number(row.points),
-      0,
-    );
-    if (chain.balance - reserved < onchainPoints) {
+    if ((spendable.chainBalance ?? 0) < onchainPoints) {
       return NextResponse.json({ error: "Not enough Miles" }, { status: 422 });
     }
   }

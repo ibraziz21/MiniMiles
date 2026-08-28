@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireGameIdentity } from "@/lib/games/identity";
 import { gamesBackend, GamesBackendError, type GameType } from "@/lib/games/backendClient";
+import { GAME_DAILY_PLAY_CAP } from "@/lib/games/gameRewardRules";
 
 function isGameType(value: unknown): value is GameType {
   return value === "rule_tap" || value === "memory_flip";
@@ -19,7 +20,7 @@ export async function GET(req: Request) {
     const status = await gamesBackend.status(auth.context.identity, gameType);
     return NextResponse.json({
       gameType,
-      dailyCap: 5,
+      dailyCap: GAME_DAILY_PLAY_CAP,
       playsToday: status.playsToday,
       playsRemaining: status.playsRemaining,
       nextResetAt: status.nextResetAt,

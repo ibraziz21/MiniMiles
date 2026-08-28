@@ -1,13 +1,21 @@
 /**
  * GET /api/games/leaderboard?gameType=rule_tap&period=daily|weekly
  *
- * skill-games-leaderboards-spec.md §4.2, §5.1. Requires the existing
- * authenticated wallet session and resolves a canonical identity on the
- * server — the previous implementation trusted a client-supplied `wallet`
+ * skill-games-leaderboards-spec.md §4.2, §5.1. Resolves the viewer's
+ * canonical identity from the existing authenticated wallet session when one
+ * exists — the previous implementation trusted a client-supplied `wallet`
  * param, used UTC day/week bounds instead of Africa/Nairobi, and crashed
  * (`.toLowerCase()` on a NULL `wallet_address`) on any walletless Hub row.
  * All of that now lives in the shared get_skill_game_leaderboard SQL
  * function so this app and Hub Page rank identically.
+ *
+ * A missing session does NOT 401 — React's game pages (unlike Hub's) don't
+ * gate anonymous visitors behind a login redirect, and several widgets
+ * (ValuePulseStrip on the home page, the games-hub rank chip) mount before
+ * the wallet sign-in round-trip completes. An anonymous viewer gets the
+ * public board with isYou=false everywhere and myBest=null — the same thing
+ * the old wallet-optional endpoint returned — never a client-asserted
+ * identity, just the absence of a resolved one.
  */
 
 import { NextResponse } from "next/server";
@@ -24,11 +32,6 @@ const supabase = createClient(
 const GAME_TYPES: GameType[] = ["rule_tap", "memory_flip"];
 
 export async function GET(req: Request) {
-  const session = await requireSession();
-  if (!session) {
-    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
-  }
-
   const { searchParams } = new URL(req.url);
   const gameType = searchParams.get("gameType") as GameType | null;
   const period = searchParams.get("period") === "weekly" ? "weekly" : "daily";
@@ -37,12 +40,15 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "invalid gameType" }, { status: 400 });
   }
 
-  let canonicalId: string;
-  try {
-    canonicalId = await resolveCanonicalWallet(session.walletAddress);
-  } catch (err) {
-    console.error("[leaderboard] canonical resolution failed", (err as Error).message);
-    return NextResponse.json({ error: "leaderboard-unavailable" }, { status: 503 });
+  const session = await requireSession();
+  let canonicalId: string | null = null;
+  if (session) {
+    try {
+      canonicalId = await resolveCanonicalWallet(session.walletAddress);
+    } catch (err) {
+      console.error("[leaderboard] canonical resolution failed", (err as Error).message);
+      return NextResponse.json({ error: "leaderboard-unavailable" }, { status: 503 });
+    }
   }
 
   const { data, error } = await supabase.rpc("get_skill_game_leaderboard", {

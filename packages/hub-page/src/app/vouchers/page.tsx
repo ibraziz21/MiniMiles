@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { VoucherTabs } from "./VoucherTabs";
 import { HIDDEN_PARTNER_FILTER, isHiddenPartner } from "@/lib/akiba/hidden-partners";
 
-export const metadata = { title: "Vouchers — Akiba Pass" };
+export const metadata = { title: "Rewards — Akiba Pass" };
 export const revalidate = 60;
 
 type VoucherTemplate = {
@@ -78,10 +78,10 @@ export default async function VouchersPage({
       {/* ── Page header ──────────────────────────────────────────────────── */}
       <div className="mb-4 sm:mb-8">
         <h1 className="font-sterling text-2xl font-semibold text-akiba-ink sm:text-3xl">
-          Vouchers
+          Rewards
         </h1>
         <p className="mt-1 text-sm text-akiba-muted sm:mt-2 sm:text-base">
-          Spend your AkibaMiles on discounts — instantly, no wallet signature needed.
+          Use your Miles for discounts and offers from Akiba merchants.
         </p>
       </div>
 

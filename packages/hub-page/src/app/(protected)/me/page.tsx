@@ -17,6 +17,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { CountryEditor } from "./CountryEditor";
 import { UsernameEditor } from "./UsernameEditor";
 import { resolveHubQuestCanonical } from "@/lib/akiba/canonicalPartnerQuests";
+import { getNextRewardSummary, getNextRewardWays } from "@/lib/akiba/nextReward";
+import { isNextRewardEnabledFor } from "@/lib/akiba/nextRewardRollout";
+import { NextRewardPanel } from "@/components/akiba/NextRewardPanel";
 
 export const metadata = { title: "My Profile — Akiba Pass" };
 
@@ -66,6 +69,27 @@ export default async function MePage() {
     .eq("user_id", user.id)
     .maybeSingle();
   const hubCountry = hubProfile?.country ?? activeRow?.country ?? null;
+
+  // Next Reward Progress V1 (next-reward-progress-v1-spec.md) — gated behind
+  // HUB_NEXT_REWARD_*; /me loads both the summary and the fuller "ways to
+  // get closer" list (quests + games), unlike home which only loads the
+  // summary.
+  let nextRewardSummary: Awaited<ReturnType<typeof getNextRewardSummary>> | null = null;
+  let nextRewardWays: Awaited<ReturnType<typeof getNextRewardWays>> = [];
+  if (isNextRewardEnabledFor(user.email ?? user.id)) {
+    try {
+      [nextRewardSummary, nextRewardWays] = await Promise.all([
+        getNextRewardSummary({
+          hubUserId: user.id,
+          email: user.email ?? null,
+          legacyCountry: activeRow?.country ?? null,
+        }),
+        getNextRewardWays({ hubUserId: user.id, email: user.email ?? null }),
+      ]);
+    } catch (err) {
+      console.error("[me] next reward lookup failed:", err);
+    }
+  }
 
   // Leaderboard username (skill-games-leaderboards-spec.md §5.3) — same
   // canonical resolution the games surfaces use, so the claimed name is the
@@ -147,6 +171,15 @@ export default async function MePage() {
             )}
           </div>
         </div>
+
+        {/* Next reward progress (next-reward-progress-v1-spec.md §5.2) —
+            NextRewardPanel itself renders null for inventory_unavailable
+            (§9.5), so the wrapping margin is skipped for that state too. */}
+        {nextRewardSummary && nextRewardSummary.state !== "inventory_unavailable" && (
+          <div className="mb-4 sm:mb-6">
+            <NextRewardPanel summary={nextRewardSummary} ways={nextRewardWays} />
+          </div>
+        )}
 
         {/* Quick actions — Pass & Wallets open sheets; rest are links */}
         <div className="mb-4 sm:mb-6">

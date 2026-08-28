@@ -23,6 +23,7 @@ import {
   type FinishResult,
   type PlayStatus,
 } from "@/lib/games/clientTransport";
+import { GAME_DAILY_PLAY_CAP, GAME_MAX_REWARD_MILES } from "@/lib/games/gameRewardRules";
 import { Brain, Trophy } from "lucide-react";
 
 const config = GAMEPLAY_CONFIGS.memory_flip;
@@ -242,10 +243,10 @@ export default function PassMemoryFlipPage() {
         gameName={config.name}
         gameDescription={config.description}
         shortName={config.shortName}
-        maxRewardMiles={12}
+        maxRewardMiles={GAME_MAX_REWARD_MILES}
         thresholds={config.thresholds}
         milesIcon={<MilesIcon className="h-3 w-3" />}
-        dailyPlayCap={5}
+        dailyPlayCap={GAME_DAILY_PLAY_CAP}
         playsRemaining={status?.playsRemaining}
         loading={starting}
         onPlay={startRound}

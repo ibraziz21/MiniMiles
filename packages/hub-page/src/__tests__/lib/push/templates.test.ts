@@ -99,3 +99,55 @@ describe("renderTemplate — announcement templates", () => {
     });
   });
 });
+
+describe("renderTemplate — miles_earned (§6.5 copy states)", () => {
+  it("renders the 'progress remains' state from a stored nextReward snapshot", () => {
+    expect(
+      renderTemplate("miles_earned", {
+        amountMiles: 120,
+        merchantName: "Merchant X",
+        nextReward: { templateId: "t1", benefitLabel: "10% off", merchantName: "Merchant Z", gapMiles: 80, affordable: false },
+      }),
+    ).toEqual({
+      title: "You earned 120 Miles 🎉",
+      body: "From Merchant X. Only 80 more to unlock 10% off.",
+    });
+  });
+
+  it("renders the 'reward unlocked' state when the snapshot says affordable", () => {
+    expect(
+      renderTemplate("miles_earned", {
+        amountMiles: 120,
+        merchantName: "Merchant X",
+        nextReward: { templateId: "t1", benefitLabel: "10% off", merchantName: "Merchant Z", gapMiles: 0, affordable: true },
+      }),
+    ).toEqual({
+      title: "Reward unlocked 🎉",
+      body: "Your 120 Miles from Merchant X unlocked 10% off at Merchant Z.",
+    });
+  });
+
+  it("renders the generic 'no usable progress' state when nextReward is null", () => {
+    expect(renderTemplate("miles_earned", { amountMiles: 120, merchantName: "Merchant X", nextReward: null })).toEqual({
+      title: "You earned 120 Miles 🎉",
+      body: "Your purchase at Merchant X added Miles to your balance.",
+    });
+  });
+
+  it("never mentions purchase amount or purchased items", () => {
+    const rendered = renderTemplate("miles_earned", {
+      amountMiles: 120,
+      merchantName: "Merchant X",
+      nextReward: null,
+    })!;
+    const text = `${rendered.title} ${rendered.body}`.toLowerCase();
+    expect(text).not.toMatch(/kes|cusd|\$|amount paid|receipt/);
+  });
+
+  it("degrades safely for missing/malformed metadata instead of throwing", () => {
+    expect(renderTemplate("miles_earned", {})).toEqual({
+      title: "You earned 0 Miles 🎉",
+      body: "Your purchase at an Akiba merchant added Miles to your balance.",
+    });
+  });
+});

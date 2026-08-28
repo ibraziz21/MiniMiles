@@ -9,6 +9,7 @@ import { writeAuditLog } from "@/lib/audit";
 const DEFAULT_SETTINGS = {
   store_active: true,
   logo_url: null,
+  banner_url: null,
   support_email: null,
   support_phone: null,
   delivery_cities: ["Nairobi", "Mombasa"],
@@ -21,6 +22,7 @@ const DEFAULT_SETTINGS = {
 const PAYOUT_DESTINATION_TYPES = new Set(["wallet", "bank", "mpesa"]);
 const OPTIONAL_TEXT_FIELDS = [
   "logo_url",
+  "banner_url",
   "support_email",
   "support_phone",
   "wallet_address",
@@ -77,7 +79,7 @@ export async function PATCH(req: Request) {
   }
 
   const allowed = [
-    "store_active", "logo_url", "support_email", "support_phone",
+    "store_active", "logo_url", "banner_url", "support_email", "support_phone",
     "delivery_cities", "notify_new_order", "notify_stale_order", "stale_threshold_hours",
     "wallet_address", "payout_destination_type", "payout_wallet",
     "payout_bank_name", "payout_bank_branch", "payout_bank_account_name", "payout_bank_account_number",

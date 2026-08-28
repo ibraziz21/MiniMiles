@@ -1,4 +1,4 @@
-export type PushCategory = "orders" | "refunds" | "vouchers" | "rewards" | "marketing";
+export type PushCategory = "orders" | "refunds" | "vouchers" | "rewards" | "marketing" | "earnings";
 
 export interface RenderedNotification {
   title: string;
@@ -58,5 +58,49 @@ export function renderTemplate(
     return { title: "Referral complete!", body: `You earned another ${miles} Miles. Referral complete!` };
   }
 
+  if (template === "miles_earned") {
+    return renderMilesEarned(metadata);
+  }
+
   return TEMPLATES[template] ?? null;
+}
+
+// miles_earned copy states (§6.5) — built purely from the metadata snapshot
+// captured at notification-creation time (§6.4), never recomputed here.
+// Lock-screen safe: no purchase amount, products, receipt, or identity data.
+function renderMilesEarned(metadata: Record<string, unknown>): RenderedNotification {
+  const amountMiles = typeof metadata.amountMiles === "number" && Number.isFinite(metadata.amountMiles)
+    ? metadata.amountMiles
+    : 0;
+  const merchantName = typeof metadata.merchantName === "string" && metadata.merchantName.trim()
+    ? metadata.merchantName.trim()
+    : "an Akiba merchant";
+  const amountLabel = amountMiles.toLocaleString("en-KE");
+
+  const nextReward = metadata.nextReward as
+    | { benefitLabel?: unknown; merchantName?: unknown; gapMiles?: unknown; affordable?: unknown }
+    | null
+    | undefined;
+
+  if (nextReward && nextReward.affordable === true) {
+    const benefitLabel = typeof nextReward.benefitLabel === "string" ? nextReward.benefitLabel : "a reward";
+    const targetMerchant = typeof nextReward.merchantName === "string" ? nextReward.merchantName : "an Akiba merchant";
+    return {
+      title: "Reward unlocked 🎉",
+      body: `Your ${amountLabel} Miles from ${merchantName} unlocked ${benefitLabel} at ${targetMerchant}.`,
+    };
+  }
+
+  if (nextReward && typeof nextReward.gapMiles === "number" && Number.isFinite(nextReward.gapMiles)) {
+    const benefitLabel = typeof nextReward.benefitLabel === "string" ? nextReward.benefitLabel : "your next reward";
+    return {
+      title: `You earned ${amountLabel} Miles 🎉`,
+      body: `From ${merchantName}. Only ${nextReward.gapMiles.toLocaleString("en-KE")} more to unlock ${benefitLabel}.`,
+    };
+  }
+
+  return {
+    title: `You earned ${amountLabel} Miles 🎉`,
+    body: `Your purchase at ${merchantName} added Miles to your balance.`,
+  };
 }

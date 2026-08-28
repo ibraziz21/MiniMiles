@@ -19,7 +19,7 @@ export async function GET() {
       .eq("status", "active"),
     admin
       .from("hub_notification_preferences")
-      .select("orders_enabled, vouchers_enabled, rewards_enabled, marketing_enabled")
+      .select("orders_enabled, vouchers_enabled, rewards_enabled, marketing_enabled, earnings_enabled")
       .eq("hub_user_id", user.id)
       .maybeSingle(),
   ]);
@@ -32,6 +32,7 @@ export async function GET() {
       vouchers: prefs?.vouchers_enabled ?? true,
       rewards: prefs?.rewards_enabled ?? false,
       marketing: prefs?.marketing_enabled ?? false,
+      earnings: prefs?.earnings_enabled ?? true,
     },
   });
 }

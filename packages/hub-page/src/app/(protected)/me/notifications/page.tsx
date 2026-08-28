@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ArrowLeft, Bell, Package, Truck, CheckCircle2, XCircle, RotateCcw, Ticket, AlertTriangle, Gift, Sparkles, Store } from "lucide-react";
 import { PushNotificationSettings } from "@/components/PushNotificationSettings";
+import { MilesAmount } from "@/components/MilesIcon";
+import { MilesEarnedLink } from "./MilesEarnedLink";
 
 export const metadata = { title: "Notifications — Akiba Pass" };
 
@@ -23,6 +25,7 @@ const TEMPLATE_CONFIG: Record<string, { label: string; icon: React.ReactNode }> 
   referral_activation_held:    { label: "Friend became active — Miles pending", icon: <Gift className="h-4 w-4" /> },
   referral_activation_released:{ label: "Referral complete",               icon: <Gift className="h-4 w-4" /> },
   referral_manual_review:      { label: "Referral reward under review",    icon: <AlertTriangle className="h-4 w-4" /> },
+  miles_earned:                { label: "Miles earned",                    icon: <Sparkles className="h-4 w-4" /> },
   feature_announcement:        { label: "Akiba feature update",            icon: <Sparkles className="h-4 w-4" /> },
   merchant_announcement:       { label: "New Akiba merchant",              icon: <Store className="h-4 w-4" /> },
   general_announcement:        { label: "Akiba update",                    icon: <Bell className="h-4 w-4" /> },
@@ -98,25 +101,48 @@ export default async function NotificationsPage() {
               n.template.endsWith("_announcement") && typeof n.metadata.body === "string"
                 ? n.metadata.body
                 : null;
+            // §8 — feed row shows "N Miles earned / Merchant · date / View
+            // progress". Malformed/missing amount degrades to the plain
+            // "Miles earned" label (cfg.label), never raw metadata.
+            const milesEarnedAmount =
+              n.template === "miles_earned" && typeof n.metadata.amountMiles === "number" && Number.isFinite(n.metadata.amountMiles)
+                ? n.metadata.amountMiles
+                : null;
+            const milesEarnedMerchant =
+              n.template === "miles_earned" && typeof n.metadata.merchantName === "string" && n.metadata.merchantName.trim()
+                ? n.metadata.merchantName.trim()
+                : null;
+            const dateLabel = new Date(n.created_at).toLocaleString("en-KE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
             return (
               <div key={n.id} className="flex items-start gap-3 rounded-2xl border border-akiba-line bg-white p-4">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-akiba-tint text-akiba-teal">
                   {cfg.icon}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium text-akiba-ink">{announcementTitle ?? cfg.label}</p>
+                  {milesEarnedAmount !== null ? (
+                    <p className="flex items-center gap-1 font-medium text-akiba-ink">
+                      <MilesAmount amount={milesEarnedAmount} size="sm" /> earned
+                    </p>
+                  ) : (
+                    <p className="font-medium text-akiba-ink">{announcementTitle ?? cfg.label}</p>
+                  )}
                   {announcementBody && <p className="mt-0.5 text-sm text-akiba-muted">{announcementBody}</p>}
                   {n.order_id ? (
                     <a href="/me/orders" className="text-xs text-akiba-teal hover:underline">
                       View order
                     </a>
                   ) : n.deep_link ? (
-                    <a href={n.deep_link} className="text-xs text-akiba-teal hover:underline">
-                      View details
-                    </a>
+                    n.template === "miles_earned" ? (
+                      <MilesEarnedLink href={n.deep_link} />
+                    ) : (
+                      <a href={n.deep_link} className="text-xs text-akiba-teal hover:underline">
+                        View details
+                      </a>
+                    )
                   ) : null}
                   <p className="mt-0.5 text-xs text-akiba-muted">
-                    {new Date(n.created_at).toLocaleString("en-KE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    {milesEarnedMerchant ? `${milesEarnedMerchant} · ` : ""}
+                    {dateLabel}
                   </p>
                 </div>
               </div>
