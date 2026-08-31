@@ -72,7 +72,16 @@ const navSections: Array<{ label: string; items: NavItem[] }> = [
       { href: "/orders", label: "Orders", icon: ShoppingBag },
       { href: "/fulfillment", label: "Fulfilment", icon: PackageCheck },
       { href: "/vouchers", label: "Vouchers", icon: Tag },
-      { href: "/finance", label: "Finance", icon: Landmark },
+      {
+        href: "/finance",
+        label: "Finance",
+        icon: Landmark,
+        children: [
+          { href: "/finance", label: "Payouts", icon: Landmark },
+          { href: "/finance/subscriptions", label: "Subscription Payments", icon: Inbox },
+          { href: "/finance/settlements", label: "Voucher Settlements", icon: ClipboardCheck },
+        ],
+      },
       { href: "/refunds", label: "Refunds", icon: Undo2 },
       { href: "/settlement", label: "Settlement", icon: Landmark },
       {
