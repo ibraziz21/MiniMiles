@@ -13,6 +13,7 @@ import {
   isStaleReview,
   isUuid,
   minutesSince,
+  paymentMethodLabel,
   RISK_FLAG_LABELS,
   slaState,
   SUBSCRIPTION_PAYMENT_VIEWS,
@@ -70,6 +71,7 @@ interface DetailRow {
   line_items: Array<{ description: string; amount: string }> | null;
   subtotal: string | null;
   discount: string | null;
+  tax: string | null;
   total: string | null;
   amount_paid: string | null;
   balance: string | null;
@@ -256,7 +258,7 @@ export default async function SubscriptionPaymentDetailPage({
               ))}
               <Row label="Subtotal" value={`KES ${detail.subtotal ?? "0.00"}`} />
               <Row label="Discount" value={`KES ${detail.discount ?? "0.00"}`} />
-              <Row label="VAT" value="KES 0.00" />
+              <Row label="VAT" value={detail.tax == null ? "Not supplied by Akiba Platform" : `KES ${detail.tax}`} />
               <Row label="Total" value={<strong>KES {detail.total ?? "0.00"}</strong>} />
               <Row label="Paid / balance" value={`KES ${detail.amount_paid ?? "0.00"} / KES ${detail.balance ?? "0.00"}`} />
               <div className="my-2 border-t border-slate-100" />
@@ -286,7 +288,7 @@ export default async function SubscriptionPaymentDetailPage({
               <CardTitle>Merchant submission</CardTitle>
             </CardHeader>
             <CardContent>
-              <Row label="Payment method" value={detail.payment_method} />
+              <Row label="Payment method" value={paymentMethodLabel(detail.payment_method)} />
               <Row
                 label="Submitted amount"
                 value={<span className="font-mono">{detail.submitted_amount} {detail.submitted_currency}</span>}

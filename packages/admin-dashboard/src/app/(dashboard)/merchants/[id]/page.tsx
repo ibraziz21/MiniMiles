@@ -6,48 +6,36 @@ import { TopBar } from "@/components/layout/TopBar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatNumber } from "@/lib/utils";
-import { MerchantControls } from "@/components/merchants/MerchantControls";
 import { AddMerchantNote } from "@/components/merchants/AddMerchantNote";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 
 async function getMerchantDetail(id: string) {
-  const [partnerRes, settingsRes, ordersRes, productsRes, vouchersRes, teamRes, notesRes] = await Promise.all([
+  const [partnerRes, settingsRes, subscriptionRes, vouchersRes, teamRes, notesRes] = await Promise.all([
     supabase.from("partners").select("*").eq("id", id).single(),
-    supabase.from("partner_settings").select("*").eq("partner_id", id).maybeSingle(),
-    supabase.from("merchant_transactions").select("id, status, amount_cusd, item_name, created_at").eq("partner_id", id).order("created_at", { ascending: false }).limit(10),
-    supabase.from("merchant_products").select("id, name, price_cusd, active").eq("merchant_id", id),
-    supabase.from("spend_voucher_templates").select("id, title, active, miles_cost").eq("partner_id", id),
+    supabase.from("partner_settings").select("directory_status").eq("partner_id", id).maybeSingle(),
+    supabase
+      .from("partner_subscriptions")
+      .select("plan,status,billing_period,included_monthly_miles,miles_issued_current_period,overage_miles_current_period,next_renewal_at")
+      .eq("partner_id", id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase.from("spend_voucher_templates").select("id, title, active, lifecycle_state, miles_cost").eq("partner_id", id),
     supabase.from("merchant_users").select("id, email, name, role, is_active").eq("partner_id", id),
     supabase.from("merchant_admin_notes").select("id, note, created_at, admin_users(name, email)").eq("partner_id", id).order("created_at", { ascending: false }),
   ]);
 
   if (!partnerRes.data) return null;
 
-  const orders = ordersRes.data ?? [];
-  const totalRevenue = orders.filter((o) => ["delivered", "received", "completed"].includes(o.status)).reduce((s, o) => s + (o.amount_cusd ?? 0), 0);
-
   return {
     partner: partnerRes.data,
     settings: settingsRes.data ?? null,
-    recent_orders: orders,
-    total_revenue_cusd: Math.round(totalRevenue * 100) / 100,
-    products: productsRes.data ?? [],
+    subscription: subscriptionRes.data ?? null,
     voucher_templates: vouchersRes.data ?? [],
     team: teamRes.data ?? [],
     notes: notesRes.data ?? [],
   };
 }
-
-const STATUS_COLORS: Record<string, string> = {
-  placed: "warning",
-  accepted: "default",
-  packed: "default",
-  out_for_delivery: "default",
-  delivered: "success",
-  received: "success",
-  completed: "success",
-  cancelled: "destructive",
-};
 
 export default async function MerchantDetailPage({ params }: { params: { id: string } }) {
   const session = await requireAdminSession("merchants.read");
@@ -56,7 +44,10 @@ export default async function MerchantDetailPage({ params }: { params: { id: str
   const detail = await getMerchantDetail(params.id);
   if (!detail) notFound();
 
-  const { partner, settings, recent_orders, total_revenue_cusd, products, voucher_templates, team, notes } = detail;
+  const { partner, settings, subscription, voucher_templates, team, notes } = detail;
+  const activeVoucherTypes = voucher_templates.filter(
+    (voucher) => voucher.lifecycle_state === "published" && voucher.active,
+  ).length;
 
   return (
     <div>
@@ -77,23 +68,26 @@ export default async function MerchantDetailPage({ params }: { params: { id: str
           </Link>
         )}
 
-        {/* Summary */}
+        {/* Subscription and account summary */}
         <div className="grid gap-4 sm:grid-cols-3">
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Store Status</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Subscription</CardTitle></CardHeader>
             <CardContent>
-              {settings?.store_active ? (
-                <Badge variant="success">Active</Badge>
-              ) : settings ? (
-                <Badge variant="secondary">Inactive</Badge>
+              {subscription ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-2xl font-bold capitalize">{subscription.plan}</span>
+                  <Badge variant={subscription.status === "active" ? "success" : subscription.status === "suspended" ? "destructive" : "secondary"}>
+                    {subscription.status.replaceAll("_", " ")}
+                  </Badge>
+                </div>
               ) : (
-                <Badge variant="outline">No settings</Badge>
+                <Badge variant="outline">No subscription</Badge>
               )}
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Revenue (recent)</CardTitle></CardHeader>
-            <CardContent><p className="text-2xl font-bold">${formatNumber(total_revenue_cusd)}</p></CardContent>
+            <CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Active Voucher Types</CardTitle></CardHeader>
+            <CardContent><p className="text-2xl font-bold">{formatNumber(activeVoucherTypes)}</p></CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Team Members</CardTitle></CardHeader>
@@ -101,53 +95,17 @@ export default async function MerchantDetailPage({ params }: { params: { id: str
           </Card>
         </div>
 
-        {/* Controls */}
-        <Card>
-          <CardHeader><CardTitle>Admin Controls</CardTitle></CardHeader>
-          <CardContent>
-            <MerchantControls merchantId={params.id} storeActive={settings?.store_active ?? null} />
-          </CardContent>
-        </Card>
-
-        {/* Recent orders */}
-        <Card>
-          <CardHeader><CardTitle>Recent Orders</CardTitle></CardHeader>
-          <CardContent>
-            {recent_orders.length === 0 ? (
-              <p className="text-sm text-slate-400">No orders yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {recent_orders.map((o) => (
-                  <div key={o.id} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm">
-                    <div>
-                      <p className="font-medium text-slate-900">{o.item_name ?? o.id.slice(0, 8)}</p>
-                      <p className="text-xs text-slate-400">{formatDate(o.created_at)}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-slate-700">${o.amount_cusd ?? 0}</span>
-                      <Badge variant={(STATUS_COLORS[o.status] as "success" | "warning" | "destructive" | "default") ?? "secondary"}>{o.status}</Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Products */}
-        <Card>
-          <CardHeader><CardTitle>Products ({products.length})</CardTitle></CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {products.map((p) => (
-                <span key={p.id} className={`rounded-full px-3 py-1 text-xs ${p.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
-                  {p.name} — ${p.price_cusd}
-                </span>
-              ))}
-              {products.length === 0 && <p className="text-sm text-slate-400">No products.</p>}
-            </div>
-          </CardContent>
-        </Card>
+        {subscription && (
+          <Card>
+            <CardHeader><CardTitle>Plan Usage</CardTitle></CardHeader>
+            <CardContent className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+              <div><p className="text-xs text-slate-400">Billing term</p><p className="mt-1 font-medium capitalize">{subscription.billing_period ?? "—"}</p></div>
+              <div><p className="text-xs text-slate-400">Miles issued this month</p><p className="mt-1 font-medium">{formatNumber(subscription.miles_issued_current_period ?? 0)} / {formatNumber(subscription.included_monthly_miles ?? 0)}</p></div>
+              <div><p className="text-xs text-slate-400">Overage Miles</p><p className="mt-1 font-medium">{formatNumber(subscription.overage_miles_current_period ?? 0)}</p></div>
+              <div><p className="text-xs text-slate-400">Next renewal</p><p className="mt-1 font-medium">{subscription.next_renewal_at ? formatDate(subscription.next_renewal_at) : "—"}</p></div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Voucher templates */}
         <Card>
@@ -156,7 +114,7 @@ export default async function MerchantDetailPage({ params }: { params: { id: str
             <div className="flex flex-wrap gap-2">
               {voucher_templates.map((v) => (
                 <span key={v.id} className={`rounded-full px-3 py-1 text-xs ${v.active ? "bg-[#238D9D]/10 text-[#238D9D]" : "bg-slate-100 text-slate-500"}`}>
-                  {v.title} ({v.miles_cost} miles)
+                  {v.title} ({formatNumber(v.miles_cost)} Miles)
                 </span>
               ))}
               {voucher_templates.length === 0 && <p className="text-sm text-slate-400">No templates.</p>}

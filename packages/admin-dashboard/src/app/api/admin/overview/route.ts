@@ -9,21 +9,14 @@ export async function GET() {
 
   const [
     usersRes,
-    activeWalletsRes,
     milesRes,
     merchantsRes,
-    ordersRes,
     vouchersRes,
     pollResponsesRes,
     incidentsRes,
   ] = await Promise.all([
-    // Total users (distinct wallet addresses that have ever interacted)
+    // Total member profiles.
     supabase.from("akiba_users").select("id", { count: "exact", head: true }),
-    // Active wallets: users with a transaction in the last 30 days
-    supabase
-      .from("merchant_transactions")
-      .select("user_address", { count: "exact", head: true })
-      .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
     // Miles minted/burned — from miles_ledger if it exists, else zeros
     supabase
       .from("miles_ledger")
@@ -31,11 +24,6 @@ export async function GET() {
       .in("type", ["mint", "burn"]),
     // Total merchants (partners)
     supabase.from("partners").select("id", { count: "exact", head: true }),
-    // Active orders (not final state)
-    supabase
-      .from("merchant_transactions")
-      .select("id", { count: "exact", head: true })
-      .not("status", "in", '("received","completed","cancelled")'),
     // Vouchers
     supabase
       .from("issued_vouchers")
@@ -46,6 +34,7 @@ export async function GET() {
     supabase
       .from("ops_incidents")
       .select("id", { count: "exact", head: true })
+      .not("incident_type", "in", '("stale_order","unresolved_payout")')
       .in("status", ["open", "in_progress"]),
   ]);
 
@@ -62,12 +51,10 @@ export async function GET() {
 
   const stats: OverviewStats = {
     total_users: usersRes.count ?? 0,
-    active_wallets: activeWalletsRes.count ?? 0,
-    miles_minted: milesMinted,
-    miles_burned: milesBurned,
+    miles_issued: milesMinted,
+    miles_spent: milesBurned,
     miles_outstanding: milesMinted - milesBurned,
     total_merchants: merchantsRes.count ?? 0,
-    active_orders: ordersRes.count ?? 0,
     vouchers_issued: vouchersIssued,
     vouchers_redeemed: vouchersRedeemed,
     poll_response_count: pollResponsesRes.count ?? 0,

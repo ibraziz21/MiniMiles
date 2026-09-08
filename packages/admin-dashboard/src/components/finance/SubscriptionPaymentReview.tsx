@@ -50,7 +50,7 @@ export function SubscriptionPaymentReview(props: Props) {
   const [checks, setChecks] = useState<boolean[]>(() => CHECKLIST.map(() => false));
   const [confirmedReference, setConfirmedReference] = useState("");
   const [confirmedAmount, setConfirmedAmount] = useState(props.balance ?? props.expectedAmount ?? "");
-  const [settlementDate, setSettlementDate] = useState("");
+  const [paymentDate, setPaymentDate] = useState("");
   const [evidenceNote, setEvidenceNote] = useState("");
   const [override, setOverride] = useState(false);
 
@@ -65,10 +65,10 @@ export function SubscriptionPaymentReview(props: Props) {
       checks.every(Boolean) &&
       confirmedReference.trim().length > 0 &&
       normalizeDecimalString(confirmedAmount) !== null &&
-      settlementDate.trim().length > 0 &&
+      paymentDate.trim().length > 0 &&
       evidenceNote.trim().length > 0
     );
-  }, [checks, confirmedReference, confirmedAmount, settlementDate, evidenceNote]);
+  }, [checks, confirmedReference, confirmedAmount, paymentDate, evidenceNote]);
 
   async function call(path: string, body: Record<string, unknown>, label: string) {
     setBusy(label);
@@ -215,8 +215,9 @@ export function SubscriptionPaymentReview(props: Props) {
                 />
                 <Input
                   type="datetime-local"
-                  value={settlementDate}
-                  onChange={(e) => setSettlementDate(e.target.value)}
+                  aria-label="Payment date"
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
                 />
                 <Input value="KES" disabled className="font-mono" />
               </div>
@@ -248,7 +249,7 @@ export function SubscriptionPaymentReview(props: Props) {
                       confirmedReference: confirmedReference.trim(),
                       confirmedAmount: amount,
                       confirmedCurrency: "KES",
-                      paymentDate: new Date(settlementDate).toISOString(),
+                      paymentDate: new Date(paymentDate).toISOString(),
                       evidenceNote: evidenceNote.trim(),
                       superAdminOverride: override,
                     },

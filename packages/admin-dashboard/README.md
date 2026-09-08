@@ -34,6 +34,11 @@ psql $DATABASE_URL -f 006_ops_incidents.sql
 
 Or paste each file into the Supabase SQL editor.
 
+Shared Hub and Pass schema changes live in the repository-level
+`supabase/migrations` directory. Pass Analytics requires
+`072_admin_pass_analytics.sql` in addition to the Admin-specific migrations
+above.
+
 ## Admin roles
 
 | Role | Permissions |

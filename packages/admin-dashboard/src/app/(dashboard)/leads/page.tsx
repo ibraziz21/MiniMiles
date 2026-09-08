@@ -119,7 +119,7 @@ export default async function LeadsPage() {
           <LeadStat
             label="Merchant new"
             value={countNew(merchantResult.leads)}
-            sub="Store inquiries"
+            sub="Merchant inquiries"
             icon={Store}
           />
         </div>
@@ -134,7 +134,7 @@ export default async function LeadsPage() {
         <LeadTable
           kind="merchant"
           title="Merchant Leads"
-          description="Store listings, voucher campaigns, fulfilment coverage, and merchant setup inquiries."
+          description="Voucher programs, Miles distribution, redemption, and merchant account inquiries."
           leads={merchantResult.leads}
         />
       </div>

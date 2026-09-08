@@ -30,27 +30,29 @@ export default async function UsersPage() {
 
   return (
     <div>
-      <TopBar title="Users & Wallets" subtitle="Wallet lookup, user identity, and active risk flags" />
+      <TopBar title="Members" subtitle="Member identity and active risk flags" />
       <div className="p-6">
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50 text-xs font-medium uppercase tracking-wider text-slate-400">
-                <th className="px-4 py-3 text-left">Wallet</th>
-                <th className="px-4 py-3 text-left">User</th>
+                <th className="px-4 py-3 text-left">Member</th>
+                <th className="px-4 py-3 text-left">Contact</th>
+                <th className="px-4 py-3 text-left">Legacy identifier</th>
                 <th className="px-4 py-3 text-left">Flags</th>
                 <th className="px-4 py-3 text-left">Joined</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {users.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400">No users found.</td></tr>}
+              {users.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">No members found.</td></tr>}
               {users.map((user) => (
                 <tr key={user.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-mono text-xs text-slate-700">{user.address ?? user.id}</td>
                   <td className="px-4 py-3">
-                    <p className="font-medium text-slate-900">{user.username ?? "—"}</p>
-                    <p className="text-xs text-slate-400">{user.phone ?? "No phone"}</p>
+                    <p className="font-medium text-slate-900">{user.username ?? "Member"}</p>
+                    <p className="font-mono text-xs text-slate-400">{user.id}</p>
                   </td>
+                  <td className="px-4 py-3 text-slate-700">{user.phone ?? "—"}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-slate-500">{user.address ?? "—"}</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       {user.flags.length === 0 ? <span className="text-slate-400">—</span> : user.flags.map((flag) => <Badge key={flag} variant="warning">{flag}</Badge>)}

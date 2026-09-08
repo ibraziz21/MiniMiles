@@ -8,35 +8,34 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const session = await requireAdminSession("merchants.read");
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const [partnerRes, settingsRes, ordersRes, productsRes, vouchersRes, teamRes, notesRes] = await Promise.all([
+  const [partnerRes, settingsRes, subscriptionRes, vouchersRes, teamRes, notesRes] = await Promise.all([
     supabase.from("partners").select("*").eq("id", params.id).single(),
-    supabase.from("partner_settings").select("*").eq("partner_id", params.id).maybeSingle(),
-    supabase.from("merchant_transactions").select("id, status, amount_cusd, created_at").eq("partner_id", params.id).order("created_at", { ascending: false }).limit(20),
-    supabase.from("merchant_products").select("id, name, price_cusd, active").eq("merchant_id", params.id),
-    supabase.from("spend_voucher_templates").select("id, title, active, miles_cost").eq("partner_id", params.id),
+    supabase.from("partner_settings").select("directory_status").eq("partner_id", params.id).maybeSingle(),
+    supabase
+      .from("partner_subscriptions")
+      .select("plan,status,billing_period,included_monthly_miles,miles_issued_current_period,overage_miles_current_period,next_renewal_at")
+      .eq("partner_id", params.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase.from("spend_voucher_templates").select("id, title, active, lifecycle_state, miles_cost").eq("partner_id", params.id),
     supabase.from("merchant_users").select("id, email, name, role, is_active").eq("partner_id", params.id),
     supabase.from("merchant_admin_notes").select("id, note, created_at, admin_users(name, email)").eq("partner_id", params.id).order("created_at", { ascending: false }),
   ]);
 
   if (!partnerRes.data) return NextResponse.json({ error: "Merchant not found" }, { status: 404 });
 
-  const orders = ordersRes.data ?? [];
-  const totalRevenue = orders.filter((o) => ["delivered", "received", "completed"].includes(o.status)).reduce((s, o) => s + (o.amount_cusd ?? 0), 0);
-
   return NextResponse.json({
     partner: partnerRes.data,
     settings: settingsRes.data ?? null,
-    recent_orders: orders,
-    total_orders: orders.length,
-    total_revenue_cusd: Math.round(totalRevenue * 100) / 100,
-    products: productsRes.data ?? [],
+    subscription: subscriptionRes.data ?? null,
     voucher_templates: vouchersRes.data ?? [],
     team: teamRes.data ?? [],
     notes: notesRes.data ?? [],
   });
 }
 
-// PATCH /api/admin/merchants/[id] — update store_active, name, etc.
+// PATCH /api/admin/merchants/[id] — update merchant identity metadata.
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await requireAdminSession("merchants.write");
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -47,16 +46,6 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const actions: string[] = [];
   const adminUserId = adminIdForWrite(session);
 
-  // store_active toggle
-  if ("store_active" in body && typeof body.store_active === "boolean") {
-    const { error } = await supabase
-      .from("partner_settings")
-      .update({ store_active: body.store_active })
-      .eq("partner_id", params.id);
-    if (error) return NextResponse.json({ error: "Failed to update store status" }, { status: 500 });
-    actions.push(body.store_active ? "merchant.activated" : "merchant.deactivated");
-  }
-
   // name/slug update
   const partnerUpdates: Record<string, unknown> = {};
   if (typeof body.name === "string") partnerUpdates.name = body.name.trim();
@@ -65,6 +54,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const { error } = await supabase.from("partners").update(partnerUpdates).eq("id", params.id);
     if (error) return NextResponse.json({ error: "Failed to update merchant" }, { status: 500 });
     actions.push("merchant.metadata_updated");
+  }
+
+  if (actions.length === 0) {
+    return NextResponse.json({ error: "No supported merchant fields were provided." }, { status: 400 });
   }
 
   for (const action of actions) {

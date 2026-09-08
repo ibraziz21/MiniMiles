@@ -21,6 +21,10 @@ function kes(value: unknown): string {
   return `KES ${n.toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function taxDisplay(value: unknown): string {
+  return value === null || value === undefined ? "Not supplied" : kes(value);
+}
+
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await requireAdminSession("finance.read");
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -105,7 +109,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         .join("")}
       <tr><td>Subtotal</td><td class="right">${kes(receipt.subtotal)}</td></tr>
       <tr><td>Discount</td><td class="right">-${kes(receipt.discount)}</td></tr>
-      <tr><td>VAT</td><td class="right">${kes(0)}</td></tr>
+      <tr><td>VAT</td><td class="right">${taxDisplay(receipt.tax)}</td></tr>
       <tr class="total"><td>Total paid</td><td class="right">${kes(receipt.total)}</td></tr>
     </tbody>
   </table>
@@ -114,7 +118,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     <div class="muted">Payment Details</div>
     <p><strong>Method:</strong> ${esc(receipt.payment_method ?? "—")}</p>
     <p><strong>Confirmed reference:</strong> <code>${esc(receipt.confirmed_reference ?? "—")}</code></p>
-    <p><strong>Bank settlement date:</strong> ${esc(
+    <p><strong>Payment date:</strong> ${esc(
       receipt.payment_date ? new Date(receipt.payment_date).toLocaleDateString("en-KE") : "—",
     )}</p>
     <p><strong>Plan:</strong> ${esc(receipt.plan ?? "—")} · ${esc(receipt.billing_term ?? "—")}</p>

@@ -25,11 +25,56 @@ function isOpenAccessMode(): boolean {
   return process.env.NODE_ENV !== "production";
 }
 
+// Akiba no longer collects shopper payments or settles merchant commerce.
+// Keep historical tables intact, but make the obsolete operational surfaces
+// unreachable while subscription invoicing remains available.
+function isDeprecatedMerchantCommercePath(pathname: string): boolean {
+  if (pathname.startsWith("/api/admin/incidents/") && pathname.endsWith("/refund")) {
+    return true;
+  }
+
+  const deprecatedPages = [
+    "/orders",
+    "/fulfillment",
+    "/reconciliation",
+    "/refunds",
+    "/settlement",
+    "/finance/settlements",
+  ];
+  if (pathname === "/finance") return true;
+  if (deprecatedPages.some((path) => pathname === path || pathname.startsWith(`${path}/`))) {
+    return true;
+  }
+
+  const deprecatedApis = [
+    "/api/admin/disputes",
+    "/api/admin/fulfillment",
+    "/api/admin/payout",
+    "/api/admin/payout-invoices",
+    "/api/admin/reconciliation",
+    "/api/admin/refunds",
+    "/api/admin/settlement",
+    "/api/admin/settlements",
+    "/api/admin/stuck-orders",
+  ];
+  return deprecatedApis.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
+  }
+
+  if (isDeprecatedMerchantCommercePath(pathname)) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        { error: "Merchant commerce payments and payouts are no longer supported." },
+        { status: 410 },
+      );
+    }
+    return NextResponse.redirect(new URL("/overview", request.url));
   }
 
   if (isOpenAccessMode()) {

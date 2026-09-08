@@ -5,24 +5,36 @@ import Link from "next/link";
 import { TopBar } from "@/components/layout/TopBar";
 import { Badge } from "@/components/ui/badge";
 import { formatNumber } from "@/lib/utils";
-import { Store, CheckCircle, XCircle } from "lucide-react";
+import { Store } from "lucide-react";
 
 async function getMerchants() {
-  const [partnersRes, settingsRes, orderCountRes, teamRes] = await Promise.all([
+  const [partnersRes, subscriptionsRes, vouchersRes, teamRes] = await Promise.all([
     supabase.from("partners").select("id, slug, name, country, image_url").order("name"),
-    supabase.from("partner_settings").select("partner_id, store_active, wallet_address"),
-    supabase.from("merchant_transactions").select("partner_id, status"),
+    supabase
+      .from("partner_subscriptions")
+      .select("partner_id, plan, status, created_at")
+      .order("created_at", { ascending: false }),
+    supabase.from("spend_voucher_templates").select("partner_id, lifecycle_state, active"),
     supabase.from("merchant_users").select("partner_id"),
   ]);
 
-  const settingsMap: Record<string, { store_active: boolean }> = {};
-  for (const s of settingsRes.data ?? []) settingsMap[s.partner_id] = s;
+  const subscriptionMap: Record<string, { plan: string; status: string }> = {};
+  for (const subscription of subscriptionsRes.data ?? []) {
+    if (!subscriptionMap[subscription.partner_id]) {
+      subscriptionMap[subscription.partner_id] = {
+        plan: subscription.plan,
+        status: subscription.status,
+      };
+    }
+  }
 
-  const orderMap: Record<string, { total: number; active: number }> = {};
-  for (const o of orderCountRes.data ?? []) {
-    if (!orderMap[o.partner_id]) orderMap[o.partner_id] = { total: 0, active: 0 };
-    orderMap[o.partner_id].total++;
-    if (!["received", "completed", "cancelled"].includes(o.status)) orderMap[o.partner_id].active++;
+  const voucherMap: Record<string, { total: number; active: number }> = {};
+  for (const voucher of vouchersRes.data ?? []) {
+    if (!voucherMap[voucher.partner_id]) voucherMap[voucher.partner_id] = { total: 0, active: 0 };
+    voucherMap[voucher.partner_id].total++;
+    if (voucher.lifecycle_state === "published" && voucher.active) {
+      voucherMap[voucher.partner_id].active++;
+    }
   }
 
   const teamMap: Record<string, number> = {};
@@ -30,9 +42,9 @@ async function getMerchants() {
 
   return (partnersRes.data ?? []).map((p) => ({
     ...p,
-    store_active: settingsMap[p.id]?.store_active ?? null,
-    total_orders: orderMap[p.id]?.total ?? 0,
-    active_orders: orderMap[p.id]?.active ?? 0,
+    subscription: subscriptionMap[p.id] ?? null,
+    voucher_types: voucherMap[p.id]?.total ?? 0,
+    active_voucher_types: voucherMap[p.id]?.active ?? 0,
     team_count: teamMap[p.id] ?? 0,
   }));
 }
@@ -53,9 +65,9 @@ export default async function MerchantsPage() {
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50 text-xs font-medium uppercase tracking-wider text-slate-400">
                   <th className="px-4 py-3 text-left">Merchant</th>
-                  <th className="px-4 py-3 text-left">Status</th>
-                  <th className="px-4 py-3 text-right">Total Orders</th>
-                  <th className="px-4 py-3 text-right">Active Orders</th>
+                  <th className="px-4 py-3 text-left">Subscription</th>
+                  <th className="px-4 py-3 text-right">Voucher Types</th>
+                  <th className="px-4 py-3 text-right">Active</th>
                   <th className="px-4 py-3 text-right">Team</th>
                 </tr>
               </thead>
@@ -80,22 +92,19 @@ export default async function MerchantsPage() {
                       <p className="mt-0.5 pl-9 text-xs text-slate-400">{m.country ?? "—"}</p>
                     </td>
                     <td className="px-4 py-3">
-                      {m.store_active === null ? (
-                        <Badge variant="secondary">No settings</Badge>
-                      ) : m.store_active ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-emerald-600"><CheckCircle className="h-3.5 w-3.5" /> Active</span>
+                      {m.subscription ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="capitalize text-slate-700">{m.subscription.plan}</span>
+                          <Badge variant={m.subscription.status === "active" ? "success" : m.subscription.status === "suspended" ? "destructive" : "secondary"}>
+                            {m.subscription.status.replaceAll("_", " ")}
+                          </Badge>
+                        </div>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-xs text-slate-400"><XCircle className="h-3.5 w-3.5" /> Inactive</span>
+                        <Badge variant="outline">No subscription</Badge>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-slate-700">{formatNumber(m.total_orders)}</td>
-                    <td className="px-4 py-3 text-right">
-                      {m.active_orders > 0 ? (
-                        <span className="font-mono font-semibold text-amber-600">{m.active_orders}</span>
-                      ) : (
-                        <span className="font-mono text-slate-400">0</span>
-                      )}
-                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-slate-700">{formatNumber(m.voucher_types)}</td>
+                    <td className="px-4 py-3 text-right font-mono text-slate-700">{formatNumber(m.active_voucher_types)}</td>
                     <td className="px-4 py-3 text-right text-slate-500">{m.team_count}</td>
                   </tr>
                 ))}

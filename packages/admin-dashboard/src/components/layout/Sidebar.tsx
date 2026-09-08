@@ -9,10 +9,8 @@ import {
   ClipboardList,
   ClipboardCheck,
   Store,
-  ShoppingBag,
   Tag,
   Landmark,
-  Undo2,
   Users,
   Inbox,
   Share2,
@@ -21,7 +19,6 @@ import {
   Dice5,
   Ticket,
   ListChecks,
-  PackageCheck,
   ScrollText,
   ShieldCheck,
   Settings,
@@ -42,6 +39,7 @@ interface NavItem {
   href: string;
   label: string;
   icon: React.ElementType;
+  exact?: boolean;
   children?: NavItem[];
 }
 
@@ -56,11 +54,11 @@ const navSections: Array<{ label: string; items: NavItem[] }> = [
         icon: BarChart2,
         children: [
           { href: "/insights/polls", label: "Polls", icon: ClipboardList },
+          { href: "/insights/pass", label: "Pass Analytics", icon: BarChart2 },
           { href: "/insights/verified", label: "Verified Reports", icon: ShieldCheck },
         ],
       },
       { href: "/ops-queue", label: "Ops Queue", icon: ListChecks },
-      { href: "/reconciliation", label: "Reconciliation", icon: ClipboardCheck },
     ],
   },
   {
@@ -69,33 +67,28 @@ const navSections: Array<{ label: string; items: NavItem[] }> = [
       { href: "/merchants", label: "Merchants", icon: Store },
       { href: "/directory-reviews", label: "Profile Reviews", icon: ClipboardCheck },
       { href: "/leads", label: "Leads", icon: Inbox },
-      { href: "/orders", label: "Orders", icon: ShoppingBag },
-      { href: "/fulfillment", label: "Fulfilment", icon: PackageCheck },
       { href: "/vouchers", label: "Vouchers", icon: Tag },
       {
-        href: "/finance",
-        label: "Finance",
+        href: "/finance/subscriptions",
+        label: "Subscription Billing",
         icon: Landmark,
         children: [
-          { href: "/finance", label: "Payouts", icon: Landmark },
-          { href: "/finance/subscriptions", label: "Subscription Payments", icon: Inbox },
-          { href: "/finance/settlements", label: "Voucher Settlements", icon: ClipboardCheck },
+          { href: "/finance/subscriptions", label: "Payment Reviews", icon: Inbox, exact: true },
+          { href: "/finance/subscriptions/collections", label: "Collections", icon: ClipboardCheck },
         ],
       },
-      { href: "/refunds", label: "Refunds", icon: Undo2 },
-      { href: "/settlement", label: "Settlement", icon: Landmark },
       {
         href: "/referrals",
         label: "Referrals",
         icon: Share2,
         children: [
-          { href: "/referrals", label: "Overview", icon: LayoutDashboard },
+          { href: "/referrals", label: "Overview", icon: LayoutDashboard, exact: true },
           { href: "/referrals/queue", label: "Review Queue", icon: ClipboardCheck },
           { href: "/referrals/lookup", label: "Lookup", icon: Search },
           { href: "/referrals/program", label: "Program", icon: Settings },
         ],
       },
-      { href: "/users", label: "Users & Wallets", icon: Users },
+      { href: "/users", label: "Members", icon: Users },
       { href: "/push-notifications", label: "Push Notifications", icon: BellRing },
       {
         href: "/games",
@@ -126,7 +119,7 @@ function NavLink({ item, depth = 0 }: { item: NavItem; depth?: number }) {
     item.children?.some((c) => pathname.startsWith(c.href)) ?? false,
   );
 
-  const active = pathname === item.href || (!item.children && pathname.startsWith(item.href + "/"));
+  const active = pathname === item.href || (!item.exact && !item.children && pathname.startsWith(item.href + "/"));
   const Icon = item.icon;
 
   if (item.children) {

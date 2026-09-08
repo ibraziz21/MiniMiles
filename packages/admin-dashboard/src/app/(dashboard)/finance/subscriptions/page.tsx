@@ -144,6 +144,12 @@ export default async function SubscriptionPaymentsPage({
             >
               Completed history
             </Link>
+            <Link
+              href="/finance/subscriptions/collections"
+              className="rounded-md bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-600"
+            >
+              Collections
+            </Link>
           </div>
         </div>
 

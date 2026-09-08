@@ -15,21 +15,38 @@ export async function GET() {
   if (error) return NextResponse.json({ error: "Failed to fetch merchants" }, { status: 500 });
 
   const partnerIds = (partners ?? []).map((p) => p.id);
+  if (partnerIds.length === 0) return NextResponse.json({ merchants: [] });
 
-  const [settingsRes, orderCountRes, teamRes] = await Promise.all([
-    supabase.from("partner_settings").select("partner_id, store_active, wallet_address").in("partner_id", partnerIds),
-    supabase.from("merchant_transactions").select("partner_id, status").in("partner_id", partnerIds),
+  const [subscriptionsRes, vouchersRes, teamRes] = await Promise.all([
+    supabase
+      .from("partner_subscriptions")
+      .select("partner_id, plan, status, created_at")
+      .in("partner_id", partnerIds)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("spend_voucher_templates")
+      .select("partner_id, lifecycle_state, active")
+      .in("partner_id", partnerIds),
     supabase.from("merchant_users").select("partner_id").in("partner_id", partnerIds),
   ]);
 
-  const settingsMap: Record<string, { store_active: boolean; wallet_address: string | null }> = {};
-  for (const s of settingsRes.data ?? []) settingsMap[s.partner_id] = s;
+  const subscriptionMap: Record<string, { plan: string; status: string }> = {};
+  for (const subscription of subscriptionsRes.data ?? []) {
+    if (!subscriptionMap[subscription.partner_id]) {
+      subscriptionMap[subscription.partner_id] = {
+        plan: subscription.plan,
+        status: subscription.status,
+      };
+    }
+  }
 
-  const orderMap: Record<string, { total: number; active: number }> = {};
-  for (const o of orderCountRes.data ?? []) {
-    if (!orderMap[o.partner_id]) orderMap[o.partner_id] = { total: 0, active: 0 };
-    orderMap[o.partner_id].total++;
-    if (!["received", "completed", "cancelled"].includes(o.status)) orderMap[o.partner_id].active++;
+  const voucherMap: Record<string, { total: number; active: number }> = {};
+  for (const voucher of vouchersRes.data ?? []) {
+    if (!voucherMap[voucher.partner_id]) voucherMap[voucher.partner_id] = { total: 0, active: 0 };
+    voucherMap[voucher.partner_id].total++;
+    if (voucher.lifecycle_state === "published" && voucher.active) {
+      voucherMap[voucher.partner_id].active++;
+    }
   }
 
   const teamMap: Record<string, number> = {};
@@ -37,10 +54,9 @@ export async function GET() {
 
   const merchants = (partners ?? []).map((p) => ({
     ...p,
-    store_active: settingsMap[p.id]?.store_active ?? null,
-    wallet_address: settingsMap[p.id]?.wallet_address ?? null,
-    total_orders: orderMap[p.id]?.total ?? 0,
-    active_orders: orderMap[p.id]?.active ?? 0,
+    subscription: subscriptionMap[p.id] ?? null,
+    voucher_types: voucherMap[p.id]?.total ?? 0,
+    active_voucher_types: voucherMap[p.id]?.active ?? 0,
     team_count: teamMap[p.id] ?? 0,
   }));
 

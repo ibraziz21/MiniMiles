@@ -93,16 +93,22 @@ export type AttemptStatus =
 export const OPEN_ATTEMPT_STATUSES: AttemptStatus[] = ["submitted", "under_review"];
 export const COMPLETED_ATTEMPT_STATUSES: AttemptStatus[] = ["confirmed", "rejected"];
 
-// Mirrors the CHECK on subscription_payment_attempts.method (Akiba 089).
-export const PAYMENT_METHODS = ["bank_transfer", "mpesa_paybill", "ncba_mobile", "other"] as const;
+// Current merchant subscription invoice rails. Historical records may still
+// contain ncba_mobile/other and remain displayable through the label map.
+export const PAYMENT_METHODS = ["bank_transfer", "mpesa_paybill"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
-export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   bank_transfer: "Bank transfer",
   mpesa_paybill: "M-Pesa paybill",
-  ncba_mobile: "NCBA mobile / USSD",
-  other: "Other",
+  ncba_mobile: "Bank transfer (legacy NCBA mobile / USSD)",
+  other: "Legacy other method",
 };
+
+export function paymentMethodLabel(method: string | null | undefined): string {
+  if (!method) return "—";
+  return PAYMENT_METHOD_LABELS[method] ?? method.replaceAll("_", " ");
+}
 
 export const REJECTION_CODES = [
   "funds_not_found",

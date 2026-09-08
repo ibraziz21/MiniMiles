@@ -4,13 +4,7 @@ import { FormEvent, useState } from "react";
 import { Save, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { AdminSettings, PayoutMethod } from "@/lib/adminSettings";
-
-const PAYOUT_METHODS: Array<{ value: PayoutMethod; label: string }> = [
-  { value: "wallet", label: "Wallet" },
-  { value: "bank", label: "Bank" },
-  { value: "mpesa", label: "M-Pesa" },
-];
+import type { AdminSettings } from "@/lib/adminSettings";
 
 interface SystemSettingsFormProps {
   settings: AdminSettings;
@@ -51,15 +45,6 @@ export function SystemSettingsForm({ settings: initialSettings, canEdit }: Syste
       ...current,
       notifications: { ...current.notifications, [key]: value },
     }));
-  }
-
-  function togglePayoutMethod(method: PayoutMethod) {
-    const exists = settings.finance.enabledPayoutMethods.includes(method);
-    const next = exists
-      ? settings.finance.enabledPayoutMethods.filter((item) => item !== method)
-      : [...settings.finance.enabledPayoutMethods, method];
-
-    updateFinance("enabledPayoutMethods", next.length > 0 ? next : [method]);
   }
 
   async function submit(e: FormEvent) {
@@ -138,22 +123,13 @@ export function SystemSettingsForm({ settings: initialSettings, canEdit }: Syste
       </section>
 
       <section className="space-y-3 border-t border-slate-100 pt-5">
-        <h3 className="text-sm font-semibold text-slate-900">Finance Defaults</h3>
-        <div className="grid gap-3 md:grid-cols-3">
+        <h3 className="text-sm font-semibold text-slate-900">Subscription Receipt Details</h3>
+        <div className="grid gap-3 md:grid-cols-2">
           <TextField
             label="Receipt prefix"
             value={settings.finance.receiptPrefix}
             disabled={!canEdit || loading}
             onChange={(value) => updateFinance("receiptPrefix", value)}
-          />
-          <NumberField
-            label="Approval threshold"
-            value={settings.finance.payoutApprovalThreshold}
-            min={0}
-            max={100000000}
-            step="0.01"
-            disabled={!canEdit || loading}
-            onChange={(value) => updateFinance("payoutApprovalThreshold", value)}
           />
           <TextField
             label="Business name"
@@ -188,26 +164,6 @@ export function SystemSettingsForm({ settings: initialSettings, canEdit }: Syste
           </label>
         </div>
 
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-slate-600">Enabled payout methods</p>
-          <div className="flex flex-wrap gap-3">
-            {PAYOUT_METHODS.map((method) => (
-              <Checkbox
-                key={method.value}
-                label={method.label}
-                checked={settings.finance.enabledPayoutMethods.includes(method.value)}
-                disabled={!canEdit || loading}
-                onChange={() => togglePayoutMethod(method.value)}
-              />
-            ))}
-          </div>
-        </div>
-        <Checkbox
-          label="Require transaction hash for wallet payouts"
-          checked={settings.finance.requireTxHashForWallet}
-          disabled={!canEdit || loading}
-          onChange={(checked) => updateFinance("requireTxHashForWallet", checked)}
-        />
       </section>
 
       <section className="space-y-3 border-t border-slate-100 pt-5">

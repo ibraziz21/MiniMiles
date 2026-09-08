@@ -15,7 +15,7 @@ It consumes the invoices, payment attempts, evidence, and guarded transition
 RPCs owned by Akiba Platform.
 
 ```text
-merchant submits NCBA/M-Pesa payment reference
+merchant submits a bank-transfer or M-Pesa payment reference
   -> payment appears in oldest-first finance review queue
   -> finance administrator claims and checks the attempt
   -> administrator confirms or rejects it
@@ -51,17 +51,18 @@ Akiba Platform Supabase migration.
 ## 2. Goals
 
 1. Give finance staff a fast, auditable, oldest-first payment review queue.
-2. Confirm a valid NCBA/M-Pesa payment and activate/renew/change the intended
-   subscription atomically.
+2. Confirm a valid bank-transfer or M-Pesa payment and
+   activate/renew/change the intended subscription atomically.
 3. Reject invalid, duplicate, mismatched, or unreadable submissions with a
    merchant-safe reason and allow resubmission.
-4. Keep merchant subscription collections separate from merchant payouts.
+4. Give finance a collections view for unpaid renewal and overage invoices.
 5. Meet and measure the less-than-one-hour review target.
 6. Prevent unauthorized, stale, duplicate, or concurrent decisions.
 
 ## 3. Non-goals
 
-- Initiating outbound payouts to merchants.
+- Restoring deprecated outbound merchant payouts, shopper-payment refunds, or
+  voucher settlements.
 - Editing the plan catalogue or recalculating invoice prices in MiniMiles.
 - Automatically scraping or integrating an NCBA bank feed in phase one.
 - Treating uploaded proof as proof that funds settled.
@@ -72,22 +73,22 @@ Akiba Platform Supabase migration.
 
 ## 4. Navigation and information architecture
 
-The existing **Finance** section currently processes outbound merchant payout
-invoices. Preserve that surface and introduce a finance submenu:
+The **Subscription Billing** section contains only merchant subscription
+invoicing operations:
 
-- **Payouts** — existing outbound payout page;
-- **Subscription Payments** — new inbound payment-review queue;
-- **Voucher Settlements** — existing settlement surface.
+- **Payment Reviews** — inbound payment-review queue;
+- **Collections** — unpaid renewal and overage invoices requiring follow-up.
 
 Route:
 
 ```text
 /finance/subscriptions
 /finance/subscriptions/[paymentAttemptId]
+/finance/subscriptions/collections
 ```
 
-Never label inbound subscription payments merely **Payouts** or mix them into
-the payout invoice list.
+Deprecated payout, shopper-order, fulfilment, refund, reconciliation, and
+voucher-settlement routes are not reachable from Admin.
 
 ## 5. Roles and permissions
 
@@ -174,6 +175,10 @@ Support:
 - invoice/payment reference;
 - exact amount range.
 
+Current payment methods are `bank_transfer` and `mpesa_paybill`. Historical
+NCBA-mobile attempts are presented as legacy bank transfers; new invoices must
+not accept a generic `other` payment rail.
+
 Search results remain tenant-safe only by internal authorization; merchant
 financial data is never exposed through a public route.
 
@@ -204,12 +209,17 @@ The detail page is split into the following panels.
 - service/usage period;
 - plan and pricing version;
 - line items;
-- subtotal, discount, VAT KES 0, total, paid/balance;
+- subtotal, discount, snapshotted VAT, total, paid/balance;
 - expected short payment reference;
 - snapshotted NCBA destination;
 - pending plan change or activation effect that confirmation will apply.
 
-The admin UI displays invoice values; it does not recalculate them.
+The admin UI displays invoice values, including VAT supplied by Akiba Platform;
+it does not recalculate them. Public plan prices are ex VAT.
+
+Renewal and overage invoices use a seven-calendar-day grace period. The
+collections view displays the persisted due and grace deadlines supplied by
+Akiba Platform and never calculates a competing deadline.
 
 ### 7.3 Merchant submission
 
@@ -511,8 +521,8 @@ Add the Subscription Payments child navigation under Finance in
     expiring URL.
 11. Every decision and takeover is attributable in both the domain record and
     admin audit log.
-12. Inbound Subscription Payments remain separate from outbound Payouts and
-    Voucher Settlements.
+12. Deprecated merchant payout and settlement operations are unreachable from
+    Admin while subscription payment review remains operational.
 13. The MiniMiles implementation contains no copied subscription pricing
     constants or direct financial state updates.
 14. Confirmation response shows the actual resulting plan, term, next renewal,
@@ -535,4 +545,3 @@ Add the Subscription Payments child navigation under Finance in
 - Audit success and audit-write-failure-after-commit tests.
 - Notification failure does not repeat or roll back confirmation.
 - XSS/file-name/content-type validation for merchant notes and evidence.
-

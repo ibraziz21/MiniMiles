@@ -9,6 +9,8 @@ async function getIncidents() {
   const { data } = await supabase
     .from("ops_incidents")
     .select("id, incident_type, status, title, description, target_type, target_id, created_at")
+    // These incident types belong to the retired merchant checkout/payout flow.
+    .not("incident_type", "in", '("stale_order","unresolved_payout")')
     .order("created_at", { ascending: false })
     .limit(100);
   return data ?? [];

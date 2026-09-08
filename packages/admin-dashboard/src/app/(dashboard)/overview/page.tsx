@@ -7,10 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { formatNumber } from "@/lib/utils";
 import {
   Users,
-  Wallet,
   Coins,
   Store,
-  ShoppingBag,
   Tag,
   BarChart2,
   AlertTriangle,
@@ -20,24 +18,17 @@ import {
 import type { OverviewStats } from "@/types";
 
 async function getOverviewStats(): Promise<OverviewStats> {
-  const [usersRes, activeWalletsRes, milesRes, merchantsRes, ordersRes, vouchersRes, pollRes, incidentsRes] =
+  const [usersRes, milesRes, merchantsRes, vouchersRes, pollRes, incidentsRes] =
     await Promise.all([
       supabase.from("akiba_users").select("id", { count: "exact", head: true }),
-      supabase
-        .from("merchant_transactions")
-        .select("user_address", { count: "exact", head: true })
-        .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
       supabase.from("miles_ledger").select("type, amount").in("type", ["mint", "burn"]),
       supabase.from("partners").select("id", { count: "exact", head: true }),
-      supabase
-        .from("merchant_transactions")
-        .select("id", { count: "exact", head: true })
-        .not("status", "in", '("received","completed","cancelled")'),
       supabase.from("issued_vouchers").select("status"),
       supabase.from("poll_responses").select("id", { count: "exact", head: true }),
       supabase
         .from("ops_incidents")
         .select("id", { count: "exact", head: true })
+        .not("incident_type", "in", '("stale_order","unresolved_payout")')
         .in("status", ["open", "in_progress"]),
     ]);
 
@@ -51,12 +42,10 @@ async function getOverviewStats(): Promise<OverviewStats> {
   const voucherRows = vouchersRes.data ?? [];
   return {
     total_users: usersRes.count ?? 0,
-    active_wallets: activeWalletsRes.count ?? 0,
-    miles_minted: milesMinted,
-    miles_burned: milesBurned,
+    miles_issued: milesMinted,
+    miles_spent: milesBurned,
     miles_outstanding: milesMinted - milesBurned,
     total_merchants: merchantsRes.count ?? 0,
-    active_orders: ordersRes.count ?? 0,
     vouchers_issued: voucherRows.length,
     vouchers_redeemed: voucherRows.filter((v) => v.status === "redeemed").length,
     poll_response_count: pollRes.count ?? 0,
@@ -112,12 +101,11 @@ export default async function OverviewPage() {
           </div>
         )}
 
-        {/* Users & wallets */}
+        {/* Members */}
         <section>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Users</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <StatCard title="Total Users" value={stats.total_users} icon={Users} />
-            <StatCard title="Active Wallets (30d)" value={stats.active_wallets} icon={Wallet} sub="Wallets with ≥1 tx in last 30 days" />
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Members</h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <StatCard title="Total Members" value={stats.total_users} icon={Users} />
             <StatCard title="Poll Responses" value={stats.poll_response_count} icon={BarChart2} />
           </div>
         </section>
@@ -126,18 +114,17 @@ export default async function OverviewPage() {
         <section>
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">AkibaMiles Supply</h2>
           <div className="grid gap-4 sm:grid-cols-3">
-            <StatCard title="Miles Minted" value={stats.miles_minted} icon={TrendingUp} />
-            <StatCard title="Miles Burned" value={stats.miles_burned} icon={TrendingDown} />
-            <StatCard title="Outstanding" value={stats.miles_outstanding} icon={Coins} sub="Minted minus burned" />
+            <StatCard title="Miles Issued" value={stats.miles_issued} icon={TrendingUp} />
+            <StatCard title="Miles Spent" value={stats.miles_spent} icon={TrendingDown} />
+            <StatCard title="Outstanding" value={stats.miles_outstanding} icon={Coins} sub="Issued minus spent" />
           </div>
         </section>
 
-        {/* Commerce */}
+        {/* Merchant network */}
         <section>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Commerce</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Merchant network</h2>
+          <div className="grid gap-4 sm:grid-cols-3">
             <StatCard title="Total Merchants" value={stats.total_merchants} icon={Store} />
-            <StatCard title="Active Orders" value={stats.active_orders} icon={ShoppingBag} sub="Non-final status" />
             <StatCard title="Vouchers Issued" value={stats.vouchers_issued} icon={Tag} />
             <StatCard title="Vouchers Redeemed" value={stats.vouchers_redeemed} icon={Tag} sub={`${stats.vouchers_issued > 0 ? Math.round((stats.vouchers_redeemed / stats.vouchers_issued) * 100) : 0}% redemption rate`} />
           </div>

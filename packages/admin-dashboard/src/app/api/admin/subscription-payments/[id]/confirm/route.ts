@@ -1,5 +1,5 @@
 // POST /api/admin/subscription-payments/[id]/confirm
-// Confirms a valid NCBA/M-Pesa subscription payment. All enforceable checks live
+// Confirms a valid bank-transfer or M-Pesa subscription payment. All enforceable checks live
 // in the Akiba-owned `confirm_subscription_payment` RPC (migration 092), which
 // locks the attempt, invoice, and subscription rows, requires an exact KES
 // balance match, enforces reference uniqueness, and is idempotent on retry.

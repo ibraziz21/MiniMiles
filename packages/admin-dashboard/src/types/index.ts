@@ -175,12 +175,10 @@ export interface MerchantAdminNote {
 
 export interface OverviewStats {
   total_users: number;
-  active_wallets: number;
-  miles_minted: number;
-  miles_burned: number;
+  miles_issued: number;
+  miles_spent: number;
   miles_outstanding: number;
   total_merchants: number;
-  active_orders: number;
   vouchers_issued: number;
   vouchers_redeemed: number;
   poll_response_count: number;
@@ -191,6 +189,7 @@ export interface OverviewStats {
 
 export type IncidentStatus = "open" | "in_progress" | "resolved" | "wont_fix";
 export type IncidentType =
+  // Retained in the type for historical rows; hidden from the current ops UI.
   | "stale_order"
   | "failed_randomness"
   | "unresolved_payout"

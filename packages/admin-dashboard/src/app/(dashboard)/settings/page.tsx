@@ -21,7 +21,7 @@ export default async function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>System Settings</CardTitle>
-              <CardDescription>Security policy, payout defaults, and notification recipients.</CardDescription>
+              <CardDescription>Security policy, subscription receipt details, and notification recipients.</CardDescription>
             </CardHeader>
             <CardContent>
               <SystemSettingsForm settings={settings} canEdit={isSuperAdmin && !session.openAccess} />
