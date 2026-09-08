@@ -13,7 +13,7 @@ export type LegalPage = {
 
 export const privacyPolicy: LegalPage = {
   title: "Privacy Policy",
-  lastUpdated: "Jul 16, 2026",
+  lastUpdated: "Sep 8, 2026",
   intro:
     "This Privacy Policy explains how Akiba Ecosystems Ltd (\"Akiba\", \"we\") collects, uses, and protects information when you use the Akiba services — including the Akiba Pass, Scan & Award at participating merchants, the Akiba Hub, the Akiba Mini-App on MiniPay, and this website. By using our services or submitting information through this site, you agree to this policy.",
   sections: [
@@ -26,7 +26,7 @@ export const privacyPolicy: LegalPage = {
         "Account details when you register for an Akiba Pass: email address, phone number, and optionally your name, country, and reward interests.",
         "Wallet addresses you link, to assign Miles and track balances.",
         "Purchase reward data when you earn Miles at a participating merchant: the merchant, purchase amount, product category, payment reference, and time of purchase.",
-        "Order and payment data when you buy through the Akiba Hub, including M-Pesa transaction references processed via Safaricom's payment systems.",
+        "Voucher activity in the Akiba Hub and Pass, including Miles spent, vouchers obtained, and voucher redemptions at participating merchants.",
         "Interaction data from the Mini-App and Hub, such as point-earning actions, quest completions, referrals, raffle entries, and voucher redemptions.",
         "Optional profile and social information if you provide it for quests, physical rewards, winner contact, or profile completion.",
         "Business contact details when you submit a merchant or partner inquiry, such as name, email, company, country, website, role, and message.",
@@ -37,7 +37,7 @@ export const privacyPolicy: LegalPage = {
       bullets: [
         "Assign and track Miles earned from purchases, quests, and other activities.",
         "Operate Scan & Award, including verifying purchases and delivering rewards to your Akiba Pass.",
-        "Process orders, payments, voucher issuance, and voucher redemptions.",
+        "Issue Miles and vouchers, record voucher redemptions, and show loyalty activity in the Akiba Hub, Pass, and merchant dashboard.",
         "Display progress on dashboards, leaderboards, badges, and profiles.",
         "Enable raffle entries, reward distribution, and winner contact.",
         "Review merchant and partner inquiries and respond to business requests.",
@@ -71,7 +71,7 @@ export const privacyPolicy: LegalPage = {
     {
       title: "7. Third-Party Services",
       paragraphs: [
-        "Akiba integrates with third-party services to operate: MiniPay (distribution surface for the Mini-App), Safaricom M-Pesa (payment processing), Supabase (data infrastructure), the Celo blockchain network, and anti-spam providers. Data handled by those services is subject to their own policies as applicable.",
+        "Akiba uses third-party services to operate, including MiniPay as a distribution surface for the Mini-App, M-Pesa and banking services for merchant subscription payments, Supabase for data infrastructure, the Celo network for Miles records, and anti-spam providers. Akiba does not process customer purchase payments. Data handled by third-party services is subject to their own policies as applicable.",
       ],
     },
     {
@@ -101,7 +101,7 @@ export const privacyPolicy: LegalPage = {
 
 export const termsOfUse: LegalPage = {
   title: "Terms of Service",
-  lastUpdated: "Jul 16, 2026",
+  lastUpdated: "Sep 8, 2026",
   intro:
     "By accessing or using the Akiba applications or website, operated by Akiba Ecosystems Ltd (\"Akiba\", \"we\"), you agree to be bound by the following terms and conditions. If you do not agree, do not use the service.",
   sections: [
@@ -109,7 +109,7 @@ export const termsOfUse: LegalPage = {
       title: "1. What Akiba Is",
       paragraphs: [
         "Akiba is a loyalty network. Shoppers earn Miles on qualifying purchases at participating merchants via Scan & Award using their Akiba Pass, and can redeem Miles for merchant vouchers, discounts, and other rewards across the network.",
-        "Akiba also includes the Akiba Hub — where users can shop from participating merchants, manage their Pass, and redeem vouchers — and the Akiba Mini-App on the MiniPay wallet, where users can earn additional Miles through predefined activities such as quests, challenges, and streaks, and use Miles for raffles and digital experiences.",
+        "Akiba also includes the Akiba Hub and Pass, where users can collect Miles from purchases, spend Miles on merchant vouchers, and present those vouchers at participating merchants. The Akiba Mini-App on MiniPay lets users earn additional Miles through activities such as quests, challenges, and streaks, and use Miles for raffles and digital experiences.",
         "The Akiba Mini-App runs on MiniPay as a distribution surface. Akiba is built and operated by Akiba Ecosystems Ltd and is not affiliated with, or operated by, MiniPay or Opera.",
       ],
     },
@@ -134,17 +134,18 @@ export const termsOfUse: LegalPage = {
       ],
     },
     {
-      title: "5. Purchases and Payments",
+      title: "5. Purchases and Customer Payments",
       paragraphs: [
-        "Purchases made through the Akiba Hub are paid via M-Pesa or other supported payment methods. An order is complete only when payment is confirmed. If a payment fails or is cancelled, any voucher applied to that order is released back to you and no Miles are awarded.",
-        "Rewards for in-store purchases are issued when the merchant scans your Akiba Pass and the purchase is verified. Refunds and exchanges for goods purchased from a merchant are subject to that merchant's own policies.",
+        "Customers always pay participating merchants directly. Akiba does not collect, process, hold, or settle customer purchase payments at any point.",
+        "The Akiba Hub and Pass support the loyalty journey: customers collect Miles from qualifying purchases, spend Miles on vouchers, and use those vouchers with participating merchants.",
+        "Rewards for purchases are issued when the merchant records or verifies the purchase through Akiba. Refunds, exchanges, payment disputes, and fulfilment remain between the customer and the merchant and are subject to the merchant's own policies.",
       ],
     },
     {
       title: "6. Vouchers",
       paragraphs: [
         "Vouchers are redeemed against purchases and may be limited to a specific merchant, product, or category. Vouchers may carry an expiry date, after which they are no longer usable. A voucher can be used once and cannot be transferred, resold, or exchanged for cash.",
-        "We may cancel or claw back a voucher where it was obtained or used through fraud, abuse, or a reversed payment.",
+        "We may cancel or claw back a voucher where it was obtained or used through fraud, abuse, or a purchase that was reversed or found to be invalid.",
       ],
     },
     {
@@ -156,7 +157,11 @@ export const termsOfUse: LegalPage = {
     {
       title: "8. Merchants",
       paragraphs: [
-        "Merchant participation in the Akiba network — including subscription plans, service fees, reward funding, and payouts — is governed by a separate merchant agreement entered into during merchant onboarding. Published pricing on this website is indicative and may change.",
+        "Merchant participation in the Akiba network — including subscription plans and reward activity — is governed by a separate merchant agreement entered into during merchant onboarding. Subscription invoices are generated in the merchant dashboard and paid directly to Akiba by M-Pesa or bank transfer. These subscription payments are separate from customer purchases.",
+        "Published subscription prices exclude VAT. Miles issued above a plan's monthly allowance are charged at the published per-Mile overage rate and added to the invoice for the next billing period. On quarterly and annual plans, overage is invoiced monthly.",
+        "Monthly renewal invoices are issued 7 days before renewal. Quarterly and annual renewal invoices are issued 14 days before renewal. Akiba sends a reminder 3 days before the due date, on the due date, and 3 days after it, and may follow up directly with the merchant.",
+        "An unpaid renewal invoice has a 7-day grace period. After the grace period, Akiba may pause new Miles issuance and voucher publishing until the invoice is paid in full. Vouchers already issued to customers remain redeemable, and full service is restored after payment is confirmed.",
+        "A subscription cancellation takes effect at the end of the current paid term, and a term that has already started is not refundable. Plan upgrades take effect immediately and are prorated. Plan downgrades take effect at the next renewal.",
       ],
     },
     {

@@ -1,95 +1,107 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowUpRight, Check, Terminal, Webhook, Zap, BarChart3, Shield, Code2 } from "lucide-react";
+import {
+  ArrowUpRight,
+  BarChart3,
+  Check,
+  Gift,
+  ScanLine,
+  Store,
+  Ticket,
+  Webhook,
+} from "lucide-react";
 import { ButtonLink } from "@/components/ButtonLink";
 import { SectionHeader } from "@/components/SectionHeader";
 import { siteConfig } from "@/content/site";
 
 export const metadata: Metadata = {
-  title: "Developers",
+  title: "Voucher and Loyalty API for Merchants",
   description:
-    "Embed the full AkibaMiles loyalty stack into your app via REST API. Partner keys, HMAC-signed webhooks, tiered rate limits. Quests, events, rewards, campaigns — all programmable.",
+    "Create, distribute, and redeem merchant vouchers with the AkibaMiles API. Connect your checkout, POS, or customer platform and track every redemption.",
 };
 
 const apiCapabilities = [
   {
-    icon: Terminal,
-    title: "Quests",
-    body: "Create executable, rewardable user actions. Define verification rules, reward rules, and lifecycle transitions (draft → active → paused → archived). Each completion writes to an immutable ledger.",
-    endpoints: ["POST /v1/quests", "POST /v1/quests/:id/verify", "GET /v1/quests/:id/analytics"],
+    icon: Ticket,
+    title: "Generate voucher codes",
+    body: "Create unique voucher codes with a clear description, Miles value, and expiry. Akiba returns the code immediately so your system can distribute it.",
+    endpoints: ["POST /api/v1/vouchers/issue"],
   },
   {
-    icon: Zap,
-    title: "Events",
-    body: "Push arbitrary user events into the Akiba pipeline. Events fire quest triggers automatically — idempotent by SHA-256 hash of (eventType, questId, walletAddress, occurredAt).",
-    endpoints: ["POST /v1/events", "POST /v1/events/batch", "GET /v1/events/summary"],
+    icon: Gift,
+    title: "Distribute vouchers",
+    body: "Deliver issued codes through your existing CRM, checkout, campaign, or customer-support workflow—without moving customers into a separate tool.",
+    endpoints: ["POST /api/v1/vouchers/issue"],
+  },
+  {
+    icon: ScanLine,
+    title: "Redeem at checkout",
+    body: "Validate and redeem a code from your POS or online checkout. Each redemption is recorded once, with a clear result your team can act on immediately.",
+    endpoints: ["POST /api/v1/vouchers/:code/redeem"],
+  },
+  {
+    icon: Store,
+    title: "Publish your rewards catalog",
+    body: "Make active rewards available to customers and keep each item's Miles cost and stock visible anywhere you embed your catalog.",
+    endpoints: ["GET /api/v1/catalog/:merchantSlug"],
   },
   {
     icon: BarChart3,
-    title: "Campaigns & Raffles",
-    body: "Create raffle containers, attach quest gates for eligibility, check wallet eligibility, and manage campaign lifecycle. Entry is gated by quest completion — casual claimers excluded by design.",
-    endpoints: ["POST /v1/campaigns", "PUT /v1/campaigns/:id/quest-gates", "GET /v1/campaigns/:id/eligibility"],
-  },
-  {
-    icon: Code2,
-    title: "Rewards & Miles",
-    body: "Issue, distribute, and claim Miles programmatically. Track balance per wallet, bulk distribute to a cohort, and confirm onchain claim transactions. All issuance is recorded on the immutable miles ledger.",
-    endpoints: ["POST /v1/rewards/issue", "POST /v1/rewards/distribute/bulk", "GET /v1/rewards/balance/:wallet"],
+    title: "Reward customer purchases",
+    body: "Issue Miles after a qualifying purchase and connect loyalty to the payment or order events your business already records.",
+    endpoints: ["POST /api/v1/rewards/issue"],
   },
   {
     icon: Webhook,
-    title: "Webhooks",
-    body: "Receive push notifications for quest verifications from your own backend. HMAC-SHA256 signed, timestamp-validated (±300 s), idempotency key required. Replay-safe by design.",
-    endpoints: ["POST /v1/webhooks/partners/:slug", "GET /v1/webhooks"],
-  },
-  {
-    icon: Shield,
-    title: "Vouchers & Catalog",
-    body: "Issue voucher codes, manage a merchant catalog, and process redemptions. Full audit trail: every code issued and every redemption linked to a wallet and timestamp.",
-    endpoints: ["POST /v1/vouchers/issue", "POST /v1/vouchers/:code/redeem", "GET /v1/catalog/:merchantSlug"],
+    title: "Track outcomes",
+    body: "Use signed webhooks and dashboard reporting to follow voucher issuance, redemption, customer activity, and campaign performance.",
+    endpoints: ["GET /api/v1/webhooks", "GET /api/v1/catalog/analytics"],
   },
 ];
 
-const rateTiers = [
+const integrationOptions = [
   {
-    tier: "Starter",
-    limit: "60 req / min",
-    description: "Validate your integration and run a first campaign.",
-    features: ["Partner API key (`ak_live_*`)", "Quest + event pipeline", "Basic analytics"],
+    eyebrow: "No code",
+    title: "Merchant dashboard",
+    body: "Create voucher types, issue rewards, manage branches, and review redemptions from a self-serve dashboard.",
+    cta: "Open merchant dashboard",
+    href: siteConfig.merchantUrl,
   },
   {
-    tier: "Growth",
-    limit: "300 req / min",
-    description: "Production campaigns with real user volume.",
-    features: ["Everything in Starter", "Webhook push support", "Bulk reward distribution", "Campaign analytics"],
-    popular: true,
+    eyebrow: "Direct integration",
+    title: "Voucher API",
+    body: "Connect voucher issuance and redemption directly to your POS, checkout, CRM, or backend services.",
+    cta: "Request API access",
+    href: `mailto:${siteConfig.email}?subject=Merchant%20Voucher%20API%20Access`,
   },
   {
-    tier: "Enterprise",
-    limit: "1,000 req / min",
-    description: "High-throughput fintech integrations and platform embeds.",
-    features: ["Everything in Growth", "Custom rate limit negotiation", "Dedicated support", "SLA available"],
+    eyebrow: "Flexible",
+    title: "Dashboard + API",
+    body: "Let your team manage offers in the dashboard while your systems handle distribution and redemption through the API.",
+    cta: "See API capabilities",
+    href: "/developers#capabilities",
   },
 ];
 
-const authExample = `POST /api/v1/quests/:questId/verify
+const issueExample = `POST /api/v1/vouchers/issue
 Authorization: Bearer ak_live_xxxxxxxxxxxxxxxxxxxx
 Content-Type: application/json
+Idempotency-Key: issue_order_1042
 
 {
-  "walletAddress": "0xabc…",
-  "idempotencyKey": "evt_2024_abc123",
-  "metadata": { "txHash": "0xdef…" }
+  "description": "500 Miles off the next purchase",
+  "milesValue": 500,
+  "expiresAt": "2026-12-31T23:59:59Z"
 }`;
 
-const webhookExample = `POST /webhooks/partners/:partnerSlug
-X-Akiba-Partner-Key:     <api-key-uuid>
-X-Akiba-Signature:       <HMAC-SHA256 hex>
-X-Akiba-Timestamp:       1719600000
-X-Akiba-Idempotency-Key: evt_unique_id_abc
+const redeemExample = `POST /api/v1/vouchers/AKIBA-WELCOME-10/redeem
+Authorization: Bearer ak_live_xxxxxxxxxxxxxxxxxxxx
+Content-Type: application/json
+Idempotency-Key: redeem_order_1179
 
-// HMAC formula:
-// HMAC-SHA256(webhookSecret, "\${timestamp}.\${rawBody}")`;
+{
+  "redeemedBy": "customer_123"
+}`;
 
 export default function DevelopersPage() {
   return (
@@ -98,17 +110,17 @@ export default function DevelopersPage() {
       <section className="overflow-hidden bg-akiba-ink px-4 py-16 text-white sm:px-6 lg:px-8 lg:py-20">
         <div className="mx-auto max-w-4xl text-center">
           <div className="inline-flex rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-[#74D4DF]">
-            Akiba Platform API · REST · v1
+            Akiba Merchant API · REST
           </div>
           <h1 className="mt-6 font-sterling text-5xl font-medium leading-[1.02] sm:text-6xl">
-            Loyalty-as-a-service,<br />via API.
+            Vouchers that move<br />from campaign to checkout.
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-white/65">
-            Embed the full AkibaMiles loyalty stack into your app or fintech product — quests, events, rewards, campaigns, vouchers, and webhook push — through a single REST API.
+            Create voucher offers, distribute unique codes to customers, redeem them in-store or online, and track every result from one merchant-focused API.
           </p>
           <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <ButtonLink href="/developers#contact" className="bg-akiba-teal text-white hover:bg-akiba-teal/90">
-              Get API access
+            <ButtonLink href={siteConfig.merchantUrl} className="bg-akiba-teal text-white hover:bg-akiba-teal/90">
+              Open merchant dashboard
             </ButtonLink>
             <Link
               href="/developers#capabilities"
@@ -117,25 +129,85 @@ export default function DevelopersPage() {
               Explore the API <ArrowUpRight className="h-4 w-4" />
             </Link>
           </div>
+          <p className="mt-5 text-sm text-white/45">Dashboard signup is self-serve.</p>
+        </div>
+      </section>
+
+      {/* Integration paths */}
+      <section id="integration" className="scroll-mt-20 border-b border-akiba-line bg-white px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <SectionHeader
+            eyebrow="Choose your setup"
+            title="Start in the dashboard. Integrate when you need to."
+            body="Run the full voucher workflow without code, connect it to your existing systems, or use both together."
+            align="center"
+          />
+          <div className="mt-10 grid gap-5 md:grid-cols-3">
+            {integrationOptions.map((option) => (
+              <article key={option.title} className="flex flex-col rounded-xl border border-akiba-line bg-akiba-paper p-6">
+                <p className="text-xs font-semibold uppercase tracking-widest text-akiba-teal">{option.eyebrow}</p>
+                <h2 className="mt-3 font-sterling text-2xl font-medium text-akiba-ink">{option.title}</h2>
+                <p className="mt-3 flex-1 text-sm leading-7 text-akiba-muted">{option.body}</p>
+                <Link href={option.href} className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-akiba-teal no-underline">
+                  {option.cta} <ArrowUpRight className="h-4 w-4" />
+                </Link>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* API capabilities */}
+      <section id="capabilities" className="scroll-mt-20 bg-akiba-paper px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <SectionHeader
+            eyebrow="Merchant API"
+            title="The voucher workflow, end to end."
+            body="Manage the offer in Akiba, connect distribution to the tools you already use, and make redemption simple for customers and staff."
+            align="center"
+          />
+          <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {apiCapabilities.map((capability) => {
+              const Icon = capability.icon;
+              return (
+                <article key={capability.title} className="flex flex-col rounded-xl border border-akiba-line bg-white p-6">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-akiba-tint">
+                      <Icon className="h-5 w-5 text-akiba-teal" />
+                    </div>
+                    <h2 className="font-sterling text-xl font-medium text-akiba-ink">{capability.title}</h2>
+                  </div>
+                  <p className="mt-4 flex-1 text-sm leading-7 text-akiba-muted">{capability.body}</p>
+                  <div className="mt-5 space-y-1.5">
+                    {capability.endpoints.map((endpoint) => (
+                      <code key={endpoint} className="block rounded bg-akiba-paper px-2.5 py-1.5 text-xs text-akiba-teal">
+                        {endpoint}
+                      </code>
+                    ))}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         </div>
       </section>
 
       {/* Auth model */}
-      <section className="border-b border-akiba-line bg-white px-4 py-16 sm:px-6 lg:px-8">
+      <section id="auth" className="scroll-mt-20 border-b border-akiba-line bg-white px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-12 lg:grid-cols-2 lg:items-start">
             <div>
               <SectionHeader
-                eyebrow="Authentication"
-                title="API keys and HMAC webhooks."
-                body="Every partner gets a scoped API key (ak_live_*). Inbound webhooks from your backend are HMAC-SHA256 signed, timestamp-validated, and idempotency-keyed — replay-safe by design."
+                eyebrow="Integration basics"
+                title="One partner key. Safe repeat requests."
+                body="Your integration receives a scoped API key. Idempotency keys protect voucher issuance and redemption from accidental duplicates, while signed webhooks keep your systems updated."
               />
               <ul className="mt-8 space-y-4">
                 {[
-                  { label: "Partner API key", detail: "ak_live_* · SHA-256 hashed at rest · scoped to a single partner" },
-                  { label: "Webhook security", detail: "HMAC-SHA256(secret, timestamp.body) · ±300 s clock window · timing-safe comparison" },
-                  { label: "Idempotency", detail: "X-Akiba-Idempotency-Key required on webhooks · unique constraint on (questId, key)" },
-                  { label: "Rate limiting", detail: "Per-key tier enforcement · 429 with RATE_LIMIT_EXCEEDED on violation" },
+                  { label: "Scoped access", detail: "A partner key connected only to your merchant account." },
+                  { label: "Duplicate protection", detail: "Idempotency keys make retries safe at checkout." },
+                  { label: "Signed updates", detail: "Authenticated webhooks for events your backend needs." },
+                  { label: "Clear responses", detail: "Structured JSON results and consistent error codes." },
                 ].map((item) => (
                   <li key={item.label} className="flex items-start gap-3">
                     <Check className="mt-0.5 h-4 w-4 shrink-0 text-akiba-teal" />
@@ -148,20 +220,20 @@ export default function DevelopersPage() {
               </ul>
             </div>
             <div className="space-y-4">
-              <div className="overflow-hidden rounded-lg bg-akiba-ink">
+              <div className="overflow-hidden rounded-xl bg-akiba-ink">
                 <div className="border-b border-white/10 px-4 py-2.5">
-                  <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Quest verify · REST call</span>
+                  <span className="text-xs font-semibold uppercase tracking-widest text-white/40">Issue a voucher</span>
                 </div>
                 <pre className="overflow-x-auto px-5 py-4 text-xs leading-6 text-[#74D4DF]">
-                  <code>{authExample}</code>
+                  <code>{issueExample}</code>
                 </pre>
               </div>
-              <div className="overflow-hidden rounded-lg bg-akiba-ink">
+              <div className="overflow-hidden rounded-xl bg-akiba-ink">
                 <div className="border-b border-white/10 px-4 py-2.5">
-                  <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Inbound webhook · signed headers</span>
+                  <span className="text-xs font-semibold uppercase tracking-widest text-white/40">Redeem at checkout</span>
                 </div>
                 <pre className="overflow-x-auto px-5 py-4 text-xs leading-6 text-[#74D4DF]">
-                  <code>{webhookExample}</code>
+                  <code>{redeemExample}</code>
                 </pre>
               </div>
             </div>
@@ -169,109 +241,30 @@ export default function DevelopersPage() {
         </div>
       </section>
 
-      {/* API capabilities */}
-      <section id="capabilities" className="scroll-mt-20 bg-akiba-paper px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl">
-          <SectionHeader
-            eyebrow="API surface"
-            title="The full loyalty stack, programmable."
-            body="Six capability groups. One auth model. Every endpoint returns structured JSON with consistent error codes."
-            align="center"
-          />
-          <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {apiCapabilities.map((cap) => {
-              const Icon = cap.icon;
-              return (
-                <article key={cap.title} className="flex flex-col rounded-lg border border-akiba-line bg-white p-6">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-akiba-tint">
-                      <Icon className="h-4 w-4 text-akiba-teal" />
-                    </div>
-                    <h3 className="font-sterling text-lg font-medium text-akiba-ink">{cap.title}</h3>
-                  </div>
-                  <p className="mt-3 flex-1 text-sm leading-7 text-akiba-muted">{cap.body}</p>
-                  <div className="mt-4 space-y-1">
-                    {cap.endpoints.map((ep) => (
-                      <code key={ep} className="block rounded bg-akiba-paper px-2.5 py-1 text-xs text-akiba-teal">
-                        {ep}
-                      </code>
-                    ))}
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Rate tiers */}
-      <section id="pricing" className="scroll-mt-20 bg-white px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl">
-          <SectionHeader
-            eyebrow="Rate limits"
-            title="Three tiers. Start free."
-            body="Rate limits apply per API key. Violations return HTTP 429 with error code RATE_LIMIT_EXCEEDED. Talk to us if you need a custom limit."
-            align="center"
-          />
-          <div className="mt-10 grid gap-5 md:grid-cols-3">
-            {rateTiers.map((tier) => (
-              <article
-                key={tier.tier}
-                className={`flex flex-col rounded-lg p-6 ${
-                  tier.popular
-                    ? "bg-akiba-ink text-white ring-2 ring-akiba-teal"
-                    : "border border-akiba-line bg-white"
-                }`}
-              >
-                <div>
-                  <span className={`text-xs font-semibold uppercase tracking-widest ${tier.popular ? "text-[#74D4DF]" : "text-akiba-teal"}`}>
-                    {tier.tier}
-                  </span>
-                  <p className={`mt-3 font-sterling text-3xl font-semibold ${tier.popular ? "text-white" : "text-akiba-ink"}`}>
-                    {tier.limit}
-                  </p>
-                  <p className={`mt-2 text-sm ${tier.popular ? "text-white/60" : "text-akiba-muted"}`}>
-                    {tier.description}
-                  </p>
-                </div>
-                <ul className="mt-6 flex-1 space-y-3">
-                  {tier.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2.5 text-sm">
-                      <Check className={`mt-0.5 h-4 w-4 shrink-0 ${tier.popular ? "text-[#74D4DF]" : "text-akiba-teal"}`} />
-                      <span className={tier.popular ? "text-white/80" : "text-akiba-muted"}>{f}</span>
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Use cases band */}
+      {/* Use cases */}
       <section className="bg-akiba-paper px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <SectionHeader
-            eyebrow="Who uses the API"
-            title="Built for fintech builders, not just marketers."
+            eyebrow="Built for merchant operations"
+            title="Easy for your systems. Easy for your staff."
           />
           <div className="mt-10 grid gap-5 md:grid-cols-3">
             {[
               {
-                title: "Mobile money apps",
-                body: "Trigger mile issuance on qualifying M-Pesa or mobile-money transactions via event push or webhook. No SDK required — a single POST fires the reward pipeline.",
+                title: "Targeted distribution",
+                body: "Issue a welcome, win-back, or spend-based voucher from the customer and campaign tools you already use.",
               },
               {
-                title: "Merchant POS / checkout",
-                body: "Post a purchase event at checkout and have miles land in your customer's wallet before the receipt prints. Works with any stack — REST, not proprietary SDK.",
+                title: "In-store redemption",
+                body: "Validate a code at the counter, connect it to a branch and order, and give staff a clear success or failure result.",
               },
               {
-                title: "Fintech & neobank embeds",
-                body: "White-label the full loyalty loop inside your own product. Quest completion, rewards, campaign eligibility — all callable from your backend, with your branding in the consumer-facing layer.",
+                title: "Online checkout",
+                body: "Apply Akiba vouchers inside your existing checkout and record redemption without sending customers through another flow.",
               },
             ].map((item) => (
-              <article key={item.title} className="rounded-lg border border-akiba-line bg-white p-6">
-                <h3 className="font-sterling text-xl font-medium text-akiba-ink">{item.title}</h3>
+              <article key={item.title} className="rounded-xl border border-akiba-line bg-white p-6">
+                <h2 className="font-sterling text-xl font-medium text-akiba-ink">{item.title}</h2>
                 <p className="mt-3 text-sm leading-7 text-akiba-muted">{item.body}</p>
               </article>
             ))}
@@ -279,29 +272,30 @@ export default function DevelopersPage() {
         </div>
       </section>
 
-      {/* CTA / contact */}
+      {/* CTA */}
       <section id="contact" className="scroll-mt-20 bg-akiba-ink px-4 py-16 text-white sm:px-6 lg:px-8">
         <div className="mx-auto max-w-4xl text-center">
-          <p className="font-sterling text-base font-medium text-[#74D4DF]">Get access</p>
+          <p className="font-sterling text-base font-medium text-[#74D4DF]">Get started</p>
           <h2 className="mt-3 font-sterling text-4xl font-medium leading-[1.08]">
-            Ready to integrate?
+            Start with your first voucher.
           </h2>
-          <p className="mx-auto mt-4 max-w-xl text-lg leading-8 text-white/65">
-            Tell us what you&apos;re building and we&apos;ll provision a partner key, walk you through the relevant endpoints, and get your first quest or event pipeline live within a day.
+          <p className="mx-auto mt-4 max-w-2xl text-lg leading-8 text-white/65">
+            Create your merchant account and manage vouchers immediately from the dashboard. When you&apos;re ready to connect distribution or redemption to your own systems, request a partner API key.
           </p>
           <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <ButtonLink
-              href={`mailto:${siteConfig.email}?subject=API%20Access%20Request`}
-              className="bg-akiba-teal text-white hover:bg-akiba-teal/90"
-            >
-              Email us for API access
+            <ButtonLink href={siteConfig.merchantUrl} className="bg-akiba-teal text-white hover:bg-akiba-teal/90">
+              Open merchant dashboard
             </ButtonLink>
-            <ButtonLink href="/merchants#contact" variant="secondary" className="border-white/20 text-white hover:bg-white/10">
-              Merchant dashboard access
+            <ButtonLink
+              href={`mailto:${siteConfig.email}?subject=Merchant%20Voucher%20API%20Access`}
+              variant="secondary"
+              className="border-white/20 text-white hover:bg-white/10"
+            >
+              Request API access
             </ButtonLink>
           </div>
           <p className="mt-6 text-sm text-white/40">
-            We respond within 2 business days with your key and onboarding notes.
+            Dashboard signup is self-serve. We respond to API access requests within 2 business days.
           </p>
         </div>
       </section>

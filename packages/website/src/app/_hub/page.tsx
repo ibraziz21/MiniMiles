@@ -42,7 +42,7 @@ const categoryTiles = [
   {
     icon: "🔵",
     label: "Base Campaigns",
-    description: "On-chain quests, games, and reward campaigns across the Base ecosystem.",
+    description: "Quests, games, and reward campaigns from ecosystem partners.",
     via: "Base App",
     viaColor: "bg-indigo-50 text-indigo-700",
   },

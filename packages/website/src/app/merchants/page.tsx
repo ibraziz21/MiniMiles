@@ -4,6 +4,7 @@ import { ArrowRight, Check } from "lucide-react";
 import { ButtonLink } from "@/components/ButtonLink";
 import { PartnerLeadForm } from "@/components/PartnerLeadForm";
 import { SectionHeader } from "@/components/SectionHeader";
+import { SubscriptionPlans } from "@/components/SubscriptionPlans";
 import { partnerContent, siteConfig } from "@/content/site";
 
 export const metadata: Metadata = {
@@ -41,7 +42,7 @@ export default function MerchantsPage() {
             <span className="text-akiba-teal">into the next visit.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-akiba-muted">
-            Akiba Scan &amp; Award gives your customers instant Miles on every purchase — no hardware, no POS integration. Set your reward rate, scan at the counter, and watch repeat spend grow. You only pay on completed sales.
+            Akiba Scan &amp; Award gives your customers instant Miles on every purchase — no hardware, no POS integration. Choose a subscription for your monthly activity, set your reward rate, and watch repeat spend grow.
           </p>
           <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <ButtonLink href={siteConfig.merchantUrl}>
@@ -113,7 +114,7 @@ export default function MerchantsPage() {
               },
               {
                 title: "You set the rate. You control the cost.",
-                body: "Define your reward rate, set qualifying spend thresholds, and cap your reward pool. Your loyalty budget is predictable — you pay per transaction, never a flat fee that doesn't scale.",
+                body: "Define your reward rate, set qualifying spend thresholds, and cap your reward pool. Your subscription includes a monthly Miles allowance, with transparent overage pricing when activity grows.",
               },
               {
                 title: "Portability builds the habit",
@@ -138,72 +139,27 @@ export default function MerchantsPage() {
         <div className="mx-auto max-w-7xl">
           <SectionHeader
             eyebrow={merchant.pricing.note}
-            title="Pick a plan. Only pay more when you sell more."
-            body="The service fee only applies to orders that complete. No sales, no service fee."
+            title="Choose a plan that fits your monthly activity."
+            body="Every plan includes a monthly Miles allowance, voucher tools, branch access, and predictable overage pricing."
             align="center"
           />
-          <div className="mt-10 grid gap-5 md:grid-cols-3">
-            {merchant.pricing.plans.map((plan) => {
-              const isPopular = plan.tier === "Most popular";
-              return (
-                <article
-                  key={plan.name}
-                  className={`flex flex-col rounded-lg p-6 ${
-                    isPopular
-                      ? "bg-akiba-ink text-white ring-2 ring-akiba-teal"
-                      : "border border-akiba-line bg-white"
-                  }`}
-                >
-                  <div>
-                    <span className={`text-xs font-semibold uppercase tracking-widest ${isPopular ? "text-[#74D4DF]" : "text-akiba-teal"}`}>
-                      {plan.tier}
-                    </span>
-                    <p className={`mt-1 font-sterling text-2xl font-medium ${isPopular ? "text-white" : "text-akiba-ink"}`}>
-                      {plan.name}
-                    </p>
-                    <div className="mt-4 flex items-baseline gap-1.5">
-                      {plan.price.startsWith("Ksh ") ? (
-                        <>
-                          <span className={`font-sterling text-xl font-medium ${isPopular ? "text-white/70" : "text-akiba-muted"}`}>
-                            Ksh
-                          </span>
-                          <span className={`font-sterling text-5xl font-semibold ${isPopular ? "text-white" : "text-akiba-ink"}`}>
-                            {plan.price.replace("Ksh ", "")}
-                          </span>
-                        </>
-                      ) : (
-                        <span className={`font-sterling text-5xl font-semibold ${isPopular ? "text-white" : "text-akiba-ink"}`}>
-                          {plan.price}
-                        </span>
-                      )}
-                      <span className={`text-sm ${isPopular ? "text-white/60" : "text-akiba-muted"}`}>/mo</span>
-                    </div>
-                    <div className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-medium ${isPopular ? "bg-white/10 text-white/80" : "bg-akiba-tint text-akiba-teal"}`}>
-                      {plan.fee}
-                    </div>
-                  </div>
-                  <ul className="mt-6 flex-1 space-y-3">
-                    {plan.features.map((f) => (
-                      <li key={f} className="flex items-start gap-2.5 text-sm">
-                        <Check className={`mt-0.5 h-4 w-4 shrink-0 ${isPopular ? "text-[#74D4DF]" : "text-akiba-teal"}`} />
-                        <span className={isPopular ? "text-white/80" : "text-akiba-muted"}>{f}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </article>
-              );
-            })}
-          </div>
+          <SubscriptionPlans plans={merchant.pricing.plans} merchantUrl={siteConfig.merchantUrl} />
           <p className="mt-5 text-center text-sm text-akiba-muted">{merchant.pricing.footnote}</p>
 
-          {/* Payout methods */}
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-            <span className="text-sm font-medium text-akiba-muted">Get paid via:</span>
-            {merchant.payoutMethods.map((method) => (
-              <span key={method} className="rounded-full border border-akiba-line bg-white px-4 py-1.5 text-sm font-medium text-akiba-ink">
-                {method}
-              </span>
-            ))}
+          <div className="mt-14">
+            <SectionHeader
+              eyebrow="Billing and usage"
+              title="Know exactly how your plan works."
+              align="center"
+            />
+            <dl className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {merchant.pricing.faqs.map((item) => (
+                <div key={item.question} className="rounded-xl border border-akiba-line bg-white p-5">
+                  <dt className="font-sterling text-lg font-medium text-akiba-ink">{item.question}</dt>
+                  <dd className="mt-2 text-sm leading-6 text-akiba-muted">{item.answer}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
 
           <div className="mt-10 flex justify-center">
@@ -229,7 +185,7 @@ export default function MerchantsPage() {
               {[
                 "Scan & Award setup and dashboard onboarding",
                 "M-Pesa and mobile-money purchase event integration",
-                "Analytics, repeat-customer insights, and settlement reporting",
+                "Analytics, repeat-customer insights, and Miles usage reporting",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2.5 text-sm text-white/75">
                   <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#74D4DF]" />

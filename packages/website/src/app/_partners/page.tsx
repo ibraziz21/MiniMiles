@@ -10,7 +10,7 @@ import { partnerContent } from "@/content/site";
 export const metadata: Metadata = {
   title: "Partners",
   description:
-    "Run quest campaigns and sponsored raffles that build repeat on-chain activity. Start with a $100 7-day Growth Test. 1.39M+ quest claims. 190K+ registered wallets.",
+    "Run quest campaigns and sponsored raffles that build repeat user activity. Start with a $100 7-day Growth Test. 1.39M+ quest claims. 190K+ registered users.",
 };
 
 const campaignPartners = [

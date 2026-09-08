@@ -40,10 +40,10 @@ export function SiteFooter() {
           <div className="mt-4 flex flex-col gap-3">
             {[
               { label: "API Overview", href: "/developers" },
+              { label: "Integration Options", href: "/developers#integration" },
+              { label: "Voucher API", href: "/developers#capabilities" },
               { label: "Authentication", href: "/developers#auth" },
-              { label: "API Capabilities", href: "/developers#capabilities" },
-              { label: "Rate Limits", href: "/developers#pricing" },
-              { label: "Get API Access", href: "/developers#contact" },
+              { label: "Request API Access", href: "/developers#contact" },
             ].map((item) => (
               <Link
                 key={item.href}

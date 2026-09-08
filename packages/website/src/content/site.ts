@@ -53,7 +53,7 @@ export const homeContent = {
     eyebrow: "For merchants",
     title: "Your customers shop with you today. Akiba brings them back tomorrow.",
     body:
-      "Launch a loyalty program in days — no hardware, no POS integration. Set your reward rate, scan to award, and watch repeat visits grow. You only pay on completed sales.",
+      "Launch a loyalty program in days — no hardware, no POS integration. Choose a plan for your monthly activity, set your reward rate, scan to award, and watch repeat visits grow.",
     cta: "Become an Akiba merchant",
   },
   miniApp: {
@@ -94,7 +94,7 @@ export const faqs = [
   {
     question: "How does it work for merchants?",
     answer:
-      "You set a reward rate, scan customer passes at the point of sale, and Akiba handles the rest — issuance, redemption, and a dashboard showing repeat-customer behaviour. No hardware, no integration project, and you only pay on completed sales.",
+      "Choose a subscription, set a reward rate, and scan customer passes at the point of sale. Akiba handles issuance, redemption, and reporting from the merchant dashboard — with no hardware or integration project required.",
   },
   {
     question: "Is Akiba operated by MiniPay or Opera?",
@@ -175,63 +175,92 @@ export const partnerContent = {
     title: "Loyalty that brings them back.",
     body: "Akiba Scan & Award rewards your customers instantly on every purchase. Set your reward rate, scan at the counter, and track repeat spend from one dashboard — no hardware, no integration project.",
     pricing: {
-      note: "Flat & simple pricing",
+      note: "Subscription plans",
       plans: [
         {
-          tier: "Starter",
-          name: "Listing",
-          price: "Ksh 2,500",
-          fee: "+ 2% of completed sales",
+          name: "Basic",
+          monthlyPrice: 500,
           features: [
-            "Full store & product listing",
-            "Complete order management",
-            "Create your own vouchers",
-            "Automatic monthly payouts",
-            "Finance & billing dashboard",
+            "1,500 Miles per usage month",
+            "2 active voucher types",
+            "Up to 2 branches",
+            "KES 0.30 per overage Mile",
+            "Recommended for businesses below KES 150,000.00 / mo",
           ],
         },
         {
-          tier: "Most popular",
+          name: "Standard",
+          monthlyPrice: 2500,
+          features: [
+            "10,000 Miles per usage month",
+            "5 active voucher types",
+            "Up to 2 branches",
+            "KES 0.30 per overage Mile",
+            "Recommended for businesses below KES 1,000,000.00 / mo",
+          ],
+        },
+        {
           name: "Growth",
-          price: "Ksh 5,000",
-          fee: "+ 2% of completed sales",
+          monthlyPrice: 5000,
           features: [
-            "Everything in Listing, plus:",
-            "Claw-game voucher campaigns",
-            "Priority placement in-app",
-            "Full analytics & city insights",
-            "Team accounts & roles",
-            "CSV exports & receipts",
-          ],
-        },
-        {
-          tier: "Scale",
-          name: "Commerce",
-          price: "Ksh 10,000",
-          fee: "+ 1.5% on sales",
-          features: [
-            "Everything in Growth, plus:",
-            "Lowest service fee (1.5%)",
-            "Featured storefront placement",
-            "Dedicated account support",
-            "Priority claw-campaign slots",
-            "Custom payout scheduling",
+            "50,000 Miles per usage month",
+            "20 active voucher types",
+            "Up to 2 branches",
+            "KES 0.30 per overage Mile",
+            "Recommended for businesses with KES 1,000,000.00 – KES 5,000,000.00 / mo",
           ],
         },
       ],
-      footnote: "Your payout = completed sales − fees. The service fee only applies to orders that complete.",
+      footnote: "Prices exclude VAT. Save 5% when billed quarterly or 20% when billed annually.",
+      faqs: [
+        {
+          question: "What does the monthly Miles allowance cover?",
+          answer: "It is the number of Miles your merchant account can issue to customers during each monthly usage period.",
+        },
+        {
+          question: "Do unused Miles roll over?",
+          answer: "No. Each monthly usage period starts with the allowance included in your plan.",
+        },
+        {
+          question: "What happens when I exceed my allowance?",
+          answer: "You can continue issuing Miles. Additional Miles are charged at KES 0.30 each and added to the invoice for your next billing period.",
+        },
+        {
+          question: "How do overages work on quarterly or annual plans?",
+          answer: "Your subscription term remains quarterly or annual, but any overage used is invoiced monthly.",
+        },
+        {
+          question: "How are active voucher types counted?",
+          answer: "The limit applies across your entire merchant account, including all branches.",
+        },
+        {
+          question: "How do I pay my subscription invoice?",
+          answer: "Pay by M-Pesa or bank transfer using the payment details shown on the invoice generated in your merchant dashboard.",
+        },
+        {
+          question: "When will I receive my renewal invoice?",
+          answer: "Monthly renewal invoices are issued 7 days before renewal. Quarterly and annual renewal invoices are issued 14 days before renewal, with reminders before and after the due date.",
+        },
+        {
+          question: "What happens if a renewal invoice is late?",
+          answer: "You have a 7-day grace period. After grace, new Miles issuance and voucher publishing are paused until the invoice is paid in full. Vouchers already issued to customers remain redeemable.",
+        },
+        {
+          question: "Can I cancel or change my plan?",
+          answer: "Cancellation takes effect at the end of your paid term and started terms are not refundable. Upgrades take effect immediately with proration; downgrades take effect at the next renewal.",
+        },
+      ],
     },
     howItWorks: [
       { step: "01", title: "Set your reward rate", body: "Onboard via the merchant dashboard, configure your qualifying spend categories, and set the reward rate you want to offer customers. No hardware to install." },
       { step: "02", title: "Scan to award", body: "Customer pays, you scan their Akiba Pass — Miles land in their account before they leave the counter. Works with M-Pesa and connected payment methods." },
-      { step: "03", title: "Watch them come back", body: "Your dashboard shows repeat-customer rate, spend per visit, and full settlement reporting. You only pay for transactions that actually happened." },
+      { step: "03", title: "Watch them come back", body: "Your dashboard shows repeat-customer rate, spend per visit, and Miles usage so you can see what drives the next visit." },
     ],
-    payoutMethods: ["M-Pesa", "Bank transfer", "Crypto wallet (cUSD)"],
   },
 
   project: {
     eyebrow: "For projects and growth teams",
-    title: "Turn reward budgets into sustained on-chain activity.",
+    title: "Turn reward budgets into sustained user activity.",
     body: "Most campaigns optimise for completions. AkibaMiles is built for behavior — repeat transactions, retained balances, and daily engagement that outlasts the campaign window.",
     problem: "Most campaigns: wallets pour in → tasks completed → rewards claimed → activity drops. You paid for a spike, not a user.",
     differentiators: [
@@ -256,7 +285,7 @@ export const partnerContent = {
       {
         name: "Partner Quests",
         tag: "Performance incentives",
-        body: "Define the on-chain or off-chain action — swap, deposit, hold, bridge, app usage. Users complete it, earn miles, and re-engage to accumulate more. Streaks and boosts drive frequency.",
+        body: "Define the action that matters — purchase, deposit, hold, payment, or app usage. Users complete it, earn Miles, and re-engage to accumulate more. Streaks and boosts drive frequency.",
         bullets: ["KPI-mapped: volume, frequency, TVL, DAU", "Streak and time-gated boost mechanics", "D7/D14/D30 retention reporting"],
       },
       {
@@ -324,7 +353,7 @@ export const partnerContent = {
 export const aboutContent = {
   hero: {
     eyebrow: "About Akiba",
-    title: "Kenya's first native onchain loyalty network.",
+    title: "A loyalty network built for everyday commerce.",
     body:
       "Akiba is merchant-funded, mobile-money-embedded rewards — portable across every merchant in the network. Lower settlement cost means more value handed back to customers. We win on the two things legacy points programs can't do: relationship depth and interoperability.",
   },
@@ -339,19 +368,19 @@ export const aboutContent = {
     },
     {
       title: "The economics are honest",
-      body: "Merchants pay to defend share-of-wallet. Customers get back value from their own spend. The onchain ledger is immutable and auditable. Nothing is hidden.",
+      body: "Merchants invest in repeat customers. Customers get value back from their own spend. Every Mile issued and every redemption has a clear, auditable record.",
     },
   ],
   builtBy: {
     title: "Built by Akiba Ecosystems Ltd.",
-    body: "Akiba is Kenya's onchain loyalty network — 300K users, merchant-funded rewards on everyday spend, and a platform API that lets any app or fintech embed the full loyalty stack. We started with engagement mechanics on MiniPay, learned what drives retention, and are now building the infrastructure the thesis actually requires.",
+    body: "Akiba connects 300K users with merchant-funded rewards on everyday spend. Merchants can launch from a self-serve dashboard, while the platform API connects voucher distribution and redemption to existing checkout and customer systems.",
   },
   surfaces: [
     "Scan & Award",
     "Akiba Pass",
     "Merchant Dashboard",
     "Platform API",
-    "Onchain Ledger",
+    "Rewards Ledger",
     "Partner Quests",
     "Raffles & Games",
     "MiniPay Mini-App",
