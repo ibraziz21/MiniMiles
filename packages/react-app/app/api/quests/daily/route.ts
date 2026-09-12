@@ -4,6 +4,7 @@ import { isBlacklisted } from "@/lib/blacklist";
 import { getQuest } from "@/lib/questRegistry";
 import { getCeloTxCount } from "@/lib/celoClient";
 import { isMiniPaySession, requireSession, logSessionAge } from "@/lib/auth";
+import { isSelfClaimEnabledForWallet } from "@/lib/server/dailySelfClaimMode";
 
 // Minimum lifetime tx count before a wallet can claim daily check-in rewards.
 // Prevents fresh bot wallets with zero history from farming.
@@ -18,6 +19,20 @@ export async function POST(_req: Request) {
 
     const addr = session.walletAddress;
     logSessionAge("quests/daily", addr, session.issuedAt);
+
+    // Self-claim cutover: once a wallet is in self-claim mode, this sponsored
+    // queue must not enqueue a mint job for it — including for cached/old
+    // frontend bundles that never learned about the voucher path.
+    if (isSelfClaimEnabledForWallet("daily_checkin", addr)) {
+      return Response.json(
+        {
+          success: false,
+          code: "self-claim-required",
+          message: "Update the app to claim this reward from your wallet.",
+        },
+        { status: 409 }
+      );
+    }
 
     if (await isBlacklisted(addr, "quests/daily")) {
       return Response.json({ success: false, message: "Forbidden" }, { status: 403 });

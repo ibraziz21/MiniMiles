@@ -142,6 +142,29 @@ async function hasQueuedDaily5Tx(userLc: string, questId: string, claimedAt: str
   return !!data?.length;
 }
 
+/**
+ * Recognizes a self-claim intent that has already been chain-confirmed
+ * (all-quests-self-claim-spec.md §8.1: "must recognize a chain_confirmed/
+ * confirmed self-claim intent during the cutover, but a merely issued
+ * voucher must not satisfy the requirement"). This only covers the narrow
+ * window between the mint being verified on-chain and the daily_engagement
+ * finalizer completing — once the finalizer runs, the daily_engagements
+ * check above already passes on its own.
+ */
+async function hasChainConfirmedSelfClaimIntent(userLc: string, questId: string, scopeKey: string) {
+  const { data, error } = await supabase
+    .from("daily_quest_claim_intents")
+    .select("id")
+    .eq("user_address", userLc)
+    .eq("quest_id", questId)
+    .eq("scope_key", scopeKey)
+    .in("status", ["chain_confirmed", "confirmed"])
+    .maybeSingle();
+
+  if (error) throw error;
+  return !!data;
+}
+
 async function evaluateDaily5TxCompleted(
   userAddress: string,
 ): Promise<RaffleRequirementGateResult> {
@@ -159,13 +182,16 @@ async function evaluateDaily5TxCompleted(
 
   if (error) throw error;
 
-  const queued = completed ? false : await hasQueuedDaily5Tx(userLc, quest.questId, today);
-  const passed = !!completed || queued;
+  const chainConfirmed = completed
+    ? false
+    : await hasChainConfirmedSelfClaimIntent(userLc, quest.questId, today);
+  const queued = completed || chainConfirmed ? false : await hasQueuedDaily5Tx(userLc, quest.questId, today);
+  const passed = !!completed || chainConfirmed || queued;
   const result: RaffleRequirementGateResult = {
     type: "daily_5tx_completed",
     label: gateLabel("daily_5tx_completed"),
     status: passed ? "passed" : "failed",
-    current: completed ? "Completed" : queued ? "Queued" : "Not completed",
+    current: completed || chainConfirmed ? "Completed" : queued ? "Queued" : "Not completed",
     required: "5-transfer quest today",
   };
   return { ...result, message: gateMessage(result) };

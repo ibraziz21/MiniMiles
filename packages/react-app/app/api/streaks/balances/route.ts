@@ -2,48 +2,61 @@
 import { NextResponse } from "next/server";
 import { userStableWalletBalanceAtLeastUsd } from "@/helpers/walletStableBalance";
 import { claimStreakReward } from "@/helpers/streaks";
+import { requireSession, logSessionAge } from "@/lib/auth";
+import { isSelfClaimEnabledForWallet } from "@/lib/server/dailySelfClaimMode";
+import { selfClaimRequiredResponse } from "@/lib/server/legacySelfClaimGate";
+import { getBalanceStreakConfigByQuestId } from "@/lib/streakRegistry";
 
 /**
  * Daily streak:
- *  - "Akiba Streak for holding a balance of at least $10 and $30 USD with daily rewards"
- *  - We treat them as 2 quests; body.tier selects threshold:
- *      - tier "10" => min $10, e.g. 10 Miles/day
- *      - tier "30" => min $30, e.g. 20 Miles/day
+ *  - "Akiba Streak for holding a balance of at least $10/$30/$100 USD with daily rewards"
  *
  * POST /api/streaks/balances
- * body: { userAddress: string; questId: string; tier: "10" | "30" | "100" }
+ * body: { questId: string }
+ *
+ * docs/all-quests-self-claim-spec.md §5.5: the wallet comes from the session,
+ * never from request JSON, and questId maps through the fixed
+ * lib/streakRegistry.ts table — tier/minUsd/points are never taken from the
+ * client (previously `tier` was an unchecked client-supplied string with no
+ * link back to questId).
  */
 export async function POST(req: Request) {
   try {
-    const { userAddress, questId, tier } = await req.json();
+    const session = await requireSession();
+    if (!session) {
+      return NextResponse.json({ success: false, message: "Authentication required" }, { status: 401 });
+    }
+    const userAddress = session.walletAddress;
+    logSessionAge("streaks/balances", userAddress, session.issuedAt);
 
-    if (!userAddress || !questId || !tier) {
-      return NextResponse.json(
-        { success: false, message: "Missing userAddress, questId or tier" },
-        { status: 400 }
-      );
+    const body = await req.json().catch(() => ({}));
+    const questId = typeof body?.questId === "string" ? body.questId : null;
+    const config = questId ? getBalanceStreakConfigByQuestId(questId) : null;
+    if (!config) {
+      return NextResponse.json({ success: false, message: "Unknown or missing questId" }, { status: 400 });
     }
 
-    const minUsd = tier === "100" ? 100 : tier === "30" ? 30 : 10;
-    const points = tier === "100" ? 70 : tier === "30" ? 50 : 40;
+    if (isSelfClaimEnabledForWallet(`daily_balance_streak_${config.tier}`, userAddress)) {
+      return selfClaimRequiredResponse();
+    }
 
     // 1) check combined stable wallet balance
-    const ok = await userStableWalletBalanceAtLeastUsd(userAddress, minUsd);
+    const ok = await userStableWalletBalanceAtLeastUsd(userAddress, config.minUsd);
     if (!ok) {
       return NextResponse.json({
         success: false,
         code: "condition-failed",
-        message: `Need at least $${minUsd} in your wallet (cUSD/USDT/other stables)`,
+        message: `Need at least $${config.minUsd} in your wallet (cUSD/USDT/other stables)`,
       });
     }
 
     // 2) daily reward
     const result = await claimStreakReward({
       userAddress,
-      questId,
-      points,
+      questId: config.questId,
+      points: config.points,
       scope: "daily",
-      label: `wallet-${tier}-streak`,
+      label: `wallet-${config.tier}-streak`,
     });
 
     if (!result.ok && result.code === "already") {

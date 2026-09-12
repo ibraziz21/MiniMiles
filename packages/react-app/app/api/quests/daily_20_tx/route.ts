@@ -2,7 +2,10 @@
 import { NextResponse } from "next/server";
 import { claimQueuedDailyReward } from "@/lib/minipointQueue";
 import { countOutgoingTransfersIn24H } from "@/helpers/graphQuestTransfer";
+import { getQuest } from "@/lib/questRegistry";
 import { requireSession, logSessionAge } from "@/lib/auth";
+import { isSelfClaimEnabledForWallet } from "@/lib/server/dailySelfClaimMode";
+import { selfClaimRequiredResponse } from "@/lib/server/legacySelfClaimGate";
 
 export async function POST(_req: Request) {
   try {
@@ -12,7 +15,11 @@ export async function POST(_req: Request) {
     const userAddress = session.walletAddress;
     logSessionAge("quests/daily_20_tx", userAddress, session.issuedAt);
 
-    const questId = process.env.QUEST_ID_DAILY_20TX ?? "daily_20tx";
+    if (isSelfClaimEnabledForWallet("daily_20tx", userAddress)) return selfClaimRequiredResponse();
+
+    // docs/all-quests-self-claim-spec.md §8.1: now server-registry-driven
+    // instead of a fallback literal questId ("daily_20tx") and hard-coded points.
+    const quest = getQuest("daily_20tx");
     const today = new Date().toISOString().slice(0, 10);
 
     let txs: number;
@@ -31,10 +38,10 @@ export async function POST(_req: Request) {
 
     const result = await claimQueuedDailyReward({
       userAddress,
-      questId,
-      points: 50,
+      questId: quest.questId,
+      points: quest.points,
       scopeKey: today,
-      reason: `daily-20tx:${questId}`,
+      reason: quest.reason,
     });
 
     if (!result.ok && result.code === "already") return NextResponse.json({ success: false, code: "already" });

@@ -4,6 +4,8 @@ import { claimQueuedDailyReward } from "@/lib/minipointQueue";
 import { userReceivedAtLeast1DollarIn24Hrs } from "@/helpers/graphQuestTransfer";
 import { getQuest } from "@/lib/questRegistry";
 import { requireSession, logSessionAge } from "@/lib/auth";
+import { isSelfClaimEnabledForWallet } from "@/lib/server/dailySelfClaimMode";
+import { selfClaimRequiredResponse } from "@/lib/server/legacySelfClaimGate";
 
 export async function POST(_req: Request) {
   try {
@@ -12,6 +14,9 @@ export async function POST(_req: Request) {
 
     const addr = session.walletAddress;
     logSessionAge("quests/daily_receive", addr, session.issuedAt);
+
+    if (isSelfClaimEnabledForWallet("daily_receive", addr)) return selfClaimRequiredResponse();
+
     const quest = getQuest("daily_receive");
     const today = new Date().toISOString().slice(0, 10);
 

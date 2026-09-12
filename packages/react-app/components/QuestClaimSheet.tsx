@@ -156,7 +156,7 @@ export const QuestClaimLoadingSheet: FC<LoadingProps> = ({
 /*  Result sheet (success / already / error)                        */
 /* ──────────────────────────────────────────────────────────────── */
 
-type ResultVariant = "success" | "already" | "error";
+type ResultVariant = "success" | "already" | "error" | "pending";
 
 type ResultProps = BaseProps & {
   variant: ResultVariant;
@@ -183,14 +183,14 @@ export const QuestClaimResultSheet: FC<ResultProps> = ({
   const Icon =
     variant === "success"
       ? CheckCircle2
-      : variant === "already"
+      : variant === "already" || variant === "pending"
       ? Info
       : AlertTriangle;
 
   const iconClass =
     variant === "success"
       ? "text-[#238D9D]"
-      : variant === "already"
+      : variant === "already" || variant === "pending"
       ? "text-[#238D9D]"
       : "text-[#F59E0B]";
 

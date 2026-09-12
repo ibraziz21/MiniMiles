@@ -2,25 +2,33 @@
 import { NextResponse } from "next/server";
 import { userToppedUpAtLeast5DollarsInLast7Days } from "@/helpers/graphTopupStreak";
 import { claimStreakReward } from "@/helpers/streaks";
+import { requireSession, logSessionAge } from "@/lib/auth";
+import { isSelfClaimEnabledForWallet } from "@/lib/server/dailySelfClaimMode";
+import { selfClaimRequiredResponse } from "@/lib/server/legacySelfClaimGate";
+import { TOPUP_STREAK_POINTS, TOPUP_STREAK_QUEST_ID } from "@/lib/streakRegistry";
 
 /**
  * Weekly streak:
  *  - "Akiba Streak for weeks in a row topping up at least $5 in MiniPay"
- *  - One claim per ISO-week per questId
+ *  - One claim per ISO-week
  *
  * POST /api/streaks/topup
- * body: { userAddress: string; questId: string }
+ *
+ * docs/all-quests-self-claim-spec.md §5.5: the wallet comes from the
+ * session, never from request JSON, and the quest ID/reward come from the
+ * fixed lib/streakRegistry.ts table — previously this route took questId
+ * directly from the client with no registry link.
  */
-export async function POST(req: Request) {
+export async function POST(_req: Request) {
   try {
-    const { userAddress, questId } = await req.json();
-
-    if (!userAddress || !questId) {
-      return NextResponse.json(
-        { success: false, message: "Missing userAddress or questId" },
-        { status: 400 }
-      );
+    const session = await requireSession();
+    if (!session) {
+      return NextResponse.json({ success: false, message: "Authentication required" }, { status: 401 });
     }
+    const userAddress = session.walletAddress;
+    logSessionAge("streaks/topup", userAddress, session.issuedAt);
+
+    if (isSelfClaimEnabledForWallet("weekly_topup_streak", userAddress)) return selfClaimRequiredResponse();
 
     // 1) verify on-chain topup condition
     const ok = await userToppedUpAtLeast5DollarsInLast7Days(userAddress);
@@ -35,8 +43,8 @@ export async function POST(req: Request) {
     // 2) weekly reward
     const result = await claimStreakReward({
       userAddress,
-      questId,
-      points: 25, // tweak reward
+      questId: TOPUP_STREAK_QUEST_ID,
+      points: TOPUP_STREAK_POINTS,
       scope: "weekly",
       label: "topup-streak",
     });

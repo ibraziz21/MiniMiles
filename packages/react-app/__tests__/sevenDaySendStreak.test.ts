@@ -30,6 +30,41 @@ describe("seven-day send streak", () => {
     expect(status.daysLeft).toBe(0);
     expect(status.claimable).toBe(true);
     expect(status.completedCurrentScope).toBe(false);
+    expect(status.instanceStartDate).toBe("2026-06-15");
+    expect(status.instanceEndDate).toBe("2026-06-21");
+  });
+
+  it("anchors the earned instance to when the run FIRST reached 7 days, not to a later delayed claim", () => {
+    // A 10-day run ending 2026-06-21 — the qualifying instance is the first
+    // 7 days of that run (06-12..06-18), regardless of the extra 3 days that
+    // followed before the user got around to claiming. A voucher issued on
+    // day 8, 9 or 10 of this same run must reuse the same scope key/nonce.
+    const status = buildSevenDaySendStreakStatusFromDays({
+      today: new Date("2026-06-22T12:00:00.000Z"),
+      claimedDays: days(
+        "2026-06-21", "2026-06-20", "2026-06-19", "2026-06-18",
+        "2026-06-17", "2026-06-16", "2026-06-15", "2026-06-14",
+        "2026-06-13", "2026-06-12",
+      ),
+      rewardClaimedDays: days(),
+    });
+
+    expect(status.currentStreak).toBe(10);
+    expect(status.claimable).toBe(true);
+    expect(status.instanceStartDate).toBe("2026-06-12");
+    expect(status.instanceEndDate).toBe("2026-06-18");
+  });
+
+  it("has no instance window when not currently claimable", () => {
+    const status = buildSevenDaySendStreakStatusFromDays({
+      today: new Date("2026-06-22T12:00:00.000Z"),
+      claimedDays: days("2026-06-21", "2026-06-20"),
+      rewardClaimedDays: days(),
+    });
+
+    expect(status.claimable).toBe(false);
+    expect(status.instanceStartDate).toBeNull();
+    expect(status.instanceEndDate).toBeNull();
   });
 
   it("counts queued daily-send mint jobs as completed claim days", () => {

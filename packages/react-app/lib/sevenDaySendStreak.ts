@@ -39,6 +39,19 @@ export type SevenDaySendStreakStatus = {
   breaksAt: string | null;
   lastScopeKey: string | null;
   completedCurrentScope: boolean;
+  /**
+   * The earned streak instance's own 7-day window (start/end UTC dates),
+   * set only while claimable — this identifies the completion itself, not
+   * whichever day the user happens to press Claim
+   * (docs/all-quests-self-claim-spec.md §8.1). Anchored to the run's start,
+   * so a run that continues past day 7 without being claimed still resolves
+   * to the SAME instance every time — the self-claim voucher route uses this
+   * as its replay scope key so a delayed retry across UTC-day boundaries
+   * reuses the same nonce instead of minting a fresh one for the same
+   * underlying completion.
+   */
+  instanceStartDate: string | null;
+  instanceEndDate: string | null;
 };
 
 export function addUtcDays(date: Date, days: number) {
@@ -143,6 +156,17 @@ export function buildSevenDaySendStreakStatusFromDays(opts: {
   const lastClaimed = dates.find((d) => opts.claimedDays.has(d)) ?? null;
   const sevenRewardClaimed = lastSeven.some((day) => opts.rewardClaimedDays.has(day));
   const progress = Math.min(7, currentStreak);
+  const claimable = currentStreak >= 7 && !sevenRewardClaimed;
+
+  // Anchored to the run's start (not "today") — a run that continues past
+  // day 7 without being claimed still resolves to the same instance.
+  let instanceStartDate: string | null = null;
+  let instanceEndDate: string | null = null;
+  if (claimable) {
+    const runStart = addUtcDays(newestAllowed, -(currentStreak - 1));
+    instanceStartDate = dateKey(runStart);
+    instanceEndDate = dateKey(addUtcDays(runStart, 6));
+  }
 
   return {
     id: "seven_day_send",
@@ -154,12 +178,14 @@ export function buildSevenDaySendStreakStatusFromDays(opts: {
     target: 7,
     progress,
     daysLeft: Math.max(0, 7 - progress),
-    claimable: currentStreak >= 7 && !sevenRewardClaimed,
+    claimable,
     rewardClaimed: sevenRewardClaimed,
     broken: currentStreak === 0,
     breaksAt: lastClaimed ? dailyBreaksAt(lastClaimed, todayKey) : null,
     lastScopeKey: lastClaimed,
     completedCurrentScope: opts.claimedDays.has(todayKey),
+    instanceStartDate,
+    instanceEndDate,
   };
 }
 

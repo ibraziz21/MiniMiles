@@ -1,6 +1,7 @@
 // src/helpers/streaks.ts
 import { createClient } from "@supabase/supabase-js";
 import { claimQueuedDailyReward } from "@/lib/minipointQueue";
+import { previousScopeKeyFor as previousScopeKeyForGeneric } from "@/lib/dailyQuestClaimer";
 
 const {
   SUPABASE_URL = "",
@@ -42,23 +43,12 @@ export function scopeKeyFor(scope: StreakScope, now = new Date()): string {
   return `${tmp.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
 }
 
+// Moved to lib/dailyQuestClaimer.ts as previousScopeKeyFor (client/server-safe,
+// no Supabase dependency) so lib/server/dailyClaimIntents.ts's
+// "streak_engagement" finalizer can reuse the exact same previous-scope
+// logic without importing this module's Supabase client construction.
 function previousScopeKeyFor(scope: StreakScope, key: string): string {
-  if (scope === "daily") {
-    const d = new Date(`${key}T00:00:00.000Z`);
-    d.setUTCDate(d.getUTCDate() - 1);
-    return d.toISOString().slice(0, 10);
-  }
-
-  const [yearPart, weekPart] = key.split("-W");
-  const year = Number(yearPart);
-  const week = Number(weekPart);
-
-  if (week > 1) {
-    return `${year}-W${String(week - 1).padStart(2, "0")}`;
-  }
-
-  const lastDayPrevYear = new Date(Date.UTC(year - 1, 11, 31));
-  return scopeKeyFor("weekly", lastDayPrevYear);
+  return previousScopeKeyForGeneric(scope, key);
 }
 
 async function getExistingStreak(userAddress: string, questId: string) {

@@ -5,6 +5,8 @@ import { userErc20BalanceAtLeast } from "@/helpers/erc20Balance";
 import { scopeKeyFor } from "@/helpers/streaks";
 import { getQuest } from "@/lib/questRegistry";
 import { requireSession, logSessionAge } from "@/lib/auth";
+import { isSelfClaimEnabledForWallet } from "@/lib/server/dailySelfClaimMode";
+import { selfClaimRequiredResponse } from "@/lib/server/legacySelfClaimGate";
 
 const KILN_SHARE_TOKEN_ADDRESS = (process.env.KILN_SHARE_TOKEN_ADDRESS ?? "0xbaD4711D689329E315Be3E7C1C64CF652868C56c") as `0x${string}`;
 const KILN_SHARE_TOKEN_DECIMALS = Number(process.env.KILN_SHARE_TOKEN_DECIMALS ?? "6");
@@ -17,6 +19,9 @@ export async function POST(_req: Request) {
 
     const addr = session.walletAddress;
     logSessionAge("quests/daily_kiln_hold", addr, session.issuedAt);
+
+    if (isSelfClaimEnabledForWallet("daily_kiln_hold", addr)) return selfClaimRequiredResponse();
+
     const quest = getQuest("daily_kiln_hold");
     const today = scopeKeyFor("daily");
 
