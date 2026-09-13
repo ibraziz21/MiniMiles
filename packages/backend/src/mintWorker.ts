@@ -17,6 +17,13 @@ const BASE_RPC_URL = process.env.BASE_RPC_URL ?? "https://mainnet.base.org";
 
 // Jobs claimed per wallet per round. Total claimed = BATCH_SIZE × wallet count.
 const BATCH_SIZE = 400;
+// Don't submit an on-chain batch until at least this many jobs are pending —
+// unless the oldest one has been waiting MAX_BATCH_WAIT_MS, in which case
+// mint whatever's there so a quiet period never stalls a reward forever.
+const MIN_BATCH_SIZE = Number(process.env.MINT_MIN_BATCH_SIZE ?? "100");
+const MAX_BATCH_WAIT_MS = Number(
+  process.env.MINT_MAX_BATCH_WAIT_MS ?? String(15 * 60 * 1000)
+);
 const LOCK_NAME = "default";
 const LOCK_LEASE_SECONDS = 300; // 5 min; renewed each round
 const MAX_JOB_ATTEMPTS = 6;
@@ -510,6 +517,48 @@ async function claimBatch(count: number, owner: string): Promise<any[]> {
   return jobs;
 }
 
+// Cheap head-count check so a quiet queue doesn't pay for claimBatch's full
+// row fetch every tick. Only escalates to the oldest-row lookup once we know
+// we're below the floor.
+async function peekQueueReadiness(): Promise<{
+  ready: boolean;
+  pendingCount: number;
+  oldestAgeMs: number;
+}> {
+  const nowIso = new Date().toISOString();
+  const { count, error: countError } = await withTimeout(
+    supabase
+      .from("minipoint_mint_jobs")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending")
+      .lte("available_at", nowIso),
+    SUPABASE_TIMEOUT_MS,
+    "peek pending mint job count"
+  );
+  if (countError) throw countError;
+
+  const pendingCount = count ?? 0;
+  if (pendingCount === 0) return { ready: false, pendingCount: 0, oldestAgeMs: 0 };
+  if (pendingCount >= MIN_BATCH_SIZE) return { ready: true, pendingCount, oldestAgeMs: 0 };
+
+  const { data: oldest, error: oldestError } = await withTimeout(
+    supabase
+      .from("minipoint_mint_jobs")
+      .select("created_at")
+      .eq("status", "pending")
+      .lte("available_at", nowIso)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+    SUPABASE_TIMEOUT_MS,
+    "peek oldest pending mint job"
+  );
+  if (oldestError) throw oldestError;
+
+  const oldestAgeMs = oldest?.created_at ? Date.now() - new Date(oldest.created_at).getTime() : 0;
+  return { ready: oldestAgeMs >= MAX_BATCH_WAIT_MS, pendingCount, oldestAgeMs };
+}
+
 // ── Bulk DB side-effects + complete ──────────────────────────────────────────
 async function applyBatchPayloads(jobs: any[], txHash: string) {
   const dailyRows = jobs
@@ -882,6 +931,18 @@ export async function runDrain() {
       await reconcileSkillGameDeliveries();
 
       while (true) {
+        setRunPhase(owner, "check-readiness");
+        const readiness = await peekQueueReadiness();
+        if (!readiness.ready) {
+          if (readiness.pendingCount > 0) {
+            console.log(
+              `[mintWorker] Waiting for batch: ${readiness.pendingCount}/${MIN_BATCH_SIZE} pending, ` +
+                `oldest age ${formatMs(readiness.oldestAgeMs)} (max wait ${formatMs(MAX_BATCH_WAIT_MS)})`
+            );
+          }
+          break;
+        }
+
         setRunPhase(owner, "renew-lock");
         await renewLock(owner);
 
