@@ -2,34 +2,24 @@
 import { NextResponse } from "next/server";
 import { userPlayedAtLeastOneGameInLast24Hrs } from "@/helpers/graphGames";
 import { claimStreakReward } from "@/helpers/streaks";
-import { requireSession, logSessionAge } from "@/lib/auth";
-import { getQuest } from "@/lib/questRegistry";
-import { isSelfClaimEnabledForWallet } from "@/lib/server/dailySelfClaimMode";
-import { selfClaimRequiredResponse } from "@/lib/server/legacySelfClaimGate";
 
 /**
  * Daily streak:
  *  - "Akiba Streak for days played at least 1 game"
  *
  * POST /api/streaks/games
- *
- * docs/all-quests-self-claim-spec.md §5.5: the wallet comes from the
- * session, never from request JSON, and the quest ID comes from the fixed
- * server registry — previously this route took questId directly from the
- * client with no registry at all.
+ * body: { userAddress: string; questId: string }
  */
-export async function POST(_req: Request) {
+export async function POST(req: Request) {
   try {
-    const session = await requireSession();
-    if (!session) {
-      return NextResponse.json({ success: false, message: "Authentication required" }, { status: 401 });
+    const { userAddress, questId } = await req.json();
+
+    if (!userAddress || !questId) {
+      return NextResponse.json(
+        { success: false, message: "Missing userAddress or questId" },
+        { status: 400 }
+      );
     }
-    const userAddress = session.walletAddress;
-    logSessionAge("streaks/games", userAddress, session.issuedAt);
-
-    if (isSelfClaimEnabledForWallet("daily_games_streak", userAddress)) return selfClaimRequiredResponse();
-
-    const quest = getQuest("games_streak");
 
     // 1) check game activity
     const ok = await userPlayedAtLeastOneGameInLast24Hrs(userAddress);
@@ -44,8 +34,8 @@ export async function POST(_req: Request) {
     // 2) daily reward
     const result = await claimStreakReward({
       userAddress,
-      questId: quest.questId,
-      points: quest.points,
+      questId,
+      points: 15, // tweak reward
       scope: "daily",
       label: "games-streak",
     });

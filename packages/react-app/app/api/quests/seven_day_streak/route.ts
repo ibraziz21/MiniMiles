@@ -7,8 +7,6 @@ import {
   buildSevenDaySendStreakStatus,
   SEVEN_DAY_STREAK_QUEST_ID,
 } from "@/lib/sevenDaySendStreak";
-import { isSelfClaimEnabledForWallet } from "@/lib/server/dailySelfClaimMode";
-import { selfClaimRequiredResponse } from "@/lib/server/legacySelfClaimGate";
 
 /* ───────────────────────── consts ─────────────────────── */
 
@@ -48,9 +46,6 @@ export async function POST(req: Request) {
     }
 
     const userAddress = session.walletAddress.toLowerCase();
-
-    if (isSelfClaimEnabledForWallet("seven_day_send_streak", userAddress)) return selfClaimRequiredResponse();
-
     const streak = await buildSevenDaySendStreakStatus(supabase, userAddress);
 
     if (streak.rewardClaimed) {

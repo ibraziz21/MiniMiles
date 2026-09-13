@@ -14,9 +14,6 @@ import {
   formatUnits,
   parseUnits,
   erc20Abi,
-  UserRejectedRequestError,
-  InsufficientFundsError,
-  ContractFunctionRevertedError,
   type Abi,
 } from "viem";
 import { celo } from "viem/chains";
@@ -28,7 +25,6 @@ import vaultAbi from "@/contexts/vault.json";
 import posthog from "posthog-js";
 import { isMiniPayProvider } from "@/lib/minipay";
 import { withCeloAttribution } from "@/lib/celoAttribution";
-import { DAILY_QUEST_CLAIMER_ABI, type QuestClaimVoucher } from "@/lib/dailyQuestClaimer";
 
 /** USDT on Celo mainnet */
 const USDT_ADDRESS = (
@@ -60,59 +56,6 @@ const Web3Context = createContext<Web3ContextValue | null>(null);
 let _signInAttempted = false;
 let _authResolve: (() => void) | null = null;
 const _authPromise = new Promise<void>(resolve => { _authResolve = resolve; });
-
-// ── Daily self-claim error mapping ────────────────────────────────────────────
-// Maps wallet/contract errors to actionable, user-facing messages
-// (docs/daily-checkin-self-claim-spec.md §5). Never silently retries and
-// never falls back to the sponsored endpoint.
-function mapDailyClaimError(err: unknown): Error {
-  const anyErr = err as any;
-  // Call err.walk(...) as a method (not a detached reference) — BaseError#walk
-  // relies on `this` internally, so `const walk = anyErr.walk; walk(fn)` runs
-  // with the wrong receiver and silently misbehaves.
-  const walk = (fn: (e: unknown) => boolean): unknown =>
-    typeof anyErr?.walk === "function" ? anyErr.walk(fn) : undefined;
-
-  const rejected = walk((e) => e instanceof UserRejectedRequestError);
-  if (rejected) return new Error("Transaction cancelled. You can try again today.");
-
-  const insufficientFunds = walk((e) => e instanceof InsufficientFundsError);
-  if (insufficientFunds) return new Error("You need a small amount of CELO to claim this reward.");
-
-  const reverted = walk((e) => e instanceof ContractFunctionRevertedError) as
-    | ContractFunctionRevertedError
-    | undefined;
-  if (reverted) {
-    // Error-name matching is best-effort — see the comment above
-    // DAILY_QUEST_CLAIMER_ABI's error entries for why multiple spellings are
-    // checked and why an unmatched name still falls back to shortMessage
-    // rather than a blank/generic message.
-    const errorName = reverted.data?.errorName;
-    if (errorName === "Expired" || errorName === "VoucherExpired") {
-      return new Error("This voucher expired. Request today's reward again.");
-    }
-    if (errorName === "AlreadyClaimed") {
-      return new Error("You already claimed today's reward.");
-    }
-    if (errorName === "InvalidSignature") {
-      return new Error("This voucher is no longer valid. Request today's reward again.");
-    }
-    if (errorName === "Blacklisted") {
-      return new Error("This wallet is not eligible to claim.");
-    }
-    return new Error(reverted.shortMessage || "The claim transaction was rejected by the contract.");
-  }
-
-  const message = String(anyErr?.shortMessage || anyErr?.message || "");
-  if (/insufficient funds/i.test(message)) {
-    return new Error("You need a small amount of CELO to claim this reward.");
-  }
-  if (/user rejected|denied transaction/i.test(message)) {
-    return new Error("Transaction cancelled. You can try again today.");
-  }
-
-  return new Error(message || "Could not submit the claim. Please try again.");
-}
 
 // ── The actual logic, runs exactly once inside the provider ──────────────────
 
@@ -628,54 +571,6 @@ function useWeb3Logic() {
     return { hash, sessionId };
   }, [walletClient, address, writePublicClient]);
 
-  /**
-   * Submits a server-issued self-claim voucher to DailyQuestClaimer on Celo
-   * for ANY quest family, not just daily check-in — see
-   * docs/all-quests-self-claim-spec.md §1, §9. Only ever call this with a
-   * voucher returned by one of the per-quest voucher routes; the client
-   * never invents its own claimant, amount, contract or nonce. Returns the
-   * broadcast transaction hash immediately — confirmation and finalization
-   * belong to the confirm/status APIs.
-   */
-  const claimQuestOnchain = useCallback(async (voucher: QuestClaimVoucher): Promise<`0x${string}`> => {
-    if (!walletClient || !address) throw new Error("Wallet not connected");
-
-    const chainId = await walletClient.getChainId();
-    if (chainId !== celo.id) throw new Error("Wrong network. Switch to Celo to claim.");
-
-    const amount = BigInt(voucher.amount);
-    const dayNonce = BigInt(voucher.dayNonce);
-    const deadline = BigInt(voucher.deadline);
-    const args = [amount, dayNonce, deadline, voucher.signature] as const;
-
-    try {
-      await publicClient.simulateContract({
-        address: voucher.contractAddress,
-        abi: DAILY_QUEST_CLAIMER_ABI,
-        functionName: "claim",
-        args,
-        account: address as `0x${string}`,
-      });
-    } catch (err) {
-      throw mapDailyClaimError(err);
-    }
-
-    try {
-      const hash = await walletClient.writeContract({
-        chain: walletClient.chain,
-        address: voucher.contractAddress,
-        abi: DAILY_QUEST_CLAIMER_ABI,
-        functionName: "claim",
-        account: address as `0x${string}`,
-        args,
-        dataSuffix: withCeloAttribution(),
-      });
-      return hash;
-    } catch (err) {
-      throw mapDailyClaimError(err);
-    }
-  }, [walletClient, address, publicClient]);
-
   const burnClawVoucherReward = useCallback(async (sessionId: bigint) => {
     if (!walletClient || !address) throw new Error("Wallet not connected");
     const hash = await walletClient.writeContract({
@@ -723,9 +618,6 @@ function useWeb3Logic() {
     getUserRaffleTickets,
     startClawGame,
     burnClawVoucherReward,
-    claimQuestOnchain,
-    // Temporary alias — docs/all-quests-self-claim-spec.md §9.
-    claimDailyQuestOnchain: claimQuestOnchain,
     approveUsdtForCrackPot,
     enterCrackPotGame,
     getStablecoinBalance,
