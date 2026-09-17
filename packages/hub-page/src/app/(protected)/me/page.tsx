@@ -1,32 +1,28 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { LinkedWallets } from "./LinkedWallets";
 import { SignOutButton } from "./SignOutButton";
 import { WalletPickerModal } from "./WalletPickerModal";
-import { AkibaPassCard } from "./AkibaPassCard";
-import { SetPasswordForm } from "./SetPasswordForm";
-import { ProfileQuickActions } from "./ProfileQuickActions";
-import { ActivityFeed } from "./ActivityFeed";
+import { SecuritySettings } from "./SecuritySettings";
+import { PassPreviewCard } from "./PassPreviewCard";
+import { PhoneEditor } from "./PhoneEditor";
+import { LocationEditor } from "./LocationEditor";
+import { RecentActivitySection } from "./RecentActivitySection";
 import { getRecentActivity } from "@/lib/akiba/activity";
 import { getUserBalance } from "@/lib/akiba/balance";
 import { resolveHubProfile } from "@/lib/akiba/hubProfile";
 import { getOrCreatePass } from "@/lib/akiba/pass";
-import { ArrowUpRight, Tag } from "lucide-react";
+import { ChevronRight, Gift, Bell } from "lucide-react";
 import { MilesIcon } from "@/components/MilesIcon";
+import { SettingsRow } from "@/components/akiba/SettingsRow";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { CountryEditor } from "./CountryEditor";
 import { UsernameEditor } from "./UsernameEditor";
 import { resolveHubQuestCanonical } from "@/lib/akiba/canonicalPartnerQuests";
 import { getNextRewardSummary, getNextRewardWays } from "@/lib/akiba/nextReward";
 import { isNextRewardEnabledFor } from "@/lib/akiba/nextRewardRollout";
 import { NextRewardPanel } from "@/components/akiba/NextRewardPanel";
+import { PRIVACY_POLICY_URL, TERMS_URL, AKIBA_EMAIL } from "@/constants/links";
 
 export const metadata = { title: "My Profile — Akiba Pass" };
-
-const INTEREST_LABELS: Record<string, string> = {
-  games: "Games", vouchers: "Vouchers", raffles: "Raffles",
-  defi: "DeFi", quests: "Quests", leaderboards: "Leaderboards",
-};
 
 export default async function MePage() {
   const supabase = await createClient();
@@ -60,12 +56,13 @@ export default async function MePage() {
     limit: 6,
   });
 
-  // Hub-native country (merchant-shopping-quests-spec.md §5 "Country") —
-  // prefilled from the legacy wallet-row country when unset, but this table
-  // is the quest verifier of record.
+  // Hub-native identity fields (merchant-shopping-quests-spec.md §5
+  // "Country", extended for the "My Akiba" profile redesign with phone and
+  // city). Legacy wallet-row country may prefill when unset, but this table
+  // is the source of truth going forward.
   const { data: hubProfile } = await createAdminClient()
     .from("hub_user_profiles")
-    .select("country")
+    .select("country, city, phone, phone_verified")
     .eq("user_id", user.id)
     .maybeSingle();
   const hubCountry = hubProfile?.country ?? activeRow?.country ?? null;
@@ -93,13 +90,26 @@ export default async function MePage() {
 
   // Leaderboard username (skill-games-leaderboards-spec.md §5.3) — same
   // canonical resolution the games surfaces use, so the claimed name is the
-  // exact one that appears on the leaderboard.
+  // exact one that appears on the leaderboard. Now also the user's
+  // permanent Akiba identity, shown in the header.
   const leaderboardCanonicalId = await resolveHubQuestCanonical({ hubUserId: user.id, email: user.email ?? null });
   const { data: leaderboardProfile } = await createAdminClient()
     .from("leaderboard_profiles")
     .select("username")
     .eq("canonical_id", leaderboardCanonicalId)
     .maybeSingle();
+
+  // Profile completeness — one gentle, contextual nudge rather than a
+  // checklist. Priority order reflects future product value: phone (auto
+  // reward claims, M-Pesa/POS matching) > username (identity) > location
+  // (nearby merchants). Nothing renders once every field is filled.
+  const nudge = !hubProfile?.phone
+    ? "Add your phone number to speed up future rewards"
+    : !leaderboardProfile?.username
+      ? "Choose your Akiba username"
+      : !hubCountry
+        ? "Tell us where you shop"
+        : null;
 
   return (
     <>
@@ -117,56 +127,66 @@ export default async function MePage() {
       )}
 
       <main className="mx-auto max-w-2xl px-4 py-5 sm:py-10">
-        {/* Header */}
-        <div className="mb-4 flex items-center justify-between sm:mb-8">
-          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-            {activeRow?.avatar_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={activeRow.avatar_url} alt={displayName} className="h-11 w-11 rounded-full object-cover sm:h-12 sm:w-12" />
-            ) : (
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-akiba-teal text-base font-semibold text-white sm:h-12 sm:w-12">
-                {initials}
-              </div>
-            )}
-            <div className="min-w-0">
-              <p className="truncate font-semibold text-akiba-ink">{displayName}</p>
-              <p className="truncate text-sm text-akiba-muted">{user.email}</p>
+        {/* Identity header — who am I */}
+        <div className="mb-4 flex items-center gap-3 sm:mb-6 sm:gap-4">
+          {activeRow?.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={activeRow.avatar_url} alt={displayName} className="h-12 w-12 shrink-0 rounded-full object-cover sm:h-14 sm:w-14" />
+          ) : (
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-akiba-teal text-base font-semibold text-white sm:h-14 sm:w-14">
+              {initials}
             </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate font-sterling text-lg font-semibold text-akiba-ink sm:text-xl">{displayName}</h1>
+            {leaderboardProfile?.username && (
+              <p className="truncate text-sm font-medium text-akiba-teal">@{leaderboardProfile.username}</p>
+            )}
+            <p className="truncate text-xs text-akiba-muted">{user.email}</p>
           </div>
-          <SignOutButton />
         </div>
 
-        {/* Balance card */}
-        <div className="mb-4 overflow-hidden rounded-2xl bg-akiba-ink text-white sm:mb-6">
+        {/* Is my account complete — single contextual nudge, not a checklist */}
+        {nudge && (
+          <a
+            href="#my-akiba-id"
+            className="mb-4 flex items-center justify-between gap-2 rounded-xl bg-akiba-tint px-4 py-2.5 text-sm font-medium text-akiba-teal transition hover:bg-akiba-teal/10 sm:mb-6"
+          >
+            {nudge}
+            <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+          </a>
+        )}
+
+        {/* Balance card — how many Miles do I have */}
+        <div className="mb-4 overflow-hidden rounded-3xl bg-akiba-ink text-white sm:mb-6">
           <div className="px-5 py-5 sm:px-6 sm:py-8">
             <p className="flex items-center gap-1.5 text-sm font-medium text-white/60">
               <MilesIcon className="h-4 w-4 opacity-60" /> Balance
             </p>
             {hasBalance ? (
-              <div className="flex items-end justify-between gap-3">
-                <div>
-                  <p className="mt-1.5 font-sterling text-4xl font-semibold tracking-tight sm:mt-2 sm:text-5xl">
-                    {balance.toLocaleString("en-KE")}
-                  </p>
-                  {ledgerBalance > 0 && walletAddress && (
-                    <p className="mt-1 text-xs text-white/40">
-                      includes {ledgerBalance.toLocaleString("en-KE")} earned in-store
-                    </p>
-                  )}
-                </div>
-                {walletAddress && (
-                  <p className="mb-1 font-mono text-[10px] text-white/30 sm:text-xs">
-                    {walletAddress.slice(0, 6)}…{walletAddress.slice(-4)}
+              <div>
+                <p className="mt-1.5 font-sterling text-4xl font-semibold tabular-nums tracking-tight sm:mt-2 sm:text-5xl">
+                  {balance.toLocaleString("en-KE")}
+                </p>
+                {/* Unconditional on ledgerBalance > 0 — a member with only
+                    in-store ledger Miles (balance === ledgerBalance) still
+                    gets a settlement-status indication on the app's single
+                    most trust-critical figure. */}
+                {ledgerBalance > 0 && (
+                  <p className="mt-1 text-xs tabular-nums text-white/40">
+                    {walletAddress
+                      ? `includes ${ledgerBalance.toLocaleString("en-KE")} earned in-store, not yet on-chain`
+                      : "Earned in-store, not yet on-chain"}
                   </p>
                 )}
               </div>
             ) : needsPicker ? (
               <p className="mt-2 text-lg font-medium text-white/40">
-                Choose a wallet above to see your balance
+                Choose an account above to see your balance
               </p>
             ) : (
               <p className="mt-2 text-lg font-medium text-white/30">
-                No wallet found for this email
+                We couldn&apos;t find a balance for this email yet
               </p>
             )}
           </div>
@@ -181,77 +201,61 @@ export default async function MePage() {
           </div>
         )}
 
-        {/* Quick actions — Pass & Wallets open sheets; rest are links */}
-        <div className="mb-4 sm:mb-6">
-          <ProfileQuickActions
-            passSlot={
-              publicPassId ? (
-                <AkibaPassCard
-                  initialPassId={publicPassId}
-                  email={user.email!}
-                  displayLabel={displayName}
-                />
-              ) : undefined
-            }
-            walletsSlot={
-              <LinkedWallets
-                minipayAddress={walletAddress}
-                hasMultiple={rows.length > 1}
-                userId={user.id}
-                variant="sheet"
-              />
-            }
-            securitySlot={<SetPasswordForm />}
-          />
-        </div>
-
-        {/* Leaderboard username — visible on every screen size, unlike the
-            desktop-only chips below, since it's how a member is identified
-            on Rule Tap/Memory Flip standings. */}
-        <div className="mb-4">
-          <UsernameEditor initialUsername={leaderboardProfile?.username ?? null} />
-        </div>
-
-        {/* Profile chips — desktop only */}
-        <div className="mb-6 hidden flex-wrap gap-2 sm:flex">
-          <CountryEditor initialCountry={hubCountry} />
-          {activeRow && (activeRow.interests ?? []).map((interest: string) => (
-              <span
-                key={interest}
-                className="flex items-center gap-1.5 rounded-full border border-akiba-teal/20 bg-akiba-tint px-3 py-1 text-xs font-medium text-akiba-teal"
-              >
-                <Tag className="h-3 w-3" /> {INTEREST_LABELS[interest] ?? interest}
-              </span>
-            ))}
-        </div>
-
-        {/* No wallet found */}
-        {!walletAddress && !needsPicker && (
-          <div className="mb-4 rounded-2xl border border-dashed border-akiba-teal/30 bg-akiba-tint px-6 py-5 text-center sm:mb-6">
-            <p className="text-sm font-medium text-akiba-ink">No MiniPay wallet found</p>
-            <p className="mt-1 text-xs text-akiba-muted">
-              Make sure you sign in with the same email you used in MiniPay.
-            </p>
+        {/* Primary actions — Pass is the prominent one; Invite is a slim earn nudge */}
+        <div className="mb-4 space-y-2.5 sm:mb-6">
+          {publicPassId && <PassPreviewCard publicPassId={publicPassId} />}
+          <div className="overflow-hidden rounded-2xl border border-akiba-line bg-white">
+            <SettingsRow
+              icon={<Gift className="h-4 w-4 text-akiba-teal" aria-hidden="true" />}
+              label="Invite friends, earn Miles"
+              href="/referrals"
+            />
           </div>
-        )}
-
-        {/* Activity — merchant awards + engagement earnings */}
-        <div>
-          <div className="mb-2.5 flex items-center justify-between sm:mb-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-akiba-muted">
-              Recent activity
-            </h2>
-            {activity.length >= 6 && (
-              <a
-                href="/me/activity"
-                className="flex items-center gap-1 text-xs font-semibold text-akiba-teal"
-              >
-                View all <ArrowUpRight className="h-3.5 w-3.5" />
-              </a>
-            )}
-          </div>
-          <ActivityFeed items={activity.slice(0, 5)} />
         </div>
+
+        {/* Activity — what have I been doing */}
+        <RecentActivitySection items={activity} />
+
+        {/* My Akiba ID — identity completion */}
+        <section id="my-akiba-id" className="mb-4 scroll-mt-6 sm:mb-6">
+          <h2 className="mb-2.5 text-sm font-semibold uppercase tracking-wide text-akiba-muted sm:mb-3">
+            My Akiba ID
+          </h2>
+          <div className="divide-y divide-akiba-line overflow-hidden rounded-2xl border border-akiba-line bg-white">
+            <UsernameEditor initialUsername={leaderboardProfile?.username ?? null} />
+            <PhoneEditor initialPhone={hubProfile?.phone ?? null} />
+            <LocationEditor initialCountry={hubCountry} initialCity={hubProfile?.city ?? null} />
+          </div>
+        </section>
+
+        {/* Account — how do I manage my account */}
+        <section className="mb-4 sm:mb-6">
+          <h2 className="mb-2.5 text-sm font-semibold uppercase tracking-wide text-akiba-muted sm:mb-3">
+            Account
+          </h2>
+          <div className="divide-y divide-akiba-line overflow-hidden rounded-2xl border border-akiba-line bg-white">
+            <SettingsRow
+              icon={<Bell className="h-4 w-4 text-akiba-teal" aria-hidden="true" />}
+              label="Notifications"
+              href="/me/notifications"
+            />
+            <SecuritySettings />
+          </div>
+        </section>
+
+        <div className="overflow-hidden rounded-2xl border border-akiba-line bg-white">
+          <SignOutButton />
+        </div>
+
+        {/* Legal/support — quiet, small; reuses SiteFooter's links since
+            the protected layout doesn't mount SiteFooter. */}
+        <p className="mt-6 text-center text-xs text-akiba-muted/70">
+          <a href={PRIVACY_POLICY_URL} className="hover:text-akiba-muted">Privacy Policy</a>
+          {" · "}
+          <a href={TERMS_URL} className="hover:text-akiba-muted">Terms</a>
+          {" · "}
+          <a href={`mailto:${AKIBA_EMAIL}`} className="hover:text-akiba-muted">Contact support</a>
+        </p>
       </main>
     </>
   );

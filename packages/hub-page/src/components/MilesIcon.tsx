@@ -44,6 +44,10 @@ const TEXT_SIZES: Record<Size, string> = {
 /**
  * Renders the AkibaMiles brand symbol followed by the formatted amount.
  * Standard format: [icon]amount (e.g.  200 or  1,500)
+ *
+ * `tabular-nums` keeps digit width fixed so amounts that update in place
+ * (balance after a claim, a live score) don't jitter the layout as digits
+ * change width.
  */
 export function MilesAmount({
   amount,
@@ -59,9 +63,32 @@ export function MilesAmount({
   prefix?: string;     // e.g. "+" for earned, "-" for spent
 }) {
   return (
-    <span className={clsx("inline-flex items-center gap-1 font-semibold", TEXT_SIZES[size], className)}>
+    <span className={clsx("inline-flex items-center gap-1 font-semibold tabular-nums", TEXT_SIZES[size], className)}>
       <MilesIcon className={clsx(ICON_SIZES[size], iconClassName)} />
-      {prefix}{amount.toLocaleString()}
+      {prefix}{amount.toLocaleString("en-KE")}
+    </span>
+  );
+}
+
+/**
+ * Renders "[icon] balance / target" — one icon covers the whole pairing
+ * rather than repeating it, since both numbers are the same denomination.
+ * Font size is inherited from the parent (no size prop) so callers can drop
+ * it into either a text-xs or text-sm context without a mismatch.
+ */
+export function MilesRange({
+  balance,
+  target,
+  className,
+}: {
+  balance: number;
+  target: number;
+  className?: string;
+}) {
+  return (
+    <span className={clsx("inline-flex items-center gap-1.5 font-sterling font-semibold tabular-nums text-akiba-ink", className)}>
+      <MilesIcon className="h-4 w-4 shrink-0" />
+      {balance.toLocaleString("en-KE")} / {target.toLocaleString("en-KE")}
     </span>
   );
 }

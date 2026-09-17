@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cleanupPushBeforeLogout } from "@/lib/push/browser";
 import { LogOut } from "lucide-react";
+import { SettingsRow } from "@/components/akiba/SettingsRow";
 
 export function SignOutButton() {
   const router = useRouter();
@@ -28,12 +29,12 @@ export function SignOutButton() {
   }
 
   return (
-    <button
+    <SettingsRow
+      icon={<LogOut className="h-4 w-4 text-red-500" aria-hidden="true" />}
+      label="Sign out"
+      variant="danger"
+      showChevron={false}
       onClick={signOut}
-      className="flex items-center gap-1.5 rounded-lg border border-akiba-line px-3 py-1.5 text-xs font-medium text-akiba-muted transition hover:border-akiba-ink/20 hover:text-akiba-ink"
-    >
-      <LogOut className="h-3.5 w-3.5" />
-      <span className="hidden sm:inline">Sign out</span>
-    </button>
+    />
   );
 }

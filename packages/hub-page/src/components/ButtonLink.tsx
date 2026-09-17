@@ -22,7 +22,7 @@ export function ButtonLink({
   const classes = cn(
     "inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 py-3 font-sterling text-base font-medium leading-none no-underline transition",
     variant === "primary" &&
-      "bg-akiba-teal text-white hover:bg-[#1E7E8D] hover:text-white",
+      "bg-akiba-teal text-white hover:bg-akiba-tealDark hover:text-white",
     variant === "secondary" &&
       "border border-akiba-line bg-white text-akiba-ink hover:border-akiba-teal hover:text-akiba-teal",
     variant === "ghost" && "text-akiba-ink hover:text-akiba-teal",

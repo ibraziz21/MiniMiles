@@ -147,7 +147,7 @@ export function WelcomeCarousel({
 
       <button
         onClick={() => (isReveal ? finish() : setIndex((i) => i + 1))}
-        className="w-full rounded-2xl bg-akiba-teal py-3.5 text-sm font-semibold text-white transition hover:bg-[#1E7E8D]"
+        className="w-full rounded-2xl bg-akiba-teal py-3.5 text-sm font-semibold text-white transition hover:bg-akiba-tealDark"
       >
         {isReveal ? "Get started" : "Next"}
       </button>

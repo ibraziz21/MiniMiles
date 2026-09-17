@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Plus, ExternalLink, RefreshCw, Loader2 } from "lucide-react";
+import { CheckCircle2, Plus, ExternalLink, RefreshCw, Loader2, Smartphone, Layers } from "lucide-react";
 
 type Props = {
   minipayAddress: string | null;  // auto-resolved from users table
@@ -91,8 +91,8 @@ export function LinkedWallets({ minipayAddress, hasMultiple, userId, variant = "
         <div className="rounded-2xl border border-akiba-line bg-white">
           <div className="flex items-center justify-between px-4 py-3.5">
             <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-akiba-tint text-lg">
-                📱
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-akiba-tint">
+                <Smartphone className="h-4 w-4 text-akiba-teal" aria-hidden="true" />
               </span>
               <div>
                 <p className="text-sm font-semibold text-akiba-ink">MiniPay</p>
@@ -112,9 +112,10 @@ export function LinkedWallets({ minipayAddress, hasMultiple, userId, variant = "
                 <span className="text-xs font-medium text-emerald-600">Connected</span>
                 {hasMultiple && (
                   <button
+                    type="button"
                     onClick={switchWallet}
                     disabled={switching}
-                    className="ml-1 flex items-center gap-1 rounded-lg border border-akiba-line px-2.5 py-1.5 text-xs text-akiba-muted transition hover:border-akiba-teal/40 hover:text-akiba-teal"
+                    className="ml-1 flex items-center gap-1 rounded-lg border border-akiba-line px-2.5 py-1.5 text-xs text-akiba-muted transition hover:border-akiba-teal/40 hover:text-akiba-teal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
                     title="Switch to a different wallet"
                   >
                     {switching
@@ -141,8 +142,8 @@ export function LinkedWallets({ minipayAddress, hasMultiple, userId, variant = "
         <div className="rounded-2xl border border-akiba-line bg-white">
           <div className="flex items-center justify-between px-4 py-3.5">
             <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-lg">
-                🔵
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50">
+                <Layers className="h-4 w-4 text-blue-600" aria-hidden="true" />
               </span>
               <div>
                 <p className="text-sm font-semibold text-akiba-ink">Base App</p>
@@ -159,9 +160,10 @@ export function LinkedWallets({ minipayAddress, hasMultiple, userId, variant = "
                 Set up <ExternalLink className="h-3 w-3" />
               </a>
               <button
+                type="button"
                 onClick={linkBase}
                 disabled={saving}
-                className="flex items-center gap-1 rounded-lg border border-akiba-teal/30 bg-akiba-tint px-3 py-1.5 text-xs font-semibold text-akiba-teal transition hover:bg-akiba-teal hover:text-white disabled:opacity-50"
+                className="flex items-center gap-1 rounded-lg border border-akiba-teal/30 bg-akiba-tint px-3 py-1.5 text-xs font-semibold text-akiba-teal transition hover:bg-akiba-teal hover:text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
               >
                 {saving ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -175,7 +177,7 @@ export function LinkedWallets({ minipayAddress, hasMultiple, userId, variant = "
 
           {error && (
             <div className="border-t border-akiba-line px-4 py-3">
-              <p className="text-xs text-red-500">{error}</p>
+              <p role="alert" className="text-xs text-red-500">{error}</p>
             </div>
           )}
         </div>

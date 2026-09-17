@@ -36,7 +36,7 @@ export function RuleTapScorePanel({
       {/* Timer bar */}
       <div className="h-2 w-full rounded-full bg-white/20 overflow-hidden bg-[#E8F5F0]">
         <div
-          className={`h-full rounded-full transition-all duration-100 ${timerColor}`}
+          className={`h-full rounded-full transition-[width] duration-100 motion-reduce:transition-none ${timerColor}`}
           style={{ width: `${pct * 100}%` }}
         />
       </div>
@@ -46,10 +46,11 @@ export function RuleTapScorePanel({
         {/* Score with floating delta */}
         <div className="rounded-xl bg-white/10 px-2 py-2.5 text-center relative">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-white/60">Score</p>
-          <p className="mt-0.5 text-xl font-bold text-yellow-300">{score}</p>
+          <p className="mt-0.5 text-xl font-bold tabular-nums text-yellow-300">{score}</p>
           {visible && lastDelta !== null && (
             <span
-              className={`absolute -top-4 left-1/2 -translate-x-1/2 text-xs font-black pointer-events-none animate-bounce ${
+              aria-hidden="true"
+              className={`absolute -top-4 left-1/2 -translate-x-1/2 text-xs font-black tabular-nums pointer-events-none animate-bounce motion-reduce:animate-none ${
                 lastDelta > 0 ? "text-[#4EFFA0]" : "text-red-300"
               }`}
             >
@@ -64,9 +65,9 @@ export function RuleTapScorePanel({
             {combo >= 2 ? "Combo" : "Errors"}
           </p>
           {combo >= 2 ? (
-            <p className="mt-0.5 text-xl font-bold text-orange-300">×{combo}</p>
+            <p className="mt-0.5 text-xl font-bold tabular-nums text-orange-300">×{combo}</p>
           ) : (
-            <p className={`mt-0.5 text-xl font-bold ${mistakes > 0 ? "text-orange-300" : "text-white"}`}>
+            <p className={`mt-0.5 text-xl font-bold tabular-nums ${mistakes > 0 ? "text-orange-300" : "text-white"}`}>
               {mistakes}
             </p>
           )}
@@ -75,7 +76,7 @@ export function RuleTapScorePanel({
         {/* Time */}
         <div className="rounded-xl bg-white/10 px-2 py-2.5 text-center">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-white/60">Time</p>
-          <p className={`mt-0.5 text-xl font-bold ${isLow ? "text-red-300" : "text-white"}`}>
+          <p className={`mt-0.5 text-xl font-bold tabular-nums ${isLow ? "text-red-300" : "text-white"}`}>
             {seconds}s
           </p>
         </div>

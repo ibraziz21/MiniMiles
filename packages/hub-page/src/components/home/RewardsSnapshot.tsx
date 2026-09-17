@@ -7,7 +7,7 @@ import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import clsx from "clsx";
 import { TrackedLink } from "@/components/akiba/TrackedLink";
-import { MilesAmount, MilesIcon } from "@/components/MilesIcon";
+import { MilesAmount, MilesIcon, MilesRange } from "@/components/MilesIcon";
 import { RewardProgressBar } from "@/components/akiba/RewardProgressBar";
 import { NextRewardViewTracker, progressBucket } from "@/components/akiba/NextRewardViewTracker";
 import { GetVoucherButton } from "@/components/vouchers/GetVoucherButton";
@@ -37,7 +37,7 @@ export function RewardsSnapshot({
   const recommended = nextReward?.state === "recommended" ? nextReward : null;
 
   return (
-    <section className="rounded-2xl border border-akiba-line bg-white p-4">
+    <section className="mb-4 rounded-2xl border border-akiba-line bg-white p-4">
       {recommended ? (
         <NextRewardCompact summary={recommended} />
       ) : (
@@ -53,7 +53,7 @@ export function RewardsSnapshot({
         >
           <MilesIcon className="h-5 w-5 shrink-0" />
           <span className="min-w-0">
-            <span className="block font-sterling text-base font-semibold text-akiba-ink">
+            <span className="block font-sterling text-base font-semibold tabular-nums text-akiba-ink">
               {milesBalance.toLocaleString("en-KE")}
             </span>
             <span className="block text-xs text-akiba-muted">Miles</span>
@@ -67,7 +67,7 @@ export function RewardsSnapshot({
             eventProps={{ target: "vouchers" }}
             className="flex flex-1 flex-col items-start rounded-xl bg-akiba-card px-3.5 py-3 transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
           >
-            <span className="font-sterling text-base font-semibold text-akiba-ink">{activeVoucherCount}</span>
+            <span className="font-sterling text-base font-semibold tabular-nums text-akiba-ink">{activeVoucherCount}</span>
             <span className="text-xs text-akiba-muted">active voucher{activeVoucherCount === 1 ? "" : "s"}</span>
           </TrackedLink>
         )}
@@ -85,17 +85,6 @@ export function RewardsSnapshot({
         )}
       </div>
     </section>
-  );
-}
-
-/** [symbol]balance / [symbol]target — one icon covers the whole pairing
- *  rather than repeating it, since both numbers are the same denomination. */
-function MilesRange({ balance, target }: { balance: number; target: number }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 font-sterling font-semibold text-akiba-ink">
-      <MilesIcon className="h-4 w-4 shrink-0" />
-      {balance.toLocaleString("en-KE")} / {target.toLocaleString("en-KE")}
-    </span>
   );
 }
 
@@ -162,7 +151,7 @@ function NextRewardCompact({ summary }: { summary: Extract<NextRewardSummary, { 
       </p>
       <div className="mt-2 flex items-center justify-between gap-2 text-xs">
         <MilesRange balance={balance} target={target.milesCost} />
-        <span className="text-akiba-muted">{progress.percent}%</span>
+        <span className="tabular-nums text-akiba-muted">{progress.percent}%</span>
       </div>
       <div className="mt-1.5">
         <RewardProgressBar balance={balance} milesCost={target.milesCost} size="sm" />

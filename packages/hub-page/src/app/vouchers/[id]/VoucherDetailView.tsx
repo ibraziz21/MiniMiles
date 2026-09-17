@@ -18,6 +18,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, ShoppingBag, QrCode, X, Loader2, Clock } from "lucide-react";
 import clsx from "clsx";
 import { track } from "@/lib/analytics/track";
+import { dealLabel } from "@/lib/akiba/deals";
 
 export type VoucherType = "free" | "percent_off" | "fixed_off";
 
@@ -50,15 +51,6 @@ const SOURCE_LABELS: Record<string, string> = {
   merchant_grant: "Merchant Gift",
   akiba_grant:    "Akiba Gift",
 };
-
-function discountLabel(t: NonNullable<DetailVoucher["template"]>): string {
-  if (t.voucher_type === "free") {
-    if (t.retail_value_cusd) return `Free (up to $${t.retail_value_cusd})`;
-    return "FREE item";
-  }
-  if (t.voucher_type === "percent_off") return `${t.discount_percent}% off`;
-  return `$${(t.discount_cusd ?? 0).toFixed(2)} off`;
-}
 
 type PresentationResponse = {
   token: string;
@@ -291,8 +283,9 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
   return (
     <div>
       <button
+        type="button"
         onClick={() => router.push("/vouchers")}
-        className="mb-4 text-sm font-medium text-akiba-muted hover:text-akiba-ink"
+        className="mb-4 text-sm font-medium text-akiba-muted hover:text-akiba-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
       >
         ← Back to vouchers
       </button>
@@ -318,7 +311,7 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
           <div className="min-w-0 flex-1">
             <p className="text-xs text-akiba-muted">{merchant?.name ?? "All merchants"}</p>
             <p className="font-sterling text-xl font-bold text-akiba-teal">
-              {t ? discountLabel(t) : "Voucher"}
+              {t ? dealLabel(t) : "Voucher"}
             </p>
           </div>
           <span
@@ -344,8 +337,8 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
               </span>
             </p>
           )}
-          {voucher.expires_at && <p>Expires: {new Date(voucher.expires_at).toLocaleString()}</p>}
-          {voucher.redeemed_at && <p>Used: {new Date(voucher.redeemed_at).toLocaleString()}</p>}
+          {voucher.expires_at && <p>Expires: {new Date(voucher.expires_at).toLocaleString("en-KE")}</p>}
+          {voucher.redeemed_at && <p>Used: {new Date(voucher.redeemed_at).toLocaleString("en-KE")}</p>}
           {voucher.acquisition_source && (
             <p className="text-akiba-muted/70">
               {SOURCE_LABELS[voucher.acquisition_source] ?? voucher.acquisition_source}
@@ -367,10 +360,10 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
                   {!processingTerminal && (
                     <p>Your Miles transaction is processing. This page updates automatically.</p>
                   )}
-                  {processingError && <p className="text-red-600">{processingError}</p>}
+                  {processingError && <p role="alert" className="text-red-600">{processingError}</p>}
                 </div>
               ) : (
-                <p>{currentStatus === "redeemed"
+                <p role={processingError ? "alert" : undefined}>{currentStatus === "redeemed"
                 ? "This voucher has been redeemed."
                 : currentStatus === "expired"
                 ? "This voucher has expired."
@@ -379,28 +372,29 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
             </div>
           ) : !showQr ? (
             <button
+              type="button"
               onClick={openQr}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-akiba-teal py-3 text-sm font-semibold text-white transition hover:opacity-90"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-akiba-teal py-3 text-sm font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
             >
-              <QrCode className="h-5 w-5" /> Show QR to redeem in store
+              <QrCode className="h-5 w-5" aria-hidden="true" /> Show QR to redeem in store
             </button>
           ) : (
             <div className="flex flex-col items-center gap-4">
               <div className="relative flex h-[240px] w-[240px] items-center justify-center rounded-2xl border border-akiba-line bg-white">
-                <canvas ref={canvasRef} className={clsx(loading && "opacity-30")} />
+                <canvas ref={canvasRef} role="img" aria-label="Voucher redemption QR code" className={clsx(loading && "opacity-30")} />
                 {loading && (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-akiba-teal" />
+                    <Loader2 className="h-8 w-8 animate-spin text-akiba-teal" aria-hidden="true" />
                   </div>
                 )}
               </div>
 
               {error ? (
-                <p className="text-center text-sm font-medium text-red-600">{error}</p>
+                <p role="alert" className="text-center text-sm font-medium text-red-600">{error}</p>
               ) : (
                 <div className="flex items-center gap-2 text-sm text-akiba-muted">
                   <Clock className="h-4 w-4" />
-                  Refreshes in <span className="font-semibold text-akiba-ink">{secondsLeft}s</span>
+                  Refreshes in <span className="font-semibold tabular-nums text-akiba-ink">{secondsLeft}s</span>
                 </div>
               )}
 
@@ -409,10 +403,11 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
               </p>
 
               <button
+                type="button"
                 onClick={closeQr}
-                className="flex items-center justify-center gap-1.5 rounded-full border border-akiba-line px-5 py-2 text-sm font-semibold text-akiba-muted hover:bg-akiba-card"
+                className="flex items-center justify-center gap-1.5 rounded-full border border-akiba-line px-5 py-2 text-sm font-semibold text-akiba-muted hover:bg-akiba-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
               >
-                <X className="h-4 w-4" /> Close QR
+                <X className="h-4 w-4" aria-hidden="true" /> Close QR
               </button>
             </div>
           )}

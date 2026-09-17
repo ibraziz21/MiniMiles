@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import {
   Tag, ExternalLink, ShoppingBag, Smartphone,
   QrCode, ChevronRight, Loader2, CheckCircle2,
@@ -8,6 +9,7 @@ import {
 import clsx from "clsx";
 import { GetVoucherButton } from "@/components/vouchers/GetVoucherButton";
 import { recordDealViewProof } from "@/lib/akiba/dealViewProof";
+import { dealLabel } from "@/lib/akiba/deals";
 
 type VoucherTemplate = {
   id: string;
@@ -57,6 +59,12 @@ const TAB_LABELS: Record<Tab, string> = {
   expired:   "Expired",
 };
 
+const TABS = Object.keys(TAB_LABELS) as Tab[];
+
+function isTab(value: string | null): value is Tab {
+  return !!value && (TABS as string[]).includes(value);
+}
+
 export function VoucherTabs({
   templates,
   isSignedIn,
@@ -73,10 +81,31 @@ export function VoucherTabs({
    */
   questMode?: boolean;
 }) {
-  const [tab, setTab] = useState<Tab>("available");
+  const router = useRouter();
+  const pathname = usePathname();
+  const [tab, setTabState] = useState<Tab>("available");
   const [myVouchers, setMyVouchers] = useState<IssuedVoucher[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
+
+  // Read the initial tab from the URL on mount — avoiding next/navigation's
+  // useSearchParams() here on purpose, since this page is statically
+  // rendered (revalidate = 60) and that hook would force it into a Suspense
+  // boundary. A plain window.location read has no such requirement and only
+  // costs a one-frame correction if the URL names a non-default tab.
+  useEffect(() => {
+    const urlTab = new URLSearchParams(window.location.search).get("tab");
+    if (isTab(urlTab) && urlTab !== "available") setTabState(urlTab);
+  }, []);
+
+  const setTab = useCallback((next: Tab) => {
+    setTabState(next);
+    const params = new URLSearchParams(window.location.search);
+    if (next === "available") params.delete("tab");
+    else params.set("tab", next);
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [pathname, router]);
 
   const needsMine = tab === "active" || tab === "used" || tab === "expired";
 
@@ -104,13 +133,18 @@ export function VoucherTabs({
     <div>
       {/* Sticky tab bar — sticks just below the site header (h-16 = top-16) */}
       <div className="sticky top-16 z-10 -mx-4 mb-4 bg-akiba-paper/95 px-4 pb-3 pt-0.5 backdrop-blur-sm sm:static sm:mx-0 sm:mb-6 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
-        <div className="flex gap-1 rounded-2xl bg-akiba-card p-1">
-          {(["available", "active", "used", "expired"] as Tab[]).map((tn) => (
+        <div className="flex gap-1 rounded-2xl bg-akiba-card p-1" role="tablist" aria-label="Voucher filter">
+          {TABS.map((tn) => (
             <button
               key={tn}
+              type="button"
+              role="tab"
+              id={`voucher-tab-${tn}`}
+              aria-selected={tab === tn}
+              aria-controls="voucher-tabpanel"
               onClick={() => setTab(tn)}
               className={clsx(
-                "flex-1 rounded-xl py-2 text-xs font-semibold transition sm:py-2.5 sm:text-sm",
+                "flex-1 rounded-xl py-2 text-xs font-semibold transition sm:py-2.5 sm:text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal",
                 tab === tn
                   ? "bg-white text-akiba-ink shadow-chip"
                   : "text-akiba-muted hover:text-akiba-ink"
@@ -122,6 +156,7 @@ export function VoucherTabs({
         </div>
       </div>
 
+      <div role="tabpanel" id="voucher-tabpanel" aria-labelledby={`voucher-tab-${tab}`}>
       {/* Available tab */}
       {tab === "available" &&
         (templates.length === 0 ? (
@@ -172,6 +207,7 @@ export function VoucherTabs({
             {current.map((v) => <IssuedCard key={v.id} voucher={v} />)}
           </div>
         ))}
+      </div>
     </div>
   );
 }
@@ -192,15 +228,6 @@ function EmptyState({
       {subtitle && <p className="mt-1 text-sm text-akiba-muted">{subtitle}</p>}
     </div>
   );
-}
-
-function discountLabel(t: VoucherTemplate): string {
-  if (t.voucher_type === "free") {
-    if (t.retail_value_cusd) return `Free (up to $${t.retail_value_cusd})`;
-    return "FREE item";
-  }
-  if (t.voucher_type === "percent_off") return `${t.discount_percent}% off`;
-  return `$${(t.discount_cusd ?? 0).toFixed(2)} off`;
 }
 
 function AvailableCard({
@@ -235,7 +262,7 @@ function AvailableCard({
         <div className="min-w-0">
           <p className="truncate text-xs text-akiba-muted">{merchant?.name ?? "All merchants"}</p>
           <p className="font-sterling text-base font-bold text-akiba-teal sm:text-lg">
-            {discountLabel(t)}
+            {dealLabel(t)}
           </p>
         </div>
       </div>
@@ -327,7 +354,7 @@ function IssuedCard({ voucher: v }: { voucher: IssuedVoucher }) {
               {merchant?.name ?? "All merchants"}
             </p>
             <p className="font-sterling text-base font-bold text-akiba-teal sm:text-lg">
-              {t ? discountLabel(t) : "Voucher"}
+              {t ? dealLabel(t) : "Voucher"}
             </p>
           </div>
         </div>
@@ -344,10 +371,10 @@ function IssuedCard({ voucher: v }: { voucher: IssuedVoucher }) {
       <div className="space-y-0.5 px-3 py-3 text-xs text-akiba-muted sm:px-4 sm:py-4">
         {t && <p className="text-sm font-medium text-akiba-ink">{t.title}</p>}
         {v.expires_at && (
-          <p>Expires: {new Date(v.expires_at).toLocaleDateString()}</p>
+          <p>Expires: {new Date(v.expires_at).toLocaleDateString("en-KE")}</p>
         )}
         {v.redeemed_at && (
-          <p>Used: {new Date(v.redeemed_at).toLocaleDateString()}</p>
+          <p>Used: {new Date(v.redeemed_at).toLocaleDateString("en-KE")}</p>
         )}
         {v.acquisition_source && (
           <p className="text-akiba-muted/70">

@@ -1,14 +1,17 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Compass, ShoppingBag, Sparkles, Tag, User, QrCode } from "lucide-react";
+import { Compass, ShoppingBag, Sparkles, Tag, QrCode } from "lucide-react";
 import clsx from "clsx";
 import { track } from "@/lib/analytics/track";
 
 // Primary navigation — akiba-pass-navigation-rewards-earned-notifications-v1-spec.md §3.
-// Explore · Merchants · Rewards · Earn · Me, with Pass as a distinct one-tap
+// Explore · Merchants · Rewards · Earn, with Pass as a distinct one-tap
 // action on both surfaces. Games, quests and referrals no longer occupy
-// primary-nav slots; they live inside /earn (§5).
+// primary-nav slots; they live inside /earn (§5). Profile ("Me") is
+// intentionally not a nav-bar slot on either surface — it's reached from
+// the header (SiteHeader's account pill, both breakpoints), so it isn't
+// duplicated in the bottom bar too.
 type PrimaryKey = "explore" | "merchants" | "rewards" | "earn" | "me";
 
 const PRIMARY_ITEMS: Array<{ key: PrimaryKey; href: string; label: string; icon: typeof Compass }> = [
@@ -85,20 +88,48 @@ export function NavLinks({ dark = false }: { dark?: boolean }) {
   );
 }
 
-// Mobile bottom nav — Explore | Merchants | Rewards | Earn | Me
-// (akiba-pass-navigation-rewards-earned-notifications-v1-spec.md §3.3).
-// Pass is not a bar slot — it floats above the bar as its own one-tap
-// gesture (PassFab below) so it never competes for bar space or obscures
-// the Earn/Me tap targets.
-const BOTTOM_NAV_ITEMS: Array<{ key: PrimaryKey; href: string; label: string; icon: typeof Compass }> = [
-  ...PRIMARY_ITEMS,
-  { key: "me", href: "/me", label: "Me", icon: User },
-];
+// Mobile bottom nav — Explore | Merchants | [Pass] | Rewards | Earn
+// (akiba-pass-navigation-rewards-earned-notifications-v1-spec.md §3.3,
+// revised). Pass sits in its own elevated center slot — larger than the
+// other four icons and popped above the bar, the way a scan/camera action
+// sits in many bottom bars — rather than floating separately as its own FAB
+// off to the side. Profile lives only in the header now, so the bar holds
+// exactly the four PRIMARY_ITEMS split evenly around Pass.
+function NavItem({
+  href,
+  label,
+  icon: Icon,
+  active,
+  onNavigate,
+}: {
+  href: string;
+  label: string;
+  icon: typeof Compass;
+  active: boolean;
+  onNavigate: () => void;
+}) {
+  return (
+    <a
+      href={href}
+      onClick={onNavigate}
+      className={clsx(
+        "flex flex-1 flex-col items-center justify-center gap-1 transition-colors",
+        active ? "text-akiba-teal" : "text-akiba-muted"
+      )}
+    >
+      <Icon className="h-5 w-5" aria-hidden="true" />
+      <span className="text-[10px] font-semibold tracking-wide">{label}</span>
+    </a>
+  );
+}
 
 export function BottomNav() {
   const path = usePathname();
   if (path === "/login") return null;
   const activeKey = resolveActivePrimary(path);
+  const passActive = path === "/pass" || path.startsWith("/pass/");
+
+  const [left, right] = [PRIMARY_ITEMS.slice(0, 2), PRIMARY_ITEMS.slice(2)];
 
   return (
     <nav
@@ -110,48 +141,48 @@ export function BottomNav() {
       )}
     >
       <div className="flex h-16">
-        {BOTTOM_NAV_ITEMS.map(({ key, href, label, icon: Icon }) => {
-          const active = activeKey === key;
-          return (
-            <a
-              key={key}
-              href={href}
-              onClick={() => track("primary_nav_tap", { destination: key, surface: "mobile" })}
-              className={clsx(
-                "flex flex-1 flex-col items-center justify-center gap-1 transition-colors",
-                active ? "text-akiba-teal" : "text-akiba-muted"
-              )}
-            >
-              <Icon className="h-5 w-5" />
-              <span className="text-[10px] font-semibold tracking-wide">{label}</span>
-            </a>
-          );
-        })}
+        {left.map(({ key, href, label, icon }) => (
+          <NavItem
+            key={key}
+            href={href}
+            label={label}
+            icon={icon}
+            active={activeKey === key}
+            onNavigate={() => track("primary_nav_tap", { destination: key, surface: "mobile" })}
+          />
+        ))}
+
+        {/* Pass — elevated, larger center action; pops above the bar rather
+            than taking a same-size slot, since it's the product's core
+            one-tap gesture. */}
+        <div className="flex w-20 flex-none flex-col items-center justify-end pb-1.5">
+          <a
+            href="/pass"
+            onClick={() => track("pass_nav_tap")}
+            aria-label="Show your Akiba Pass"
+            className={clsx(
+              "-mt-8 flex h-14 w-14 items-center justify-center rounded-full shadow-lg ring-4 ring-white transition-transform active:scale-95",
+              passActive ? "bg-akiba-teal" : "bg-akiba-ink"
+            )}
+          >
+            <QrCode className="h-6 w-6 text-white" aria-hidden="true" />
+          </a>
+          <span className={clsx("mt-1 text-[10px] font-semibold tracking-wide", passActive ? "text-akiba-teal" : "text-akiba-muted")}>
+            Pass
+          </span>
+        </div>
+
+        {right.map(({ key, href, label, icon }) => (
+          <NavItem
+            key={key}
+            href={href}
+            label={label}
+            icon={icon}
+            active={activeKey === key}
+            onNavigate={() => track("primary_nav_tap", { destination: key, surface: "mobile" })}
+          />
+        ))}
       </div>
     </nav>
-  );
-}
-
-// Pass FAB — floats above the bottom nav bar so it stays a one-tap gesture
-// without taking a slot in the bar. Mobile-only, matching BottomNav's
-// breakpoint. Positioned clear of the Earn/Me tap targets (§3.3).
-export function PassFab() {
-  const path = usePathname();
-  if (path === "/login") return null;
-
-  const passActive = path === "/pass" || path.startsWith("/pass/");
-
-  return (
-    <a
-      href="/pass"
-      onClick={() => track("pass_nav_tap")}
-      className={clsx(
-        "fixed right-4 z-50 flex h-14 w-14 items-center justify-center rounded-2xl shadow-lg transition-colors active:scale-95 sm:hidden",
-        "bottom-[calc(4.5rem+env(safe-area-inset-bottom))]",
-        passActive ? "bg-akiba-teal" : "bg-akiba-ink"
-      )}
-    >
-      <QrCode className="h-6 w-6 text-white" />
-    </a>
   );
 }

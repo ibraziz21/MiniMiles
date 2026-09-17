@@ -12,7 +12,7 @@ import {
 import { useMemoryFlipGame } from "@akiba/skill-games/client";
 import { GAMEPLAY_CONFIGS, MASTERY_ECONOMY_V1 } from "@akiba/skill-games/core";
 import type { GameResult } from "@akiba/skill-games/core";
-import { MilesIcon } from "@/components/MilesIcon";
+import { MilesIcon, MilesAmount } from "@/components/MilesIcon";
 import { track } from "@/lib/analytics/track";
 import {
   GamesApiError,
@@ -25,7 +25,8 @@ import {
 } from "@/lib/games/clientTransport";
 import { GAME_DAILY_PLAY_CAP, GAME_MAX_REWARD_MILES } from "@/lib/games/gameRewardRules";
 import { isMasteryActive, masteryThresholds, MasteryEntryBanner, MasteryResultSummary } from "@/lib/games/masteryCopy";
-import { Brain, Trophy } from "lucide-react";
+import { useSessionRecovery, persistActiveSession, clearActiveSession } from "@/lib/games/useSessionRecovery";
+import { Brain, Trophy, X } from "lucide-react";
 
 const config = GAMEPLAY_CONFIGS.memory_flip;
 
@@ -49,6 +50,8 @@ export default function PassMemoryFlipPage() {
   const [startError, setStartError] = useState<string | null>(null);
   const [finishResult, setFinishResult] = useState<FinishResult | null>(null);
   const [settlementStatus, setSettlementStatus] = useState<SettlementStatus>("idle");
+  const recoveredReward = useSessionRecovery("memory_flip");
+  const [recoveryDismissed, setRecoveryDismissed] = useState(false);
 
   const game = useMemoryFlipGame(sessionId ?? undefined, sessionId ?? undefined, sessionId ? buildMemoryFlipTransport(sessionId) : undefined);
 
@@ -89,6 +92,7 @@ export default function PassMemoryFlipPage() {
     try {
       const session = await startSession("memory_flip");
       track("game_start_succeeded", { gameType: "memory_flip" });
+      persistActiveSession("memory_flip", session.sessionId);
       setSessionId(session.sessionId);
       setIntroOpen(false);
       setResultOpen(false);
@@ -119,6 +123,7 @@ export default function PassMemoryFlipPage() {
     (async () => {
       await game.flushServerFlips?.();
       const result = await finishSession(sessionId);
+      clearActiveSession("memory_flip");
       track("game_finished", { gameType: "memory_flip", accepted: result.accepted, score: result.score });
       if (!result.accepted) track("game_result_rejected", { gameType: "memory_flip" });
       if (result.reward.deliveryId) track("game_reward_reserved", { gameType: "memory_flip", mode: result.reward.mode });
@@ -131,6 +136,7 @@ export default function PassMemoryFlipPage() {
       setResultOpen(true);
     })().catch((err) => {
       console.error("[pass/memory-flip] finish failed", err);
+      clearActiveSession("memory_flip");
       setSettlementStatus("error");
       game.setPhase("settled");
       setResultOpen(true);
@@ -187,7 +193,7 @@ export default function PassMemoryFlipPage() {
         {game.phase === "countdown" && (
           <div className="mx-4 rounded-2xl bg-gradient-to-br from-[#3B1F6E] to-[#5B35A0] p-10 text-center shadow-lg">
             <p className="text-xs font-semibold uppercase tracking-widest text-white/70 mb-1">Get ready</p>
-            <p className="text-7xl font-black text-white">{game.countdown}</p>
+            <p className="text-7xl font-black tabular-nums text-white">{game.countdown}</p>
           </div>
         )}
 
@@ -206,6 +212,22 @@ export default function PassMemoryFlipPage() {
 
         {!sessionId && game.phase === "idle" && (
           <div className="mx-4 space-y-2">
+            {recoveredReward && !recoveryDismissed && (
+              <div role="status" className="flex items-center justify-between gap-2 rounded-2xl border border-[#5B35A033] bg-[#F5F0FF] px-4 py-3 text-sm text-[#5B35A0]">
+                <span className="flex items-center gap-1">
+                  Welcome back — your last round earned{" "}
+                  <MilesAmount amount={recoveredReward.rewardMiles} size="sm" prefix="+" className="text-[#5B35A0]" />
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setRecoveryDismissed(true)}
+                  aria-label="Dismiss"
+                  className="shrink-0 rounded-full p-1 text-[#5B35A0]/60 hover:text-[#5B35A0]"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
             <div className="rounded-2xl bg-gradient-to-br from-[#3B1F6E] to-[#7B4CC0] p-5 text-center relative overflow-hidden">
               <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-white/10" />
               <div className="relative z-10">

@@ -14,6 +14,20 @@ const icons: Record<string, React.ReactNode> = {
   spark: <Sparkle   size={28} weight="duotone" />,
 };
 
+// Screen-reader-facing names — independent of the `value` keys above (which
+// don't all match their rendered icon, e.g. "gem" renders a Star) so the
+// announced word always matches what's actually drawn on the card.
+const SYMBOL_LABELS: Record<string, string> = {
+  sun:   "sun",
+  bolt:  "lightning bolt",
+  leaf:  "leaf",
+  gem:   "star",
+  wave:  "water drop",
+  key:   "key",
+  moon:  "moon",
+  spark: "sparkle",
+};
+
 export function MemoryCard({
   value,
   visible,
@@ -27,23 +41,32 @@ export function MemoryCard({
   onClick: () => void;
   disabled?: boolean;
 }) {
+  const symbolLabel = SYMBOL_LABELS[value] ?? value;
+  const label = matched
+    ? `Matched card: ${symbolLabel}`
+    : visible
+      ? `Revealed card: ${symbolLabel}`
+      : "Hidden card";
+
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled || matched}
       className={[
-        "aspect-square rounded-2xl [perspective:700px] transition-transform duration-100",
+        "aspect-square rounded-2xl [perspective:700px] transition-transform duration-100 motion-reduce:transition-none",
         !matched && !disabled ? "active:scale-90" : "",
         matched ? "scale-95" : "",
       ].join(" ")}
-      aria-label={visible ? "Revealed card" : "Hidden card"}
+      aria-label={label}
+      aria-pressed={visible}
     >
       <div
         className={[
-          "relative h-full w-full rounded-2xl transition-transform duration-300 [transform-style:preserve-3d]",
+          "relative h-full w-full rounded-2xl transition-transform duration-300 motion-reduce:transition-none [transform-style:preserve-3d]",
           visible ? "[transform:rotateY(180deg)]" : "",
         ].join(" ")}
+        aria-hidden="true"
       >
         {/* Back face — hidden state */}
         <div className="absolute inset-0 flex items-center justify-center rounded-2xl border-2 border-[#5B35A040] bg-gradient-to-br from-[#3B1F6E] to-[#7B4CC0] text-white [backface-visibility:hidden]">

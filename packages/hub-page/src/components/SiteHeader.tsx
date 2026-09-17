@@ -29,7 +29,7 @@ export async function SiteHeader() {
           ) : (
             <a
               href="/login"
-              className="inline-flex h-9 items-center rounded-full bg-akiba-teal px-4 text-sm font-semibold text-white no-underline transition hover:bg-[#1E7E8D]"
+              className="inline-flex h-9 items-center rounded-full bg-akiba-teal px-4 text-sm font-semibold text-white no-underline transition hover:bg-akiba-tealDark"
             >
               Sign in
             </a>
