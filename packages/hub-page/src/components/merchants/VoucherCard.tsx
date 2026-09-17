@@ -1,6 +1,5 @@
 import { Tag } from "lucide-react";
 import type { PublicMerchantLocation, PublicVoucherSummary } from "@/lib/merchants/types";
-import { voucherLabel } from "@/lib/pricing";
 import { GetVoucherButton } from "@/components/vouchers/GetVoucherButton";
 
 export function VoucherCard({
@@ -12,6 +11,12 @@ export function VoucherCard({
   locations: PublicMerchantLocation[];
   isSignedIn: boolean;
 }) {
+  const voucherLabel =
+    v.voucherType === "free"
+      ? "Free item"
+      : v.voucherType === "percent_off"
+        ? `${v.discountPercent ?? 0}% off`
+        : `$${(v.discountCusd ?? 0).toFixed(2)} off`;
   const branchNames = v.branchIds
     ? locations.filter((l) => v.branchIds!.includes(l.id)).map((l) => l.name)
     : null;
@@ -25,14 +30,7 @@ export function VoucherCard({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-akiba-ink">{v.title}</p>
           <p className="text-xs text-akiba-teal">
-            {voucherLabel({
-              voucher_type: v.voucherType,
-              discount_percent: v.discountPercent,
-              discount_cusd: v.discountCusd,
-              applicable_category: v.applicableCategory,
-              linked_product_id: v.linkedProductId,
-              retail_value_cusd: v.retailValueCusd,
-            })}
+            {voucherLabel}
           </p>
           <p className="text-[11px] text-akiba-muted">
             {branchNames ? `Available at ${branchNames.join(", ")}` : "Available at all branches"}

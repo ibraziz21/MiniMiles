@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { ShopAndEarnCard, EarnCard } from "./EarnCards";
+import { EarnAtMerchantsCard, EarnCard } from "./EarnCards";
 import { getHubQuestStatuses } from "@/lib/akiba/questStatus";
 import { isHubQuestsEnabledFor } from "@/lib/akiba/hubQuestRollout";
 import { isGamesEnabledFor } from "@/lib/games/gamesRollout";
@@ -11,7 +11,7 @@ import { getReferralDashboard } from "@/lib/akiba/referralDashboard";
 
 // Earn hub — akiba-pass-navigation-rewards-earned-notifications-v1-spec.md §5.
 // Games, quests and referrals no longer occupy primary-nav slots; this page
-// is their coherent home. Shop & Earn is always shown, first, with the
+// is their coherent home. Earning at merchants is always shown, first, with the
 // strongest visual weight (§5.2). Secondary-card summaries are best-effort:
 // a summary failure degrades to static copy, it never blocks the page.
 export const metadata = { title: "Earn Miles — Akiba Pass" };
@@ -76,13 +76,13 @@ export default async function EarnPage() {
       <div className="mb-6">
         <h1 className="font-sterling text-2xl font-semibold text-akiba-ink sm:text-3xl">Earn Miles</h1>
         <p className="mt-1 text-sm text-akiba-muted sm:mt-2">
-          Earn more value when you shop, then use activities to get to your next reward faster.
+          Earn at participating merchants, then use activities to reach your next reward faster.
         </p>
       </div>
 
       <div className="space-y-4">
-        {/* Shop & Earn — always shown, strongest visual weight (§5.2) */}
-        <ShopAndEarnCard />
+        {/* Earning at merchants — always shown, strongest visual weight (§5.2) */}
+        <EarnAtMerchantsCard />
 
         {questsEnabled && (
           <EarnCard

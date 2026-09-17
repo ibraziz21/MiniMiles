@@ -140,7 +140,7 @@ describe("listPublicMerchants — public-data safety and pagination", () => {
     expect(Object.keys(result.merchants[0])).toEqual([
       "id", "slug", "name", "shortDescription", "logoUrl", "primaryCategory",
       "categories", "operatingModel", "primaryLocation", "branchCount",
-      "voucherCount", "storeActive", "distanceKm",
+      "voucherCount", "distanceKm",
     ]);
   });
 

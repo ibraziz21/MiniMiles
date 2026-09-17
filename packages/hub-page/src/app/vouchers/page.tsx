@@ -60,7 +60,7 @@ async function getAllTemplates(hubUserId: string | null): Promise<VoucherTemplat
 const HOW_IT_WORKS = [
   { n: "1", short: "Choose",        long: "Choose a voucher below" },
   { n: "2", short: "Redeem",        long: "Redeem instantly with AkibaMiles" },
-  { n: "3", short: "Show at checkout", long: "Show the QR or code at checkout" },
+  { n: "3", short: "Show merchant", long: "Show the QR or code to the merchant" },
 ];
 
 export default async function VouchersPage({

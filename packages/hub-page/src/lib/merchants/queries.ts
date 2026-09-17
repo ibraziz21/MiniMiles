@@ -53,8 +53,7 @@ function isValidDetailJson(value: unknown): value is RawDetailJson {
     typeof v.contacts === "object" &&
     Array.isArray(v.locations) &&
     Array.isArray(v.coreOfferings) &&
-    Array.isArray(v.categories) &&
-    Array.isArray(v.products)
+    Array.isArray(v.categories)
   );
 }
 
@@ -93,7 +92,6 @@ function mapSummary(row: RawSummaryRow): PublicMerchantSummary {
     primaryLocation: row.primary_location,
     branchCount: row.branch_count,
     voucherCount: row.voucher_count,
-    storeActive: row.store_active,
     distanceKm: row.distance_km,
   };
 }
@@ -246,13 +244,11 @@ type RawDetailJson = {
   bannerUrl: string | null;
   websiteUrl: string | null;
   operatingModel: PublicMerchantDetail["operatingModel"];
-  storeActive: boolean;
   contacts: PublicMerchantDetail["contacts"];
   primaryCategory: PublicMerchantDetail["primaryCategory"];
   categories: PublicMerchantDetail["categories"];
   coreOfferings: PublicMerchantDetail["coreOfferings"];
   locations: Array<Record<string, unknown>>;
-  products: PublicMerchantDetail["products"];
 };
 
 function mapLocation(raw: Record<string, unknown>) {
@@ -402,7 +398,6 @@ export async function getPublicMerchant(
     primaryCategory: raw.primaryCategory,
     categories: raw.categories ?? [],
     operatingModel: raw.operatingModel,
-    storeActive: raw.storeActive,
     contacts: raw.contacts,
     primaryLocation: primaryLoc
       ? {
@@ -419,7 +414,6 @@ export async function getPublicMerchant(
     distanceKm: null,
     coreOfferings: raw.coreOfferings ?? [],
     vouchers,
-    products: raw.products ?? [],
   };
 }
 

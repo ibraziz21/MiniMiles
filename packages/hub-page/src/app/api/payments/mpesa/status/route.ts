@@ -12,9 +12,9 @@ export async function GET(req: NextRequest) {
 
   const admin = createAdminClient();
 
-  // Check callback table first — only return "success" when the callback IS
-  // recorded in the DB.  This ensures the orders route always finds the callback
-  // row when the CartDrawer calls createOrders after seeing "success" here.
+  // Check the callback table first. This route exists only to reconcile STK
+  // pushes created before direct commerce was retired; no new push can be
+  // initiated by this app.
   const { data: stkResult } = await admin
     .from("mpesa_stk_results")
     .select("result_code, receipt_number, amount_kes, phone")

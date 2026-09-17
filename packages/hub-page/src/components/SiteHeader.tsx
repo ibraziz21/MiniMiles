@@ -1,6 +1,5 @@
 import { Logo } from "@/components/Logo";
 import { NavLinks } from "@/components/NavLinks";
-import { CartButton } from "@/components/CartButton";
 import { createClient } from "@/lib/supabase/server";
 import { User } from "lucide-react";
 
@@ -19,7 +18,6 @@ export async function SiteHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <CartButton />
           {user ? (
             <a
               href="/me"

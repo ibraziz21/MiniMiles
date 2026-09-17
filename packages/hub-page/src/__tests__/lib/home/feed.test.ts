@@ -64,7 +64,7 @@ function merchant(overrides: Partial<PublicMerchantSummary> = {}): PublicMerchan
   return {
     id: "m1", slug: "m1", name: "Alpha", shortDescription: null, logoUrl: null,
     primaryCategory: null, categories: [], operatingModel: "physical",
-    primaryLocation: null, branchCount: 1, voucherCount: 0, storeActive: false,
+    primaryLocation: null, branchCount: 1, voucherCount: 0,
     distanceKm: null,
     ...overrides,
   };

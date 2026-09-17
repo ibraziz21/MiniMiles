@@ -9,7 +9,6 @@ import { buildDirectionsUrl, formatAddress } from "@/lib/merchants/directions";
 import { BranchCard } from "@/components/merchants/BranchCard";
 import { VoucherCard } from "@/components/merchants/VoucherCard";
 import { ExpandableDescription } from "@/components/merchants/ExpandableDescription";
-import { ProductGrid } from "./ProductGrid";
 import { TrackedAnchor } from "@/components/TrackedAnchor";
 import { MerchantViewTracker } from "@/components/merchants/MerchantViewTracker";
 import type { PublicMerchantDetail } from "@/lib/merchants/types";
@@ -64,13 +63,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
-  electronics: "Electronics", accessories: "Accessories", services: "Services",
-  airtime: "Airtime", gift_cards: "Gift Cards", clothing: "Clothing",
-  food: "Food & Drinks", general: "General",
-};
-
-function OperatingBadges({ operatingModel, storeActive }: { operatingModel: string; storeActive: boolean }) {
+function OperatingBadges({ operatingModel }: { operatingModel: string }) {
   return (
     <div className="flex gap-1.5">
       {(operatingModel === "physical" || operatingModel === "hybrid") && (
@@ -78,7 +71,7 @@ function OperatingBadges({ operatingModel, storeActive }: { operatingModel: stri
           <Store className="h-3 w-3" /> In store
         </span>
       )}
-      {(operatingModel === "online" || operatingModel === "hybrid") && storeActive && (
+      {(operatingModel === "online" || operatingModel === "hybrid") && (
         <span className="flex items-center gap-1 rounded-full bg-akiba-card px-2.5 py-0.5 text-[11px] font-medium text-akiba-muted">
           <Globe className="h-3 w-3" /> Online
         </span>
@@ -139,13 +132,6 @@ export default async function MerchantPage({ params }: { params: { slug: string 
 
   const isSignedIn = !!(await getSignedInUserId());
 
-  const byCategory = merchant.products.reduce<Record<string, typeof merchant.products>>((acc, p) => {
-    if (!acc[p.category]) acc[p.category] = [];
-    acc[p.category].push(p);
-    return acc;
-  }, {});
-  const productCategories = Object.keys(byCategory).sort();
-  const showShopOnline = merchant.storeActive && merchant.products.length > 0;
   const hasPhysicalLocation = merchant.locations.length > 0;
 
   return (
@@ -153,7 +139,6 @@ export default async function MerchantPage({ params }: { params: { slug: string 
       <MerchantViewTracker
         merchantId={merchant.id}
         hasVouchers={merchant.vouchers.length > 0}
-        hasShopOnline={showShopOnline}
       />
       {hasPhysicalLocation && <LocalBusinessJsonLd merchant={merchant} />}
 
@@ -182,7 +167,7 @@ export default async function MerchantPage({ params }: { params: { slug: string 
       {/* Profile — Instagram-style: avatar, name, bio and quick actions are
           one clean, borderless identity block (a single visual unit, not a
           stack of separate boxed sections). Content sections below (visit
-          us, offers, vouchers, shop) get cards; identity doesn't need one. */}
+          us, offers and vouchers) get cards; identity doesn't need one. */}
       <div className="mb-8 border-b border-akiba-line pb-6">
         <div className="flex items-start gap-3">
           {!merchant.bannerUrl && (
@@ -219,7 +204,7 @@ export default async function MerchantPage({ params }: { params: { slug: string 
                     {c.name}
                   </span>
                 ))}
-              <OperatingBadges operatingModel={merchant.operatingModel} storeActive={merchant.storeActive} />
+              <OperatingBadges operatingModel={merchant.operatingModel} />
             </div>
           </div>
         </div>
@@ -333,7 +318,7 @@ export default async function MerchantPage({ params }: { params: { slug: string 
       </div>
 
       {/*
-        Section order: Branches -> Vouchers -> Shop online. Contact/socials,
+        Section order: Branches -> Vouchers. Contact/socials,
         About and What they offer now live in the profile block above, so
         this grid only carries the remaining content sections. `order-*`
         gives the mobile (single-column) sequence; `lg:col-start-2` on
@@ -366,25 +351,6 @@ export default async function MerchantPage({ params }: { params: { slug: string 
                 <VoucherCard key={v.id} voucher={v} locations={merchant.locations} isSignedIn={isSignedIn} />
               ))}
             </div>
-          </section>
-        )}
-
-        {/* Shop online — each category pages through products 4 at a time
-            (ProductGrid) instead of growing into one long scroll. */}
-        {showShopOnline && (
-          <section className="order-3 lg:col-start-1">
-            <h2 className="mb-4 font-sterling text-lg font-semibold text-akiba-ink">Shop online</h2>
-            {productCategories.map((cat) => (
-              <div key={cat} className="mb-8">
-                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-akiba-muted">
-                  {CATEGORY_LABELS[cat] ?? cat}
-                </h3>
-                <ProductGrid
-                  products={byCategory[cat]}
-                  merchant={{ id: merchant.id, slug: merchant.slug, name: merchant.name }}
-                />
-              </div>
-            ))}
           </section>
         )}
       </div>

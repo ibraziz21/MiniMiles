@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ArrowLeft, Bell, Package, Truck, CheckCircle2, XCircle, RotateCcw, Ticket, AlertTriangle, Gift, Sparkles, Store } from "lucide-react";
+import { ArrowLeft, Bell, XCircle, Ticket, AlertTriangle, Gift, Sparkles, Store } from "lucide-react";
 import { PushNotificationSettings } from "@/components/PushNotificationSettings";
 import { MilesAmount } from "@/components/MilesIcon";
 import { MilesEarnedLink } from "./MilesEarnedLink";
@@ -9,14 +9,6 @@ import { MilesEarnedLink } from "./MilesEarnedLink";
 export const metadata = { title: "Notifications — Akiba Pass" };
 
 const TEMPLATE_CONFIG: Record<string, { label: string; icon: React.ReactNode }> = {
-  order_placed:           { label: "Order placed",             icon: <Package className="h-4 w-4" /> },
-  order_accepted:         { label: "Order accepted",            icon: <Package className="h-4 w-4" /> },
-  order_dispatched:       { label: "Order dispatched",          icon: <Truck className="h-4 w-4" /> },
-  order_delivered:        { label: "Order delivered",           icon: <CheckCircle2 className="h-4 w-4" /> },
-  digital_delivered:      { label: "Digital delivery ready",     icon: <CheckCircle2 className="h-4 w-4" /> },
-  order_cancelled:        { label: "Order cancelled",           icon: <XCircle className="h-4 w-4" /> },
-  refund_initiated:       { label: "Refund initiated",          icon: <RotateCcw className="h-4 w-4" /> },
-  refund_completed:       { label: "Refund completed",          icon: <RotateCcw className="h-4 w-4" /> },
   voucher_ready:          { label: "Voucher ready",             icon: <Ticket className="h-4 w-4" /> },
   voucher_failed:         { label: "Voucher purchase failed",   icon: <XCircle className="h-4 w-4" /> },
   voucher_reconciliation: { label: "Voucher purchase in review", icon: <AlertTriangle className="h-4 w-4" /> },
@@ -33,12 +25,22 @@ const TEMPLATE_CONFIG: Record<string, { label: string; icon: React.ReactNode }> 
 
 type NotificationRow = {
   id: string;
-  order_id: string | null;
   template: string;
   created_at: string;
   metadata: Record<string, unknown>;
   deep_link: string | null;
 };
+
+const RETIRED_COMMERCE_TEMPLATES = new Set([
+  "order_placed",
+  "order_accepted",
+  "order_dispatched",
+  "order_delivered",
+  "digital_delivered",
+  "order_cancelled",
+  "refund_initiated",
+  "refund_completed",
+]);
 
 async function getNotifications(userId: string, email: string | null): Promise<NotificationRow[]> {
   const admin = createAdminClient();
@@ -56,12 +58,14 @@ async function getNotifications(userId: string, email: string | null): Promise<N
 
   const { data } = await admin
     .from("notification_outbox")
-    .select("id, order_id, template, created_at, metadata, deep_link")
+    .select("id, template, created_at, metadata, deep_link")
     .in("user_ref", refs)
     .order("created_at", { ascending: false })
     .limit(50);
 
-  return (data ?? []) as NotificationRow[];
+  return ((data ?? []) as NotificationRow[]).filter(
+    (notification) => !RETIRED_COMMERCE_TEMPLATES.has(notification.template),
+  );
 }
 
 export default async function NotificationsPage() {
@@ -87,7 +91,7 @@ export default async function NotificationsPage() {
         <div className="flex flex-col items-center rounded-2xl border border-dashed border-akiba-line bg-white py-14 text-center">
           <Bell className="mb-3 h-10 w-10 text-akiba-line" />
           <p className="font-medium text-akiba-ink">No notifications yet</p>
-          <p className="mt-1 text-sm text-akiba-muted">Order updates will show up here.</p>
+          <p className="mt-1 text-sm text-akiba-muted">Voucher, Miles and reward updates will show up here.</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -127,11 +131,7 @@ export default async function NotificationsPage() {
                     <p className="font-medium text-akiba-ink">{announcementTitle ?? cfg.label}</p>
                   )}
                   {announcementBody && <p className="mt-0.5 text-sm text-akiba-muted">{announcementBody}</p>}
-                  {n.order_id ? (
-                    <a href="/me/orders" className="text-xs text-akiba-teal hover:underline">
-                      View order
-                    </a>
-                  ) : n.deep_link ? (
+                  {n.deep_link ? (
                     n.template === "miles_earned" ? (
                       <MilesEarnedLink href={n.deep_link} />
                     ) : (

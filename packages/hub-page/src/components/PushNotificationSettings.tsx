@@ -12,7 +12,7 @@ import {
 
 type PushInfo = {
   vapid_public_key: string | null;
-  preferences: { orders: boolean; vouchers: boolean; rewards: boolean; marketing: boolean; earnings: boolean };
+  preferences: { vouchers: boolean; rewards: boolean; marketing: boolean; earnings: boolean };
 };
 
 type ViewState =
@@ -93,7 +93,7 @@ export function PushNotificationSettings() {
   }
 
   async function handleTogglePreference(
-    key: "orders" | "vouchers" | "rewards" | "marketing" | "earnings",
+    key: "vouchers" | "rewards" | "marketing" | "earnings",
     value: boolean,
   ) {
     if (!info) return;
@@ -134,8 +134,8 @@ export function PushNotificationSettings() {
       <div className="flex items-start gap-3">
         <BellOff className="mt-0.5 h-4 w-4 shrink-0 text-akiba-muted" />
         <p className="text-sm text-akiba-muted">
-          Notifications are blocked for Akiba in your device settings. Enable them there to receive order
-          and voucher updates.
+          Notifications are blocked for Akiba in your device settings. Enable them there to receive voucher,
+          Miles and reward updates.
         </p>
       </div>
     );
@@ -147,7 +147,7 @@ export function PushNotificationSettings() {
         <div>
           <p className="font-medium text-akiba-ink">Stay updated</p>
           <p className="text-sm text-akiba-muted">
-            Get notified about order and voucher updates, even when Akiba is closed.
+            Get notified about vouchers, Miles and rewards, even when Akiba is closed.
           </p>
           {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
         </div>
@@ -197,14 +197,6 @@ export function PushNotificationSettings() {
       {info && (
         <div className="space-y-2 border-t border-akiba-line pt-3">
           <label className="flex items-center justify-between text-sm text-akiba-ink">
-            Orders &amp; refunds
-            <input
-              type="checkbox"
-              checked={info.preferences.orders}
-              onChange={(e) => handleTogglePreference("orders", e.target.checked)}
-            />
-          </label>
-          <label className="flex items-center justify-between text-sm text-akiba-ink">
             Vouchers
             <input
               type="checkbox"
@@ -213,7 +205,7 @@ export function PushNotificationSettings() {
             />
           </label>
           <label className="flex items-center justify-between text-sm text-akiba-ink">
-            Miles earned from shopping
+            Miles earned at merchants
             <input
               type="checkbox"
               checked={info.preferences.earnings}

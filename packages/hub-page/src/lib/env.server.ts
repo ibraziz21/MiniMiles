@@ -52,7 +52,6 @@ export type ServerEnv = {
     passkey: string | null;
     callbackUrl: string;
     callbackSecret: string | null;
-    usdToKes: number;
   };
   webPush: {
     publicKey: string | null;
@@ -278,12 +277,6 @@ export function getServerEnv(env: NodeJS.ProcessEnv = process.env): ServerEnv {
     }
   }
 
-  const usdToKesRaw = env.USD_TO_KES;
-  const usdToKes = usdToKesRaw !== undefined ? Number(usdToKesRaw) : 130;
-  if (!Number.isFinite(usdToKes) || usdToKes <= 0) {
-    problems.push("USD_TO_KES must be a finite positive number");
-  }
-
   const webPushPublicKey = trimmedOrNull(env.NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY);
   const webPushPrivateKey = trimmedOrNull(env.WEB_PUSH_VAPID_PRIVATE_KEY);
   const webPushSubject = trimmedOrNull(env.WEB_PUSH_VAPID_SUBJECT);
@@ -339,7 +332,6 @@ export function getServerEnv(env: NodeJS.ProcessEnv = process.env): ServerEnv {
       passkey: trimmedOrNull(env.MPESA_PASSKEY),
       callbackUrl: mpesaCallbackUrl,
       callbackSecret: trimmedOrNull(env.MPESA_CALLBACK_SECRET),
-      usdToKes: Number.isFinite(usdToKes) && usdToKes > 0 ? usdToKes : 130,
     },
     webPush: {
       publicKey: webPushPublicKey,

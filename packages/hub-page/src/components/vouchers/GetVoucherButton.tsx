@@ -189,7 +189,7 @@ export function GetVoucherButton({
         // extra clearance so its content never sits behind the nav bar.
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center">
           <div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:max-h-[90vh] sm:rounded-3xl sm:pb-6">
-            <h3 className="text-base font-bold text-akiba-ink">Confirm your purchase</h3>
+            <h3 className="text-base font-bold text-akiba-ink">Confirm voucher redemption</h3>
             {quote && (
               <div className="mt-3 space-y-1.5 text-sm text-akiba-muted">
                 {quote.ledger_points > 0 && (

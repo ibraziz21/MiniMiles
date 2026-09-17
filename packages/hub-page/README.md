@@ -1,15 +1,16 @@
 # Akiba Hub
 
-The Akiba Hub app at [hub.akibamiles.com](https://hub.akibamiles.com) — where shoppers earn AkibaMiles, manage their Akiba Pass, shop from merchants, and redeem vouchers.
+The Akiba Hub app at [hub.akibamiles.com](https://hub.akibamiles.com) — where members earn AkibaMiles, manage their Akiba Pass, discover participating merchants, and redeem Miles for vouchers.
 
-> **Note:** This package started as a static public discovery page and has since grown into the full Hub app with auth, payments, and voucher redemption.
+> **Important:** Akiba Pass does not sell products, collect consumer payments, or create orders. Members pay merchants directly.
 
 ## What it does
 
 **Public (no login):**
 
 - Landing page with featured merchants, rewards overview, and how-it-works
-- `/shop` — browse verified merchants and products
+- `/merchants` — discover verified merchants, branches, offers, and available vouchers
+- `/vouchers` — browse discounts and offers available for Miles
 - `/rewards` — active campaigns (MiniPay, Base, Celo, etc.)
 - `/quests` — partner quests fetched from Akiba-Platform
 
@@ -19,13 +20,14 @@ The Akiba Hub app at [hub.akibamiles.com](https://hub.akibamiles.com) — where 
 - Miles balance — on-chain ERC-20 balance (Celo) + Platform ledger balance (unclaimed in-store Miles)
 - Linked wallets (MiniPay ecosystem), wallet picker for multi-wallet emails
 - Activity feed — merchant scan awards + engagement earnings
-- Orders and vouchers (`/my-vouchers`)
+- Voucher wallet and presentation for in-store use
 
-**Commerce & rewards flow:**
+**Miles & voucher flow:**
 
-- Checkout with stablecoins or M-Pesa (Daraja STK push: `initiate` → `callback` → `status`)
-- Verified purchases are forwarded to Akiba-Platform as purchase events (`src/lib/akiba/purchase-events.ts`); Platform decides Miles awards
-- Voucher lifecycle: issue → claim (atomic DB RPC) → redeem, plus raffle, grant, and clawback admin routes
+- Members pay participating merchants directly and show their Akiba Pass to collect eligible Miles
+- Members spend Miles to acquire vouchers, then present the voucher QR or code to the merchant
+- Cart, checkout, payment initiation, delivery, product ordering, and order history are intentionally unavailable
+- M-Pesa callback/status handlers remain only to reconcile payments that were already pending at retirement; initiation always returns `410 Gone`
 
 ## Running locally
 
@@ -39,7 +41,7 @@ pnpm dev
 
 Dev server prefers port **3003** → [http://localhost:3003](http://localhost:3003).
 
-Copy `.env.local.example` to `.env.local` and fill in Supabase, Platform (`AKIBA_API_URL` / `AKIBA_API_KEY`), M-Pesa, and chain (`MINIPOINTS_ADDRESS`, `CELO_RPC_URL`) values.
+Copy `.env.local.example` to `.env.local` and fill in Supabase, Platform (`AKIBA_API_URL` / `AKIBA_API_KEY`), and chain (`MINIPOINTS_ADDRESS`, `CELO_RPC_URL`) values. M-Pesa values are only needed while reconciling pre-retirement pending payments.
 
 Merchant-directory synchronization also requires
 `DIRECTORY_REVALIDATION_SECRET`, shared only with dashboard-merchant. Its
@@ -61,13 +63,14 @@ pnpm test:integration   # integration tests (vitest.config.integration.ts)
 |------|---------|
 | `src/app/page.tsx` | Public landing page |
 | `src/app/(protected)/me/` | Profile, Pass, wallets, activity |
-| `src/app/shop/` | Merchant browsing, product pages, checkout |
-| `src/app/api/payments/mpesa/` | M-Pesa STK push flow |
-| `src/app/api/shop/` | Merchants, orders, voucher issue/redeem |
+| `src/app/merchants/` | Merchant discovery, branches, and offers |
+| `src/app/vouchers/` | Voucher discovery and presentation |
+| `src/app/api/payments/mpesa/` | Retired initiation boundary plus pending-payment reconciliation |
+| `src/app/api/shop/vouchers/` | Voucher quote, acquisition, and presentation APIs |
 | `src/app/api/vouchers/` | Programs, grants, raffles, clawback |
 | `src/lib/akiba/` | Platform adapters (purchase events, activity, ledger) |
-| `src/lib/vouchers/` | Issuance, claim/redemption (atomic RPCs), programs |
-| `src/lib/mpesa.ts` | Daraja client |
+| `src/lib/vouchers/` | Miles-funded voucher issuance and programs |
+| `src/lib/mpesa.ts` | Read-only Daraja status reconciliation |
 | `src/lib/pass-token.ts` | Signed pass tokens |
 | `src/lib/supabase/` | Client/server/admin Supabase clients |
 
@@ -82,7 +85,7 @@ pnpm test:integration   # integration tests (vitest.config.integration.ts)
 - **Framework:** Next.js 14 (App Router)
 - **Auth & DB:** Supabase (`@supabase/ssr`)
 - **Chain:** viem, Celo Mainnet (Miles are an ERC-20)
-- **Payments:** M-Pesa Daraja, stablecoins
+- **Rewards:** AkibaMiles balances and merchant vouchers
 - **Styling:** Tailwind CSS with Akiba brand tokens
 - **Fonts:** Sterling (local) + DM Sans
 - **Icons:** Lucide React

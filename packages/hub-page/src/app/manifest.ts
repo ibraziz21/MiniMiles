@@ -8,13 +8,13 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "AkibaMiles",
     short_name: "Akiba",
     description:
-      "Shop from merchants, earn AkibaMiles, claim rewards, and show your Akiba Pass in-store.",
+      "Earn AkibaMiles at participating merchants, then use your Miles for vouchers and rewards.",
     start_url: "/",
     display: "standalone",
     background_color: "#FCFCFC",
     theme_color: "#238D9D",
     orientation: "portrait",
-    categories: ["shopping", "lifestyle"],
+    categories: ["lifestyle", "rewards"],
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },

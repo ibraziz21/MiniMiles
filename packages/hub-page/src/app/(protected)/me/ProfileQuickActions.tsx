@@ -4,7 +4,6 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   QrCode,
   Wallet,
-  Ticket,
   Gift,
   Lock,
   X,
@@ -60,12 +59,6 @@ export function ProfileQuickActions({ passSlot, walletsSlot, securitySlot }: Pro
       icon: <Wallet className="h-5 w-5 text-akiba-teal" />,
       label: "Wallets",
       onClick: () => setOpen("wallets"),
-    },
-    {
-      key: "orders",
-      icon: <Ticket className="h-5 w-5 text-akiba-teal" />,
-      label: "Orders",
-      href: "/me/orders",
     },
     {
       key: "referrals",

@@ -4,11 +4,11 @@ import Link from "next/link";
 import { ShoppingBag, Zap, Gamepad2, Gift, ChevronRight } from "lucide-react";
 import { track } from "@/lib/analytics/track";
 
-export function ShopAndEarnCard() {
+export function EarnAtMerchantsCard() {
   return (
     <Link
       href="/merchants"
-      onClick={() => track("earn_hub_item_tap", { item: "shop" })}
+      onClick={() => track("earn_hub_item_tap", { item: "merchants" })}
       className="block overflow-hidden rounded-2xl bg-gradient-to-r from-[#0D7A8A] via-[#238D9D] to-[#1A9AAD] p-6 shadow-sm transition active:scale-[0.99]"
     >
       <div className="mb-1.5 inline-flex items-center gap-1.5 rounded-full bg-white/20 px-2.5 py-1 text-[11px] font-semibold text-white/90">
@@ -20,10 +20,9 @@ export function ShopAndEarnCard() {
           <ShoppingBag className="h-6 w-6 text-white" />
         </div>
         <div className="min-w-0 flex-1">
-          <h2 className="text-xl font-bold text-white">Shop & Earn</h2>
+          <h2 className="text-xl font-bold text-white">Earn at merchants</h2>
           <p className="mt-0.5 text-sm text-white/85">
-            Show your Akiba Pass when you shop with participating merchants and earn Miles from eligible
-            purchases.
+            Pay the merchant directly, show your Akiba Pass and earn Miles on eligible purchases.
           </p>
         </div>
         <ChevronRight className="h-5 w-5 shrink-0 text-white/70" />

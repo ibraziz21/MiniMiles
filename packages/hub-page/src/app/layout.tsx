@@ -4,7 +4,6 @@ import { GoogleAnalytics } from "@next/third-parties/google";
 import "./globals.css";
 import { SiteHeader } from "@/components/SiteHeader";
 import { BottomNav, PassFab } from "@/components/NavLinks";
-import { CartProvider } from "@/lib/cart";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { PushResubscribe } from "@/components/PushResubscribe";
@@ -32,16 +31,16 @@ export const viewport = {
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: "Akiba Pass | Shop, Earn, Rewards & Quests",
-  description: "Shop from merchants, earn AkibaMiles, claim rewards, and complete quests.",
+  title: "Akiba Pass | Earn Miles, Vouchers & Rewards",
+  description: "Earn AkibaMiles at participating merchants, then use your Miles for vouchers and rewards.",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "Akiba",
   },
   openGraph: {
-    title: "Akiba Pass | Shop, Earn, Rewards & Quests",
-    description: "Shop from merchants, earn AkibaMiles, claim rewards, and complete quests.",
+    title: "Akiba Pass | Earn Miles, Vouchers & Rewards",
+    description: "Earn AkibaMiles at participating merchants, then use your Miles for vouchers and rewards.",
     url: siteUrl, siteName: "Akiba Pass", locale: "en_US", type: "website",
   },
 };
@@ -50,16 +49,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={sterling.variable}>
       <body className="bg-akiba-paper text-akiba-ink antialiased">
-        <CartProvider>
-          <ServiceWorkerRegister />
-          <PushResubscribe />
-          <SiteHeader />
-          <div className="pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0">{children}</div>
-          <BottomNav />
-          <PassFab />
-          <InstallPrompt />
-          <PushOptInPrompt />
-        </CartProvider>
+        <ServiceWorkerRegister />
+        <PushResubscribe />
+        <SiteHeader />
+        <div className="pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0">{children}</div>
+        <BottomNav />
+        <PassFab />
+        <InstallPrompt />
+        <PushOptInPrompt />
         {gaMeasurementId && <GoogleAnalytics gaId={gaMeasurementId} />}
       </body>
     </html>

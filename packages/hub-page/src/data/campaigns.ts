@@ -96,19 +96,17 @@ export const campaigns: Campaign[] = [
     partner: "Leshan Group",
     category: "Merchants & Vouchers",
     status: "live",
-    tagline: "Electronics delivered to your door. Pay with supported methods and earn eligible rewards.",
+    tagline: "Earn Miles and use Akiba vouchers at Leshan Group.",
     description:
-      "Browse Leshan Group's electronics catalogue — devices, accessories, and services. Pay with supported methods and earn AkibaMiles when your purchase qualifies for an active merchant reward. Apply vouchers at checkout for discounts. Urban delivery in 1–2 days from $3.",
+      "Visit Leshan Group for devices, accessories, and services. Pay the merchant directly, show your Akiba Pass to earn Miles on eligible purchases, and present Akiba vouchers at the till for available discounts.",
     details: [
       { label: "Category", value: "Electronics — devices, accessories, services" },
-      { label: "Payment", value: "M-Pesa or supported stablecoins" },
+      { label: "Payment", value: "Pay Leshan Group directly" },
       { label: "Rewards", value: "Issued after verified eligible purchases" },
-      { label: "Urban delivery", value: "$3.00 · 1–2 days (Nairobi, Mombasa)" },
-      { label: "Other towns", value: "$5.00 · 3–5 days" },
-      { label: "Vouchers", value: "Apply Miles-backed vouchers at checkout" },
+      { label: "Vouchers", value: "Present Miles-backed vouchers to the merchant" },
     ],
-    cta: "Shop in App",
-    ctaHref: "https://app.akibamiles.com/spend",
+    cta: "View Merchant",
+    ctaHref: "/merchants/leshan-group",
   },
 
   // ─── Rewards (placeholder) ─────────────────────────────────────────────────

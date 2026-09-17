@@ -21,8 +21,8 @@ export async function getSignedInBalance(userId: string | null, email: string | 
 /**
  * Partner IDs the signed-in user has at least one *verified* completed
  * purchase with (home-redesign-spec.md §15 Phase 3, principle #6 — "verified
- * behavior beats proxy behavior"). Resolved the same way `GET
- * /api/shop/orders` resolves order history: linked wallet addresses →
+ * behavior beats proxy behavior"). Resolved from retained historical
+ * transaction records: linked wallet addresses →
  * `merchant_transactions.user_address`. `disputed` and every in-flight
  * status are deliberately excluded — only `completed` counts as a real,
  * finished purchase. Never throws — a lookup failure yields an empty set so

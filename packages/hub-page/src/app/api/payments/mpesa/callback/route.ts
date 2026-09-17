@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
- * Daraja STK push callback — receives the authoritative payment result from Safaricom.
- * Stored in mpesa_stk_results; the orders route verifies against this before accepting payment.
+ * Daraja STK push callback retained only to record authoritative results for
+ * payments that were already pending when direct commerce was retired.
  *
  * This route is public (no auth) because Safaricom calls it directly.
  * Production callbacks require the MPESA_CALLBACK_SECRET header injected by

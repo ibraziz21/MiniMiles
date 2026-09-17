@@ -88,7 +88,7 @@ describe("GET /api/merchants/[slug]", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns a published store_active=false (in-store-only) merchant successfully", async () => {
+  it("returns a published merchant without checkout-only fields", async () => {
     state.detailJson = baseDetail({ storeActive: false, products: [] });
     const { req: request, params } = req("acme");
 
@@ -96,8 +96,8 @@ describe("GET /api/merchants/[slug]", () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.merchant.storeActive).toBe(false);
-    expect(body.merchant.products).toEqual([]);
+    expect(body.merchant).not.toHaveProperty("storeActive");
+    expect(body.merchant).not.toHaveProperty("products");
   });
 
   it("applies anonymous general availability when no session user is present", async () => {

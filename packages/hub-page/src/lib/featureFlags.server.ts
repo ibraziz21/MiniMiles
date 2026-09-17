@@ -1,8 +1,8 @@
 /**
  * Launch-flow feature flags (production-readiness-security-spec.md §13,
  * Phase 0). One kill switch per flow named in the spec's rollout/rollback
- * checklist (§14): wallet linking, M-Pesa initiation, offline Pass,
- * Hub-native quest claims, claw voucher issuance.
+ * checklist (§14): wallet linking, offline Pass, Hub-native quest claims,
+ * and claw voucher issuance. Direct-commerce payment initiation is retired.
  *
  * Each flag is `explicit toggle AND required production config present` —
  * a flow stays disabled even if someone flips the toggle on without its
@@ -49,25 +49,6 @@ export function walletLinkingFlag(env: FlagEnvironment = process.env): FeatureFl
   );
 }
 
-/** PR-02/03 — M-Pesa checkout initiation. */
-export function mpesaInitiationFlag(env: FlagEnvironment = process.env): FeatureFlagResult {
-  const isProduction = env.NODE_ENV === "production";
-  const credsConfigured = isConfigured(
-    env.MPESA_CONSUMER_KEY,
-    env.MPESA_CONSUMER_SECRET,
-    env.MPESA_SHORTCODE,
-    env.MPESA_PASSKEY
-  );
-  const productionReady = !isProduction || isConfigured(env.MPESA_CALLBACK_SECRET);
-  return evaluate(
-    isTruthy(env.MPESA_INITIATION_ENABLED ?? "true"),
-    credsConfigured && productionReady,
-    !credsConfigured
-      ? "M-Pesa consumer credentials missing"
-      : "MPESA_CALLBACK_SECRET missing in production"
-  );
-}
-
 /** Offline Pass presentation (service-worker/IndexedDB Pass fallback for shared/offline devices). */
 export function offlinePassFlag(env: FlagEnvironment = process.env): FeatureFlagResult {
   return evaluate(
@@ -98,7 +79,6 @@ export function clawVoucherIssuanceFlag(env: FlagEnvironment = process.env): Fea
 export function getAllFeatureFlags(env: FlagEnvironment = process.env) {
   return {
     walletLinking: walletLinkingFlag(env),
-    mpesaInitiation: mpesaInitiationFlag(env),
     offlinePass: offlinePassFlag(env),
     hubQuestClaims: hubQuestClaimsFlag(env),
     clawVoucherIssuance: clawVoucherIssuanceFlag(env),

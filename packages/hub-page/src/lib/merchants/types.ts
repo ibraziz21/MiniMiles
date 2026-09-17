@@ -43,16 +43,6 @@ export type OpeningHours = {
   notes?: string;
 };
 
-export type PublicStorefrontProduct = {
-  id: string;
-  name: string;
-  description: string | null;
-  priceCusd: number;
-  category: string;
-  imageUrl: string | null;
-  productType: "physical" | "digital";
-};
-
 export type PublicVoucherSummary = {
   id: string;
   title: string;
@@ -87,7 +77,6 @@ export type PublicMerchantSummary = {
   } | null;
   branchCount: number;
   voucherCount: number;
-  storeActive: boolean;
   distanceKm: number | null;
 };
 
@@ -105,7 +94,6 @@ export type PublicMerchantDetail = PublicMerchantSummary & {
   locations: PublicMerchantLocation[];
   coreOfferings: Array<{ id: string; name: string; description: string | null }>;
   vouchers: PublicVoucherSummary[];
-  products: PublicStorefrontProduct[];
 };
 
 export type MerchantDirectoryResponse = {
