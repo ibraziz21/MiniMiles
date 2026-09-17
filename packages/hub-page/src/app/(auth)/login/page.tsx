@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Logo } from "@/components/Logo";
@@ -13,10 +13,17 @@ function safeNextPath(value: string | null): string {
   return value;
 }
 
+const CALLBACK_ERROR_MESSAGE: Record<string, string> = {
+  auth_failed: "That sign-in link expired or was already used. Please request a new one below.",
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeNextPath(searchParams.get("next"));
+  const emailId = useId();
+  const otpId = useId();
+  const passwordId = useId();
 
   const [mode, setMode] = useState<Mode>("otp");
   const [otpStep, setOtpStep] = useState<OtpStep>("email");
@@ -28,6 +35,17 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+
+  // auth/callback redirects here with ?error=auth_failed on a failed
+  // magic-link/OAuth exchange — previously never read, so the user just
+  // landed on a blank form with no explanation of what went wrong.
+  useEffect(() => {
+    const callbackError = searchParams.get("error");
+    if (callbackError && CALLBACK_ERROR_MESSAGE[callbackError]) {
+      setError(CALLBACK_ERROR_MESSAGE[callbackError]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const supabase = createClient();
 
@@ -75,6 +93,14 @@ export default function LoginPage() {
     await afterSignIn();
   }
 
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (loading) return;
+    if (mode === "otp" && otpStep === "email") void sendOtp();
+    else if (mode === "otp" && otpStep === "verify") void verifyOtp();
+    else if (mode === "password") void signInWithPassword();
+  }
+
   return (
     <div className="flex min-h-[calc(100vh-64px)] items-center justify-center px-4 py-16">
       <div className="w-full max-w-sm">
@@ -92,10 +118,13 @@ export default function LoginPage() {
           </p>
 
           {/* Mode toggle */}
-          <div className="mt-6 flex rounded-xl border border-akiba-line p-1">
+          <div className="mt-6 flex rounded-xl border border-akiba-line p-1" role="tablist" aria-label="Sign-in method">
             <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "otp"}
               onClick={() => { setMode("otp"); setError(null); }}
-              className={`flex-1 rounded-lg py-2 text-sm font-medium transition ${
+              className={`flex-1 rounded-lg py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal ${
                 mode === "otp"
                   ? "bg-akiba-teal text-white"
                   : "text-akiba-muted hover:text-akiba-ink"
@@ -104,8 +133,11 @@ export default function LoginPage() {
               Email code
             </button>
             <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "password"}
               onClick={() => { setMode("password"); setError(null); }}
-              className={`flex-1 rounded-lg py-2 text-sm font-medium transition ${
+              className={`flex-1 rounded-lg py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal ${
                 mode === "password"
                   ? "bg-akiba-teal text-white"
                   : "text-akiba-muted hover:text-akiba-ink"
@@ -115,41 +147,47 @@ export default function LoginPage() {
             </button>
           </div>
 
-          <div className="mt-6 space-y-4">
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             {/* Email field — always shown */}
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-akiba-ink">
+              <label htmlFor={emailId} className="mb-1.5 block text-sm font-medium text-akiba-ink">
                 Email address
               </label>
               <input
+                id={emailId}
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 disabled={mode === "otp" && otpStep === "verify"}
-                className="w-full rounded-xl border border-akiba-line bg-akiba-card px-4 py-2.5 text-sm text-akiba-ink placeholder:text-akiba-muted/50 focus:border-akiba-teal focus:outline-none focus:ring-2 focus:ring-akiba-teal/20 disabled:opacity-50"
+                autoComplete="email"
+                spellCheck={false}
+                className="w-full rounded-xl border border-akiba-line bg-akiba-card px-4 py-2.5 text-sm text-akiba-ink placeholder:text-akiba-muted/50 focus:border-akiba-teal focus:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal disabled:opacity-50"
               />
             </div>
 
             {/* OTP verify step */}
             {mode === "otp" && otpStep === "verify" && (
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-akiba-ink">
+                <label htmlFor={otpId} className="mb-1.5 block text-sm font-medium text-akiba-ink">
                   6-digit code
                 </label>
                 <input
+                  id={otpId}
                   type="text"
                   inputMode="numeric"
                   maxLength={6}
                   value={otp}
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                   placeholder="123456"
-                  className="w-full rounded-xl border border-akiba-line bg-akiba-card px-4 py-2.5 text-center font-mono text-lg tracking-[0.4em] text-akiba-ink placeholder:text-akiba-muted/40 focus:border-akiba-teal focus:outline-none focus:ring-2 focus:ring-akiba-teal/20"
+                  autoComplete="one-time-code"
+                  className="w-full rounded-xl border border-akiba-line bg-akiba-card px-4 py-2.5 text-center font-mono text-lg tracking-[0.4em] text-akiba-ink placeholder:text-akiba-muted/40 focus:border-akiba-teal focus:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
                 />
                 <p className="mt-2 text-xs text-akiba-muted">
                   We sent a 6-digit code to <strong>{email}</strong>. Enter it
                   here to sign in.{" "}
                   <button
+                    type="button"
                     onClick={() => { setOtpStep("email"); setSent(false); setOtp(""); }}
                     className="text-akiba-teal underline-offset-2 hover:underline"
                   >
@@ -162,21 +200,23 @@ export default function LoginPage() {
             {/* Password field */}
             {mode === "password" && (
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-akiba-ink">
+                <label htmlFor={passwordId} className="mb-1.5 block text-sm font-medium text-akiba-ink">
                   Password
                 </label>
                 <input
+                  id={passwordId}
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full rounded-xl border border-akiba-line bg-akiba-card px-4 py-2.5 text-sm text-akiba-ink placeholder:text-akiba-muted/50 focus:border-akiba-teal focus:outline-none focus:ring-2 focus:ring-akiba-teal/20"
+                  autoComplete="current-password"
+                  className="w-full rounded-xl border border-akiba-line bg-akiba-card px-4 py-2.5 text-sm text-akiba-ink placeholder:text-akiba-muted/50 focus:border-akiba-teal focus:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
                 />
               </div>
             )}
 
             {error && (
-              <p className="rounded-lg bg-red-50 px-4 py-2.5 text-sm text-red-600">
+              <p role="alert" className="rounded-lg bg-red-50 px-4 py-2.5 text-sm text-red-600">
                 {error}
               </p>
             )}
@@ -184,9 +224,9 @@ export default function LoginPage() {
             {/* CTA */}
             {mode === "otp" && otpStep === "email" && (
               <button
-                onClick={sendOtp}
+                type="submit"
                 disabled={loading || !email}
-                className="w-full rounded-xl bg-akiba-teal py-3 text-sm font-semibold text-white transition hover:bg-[#1E7E8D] disabled:opacity-50"
+                className="w-full rounded-xl bg-akiba-teal py-3 text-sm font-semibold text-white transition hover:bg-akiba-tealDark disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus-visible:ring-offset-2"
               >
                 {loading ? "Sending…" : sent ? "Resend code" : "Send code"}
               </button>
@@ -194,9 +234,9 @@ export default function LoginPage() {
 
             {mode === "otp" && otpStep === "verify" && (
               <button
-                onClick={verifyOtp}
+                type="submit"
                 disabled={loading || otp.length !== 6}
-                className="w-full rounded-xl bg-akiba-teal py-3 text-sm font-semibold text-white transition hover:bg-[#1E7E8D] disabled:opacity-50"
+                className="w-full rounded-xl bg-akiba-teal py-3 text-sm font-semibold text-white transition hover:bg-akiba-tealDark disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus-visible:ring-offset-2"
               >
                 {loading ? "Verifying…" : "Confirm & sign in"}
               </button>
@@ -204,14 +244,14 @@ export default function LoginPage() {
 
             {mode === "password" && (
               <button
-                onClick={signInWithPassword}
+                type="submit"
                 disabled={loading || !email || !password}
-                className="w-full rounded-xl bg-akiba-teal py-3 text-sm font-semibold text-white transition hover:bg-[#1E7E8D] disabled:opacity-50"
+                className="w-full rounded-xl bg-akiba-teal py-3 text-sm font-semibold text-white transition hover:bg-akiba-tealDark disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus-visible:ring-offset-2"
               >
                 {loading ? "Signing in…" : "Sign in"}
               </button>
             )}
-          </div>
+          </form>
 
           <p className="mt-6 text-center text-xs text-akiba-muted">
             New here? Just enter your email &mdash; we&apos;ll create your account automatically.

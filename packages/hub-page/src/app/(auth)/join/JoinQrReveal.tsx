@@ -17,16 +17,17 @@ export function JoinQrReveal({ passId }: { passId: string }) {
 
   return (
     <main className="mx-auto flex min-h-[calc(100dvh-4rem)] max-w-sm flex-col items-center justify-center px-6 py-8 text-center">
-      <p className="font-sterling text-2xl font-semibold text-akiba-ink">You&apos;re in!</p>
+      <h1 className="font-sterling text-2xl font-semibold text-akiba-ink">You&apos;re in!</h1>
       <p className="mt-2 max-w-[260px] text-sm text-akiba-muted">
         Show this to the cashier now to earn on this purchase.
       </p>
       <div className="mt-6 rounded-2xl bg-white p-3 shadow-chip">
-        <canvas ref={canvasRef} />
+        <canvas ref={canvasRef} role="img" aria-label="Your Akiba Pass QR code" />
       </div>
       <button
+        type="button"
         onClick={() => { router.push("/"); router.refresh(); }}
-        className="mt-8 w-full rounded-2xl bg-akiba-teal py-3.5 text-sm font-semibold text-white transition hover:bg-[#1E7E8D]"
+        className="mt-8 w-full rounded-2xl bg-akiba-teal py-3.5 text-sm font-semibold text-white transition hover:bg-akiba-tealDark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus-visible:ring-offset-2"
       >
         Continue
       </button>

@@ -12,6 +12,10 @@ const config: Config = {
       colors: {
         akiba: {
           teal: "#238D9D",
+          // Hover/active shade for akiba-teal surfaces — previously
+          // hand-copied as a raw hex (`hover:bg-[#1E7E8D]`) into 14
+          // independent files; same value, now one name.
+          tealDark: "#1E7E8D",
           ink: "#0D0E0C",
           muted: "#504C4C",
           paper: "#FCFCFC",
@@ -22,9 +26,10 @@ const config: Config = {
       },
       fontFamily: {
         sterling: ["var(--font-sterling)", "Georgia", "serif"],
-        sans: ["DM Sans", "ui-sans-serif", "system-ui", "sans-serif"],
-        // Shared @akiba/skill-games components use font-poppins for body copy.
-        poppins: ["Poppins", "sans-serif"],
+        sans: ["var(--font-dm-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+        // Shared @akiba/skill-games components use font-poppins for body copy
+        // — loaded via next/font/google in layout.tsx (--font-poppins).
+        poppins: ["var(--font-poppins)", "sans-serif"],
       },
       boxShadow: {
         soft: "0 24px 80px rgba(13, 14, 12, 0.08)",

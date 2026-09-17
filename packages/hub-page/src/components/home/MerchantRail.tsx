@@ -23,9 +23,9 @@ export function MerchantRail({ section, seeAllHref }: { section: HomeFeedSection
           </Link>
         )}
       </div>
-      <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
+      <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1">
         {section.merchants.map((m, i) => (
-          <div key={m.id} className="w-64 shrink-0">
+          <div key={m.id} className="w-64 shrink-0 snap-start">
             <MerchantValueCard merchant={m} sectionId={section.id} position={i} />
           </div>
         ))}

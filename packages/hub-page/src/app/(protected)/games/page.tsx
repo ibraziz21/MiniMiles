@@ -130,7 +130,7 @@ function GameLauncher({
   const capped = status.available && status.playsRemaining <= 0;
 
   return (
-    <div className="overflow-hidden rounded-2xl shadow-sm">
+    <div className="overflow-hidden rounded-2xl shadow-chip">
       <div className={`relative bg-gradient-to-r ${game.gradient} p-5`}>
         <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10" />
         <div className="absolute right-12 bottom-0 h-12 w-12 rounded-full bg-white/10" />
@@ -139,18 +139,18 @@ function GameLauncher({
           <div className="mb-3 flex items-start justify-between">
             <div>
               <div className="mb-1.5 inline-flex items-center gap-1.5 rounded-full bg-white/20 px-2.5 py-1 text-[11px] font-semibold text-white/90">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#4EFFA0]" />
+                <span className="h-1.5 w-1.5 rounded-full bg-[#4EFFA0]" aria-hidden="true" />
                 Free to play
               </div>
               <h2 className="text-2xl font-bold text-white">{game.name}</h2>
               <p className="mt-0.5 text-sm text-white/80">{game.description}</p>
             </div>
             <div className="flex-shrink-0 rounded-2xl bg-white/15 p-3">
-              <Icon className="h-6 w-6 text-white" />
+              <Icon className="h-6 w-6 text-white" aria-hidden="true" />
             </div>
           </div>
 
-          <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-white/85">
+          <div className="mb-4 flex flex-wrap items-center gap-3 text-sm tabular-nums text-white/85">
             {status.available && status.isMasteryV1 ? (
               <span className="inline-flex items-center gap-1">
                 Earn up to <MilesIcon className="h-3.5 w-3.5" /> 3 from your best tier today
@@ -165,7 +165,7 @@ function GameLauncher({
             ) : null}
             {status.available && status.bestScoreToday != null && (
               <span className="inline-flex items-center gap-1">
-                <Trophy className="h-3.5 w-3.5" /> Best today: {status.bestScoreToday}
+                <Trophy className="h-3.5 w-3.5" aria-hidden="true" /> Best today: {status.bestScoreToday}
               </span>
             )}
           </div>
@@ -181,7 +181,7 @@ function GameLauncher({
           ) : (
             <Link
               href={game.route}
-              className="block w-full rounded-xl bg-white py-3 text-center text-sm font-bold text-[#1A1A1A] transition active:scale-[0.98]"
+              className="block w-full rounded-xl bg-white py-3 text-center text-sm font-bold text-[#1A1A1A] transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
             >
               Play · {status.playsRemaining} left today
             </Link>

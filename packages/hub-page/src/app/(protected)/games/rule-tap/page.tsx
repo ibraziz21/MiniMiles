@@ -13,7 +13,7 @@ import {
 import { useRuleTapGame } from "@akiba/skill-games/client";
 import { GAMEPLAY_CONFIGS, MASTERY_ECONOMY_V1 } from "@akiba/skill-games/core";
 import type { GameResult } from "@akiba/skill-games/core";
-import { MilesIcon } from "@/components/MilesIcon";
+import { MilesIcon, MilesAmount } from "@/components/MilesIcon";
 import { track } from "@/lib/analytics/track";
 import {
   GamesApiError,
@@ -26,7 +26,8 @@ import {
 } from "@/lib/games/clientTransport";
 import { GAME_DAILY_PLAY_CAP, GAME_MAX_REWARD_MILES } from "@/lib/games/gameRewardRules";
 import { isMasteryActive, masteryThresholds, MasteryEntryBanner, MasteryResultSummary } from "@/lib/games/masteryCopy";
-import { Zap, Trophy } from "lucide-react";
+import { useSessionRecovery, persistActiveSession, clearActiveSession } from "@/lib/games/useSessionRecovery";
+import { Zap, Trophy, X } from "lucide-react";
 
 const config = GAMEPLAY_CONFIGS.rule_tap;
 
@@ -50,6 +51,8 @@ export default function PassRuleTapPage() {
   const [startError, setStartError] = useState<string | null>(null);
   const [finishResult, setFinishResult] = useState<FinishResult | null>(null);
   const [settlementStatus, setSettlementStatus] = useState<SettlementStatus>("idle");
+  const recoveredReward = useSessionRecovery("rule_tap");
+  const [recoveryDismissed, setRecoveryDismissed] = useState(false);
 
   const game = useRuleTapGame(sessionId ?? undefined, sessionId ?? undefined, sessionId ? buildRuleTapTransport(sessionId) : undefined);
 
@@ -90,6 +93,7 @@ export default function PassRuleTapPage() {
     try {
       const session = await startSession("rule_tap");
       track("game_start_succeeded", { gameType: "rule_tap" });
+      persistActiveSession("rule_tap", session.sessionId);
       setSessionId(session.sessionId);
       setIntroOpen(false);
       setResultOpen(false);
@@ -119,6 +123,7 @@ export default function PassRuleTapPage() {
     setSettlementStatus("submitting");
     finishSession(sessionId)
       .then((result) => {
+        clearActiveSession("rule_tap");
         track("game_finished", { gameType: "rule_tap", accepted: result.accepted, score: result.score });
         if (!result.accepted) track("game_result_rejected", { gameType: "rule_tap" });
         if (result.reward.deliveryId) track("game_reward_reserved", { gameType: "rule_tap", mode: result.reward.mode });
@@ -132,6 +137,7 @@ export default function PassRuleTapPage() {
       })
       .catch((err) => {
         console.error("[pass/rule-tap] finish failed", err);
+        clearActiveSession("rule_tap");
         setSettlementStatus("error");
         game.setPhase("settled");
         setResultOpen(true);
@@ -193,7 +199,7 @@ export default function PassRuleTapPage() {
         {game.phase === "countdown" && (
           <div className="mx-4 rounded-2xl bg-gradient-to-br from-[#0D7A8A] to-[#238D9D] p-10 text-center shadow-lg">
             <p className="text-xs font-semibold uppercase tracking-widest text-white/70 mb-1">Get ready</p>
-            <p className="text-7xl font-black text-white">{game.countdown}</p>
+            <p className="text-7xl font-black tabular-nums text-white">{game.countdown}</p>
           </div>
         )}
 
@@ -212,6 +218,22 @@ export default function PassRuleTapPage() {
 
         {!sessionId && game.phase === "idle" && (
           <div className="mx-4 space-y-2">
+            {recoveredReward && !recoveryDismissed && (
+              <div role="status" className="flex items-center justify-between gap-2 rounded-2xl border border-[#238D9D33] bg-[#DDF8FF] px-4 py-3 text-sm text-[#238D9D]">
+                <span className="flex items-center gap-1">
+                  Welcome back — your last round earned{" "}
+                  <MilesAmount amount={recoveredReward.rewardMiles} size="sm" prefix="+" className="text-[#238D9D]" />
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setRecoveryDismissed(true)}
+                  aria-label="Dismiss"
+                  className="shrink-0 rounded-full p-1 text-[#238D9D]/60 hover:text-[#238D9D]"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
             <div className="rounded-2xl bg-gradient-to-br from-[#0D7A8A] to-[#238D9D] p-5 text-center relative overflow-hidden">
               <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-white/10" />
               <div className="relative z-10">

@@ -23,8 +23,17 @@ export type VoucherTemplate = {
   } | null;
 };
 
-export function dealLabel(t: VoucherTemplate): string {
+const usdFormatter = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+
+/** Centralizes `$X.XX`-style formatting — every voucher-price surface
+ *  (VoucherTabs, VoucherDetailView, VoucherCard, this file's own dealLabel)
+ *  previously hand-rolled its own `` `$${n.toFixed(2)}` `` independently. */
+export function formatUSD(amount: number): string {
+  return usdFormatter.format(amount);
+}
+
+export function dealLabel(t: Pick<VoucherTemplate, "voucher_type" | "discount_percent" | "discount_cusd" | "retail_value_cusd">): string {
   if (t.voucher_type === "percent_off") return `${t.discount_percent ?? 0}% off`;
-  if (t.voucher_type === "fixed_off") return `$${t.discount_cusd ?? 0} off`;
-  return "Free item";
+  if (t.voucher_type === "fixed_off") return `${formatUSD(t.discount_cusd ?? 0)} off`;
+  return t.retail_value_cusd ? `Free (up to ${formatUSD(t.retail_value_cusd)})` : "Free item";
 }

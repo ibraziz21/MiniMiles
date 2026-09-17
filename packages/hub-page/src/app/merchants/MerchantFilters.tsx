@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useId, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Search, Store, MapPin, X, LocateFixed, Globe, RefreshCw, Loader2, SlidersHorizontal } from "lucide-react";
 import clsx from "clsx";
 import { MerchantValueCard } from "@/components/home/MerchantValueCard";
 import { track } from "@/lib/analytics/track";
 import type { MerchantValueSummary } from "@/lib/home/types";
+import { useDialogA11y } from "@/hooks/useDialogA11y";
 
 type Category = { slug: string; name: string };
 type Mode = "all" | "physical" | "online";
@@ -275,7 +276,7 @@ export function MerchantFilters({
             <RefreshCw className="h-3.5 w-3.5" /> Retry
           </button>
         </div>
-      ) : loading ? (
+      ) : loading && merchants.length === 0 ? (
         <SkeletonGrid />
       ) : merchants.length === 0 ? (
         <div className="flex flex-col items-center rounded-2xl border border-dashed border-akiba-line bg-white py-14 text-center">
@@ -289,7 +290,17 @@ export function MerchantFilters({
         </div>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
+          {/* Filter-change refetches dim the existing grid in place instead
+              of unmounting it for a full skeleton — previously every filter
+              tap replaced visible results with a jarring flash even when the
+              old results were still perfectly valid to look at. */}
+          <div
+            aria-busy={loading}
+            className={clsx(
+              "grid gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 transition-opacity motion-safe:duration-200",
+              loading && "pointer-events-none opacity-50"
+            )}
+          >
             {merchants.map((m, i) => (
               <MerchantValueCard
                 key={m.id}
@@ -301,7 +312,7 @@ export function MerchantFilters({
               />
             ))}
           </div>
-          {nextCursor && (
+          {nextCursor && !loading && (
             <div className="mt-8 flex justify-center">
               <button
                 onClick={loadMore}
@@ -347,14 +358,21 @@ function FiltersSheet({
   categories: Category[];
   onClearAll: () => void;
 }) {
+  const titleId = useId();
+  const sheetRef = useDialogA11y<HTMLDivElement>(open, onClose);
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
-      <div className="relative max-h-[85vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:max-w-md sm:rounded-3xl">
+      <div
+        ref={sheetRef}
+        tabIndex={-1}
+        className="relative max-h-[85vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] focus:outline-none sm:max-w-md sm:rounded-3xl"
+      >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-sterling text-lg font-semibold text-akiba-ink">Filters</h2>
+          <h2 id={titleId} className="font-sterling text-lg font-semibold text-akiba-ink">Filters</h2>
           <button
             onClick={onClose}
             aria-label="Close filters"
@@ -416,7 +434,7 @@ function FiltersSheet({
           </button>
           <button
             onClick={onClose}
-            className="flex-1 rounded-full bg-akiba-teal py-2.5 text-sm font-semibold text-white transition hover:bg-[#1E7E8D] focus-visible:ring-2 focus-visible:ring-akiba-ink"
+            className="flex-1 rounded-full bg-akiba-teal py-2.5 text-sm font-semibold text-white transition hover:bg-akiba-tealDark focus-visible:ring-2 focus-visible:ring-akiba-ink"
           >
             Show results
           </button>

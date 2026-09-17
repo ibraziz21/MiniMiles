@@ -4,7 +4,7 @@
 // a per-poster/location src for attribution. One screen: signup only, no
 // marketing scroll. Counter-time beats education — after signup this skips
 // straight to the QR reveal; /welcome is offered on the next visit instead.
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Logo } from "@/components/Logo";
@@ -16,6 +16,8 @@ type Step = "email" | "verify" | "reveal";
 export default function JoinPage() {
   const searchParams = useSearchParams();
   const src = searchParams.get("src") ?? "unknown";
+  const emailId = useId();
+  const otpId = useId();
 
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
@@ -85,6 +87,13 @@ export default function JoinPage() {
     }
   }
 
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (loading) return;
+    if (step === "email") void sendOtp();
+    else if (step === "verify") void verifyOtp();
+  }
+
   if (step === "reveal" && passId) {
     return <JoinQrReveal passId={passId} />;
   }
@@ -110,63 +119,79 @@ export default function JoinPage() {
               : "Earn points on this purchase."}
           </p>
 
-          <div className="mt-6 space-y-4">
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-akiba-ink">
+              <label htmlFor={emailId} className="mb-1.5 block text-sm font-medium text-akiba-ink">
                 Email address
               </label>
               <input
+                id={emailId}
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 disabled={step === "verify"}
-                className="w-full rounded-xl border border-akiba-line bg-akiba-card px-4 py-2.5 text-sm text-akiba-ink placeholder:text-akiba-muted/50 focus:border-akiba-teal focus:outline-none focus:ring-2 focus:ring-akiba-teal/20 disabled:opacity-50"
+                autoComplete="email"
+                spellCheck={false}
+                className="w-full rounded-xl border border-akiba-line bg-akiba-card px-4 py-2.5 text-sm text-akiba-ink placeholder:text-akiba-muted/50 focus:border-akiba-teal focus:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal disabled:opacity-50"
               />
             </div>
 
             {step === "verify" && (
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-akiba-ink">
+                <label htmlFor={otpId} className="mb-1.5 block text-sm font-medium text-akiba-ink">
                   6-digit code
                 </label>
                 <input
+                  id={otpId}
                   type="text"
                   inputMode="numeric"
                   maxLength={6}
                   value={otp}
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                   placeholder="123456"
-                  className="w-full rounded-xl border border-akiba-line bg-akiba-card px-4 py-2.5 text-center font-mono text-lg tracking-[0.4em] text-akiba-ink placeholder:text-akiba-muted/40 focus:border-akiba-teal focus:outline-none focus:ring-2 focus:ring-akiba-teal/20"
+                  autoComplete="one-time-code"
+                  className="w-full rounded-xl border border-akiba-line bg-akiba-card px-4 py-2.5 text-center font-mono text-lg tracking-[0.4em] text-akiba-ink placeholder:text-akiba-muted/40 focus:border-akiba-teal focus:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
                 />
                 <p className="mt-2 text-xs text-akiba-muted">
-                  We sent a 6-digit code to <strong>{email}</strong>.
+                  We sent a 6-digit code to <strong>{email}</strong>.{" "}
+                  <button
+                    type="button"
+                    onClick={() => { setStep("email"); setOtp(""); setError(null); }}
+                    className="text-akiba-teal underline-offset-2 hover:underline"
+                  >
+                    Change email
+                  </button>
                 </p>
               </div>
             )}
 
             {error && (
-              <p className="rounded-lg bg-red-50 px-4 py-2.5 text-sm text-red-600">{error}</p>
+              <p role="alert" className="rounded-lg bg-red-50 px-4 py-2.5 text-sm text-red-600">{error}</p>
             )}
 
             {step === "email" ? (
               <button
-                onClick={sendOtp}
+                type="submit"
                 disabled={loading || !email}
-                className="w-full rounded-xl bg-akiba-teal py-3 text-sm font-semibold text-white transition hover:bg-[#1E7E8D] disabled:opacity-50"
+                className="w-full rounded-xl bg-akiba-teal py-3 text-sm font-semibold text-white transition hover:bg-akiba-tealDark disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus-visible:ring-offset-2"
               >
                 {loading ? "Sending…" : "Send code"}
               </button>
             ) : (
               <button
-                onClick={verifyOtp}
+                type="submit"
                 disabled={loading || otp.length !== 6}
-                className="w-full rounded-xl bg-akiba-teal py-3 text-sm font-semibold text-white transition hover:bg-[#1E7E8D] disabled:opacity-50"
+                className="w-full rounded-xl bg-akiba-teal py-3 text-sm font-semibold text-white transition hover:bg-akiba-tealDark disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus-visible:ring-offset-2"
               >
                 {loading ? "Verifying…" : "Confirm & earn"}
               </button>
             )}
-          </div>
+          </form>
+
+          <p className="mt-6 text-center text-xs text-akiba-muted">
+            We&apos;ll only use your email for your Akiba Pass and account updates.
+          </p>
         </div>
       </div>
     </div>

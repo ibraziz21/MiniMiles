@@ -239,7 +239,7 @@ export function PushOptInPrompt() {
               type="button"
               onClick={enableNotifications}
               disabled={busy || (alreadySubscribed && !announcementOptIn)}
-              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-akiba-teal px-5 font-sterling text-base font-semibold text-white transition hover:bg-[#1E7E8D] disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-akiba-teal px-5 font-sterling text-base font-semibold text-white transition hover:bg-akiba-tealDark disabled:cursor-not-allowed disabled:opacity-60"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <BellRing className="h-4 w-4" />}
               {busy

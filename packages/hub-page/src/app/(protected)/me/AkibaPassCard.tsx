@@ -188,7 +188,7 @@ export function AkibaPassCard({ initialPassId, email, displayLabel }: Props) {
       {/* QR + copy */}
       <div className="flex flex-col items-center px-6 py-6">
         <div className="rounded-2xl bg-white p-3 shadow-chip">
-          <canvas ref={canvasRef} />
+          <canvas ref={canvasRef} role="img" aria-label="Your Akiba Pass QR code" />
         </div>
 
         {/* Live vs offline status */}
@@ -230,13 +230,13 @@ export function AkibaPassCard({ initialPassId, email, displayLabel }: Props) {
         </p>
 
         {regenWarning && (
-          <p className="mt-3 text-center text-xs font-medium text-amber-600">
+          <p role="status" aria-live="polite" className="mt-3 text-center text-xs font-medium text-amber-600">
             New QR issued. Any previously saved passes are no longer valid.
           </p>
         )}
 
         {actionError && (
-          <p className="mt-3 text-center text-xs text-red-500">{actionError}</p>
+          <p role="alert" className="mt-3 text-center text-xs text-red-500">{actionError}</p>
         )}
 
         {/* Primary action row: Save/Share + Regenerate */}
@@ -244,10 +244,10 @@ export function AkibaPassCard({ initialPassId, email, displayLabel }: Props) {
           <button
             onClick={saveOrShare}
             disabled={saving}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-akiba-teal py-2.5 text-sm font-semibold text-white transition hover:bg-[#1E7E8D] disabled:opacity-50"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-akiba-teal py-2.5 text-sm font-semibold text-white transition hover:bg-akiba-tealDark disabled:opacity-50"
           >
             {saving
-              ? <><Download className="h-4 w-4 animate-bounce" />Saving…</>
+              ? <><Download className="h-4 w-4 animate-bounce motion-reduce:animate-none" />Saving…</>
               : canShare
                 ? <><Share2 className="h-4 w-4" />Share pass</>
                 : <><Download className="h-4 w-4" />Save pass</>}
@@ -256,10 +256,12 @@ export function AkibaPassCard({ initialPassId, email, displayLabel }: Props) {
           <button
             onClick={regenerate}
             disabled={regen}
+            aria-busy={regen}
+            aria-label="Issue a new QR — your old saved pass will stop working"
             title="Issue a new QR — your old saved pass will stop working"
-            className="flex items-center justify-center gap-1.5 rounded-xl border border-akiba-line px-4 py-2.5 text-sm font-semibold text-akiba-muted transition hover:border-akiba-teal/40 hover:text-akiba-ink disabled:opacity-40"
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-akiba-line px-4 py-2.5 text-sm font-semibold text-akiba-muted transition hover:border-akiba-teal/40 hover:text-akiba-ink disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
           >
-            <RefreshCw className={`h-4 w-4 ${regen ? "animate-spin" : ""}`} />
+            <RefreshCw className={`h-4 w-4 ${regen ? "animate-spin motion-reduce:animate-none" : ""}`} />
             {regen ? "" : "New QR"}
           </button>
         </div>

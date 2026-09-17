@@ -4,6 +4,7 @@ import { IntentShortcuts } from "@/components/home/IntentShortcuts";
 import { MerchantRail } from "@/components/home/MerchantRail";
 import { LocationOptIn } from "@/components/home/LocationOptIn";
 import { RewardsSnapshot } from "@/components/home/RewardsSnapshot";
+import { RewardsSnapshotError } from "@/components/home/RewardsSnapshotError";
 import { ReferralCard } from "@/components/home/ReferralCard";
 import { resolveHubProfile } from "@/lib/akiba/hubProfile";
 import { getHomeFeed } from "@/lib/home/feed";
@@ -27,7 +28,10 @@ export async function MemberHome({ user }: { user: User }) {
     }),
   ]);
 
-  const firstName = displayName.split(" ")[0] || displayName;
+  // displayName falls back to the raw email (resolveHubProfile) when the
+  // member has set neither a full name nor a username — never surface that
+  // as a "name" in the greeting.
+  const firstName = displayName.includes("@") ? null : displayName.split(" ")[0] || displayName;
   const forYou = feed.sections.find((s) => s.id === "for_you") ?? null;
   const limitedTime = feed.sections.find((s) => s.id === "limited_time") ?? null;
 
@@ -37,7 +41,7 @@ export async function MemberHome({ user }: { user: User }) {
 
       <div className="mb-4">
         <h1 className="font-sterling text-2xl font-semibold text-akiba-ink">
-          Welcome back, {firstName} 👋
+          {firstName ? `Welcome back, ${firstName}` : "Welcome back"} 👋
         </h1>
         <p className="mt-1 text-akiba-muted">What are you looking for today?</p>
       </div>
@@ -54,13 +58,19 @@ export async function MemberHome({ user }: { user: User }) {
 
       {limitedTime && <MerchantRail section={limitedTime} seeAllHref="/vouchers" />}
 
-      {feed.rewards && (
+      {feed.rewards ? (
         <RewardsSnapshot
           milesBalance={feed.rewards.milesBalance}
           activeVoucherCount={feed.rewards.activeVoucherCount}
           hasPass={feed.rewards.hasPass}
           nextReward={feed.nextReward}
         />
+      ) : (
+        // feed.rewards is only null here for a signed-in member (this
+        // component only renders when authed) when getRewardsSnapshot threw
+        // — see lib/home/feed.ts. Never hide that: this is the one number a
+        // returning member opens the app to check.
+        <RewardsSnapshotError />
       )}
 
       {/* Only surface the card when there's something to show: either the

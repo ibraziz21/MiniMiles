@@ -86,7 +86,7 @@ export function MerchantValueCard({
         <div className="mb-1.5 flex items-start justify-between gap-2">
           <h3 className="truncate font-semibold text-akiba-ink group-hover:text-akiba-teal">{m.name}</h3>
           {(m.operatingModel === "online") && (
-            <Globe className="h-3.5 w-3.5 shrink-0 text-akiba-muted" aria-label="Online" />
+            <Globe className="h-3.5 w-3.5 shrink-0 text-akiba-muted" role="img" aria-label="Online" />
           )}
         </div>
 

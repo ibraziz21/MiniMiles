@@ -25,7 +25,7 @@ export function MemoryStats({
       {/* Timer bar */}
       <div className="h-2 w-full rounded-full bg-[#EDE8F8] overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all duration-150 ${timerColor}`}
+          className={`h-full rounded-full transition-[width] duration-150 motion-reduce:transition-none ${timerColor}`}
           style={{ width: `${pct * 100}%` }}
         />
       </div>
@@ -41,7 +41,7 @@ export function MemoryStats({
       {/* Efficiency hint */}
       {isEfficient && matches > 0 && (
         <div className="flex items-center justify-center gap-1.5 rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-600 mx-auto w-fit">
-          <span>⚡</span> Sharp memory
+          <span aria-hidden="true">⚡</span> Sharp memory
         </div>
       )}
     </div>
@@ -72,7 +72,7 @@ function StatBox({
   return (
     <div className="rounded-xl bg-white/10 px-1.5 py-2.5 text-center">
       <p className="text-[9px] font-semibold uppercase tracking-widest text-white/60">{label}</p>
-      <p className={`mt-0.5 text-base font-bold ${valueColor}`}>{value}</p>
+      <p className={`mt-0.5 text-base font-bold tabular-nums ${valueColor}`}>{value}</p>
     </div>
   );
 }
