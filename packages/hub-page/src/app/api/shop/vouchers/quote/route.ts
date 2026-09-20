@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getVoucherSpendableBalance } from "@/lib/akiba/voucherSpendableBalance";
 import { createHash } from "crypto";
 import { isHiddenPartner } from "@/lib/akiba/hidden-partners";
+import { resolveMemberCountry, resolveMerchantCountry, evaluateCountryEligibility } from "@/lib/akiba/countryEligibility";
 
 // Bumped whenever the confirmation modal's copy changes materially — stored
 // on the quote for audit purposes (see reserve_voucher_purchase's consent
@@ -35,6 +36,18 @@ export async function POST(request: Request) {
     isHiddenPartner(template.partner_id)
   ) {
     return NextResponse.json({ error: "Template not found or inactive" }, { status: 404 });
+  }
+
+  // Country revalidation, fast-fail before doing any balance/wallet work —
+  // the real enforcement point is issueVoucher() (lib/vouchers/issuance.ts),
+  // which every acquisition path goes through; this is purely a UX
+  // improvement so a doomed quote is never shown as if it could succeed.
+  const [memberCountry, merchantCountry] = await Promise.all([
+    resolveMemberCountry({ hubUserId: user.id, email: user.email ?? null }).then((c) => c.code),
+    resolveMerchantCountry(template.partner_id),
+  ]);
+  if (!evaluateCountryEligibility(memberCountry, merchantCountry).eligible) {
+    return NextResponse.json({ error: "This voucher isn't available in your country" }, { status: 403 });
   }
 
   const { data: availableRows, error: availabilityErr } = await admin.rpc(

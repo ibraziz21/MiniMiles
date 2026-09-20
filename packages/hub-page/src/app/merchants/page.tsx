@@ -48,6 +48,9 @@ export default async function MerchantsPage({
   const lngParam = first(searchParams.lng);
   const lat = latParam ? Number(latParam) : undefined;
   const lng = lngParam ? Number(lngParam) : undefined;
+  // Client-side-only display filter (MerchantFilters.tsx) — read here only
+  // so a shared/bookmarked URL restores the toggle's visual state.
+  const hasOffer = first(searchParams.has_offer) === "1";
 
   try {
     const [{ merchants, next_cursor }, categories, cities] = await Promise.all([
@@ -94,7 +97,7 @@ export default async function MerchantsPage({
             initialNextCursor={next_cursor}
             categories={categories}
             cities={cities}
-            initialFilters={{ q: q ?? "", category: category ?? "", city: city ?? "", mode: mode ?? "all" }}
+            initialFilters={{ q: q ?? "", category: category ?? "", city: city ?? "", mode: mode ?? "all", hasOffer }}
           />
         )}
       </main>

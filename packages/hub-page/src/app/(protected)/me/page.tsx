@@ -7,7 +7,9 @@ import { PassPreviewCard } from "./PassPreviewCard";
 import { PhoneEditor } from "./PhoneEditor";
 import { LocationEditor } from "./LocationEditor";
 import { RecentActivitySection } from "./RecentActivitySection";
+import { SavedMerchantsSection } from "./SavedMerchantsSection";
 import { getRecentActivity } from "@/lib/akiba/activity";
+import { listSavedMerchants } from "@/lib/merchants/savedMerchants";
 import { getUserBalance } from "@/lib/akiba/balance";
 import { resolveHubProfile } from "@/lib/akiba/hubProfile";
 import { getOrCreatePass } from "@/lib/akiba/pass";
@@ -18,7 +20,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { UsernameEditor } from "./UsernameEditor";
 import { resolveHubQuestCanonical } from "@/lib/akiba/canonicalPartnerQuests";
 import { getNextRewardSummary, getNextRewardWays } from "@/lib/akiba/nextReward";
-import { isNextRewardEnabledFor } from "@/lib/akiba/nextRewardRollout";
 import { NextRewardPanel } from "@/components/akiba/NextRewardPanel";
 import { PRIVACY_POLICY_URL, TERMS_URL, AKIBA_EMAIL } from "@/constants/links";
 
@@ -56,6 +57,10 @@ export default async function MePage() {
     limit: 6,
   });
 
+  // Saved merchants (discovery-blueprint.md §6/§8) — read-only here;
+  // unsaving happens from the merchant's own SaveMerchantButton.
+  const savedMerchants = await listSavedMerchants(user.id);
+
   // Hub-native identity fields (merchant-shopping-quests-spec.md §5
   // "Country", extended for the "My Akiba" profile redesign with phone and
   // city). Legacy wallet-row country may prefill when unset, but this table
@@ -67,25 +72,22 @@ export default async function MePage() {
     .maybeSingle();
   const hubCountry = hubProfile?.country ?? activeRow?.country ?? null;
 
-  // Next Reward Progress V1 (next-reward-progress-v1-spec.md) — gated behind
-  // HUB_NEXT_REWARD_*; /me loads both the summary and the fuller "ways to
-  // get closer" list (quests + games), unlike home which only loads the
-  // summary.
+  // Next Reward Progress V1 (next-reward-progress-v1-spec.md) — /me loads
+  // both the summary and the fuller "ways to get closer" list (quests +
+  // games), unlike home which only loads the summary.
   let nextRewardSummary: Awaited<ReturnType<typeof getNextRewardSummary>> | null = null;
   let nextRewardWays: Awaited<ReturnType<typeof getNextRewardWays>> = [];
-  if (isNextRewardEnabledFor(user.email ?? user.id)) {
-    try {
-      [nextRewardSummary, nextRewardWays] = await Promise.all([
-        getNextRewardSummary({
-          hubUserId: user.id,
-          email: user.email ?? null,
-          legacyCountry: activeRow?.country ?? null,
-        }),
-        getNextRewardWays({ hubUserId: user.id, email: user.email ?? null }),
-      ]);
-    } catch (err) {
-      console.error("[me] next reward lookup failed:", err);
-    }
+  try {
+    [nextRewardSummary, nextRewardWays] = await Promise.all([
+      getNextRewardSummary({
+        hubUserId: user.id,
+        email: user.email ?? null,
+        legacyCountry: activeRow?.country ?? null,
+      }),
+      getNextRewardWays({ hubUserId: user.id, email: user.email ?? null }),
+    ]);
+  } catch (err) {
+    console.error("[me] next reward lookup failed:", err);
   }
 
   // Leaderboard username (skill-games-leaderboards-spec.md §5.3) — same
@@ -215,6 +217,9 @@ export default async function MePage() {
 
         {/* Activity — what have I been doing */}
         <RecentActivitySection items={activity} />
+
+        {/* Saved merchants — what do I care about */}
+        <SavedMerchantsSection merchants={savedMerchants} />
 
         {/* My Akiba ID — identity completion */}
         <section id="my-akiba-id" className="mb-4 scroll-mt-6 sm:mb-6">

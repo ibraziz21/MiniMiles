@@ -18,6 +18,7 @@ export async function VisitorLanding() {
 
   const forYou = feed.sections.find((s) => s.id === "for_you") ?? null;
   const limitedTime = feed.sections.find((s) => s.id === "limited_time") ?? null;
+  const newMerchants = feed.sections.find((s) => s.id === "new") ?? null;
 
   return (
     <main className="mx-auto max-w-2xl px-4 pt-4 pb-2 sm:pt-8 sm:pb-4">
@@ -40,6 +41,8 @@ export async function VisitorLanding() {
       <LocationOptIn cities={cities} />
 
       {limitedTime && <MerchantRail section={limitedTime} seeAllHref="/vouchers" />}
+
+      {newMerchants && <MerchantRail section={newMerchants} seeAllHref="/merchants" />}
     </main>
   );
 }

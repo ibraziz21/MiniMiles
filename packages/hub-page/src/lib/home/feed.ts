@@ -4,16 +4,21 @@ import { dealLabel, type VoucherTemplate } from "@/lib/akiba/deals";
 import { getUserBalance } from "@/lib/akiba/balance";
 import { resolveHubProfile } from "@/lib/akiba/hubProfile";
 import { getOrCreatePass } from "@/lib/akiba/pass";
-import { getActiveVoucherSummary, getLinkedWalletAddresses } from "@/lib/akiba/myVouchers";
+import { getActiveVoucherSummary, getLinkedWalletAddresses, getSoonestExpiringVoucher } from "@/lib/akiba/myVouchers";
 import { listPublicMerchants } from "@/lib/merchants/queries";
 import { getTopOffers, toMerchantValueSummary, getPurchaseAffinity, type TopOffer } from "@/lib/merchants/enrich";
 import { getNextRewardSummary } from "@/lib/akiba/nextReward";
-import { isNextRewardEnabledFor } from "@/lib/akiba/nextRewardRollout";
 import { getActiveIntents, getIntentBySlug } from "./intents";
 import type { HomeFeedResponse, HomeFeedSection, MatchReason, MerchantValueSummary } from "./types";
 
 const RANKING_VERSION = "home-v2-phase1";
 const NEARBY_RADIUS_KM = 15;
+// A small teaser into Directory's own "Near me", not a full rail
+// (discovery-blueprint.md §3) — independent of the shared limitPerSection.
+const NEARBY_TEASER_LIMIT = 3;
+// Small and deliberate (discovery-blueprint.md §3) — this is an
+// introduction, not a rail to fill.
+const NEW_MERCHANTS_LIMIT = 3;
 
 export type HomeFeedParams = {
   userId: string | null;
@@ -83,8 +88,7 @@ async function buildForYouSection(
 
 async function buildNearbySection(
   params: HomeFeedParams,
-  balance: number | null,
-  limit: number
+  balance: number | null
 ): Promise<HomeFeedSection | null> {
   if (params.lat == null || params.lng == null) return null;
 
@@ -92,7 +96,7 @@ async function buildNearbySection(
     lat: params.lat,
     lng: params.lng,
     radiusKm: NEARBY_RADIUS_KM,
-    limit,
+    limit: NEARBY_TEASER_LIMIT,
   });
   if (merchants.length === 0) return null;
 
@@ -171,8 +175,12 @@ async function buildLimitedTimeSection(
       expiresAt: row.expires_at,
     };
     const affordable = balance != null ? balance >= offer.milesCost : null;
-    const reasons: MatchReason[] = [{ kind: "voucher", label: offer.label, templateId: offer.templateId }];
-    if (affordable) reasons.push({ kind: "affordable", templateId: offer.templateId });
+    // Same priority rule as toMerchantValueSummary (enrich.ts) — "affordable"
+    // outranks the plain "voucher" reason when both are true, since it's
+    // the stronger, more differentiating truthful signal.
+    const reasons: MatchReason[] = affordable
+      ? [{ kind: "affordable", templateId: offer.templateId }]
+      : [{ kind: "voucher", label: offer.label, templateId: offer.templateId }];
 
     merchants.push({
       id: partner.id,
@@ -186,7 +194,7 @@ async function buildLimitedTimeSection(
       nearestLocation: null,
       topOffer: { ...offer, affordable },
       earnSummary: null,
-      reasons: reasons.slice(0, 3),
+      reasons,
     });
 
     if (merchants.length >= limit) break;
@@ -194,7 +202,65 @@ async function buildLimitedTimeSection(
 
   if (merchants.length === 0) return null;
 
-  return { id: "limited_time", title: "Limited-time offers", personalized: false, merchants };
+  return { id: "limited_time", title: "Ending soon", personalized: false, merchants };
+}
+
+/**
+ * Recently published merchants (discovery-blueprint.md §3, deferred out of
+ * Phase 1 pending confirming directory_published_at reliability — since
+ * verified: 100% of currently-published partner_settings rows carry a
+ * non-null, distinct-per-merchant timestamp, not a bulk-backfill artifact).
+ * No offer/affordability enrichment — this module's only claim is "new",
+ * so the section title alone is the reason; no per-card chip repeats it.
+ */
+async function buildNewMerchantsSection(): Promise<HomeFeedSection | null> {
+  const admin = createAdminClient();
+
+  const { data: rows, error } = await admin
+    .from("partner_settings")
+    .select(
+      `directory_published_at, banner_url,
+       partners!inner ( id, slug, name, image_url, type, status )`
+    )
+    .eq("directory_status", "published")
+    .not("directory_published_at", "is", null)
+    .eq("partners.type", "merchant")
+    .eq("partners.status", "active")
+    .not("partners.id", "in", HIDDEN_PARTNER_FILTER)
+    .order("directory_published_at", { ascending: false })
+    .limit(NEW_MERCHANTS_LIMIT);
+
+  if (error) {
+    console.error("[home-feed] new_merchants query failed:", error.message);
+    return null;
+  }
+  if (!rows || rows.length === 0) return null;
+
+  type RowPartner = { id: string; slug: string; name: string; image_url: string | null };
+  type Row = { banner_url: string | null; partners: RowPartner | RowPartner[] };
+
+  const merchants: MerchantValueSummary[] = (rows as unknown as Row[]).flatMap((row) => {
+    const partner = Array.isArray(row.partners) ? row.partners[0] : row.partners;
+    if (!partner) return [];
+    return [{
+      id: partner.id,
+      slug: partner.slug,
+      name: partner.name,
+      logoUrl: partner.image_url,
+      bannerUrl: row.banner_url,
+      primaryCategory: null,
+      matchedOffering: null,
+      operatingModel: "hybrid" as const,
+      nearestLocation: null,
+      topOffer: null,
+      earnSummary: null,
+      reasons: [],
+    }];
+  });
+
+  if (merchants.length === 0) return null;
+
+  return { id: "new", title: "New on Akiba", personalized: false, merchants };
 }
 
 async function getRewardsSnapshot(userId: string, email: string | null) {
@@ -203,16 +269,18 @@ async function getRewardsSnapshot(userId: string, email: string | null) {
     getLinkedWalletAddresses(userId),
   ]);
 
-  const [{ balance }, { publicPassId }, voucherSummary] = await Promise.all([
+  const [{ balance }, { publicPassId }, voucherSummary, continueVoucher] = await Promise.all([
     getUserBalance({ walletAddress, email }),
     getOrCreatePass({ userId, email, walletAddress }),
     getActiveVoucherSummary({ userId, walletAddresses }),
+    getSoonestExpiringVoucher({ userId, walletAddresses }),
   ]);
 
   return {
     balance,
     hasPass: !!publicPassId,
     activeVoucherCount: voucherSummary.activeCount,
+    continueVoucher,
   };
 }
 
@@ -231,14 +299,11 @@ export async function getHomeFeed(params: HomeFeedParams): Promise<HomeFeedRespo
   let nextReward: HomeFeedResponse["nextReward"] = null;
 
   if (params.userId) {
-    const identifier = params.userEmail ?? params.userId;
     const [snapshotResult, nextRewardResult] = await Promise.allSettled([
       getRewardsSnapshot(params.userId, params.userEmail ?? null),
-      isNextRewardEnabledFor(identifier)
-        ? purchaseAffinityPromise.then((purchaseAffinity) =>
-            getNextRewardSummary({ hubUserId: params.userId as string, email: params.userEmail ?? null, purchaseAffinity })
-          )
-        : Promise.resolve(null),
+      purchaseAffinityPromise.then((purchaseAffinity) =>
+        getNextRewardSummary({ hubUserId: params.userId as string, email: params.userEmail ?? null, purchaseAffinity })
+      ),
     ]);
 
     if (snapshotResult.status === "fulfilled") {
@@ -247,6 +312,7 @@ export async function getHomeFeed(params: HomeFeedParams): Promise<HomeFeedRespo
         milesBalance: snapshotResult.value.balance,
         activeVoucherCount: snapshotResult.value.activeVoucherCount,
         hasPass: snapshotResult.value.hasPass,
+        continueVoucher: snapshotResult.value.continueVoucher,
       };
     } else {
       console.error("[home-feed] rewards snapshot failed:", snapshotResult.reason);
@@ -263,11 +329,12 @@ export async function getHomeFeed(params: HomeFeedParams): Promise<HomeFeedRespo
 
   const results = await Promise.allSettled([
     buildForYouSection(params, intentQuery, intentLabel, balance, limit, purchaseAffinityPromise),
-    buildNearbySection(params, balance, limit),
+    buildNearbySection(params, balance),
     buildLimitedTimeSection(params.userId, balance, limit),
+    buildNewMerchantsSection(),
   ]);
 
-  const [forYou, nearby, limitedTime] = results;
+  const [forYou, nearby, limitedTime, newMerchants] = results;
   if (forYou.status === "fulfilled" && forYou.value.merchants.length > 0) sections.push(forYou.value);
   else if (forYou.status === "rejected") console.error("[home-feed] for_you section failed:", forYou.reason);
 
@@ -276,6 +343,9 @@ export async function getHomeFeed(params: HomeFeedParams): Promise<HomeFeedRespo
 
   if (limitedTime.status === "fulfilled" && limitedTime.value) sections.push(limitedTime.value);
   else if (limitedTime.status === "rejected") console.error("[home-feed] limited_time section failed:", limitedTime.reason);
+
+  if (newMerchants.status === "fulfilled" && newMerchants.value) sections.push(newMerchants.value);
+  else if (newMerchants.status === "rejected") console.error("[home-feed] new_merchants section failed:", newMerchants.reason);
 
   return {
     rankingVersion: RANKING_VERSION,

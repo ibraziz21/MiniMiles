@@ -19,12 +19,23 @@ const state = vi.hoisted(() => ({
   ledger: 100,
   available: true,
   reserved: [] as Array<{ points: number }>,
+  memberCountry: null as string | null,
+  merchantCountry: null as string | null,
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     auth: { getUser: async () => ({ data: { user: state.user } }) },
   }),
+}));
+
+// Country revalidation (discovery-blueprint.md §7/§8) resolves the member's
+// country via resolveHubProfile's legacy fallback when hub_user_profiles has
+// none set — mocked wholesale like nextReward.test.ts does, rather than
+// satisfying resolveHubProfile's own real internal queries here.
+vi.mock("@/lib/akiba/hubProfile", () => ({
+  resolveHubProfile: () =>
+    Promise.resolve({ activeRow: null, walletAddress: null, displayName: "You", needsPicker: false, rows: [] }),
 }));
 
 const mockReadChain = vi.fn();
@@ -71,6 +82,28 @@ function setupAdmin() {
         select: () => ({
           eq: () => ({
             maybeSingle: async () => ({ data: state.template, error: null }),
+          }),
+        }),
+      };
+    }
+    // Country revalidation (discovery-blueprint.md §7/§8) — neither side has
+    // a country set by default, so it fails open in the existing happy-path
+    // tests below unless a test explicitly sets state.memberCountry/
+    // state.merchantCountry.
+    if (table === "hub_user_profiles") {
+      return {
+        select: () => ({
+          eq: () => ({
+            maybeSingle: async () => ({ data: { country: state.memberCountry }, error: null }),
+          }),
+        }),
+      };
+    }
+    if (table === "partners") {
+      return {
+        select: () => ({
+          eq: () => ({
+            maybeSingle: async () => ({ data: { country: state.merchantCountry }, error: null }),
           }),
         }),
       };
@@ -126,6 +159,8 @@ describe("POST /api/shop/vouchers/quote", () => {
     state.ledger = 100;
     state.available = true;
     state.reserved = [];
+    state.memberCountry = null;
+    state.merchantCountry = null;
     mockReadChain.mockResolvedValue({ ok: true, balance: 100 });
     setupAdmin();
   });
@@ -177,5 +212,25 @@ describe("POST /api/shop/vouchers/quote", () => {
     const response = await POST(request());
 
     expect(response.status).toBe(409);
+  });
+
+  it("rejects a quote when the member's and merchant's countries are both known and differ", async () => {
+    state.memberCountry = "Kenya";
+    state.merchantCountry = "UG";
+
+    const response = await POST(request());
+    const body = await response.json() as Record<string, unknown>;
+
+    expect(response.status).toBe(403);
+    expect(body.error).toMatch(/country/i);
+  });
+
+  it("allows a quote when countries match", async () => {
+    state.memberCountry = "Kenya";
+    state.merchantCountry = "KE";
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
   });
 });

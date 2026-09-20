@@ -11,9 +11,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { HIDDEN_PARTNER_FILTER } from "@/lib/akiba/hidden-partners";
 import { dealLabel, type VoucherTemplate } from "@/lib/akiba/deals";
 import { getVoucherSpendableBalance } from "@/lib/akiba/voucherSpendableBalance";
-import { resolveHubProfile } from "@/lib/akiba/hubProfile";
 import { getPurchaseAffinity } from "@/lib/merchants/enrich";
 import { normalizeCountry } from "@/lib/akiba/countryCodes";
+import { resolveMemberCountry } from "@/lib/akiba/countryEligibility";
 import { getHubQuestStatuses } from "@/lib/akiba/questStatus";
 import { isHubQuestsEnabledFor } from "@/lib/akiba/hubQuestRollout";
 import { isGamesEnabledFor } from "@/lib/games/gamesRollout";
@@ -283,26 +283,6 @@ export function selectRewardCandidate(
       ? `Available from a merchant in ${ctx.memberCountryName ?? "your country"}`
       : "Available online";
   return { candidate: winner, recommendationLabel: "recommended_for_you", explanation };
-}
-
-// ─── Member country resolution ─────────────────────────────────────────────
-
-async function resolveMemberCountry(opts: {
-  hubUserId: string;
-  email: string | null;
-  /** Pass the caller's already-resolved legacy country (e.g. home's
-   *  resolveHubProfile().activeRow.country) to skip a redundant lookup. */
-  legacyCountry?: string | null;
-}): Promise<{ code: string | null; name: string | null }> {
-  const admin = createAdminClient();
-  const [{ data: hubProfile }, legacyCountry] = await Promise.all([
-    admin.from("hub_user_profiles").select("country").eq("user_id", opts.hubUserId).maybeSingle(),
-    opts.legacyCountry !== undefined
-      ? Promise.resolve(opts.legacyCountry)
-      : resolveHubProfile({ userId: opts.hubUserId, email: opts.email }).then((p) => p.activeRow?.country ?? null),
-  ]);
-  const name = hubProfile?.country ?? legacyCountry ?? null;
-  return { code: normalizeCountry(name), name };
 }
 
 // ─── Summary (balance + target + progress) — home + /me ────────────────────

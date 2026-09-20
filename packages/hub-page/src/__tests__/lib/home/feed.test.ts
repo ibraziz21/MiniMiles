@@ -12,6 +12,8 @@ const state = vi.hoisted(() => ({
   activeVoucherCount: 0,
   linkedAddresses: [] as string[],
   completedPartnerIds: [] as string[],
+  newPartnerSettings: [] as unknown[],
+  newMerchantsShouldError: false,
 }));
 
 const mockListPublicMerchants = vi.fn();
@@ -42,9 +44,11 @@ vi.mock("@/lib/akiba/pass", () => ({
 
 const mockGetActiveVoucherSummary = vi.fn();
 const mockGetLinkedWalletAddresses = vi.fn();
+const mockGetSoonestExpiringVoucher = vi.fn();
 vi.mock("@/lib/akiba/myVouchers", () => ({
   getActiveVoucherSummary: (...args: unknown[]) => mockGetActiveVoucherSummary(...args),
   getLinkedWalletAddresses: (...args: unknown[]) => mockGetLinkedWalletAddresses(...args),
+  getSoonestExpiringVoucher: (...args: unknown[]) => mockGetSoonestExpiringVoucher(...args),
 }));
 
 /** Any chained call (`.select().eq().gt()...`) returns itself; awaiting it
@@ -88,6 +92,12 @@ function setupAdmin() {
     if (table === "merchant_transactions") {
       return chainable({ data: state.completedPartnerIds.map((id) => ({ partner_id: id })), error: null });
     }
+    if (table === "partner_settings") {
+      if (state.newMerchantsShouldError) {
+        return chainable({ data: null, error: { message: "connection refused" } });
+      }
+      return chainable({ data: state.newPartnerSettings, error: null });
+    }
     throw new Error(`Unexpected table ${table}`);
   });
 }
@@ -107,6 +117,8 @@ describe("getHomeFeed", () => {
     state.activeVoucherCount = 0;
     state.linkedAddresses = [];
     state.completedPartnerIds = [];
+    state.newPartnerSettings = [];
+    state.newMerchantsShouldError = false;
     setupAdmin();
 
     mockListPublicMerchants.mockImplementation((params: { lat?: number; lng?: number }) => {
@@ -120,6 +132,7 @@ describe("getHomeFeed", () => {
     mockGetOrCreatePass.mockImplementation(async () => ({ publicPassId: state.hasPass ? "pass-1" : null, isNew: false }));
     mockGetLinkedWalletAddresses.mockImplementation(async () => state.linkedAddresses);
     mockGetActiveVoucherSummary.mockImplementation(async () => ({ activeCount: state.activeVoucherCount, expiringSoonCount: 0 }));
+    mockGetSoonestExpiringVoucher.mockImplementation(async () => null);
   });
 
   it("signed-out: rewards is null and balance/voucher helpers are never called", async () => {
@@ -140,7 +153,7 @@ describe("getHomeFeed", () => {
 
     const feed = await getHomeFeed({ userId: "user-1", userEmail: "u@test.com" });
 
-    expect(feed.rewards).toEqual({ milesBalance: 500, activeVoucherCount: 2, hasPass: true });
+    expect(feed.rewards).toEqual({ milesBalance: 500, activeVoucherCount: 2, hasPass: true, continueVoucher: null });
   });
 
   it("cold-start (no intent, no location) orders for_you by offer presence then cheapest cost then name", async () => {
@@ -283,12 +296,50 @@ describe("getHomeFeed", () => {
     expect(feed.sections.find((s) => s.id === "limited_time")).toBeUndefined();
   });
 
-  it("never ships a popular or new-merchants section in Phase 1 (no analytics pipeline / no directory_published_at)", async () => {
+  it("never ships a popular section (no analytics pipeline)", async () => {
     state.merchants = [merchant()];
 
     const feed = await getHomeFeed({ userId: null });
 
     expect(feed.sections.some((s) => s.id === "popular")).toBe(false);
+  });
+
+  it("omits the new-merchants section when nothing is published with a directory_published_at", async () => {
+    state.merchants = [merchant()];
+    state.newPartnerSettings = [];
+
+    const feed = await getHomeFeed({ userId: null });
+
     expect(feed.sections.some((s) => s.id === "new")).toBe(false);
+  });
+
+  it("ships a new-merchants section, untitled reasons, when recently-published merchants exist", async () => {
+    state.merchants = [merchant()];
+    state.newPartnerSettings = [
+      {
+        directory_published_at: "2026-09-11T00:00:00Z",
+        banner_url: null,
+        partners: { id: "new-1", slug: "new-1", name: "Newly Opened", image_url: null, type: "merchant", status: "active" },
+      },
+    ];
+
+    const feed = await getHomeFeed({ userId: null });
+    const newMerchants = feed.sections.find((s) => s.id === "new");
+
+    expect(newMerchants?.title).toBe("New on Akiba");
+    expect(newMerchants?.personalized).toBe(false);
+    expect(newMerchants?.merchants).toEqual([
+      expect.objectContaining({ id: "new-1", slug: "new-1", name: "Newly Opened", reasons: [] }),
+    ]);
+  });
+
+  it("isolates a failing new-merchants section — a query error doesn't take down the rest of the feed", async () => {
+    state.merchants = [merchant()];
+    state.newMerchantsShouldError = true;
+
+    const feed = await getHomeFeed({ userId: null });
+
+    expect(feed.sections.some((s) => s.id === "new")).toBe(false);
+    expect(feed.sections.find((s) => s.id === "for_you")).toBeDefined();
   });
 });

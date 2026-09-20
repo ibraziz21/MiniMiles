@@ -2,9 +2,9 @@
 
 import { useId, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { Search, Store, MapPin, X, LocateFixed, Globe, RefreshCw, Loader2, SlidersHorizontal } from "lucide-react";
+import { Search, Store, MapPin, X, LocateFixed, Globe, RefreshCw, Loader2, SlidersHorizontal, Tag } from "lucide-react";
 import clsx from "clsx";
-import { MerchantValueCard } from "@/components/home/MerchantValueCard";
+import { MerchantDirectoryCard } from "@/components/merchants/MerchantDirectoryCard";
 import { track } from "@/lib/analytics/track";
 import type { MerchantValueSummary } from "@/lib/home/types";
 import { useDialogA11y } from "@/hooks/useDialogA11y";
@@ -12,14 +12,26 @@ import { useDialogA11y } from "@/hooks/useDialogA11y";
 type Category = { slug: string; name: string };
 type Mode = "all" | "physical" | "online";
 
-type Filters = { q: string; category: string; city: string; mode: Mode };
+type Filters = { q: string; category: string; city: string; mode: Mode; hasOffer: boolean };
 
-function buildQuery(filters: Filters, nearMe: { lat: number; lng: number } | null): string {
+/**
+ * `hasOffer` is deliberately never sent to `/api/merchants` (opts.forUrl
+ * only) — it's a Phase 1 client-side display filter over whatever page of
+ * results is already loaded, not a real server-side/pagination-aware filter
+ * (discovery-blueprint.md §8). It's still reflected in the browser URL for
+ * shareability/back-nav even though the API never sees it.
+ */
+function buildQuery(
+  filters: Filters,
+  nearMe: { lat: number; lng: number } | null,
+  opts: { forUrl?: boolean } = {}
+): string {
   const params = new URLSearchParams();
   if (filters.q) params.set("q", filters.q);
   if (filters.category) params.set("category", filters.category);
   if (filters.city) params.set("city", filters.city);
   if (filters.mode !== "all") params.set("mode", filters.mode);
+  if (opts.forUrl && filters.hasOffer) params.set("has_offer", "1");
   if (nearMe) {
     params.set("lat", String(nearMe.lat));
     params.set("lng", String(nearMe.lng));
@@ -81,7 +93,7 @@ export function MerchantFilters({
       isFirstRun.current = false;
       return;
     }
-    const query = buildQuery(filters, nearMe);
+    const query = buildQuery(filters, nearMe, { forUrl: true });
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
 
     const handle = setTimeout(async () => {
@@ -163,6 +175,10 @@ export function MerchantFilters({
     setFilters((f) => ({ ...f, mode: next }));
   }
 
+  function setHasOffer(next: boolean) {
+    setFilters((f) => ({ ...f, hasOffer: next }));
+  }
+
   function setSearch(next: string) {
     setFilters((f) => ({ ...f, q: next }));
   }
@@ -176,14 +192,26 @@ export function MerchantFilters({
     return () => clearTimeout(handle);
   }, [filters.q]);
 
-  const hasFilter = filters.q || filters.category || filters.city || filters.mode !== "all" || nearMe;
+  const hasFilter =
+    filters.q || filters.category || filters.city || filters.mode !== "all" || filters.hasOffer || nearMe;
   const activeFilterCount =
-    (filters.mode !== "all" ? 1 : 0) + (filters.city ? 1 : 0) + (filters.category ? 1 : 0);
+    (filters.mode !== "all" ? 1 : 0) +
+    (filters.city ? 1 : 0) +
+    (filters.category ? 1 : 0) +
+    (filters.hasOffer ? 1 : 0);
 
   function clearAll() {
-    setFilters({ q: "", category: "", city: "", mode: "all" });
+    setFilters({ q: "", category: "", city: "", mode: "all", hasOffer: false });
     setNearMe(null);
   }
+
+  // Phase 1 client-side display filter (see buildQuery's comment above) —
+  // applied to whatever page of results is already loaded, not sent to the
+  // API. A page can under-fill when this hides most of it; "Load more"
+  // still fetches the next real page underneath.
+  const visibleMerchants = filters.hasOffer
+    ? merchants.filter((m) => (m.voucherCount ?? 0) > 0)
+    : merchants;
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const hasSheetFilters = cities.length > 1 || categories.length > 0;
@@ -259,6 +287,7 @@ export function MerchantFilters({
         setMode={setMode}
         setCity={setCity}
         setCategory={setCategory}
+        setHasOffer={setHasOffer}
         cities={cities}
         categories={categories}
         onClearAll={clearAll}
@@ -278,7 +307,7 @@ export function MerchantFilters({
         </div>
       ) : loading && merchants.length === 0 ? (
         <SkeletonGrid />
-      ) : merchants.length === 0 ? (
+      ) : visibleMerchants.length === 0 ? (
         <div className="flex flex-col items-center rounded-2xl border border-dashed border-akiba-line bg-white py-14 text-center">
           <Store className="mb-3 h-10 w-10 text-akiba-line" />
           <p className="font-medium text-akiba-ink">No merchants match</p>
@@ -301,15 +330,8 @@ export function MerchantFilters({
               loading && "pointer-events-none opacity-50"
             )}
           >
-            {merchants.map((m, i) => (
-              <MerchantValueCard
-                key={m.id}
-                merchant={m}
-                sectionId="directory"
-                position={i}
-                event="merchant_directory_card_tap"
-                eventProps={{ merchant_id: m.id, position: i, reason_kinds: m.reasons.map((r) => r.kind) }}
-              />
+            {visibleMerchants.map((m, i) => (
+              <MerchantDirectoryCard key={m.id} merchant={m} position={i} />
             ))}
           </div>
           {nextCursor && !loading && (
@@ -344,6 +366,7 @@ function FiltersSheet({
   setMode,
   setCity,
   setCategory,
+  setHasOffer,
   cities,
   categories,
   onClearAll,
@@ -354,6 +377,7 @@ function FiltersSheet({
   setMode: (m: Mode) => void;
   setCity: (c: string) => void;
   setCategory: (c: string) => void;
+  setHasOffer: (v: boolean) => void;
   cities: string[];
   categories: Category[];
   onClearAll: () => void;
@@ -398,6 +422,18 @@ function FiltersSheet({
                 onClick={() => setMode(opt.value)}
               />
             ))}
+          </div>
+        </div>
+
+        <div className="mb-5">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-akiba-muted">Offers</p>
+          <div className="flex gap-2" role="group" aria-label="Filter by active offers">
+            <FilterChip
+              label="Has an active offer"
+              icon={<Tag className="h-3 w-3" />}
+              active={filters.hasOffer}
+              onClick={() => setHasOffer(!filters.hasOffer)}
+            />
           </div>
         </div>
 

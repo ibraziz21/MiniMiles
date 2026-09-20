@@ -131,13 +131,22 @@ export function toMerchantValueSummary(
   voucherCount?: number,
   hasAffinity?: boolean
 ): MerchantValueSummary {
+  const affordable = offer && balance != null ? balance >= offer.milesCost : null;
+
+  // Priority order for the single reason a recommendation card keeps
+  // (discovery-blueprint.md §5 — reasons.slice(0, 1) below). "Affordable" is
+  // Akiba's sharpest differentiator, so it must outrank the plain "voucher"
+  // reason when both are true for the same offer, not lose to it by
+  // incidental push order.
   const reasons: MatchReason[] = [];
   if (hasAffinity) reasons.push({ kind: "affinity", label: "You've shopped here before" });
   if (intentLabel) reasons.push({ kind: "intent", label: `Matches ${intentLabel}` });
   if (m.distanceKm != null) reasons.push({ kind: "distance", distanceKm: m.distanceKm });
-  if (offer) reasons.push({ kind: "voucher", label: offer.label, templateId: offer.templateId });
-  const affordable = offer && balance != null ? balance >= offer.milesCost : null;
-  if (offer && affordable) reasons.push({ kind: "affordable", templateId: offer.templateId });
+  if (offer && affordable) {
+    reasons.push({ kind: "affordable", templateId: offer.templateId });
+  } else if (offer) {
+    reasons.push({ kind: "voucher", label: offer.label, templateId: offer.templateId });
+  }
 
   return {
     id: m.id,
@@ -167,9 +176,15 @@ export function toMerchantValueSummary(
       ? { templateId: offer.templateId, label: offer.label, milesCost: offer.milesCost, affordable, expiresAt: offer.expiresAt }
       : null,
     voucherCount,
+    branchCount: m.branchCount,
     // No Platform earn-eligibility/preview contract exists yet (spec §9) —
     // never fabricate an "Earn Miles here" claim.
     earnSummary: null,
-    reasons: reasons.slice(0, 3),
+    // Recommendation-context cards show at most one reason (discovery-
+    // blueprint.md §5) — the module a card lives in dictates its story
+    // rather than freely picking from a bag of truthful-but-generic tags.
+    // reasons is already pushed in priority order above, so slicing to 1
+    // keeps the single strongest truthful reason.
+    reasons: reasons.slice(0, 1),
   };
 }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { formatMoney } from "@/lib/utils";
 
 type Data = {
   balances: Array<{ partner_id: string; currency: string; pending_amount: number; batched_amount: number; paid_amount: number }>;
@@ -23,10 +24,18 @@ export default function SettlementOperations({ canWrite }: { canWrite: boolean }
   }, []);
   useEffect(() => { void load(); }, [load]);
 
+  const selectedEntries = useMemo(
+    () => (data?.unbatched ?? []).filter((e) => selected.includes(e.id)),
+    [data, selected],
+  );
   const selectedPartner = useMemo(() => {
-    const partners = new Set((data?.unbatched ?? []).filter((e) => selected.includes(e.id)).map((e) => e.merchant_id));
+    const partners = new Set(selectedEntries.map((e) => e.merchant_id));
     return partners.size === 1 ? [...partners][0] : null;
-  }, [data, selected]);
+  }, [selectedEntries]);
+  const selectedCurrency = useMemo(() => {
+    const currencies = new Set(selectedEntries.map((e) => e.currency));
+    return currencies.size === 1 ? [...currencies][0] : null;
+  }, [selectedEntries]);
 
   async function mutate(body: Record<string, unknown>) {
     setBusy(true); setMessage(null);
@@ -48,9 +57,9 @@ export default function SettlementOperations({ canWrite }: { canWrite: boolean }
           <Card key={`${row.partner_id}:${row.currency}`}>
             <CardHeader><CardTitle className="text-sm">{row.partner_id}</CardTitle></CardHeader>
             <CardContent className="text-sm">
-              <p>Pending: ${Number(row.pending_amount).toFixed(2)}</p>
-              <p>In settlement: ${Number(row.batched_amount).toFixed(2)}</p>
-              <p>Paid: ${Number(row.paid_amount).toFixed(2)}</p>
+              <p>Pending: {formatMoney(row.pending_amount, row.currency)}</p>
+              <p>In settlement: {formatMoney(row.batched_amount, row.currency)}</p>
+              <p>Paid: {formatMoney(row.paid_amount, row.currency)}</p>
             </CardContent>
           </Card>
         ))}
@@ -64,15 +73,16 @@ export default function SettlementOperations({ canWrite }: { canWrite: boolean }
               <input type="checkbox" checked={selected.includes(entry.id)}
                 onChange={(e) => setSelected((old) => e.target.checked ? [...old, entry.id] : old.filter((id) => id !== entry.id))} />
               <span className="flex-1">{entry.merchant_id}</span>
-              <span>${Number(entry.payable_amount).toFixed(2)} {entry.currency}</span>
+              <span>{formatMoney(entry.payable_amount, entry.currency)}</span>
             </label>
           ))}
           {canWrite && selected.length > 0 && (
-            <Button disabled={busy || !selectedPartner} onClick={() => void mutate({
-              action: "create_batch", partner_id: selectedPartner, entry_ids: selected, currency: "cUSD",
+            <Button disabled={busy || !selectedPartner || !selectedCurrency} onClick={() => void mutate({
+              action: "create_batch", partner_id: selectedPartner, entry_ids: selected, currency: selectedCurrency,
             })}>Create batch</Button>
           )}
           {selected.length > 0 && !selectedPartner && <p className="text-xs text-red-600">Select entries for one partner only.</p>}
+          {selected.length > 0 && selectedPartner && !selectedCurrency && <p className="text-xs text-red-600">Select entries in one currency only.</p>}
         </CardContent>
       </Card>
 
@@ -114,7 +124,7 @@ function BatchRow({ batch, canWrite, busy, mutate }: {
         <span className="font-mono text-xs">{batch.id}</span>
         <span className="capitalize">{batch.state}</span>
         <span>{batch.item_count} items</span>
-        <span className="font-semibold">${Number(batch.total_payable_amount).toFixed(2)}</span>
+        <span className="font-semibold">{formatMoney(batch.total_payable_amount, batch.currency)}</span>
       </div>
       {batch.payment_reference && <p className="mt-1 text-xs">Payment: {batch.payment_reference}</p>}
       {batch.failure_reason && <p className="mt-1 text-xs text-red-600">{batch.failure_reason}</p>}

@@ -215,6 +215,25 @@ export interface OpsIncident {
 
 // ── Permission helpers ────────────────────────────────────────────────────────
 
+// Akiba-funded voucher permissions — see
+// packages/admin-dashboard/docs/akiba-funded-voucher-admin-spec.md §5.
+// Explicit rather than folded into the `vouchers.*` / `finance.*` wildcards
+// because fund approval and settlement mark-paid need their own maker-checker
+// boundaries independent of the generic voucher/finance permissions.
+export const VOUCHER_FUND_PERMISSIONS = [
+  "voucher_funds.read",
+  "voucher_funds.write",
+  "voucher_funds.publish",
+  "voucher_funds.grant",
+  "voucher_funds.approve",
+  "voucher_funds.adjust_budget",
+  "voucher_settlements.read",
+  "voucher_settlements.write",
+  "voucher_settlements.mark_paid",
+] as const;
+
+export type VoucherFundPermission = (typeof VOUCHER_FUND_PERMISSIONS)[number];
+
 export const ROLE_PERMISSIONS: Record<AdminRole, Set<string>> = {
   super_admin: new Set(["*"]),
   ops_admin: new Set([
@@ -226,6 +245,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, Set<string>> = {
     "incidents.read", "incidents.write",
     "referrals.read", "referrals.write",
     "notifications.read", "notifications.write",
+    "voucher_funds.read", "voucher_funds.write", "voucher_funds.publish", "voucher_funds.grant",
   ]),
   finance_admin: new Set([
     "finance.read", "finance.write",
@@ -235,6 +255,8 @@ export const ROLE_PERMISSIONS: Record<AdminRole, Set<string>> = {
     "audit.read",
     "referrals.read",
     "notifications.read",
+    "voucher_funds.read", "voucher_funds.approve", "voucher_funds.adjust_budget",
+    "voucher_settlements.read", "voucher_settlements.write", "voucher_settlements.mark_paid",
   ]),
   insights_admin: new Set([
     "leads.read", "leads.write",
@@ -250,6 +272,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, Set<string>> = {
     "vouchers.read", "audit.read",
     "referrals.read",
     "notifications.read",
+    "voucher_funds.read", "voucher_settlements.read",
   ]),
 };
 
