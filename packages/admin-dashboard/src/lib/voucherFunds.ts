@@ -105,10 +105,21 @@ export const ELIGIBILITY_RULE_LABELS: Record<EligibilityRuleType, string> = {
   profile_country_set: "Profile country is set",
   minimum_account_age_days: "Minimum account age",
   verified_activity_completed: "Completed a qualifying verified activity",
-  first_funded_voucher: "First Akiba-funded voucher only",
+  first_funded_voucher: "First Akiba-funded voucher, ever (any fund)",
   no_prior_merchant_redemption: "No previous redemption at this merchant",
-  fund_claim_cooldown: "Claim cooldown across the whole fund",
+  fund_claim_cooldown: "Claim cooldown since their last claim (any fund)",
   not_blocked: "Member is not blocked or under manual review",
+};
+
+// Runtime caveats worth surfacing next to the rule picker — read directly
+// from the evaluator (Akiba-Platform packages/api/lib/voucherFunding/eligibility.ts),
+// not aspirational. Only the rules with a real gap between what they sound
+// like and what they currently do get an entry here.
+export const ELIGIBILITY_RULE_WARNINGS: Partial<Record<EligibilityRuleType, string>> = {
+  not_blocked: "Not enforced yet — the platform has no blocklist table. Selecting this does nothing today.",
+  first_funded_voucher: "Scoped to the member, not this fund — blocks anyone who has ever claimed from any Akiba fund.",
+  fund_claim_cooldown: "Scoped to the member, not this fund — the cooldown counts a claim from any Akiba fund, not just this one.",
+  minimum_account_age_days: "Requires a Hub account — always fails for a wallet-only identity.",
 };
 
 // Verification handler keys — companion spec §8.3 / admin spec §7.4.
@@ -157,6 +168,7 @@ const BAD_INPUT_CODES = new Set([
   "INVALID_PROGRAM_WINDOW",
   "INVALID_COUNTRY_CODE",
   "PROGRAM_APPROVAL_REASON_REQUIRED",
+  "RESCHEDULE_REASON_REQUIRED",
   "INVALID_RULE_SET_MODE",
   "RULE_SET_REQUIRES_AT_LEAST_ONE_RULE",
   "UNSUPPORTED_ELIGIBILITY_RULE_TYPE",
@@ -181,11 +193,14 @@ export const VOUCHER_FUND_ERROR_MESSAGES: Record<string, string> = {
   PROGRAM_INVALID_STATE_TRANSITION: "That action is not valid for the fund's current state.",
   PROGRAM_APPROVAL_REVISION_MISMATCH: "The fund's approval was revised since you loaded it. Reload and retry.",
   PROGRAM_APPROVAL_REASON_REQUIRED: "A reason of at least 4 characters is required to approve.",
+  PROGRAM_NOT_RESCHEDULABLE: "Only an approved, scheduled, active, or paused fund can be rescheduled.",
+  RESCHEDULE_REASON_REQUIRED: "A reason of at least 4 characters is required to reschedule.",
   PROGRAM_NOT_READY_FOR_ALLOCATION: "Finance approval is required before allocations can be added.",
   PROGRAM_NOT_LIVE: "The parent fund must be approved and live before an allocation can publish.",
   PROGRAM_BUDGET_EXCEEDED: "No approved fund budget remains for this allocation.",
   ALLOCATION_NOT_FOUND: "Merchant allocation not found.",
   ALLOCATION_NOT_EDITABLE: "Only a draft allocation can be edited — create a new allocation version instead.",
+  ALLOCATION_NOT_DRAFT: "Only a draft allocation can be deleted — use End to permanently stop a submitted or published one.",
   ALLOCATION_VERSION_CONFLICT: "This allocation changed since you loaded it. Reload and retry.",
   ALLOCATION_INVALID_STATE_TRANSITION: "That action is not valid for the allocation's current state.",
   ALLOCATION_TEMPLATE_MERCHANT_MISMATCH: "The voucher template's merchant does not match this allocation.",

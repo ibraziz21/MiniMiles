@@ -59,8 +59,8 @@ export function LocationOptIn({ cities }: { cities: string[] }) {
   if (status === "denied" || status === "unavailable") {
     if (cities.length === 0) return null;
     return (
-      <section className="mb-4" aria-live="polite">
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-akiba-muted">Browse by city</h2>
+      <section className="mb-8" aria-live="polite">
+        <h2 className="mb-3 font-sterling text-lg font-semibold text-akiba-ink">Browse by city</h2>
         <div className="flex flex-wrap gap-2">
           {cities.slice(0, 6).map((city) => (
             <a
@@ -77,13 +77,20 @@ export function LocationOptIn({ cities }: { cities: string[] }) {
   }
 
   return (
-    <section className="mb-4 rounded-2xl border border-akiba-line bg-white p-3.5">
-      <p className="font-semibold text-akiba-ink">Find value near you</p>
-      <p className="mt-1 text-sm text-akiba-muted">Use your location to compare nearby Akiba merchants.</p>
+    <section className="mb-8 flex flex-col gap-3 rounded-2xl border border-dashed border-akiba-teal/30 bg-akiba-tint/50 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-akiba-teal shadow-chip">
+          <MapPin className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <div>
+          <p className="font-semibold text-akiba-ink">See what&apos;s nearby</p>
+          <p className="mt-0.5 text-sm text-akiba-muted">Find Akiba merchants around you.</p>
+        </div>
+      </div>
       <button
         onClick={handleUseLocation}
         disabled={status === "locating"}
-        className="mt-2.5 flex items-center gap-2 rounded-full bg-akiba-teal px-4 py-2 text-sm font-semibold text-white transition active:scale-[0.98] disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-ink"
+        className="flex min-h-10 items-center justify-center gap-2 rounded-full bg-akiba-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-akiba-teal active:scale-[0.98] disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus-visible:ring-offset-2"
       >
         <LocateFixed className="h-4 w-4" />
         {status === "locating" ? "Locating…" : "Use my location"}

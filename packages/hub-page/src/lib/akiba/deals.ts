@@ -13,6 +13,10 @@ export type VoucherTemplate = {
   miles_cost: number;
   discount_percent: number | null;
   discount_cusd: number | null;
+  // KES-denominated fixed_off vouchers (086_kes_voucher_runtime.sql) — used by
+  // Akiba-funded allocations and other KES pilots. Distinct from
+  // discount_cusd; a fixed_off voucher has exactly one of the two set.
+  discount_kes?: number | null;
   applicable_category: string | null;
   retail_value_cusd: number | null;
   partners: {
@@ -32,8 +36,10 @@ export function formatUSD(amount: number): string {
   return usdFormatter.format(amount);
 }
 
-export function dealLabel(t: Pick<VoucherTemplate, "voucher_type" | "discount_percent" | "discount_cusd" | "retail_value_cusd">): string {
+export function dealLabel(t: Pick<VoucherTemplate, "voucher_type" | "discount_percent" | "discount_cusd" | "discount_kes" | "retail_value_cusd">): string {
   if (t.voucher_type === "percent_off") return `${t.discount_percent ?? 0}% off`;
-  if (t.voucher_type === "fixed_off") return `${formatUSD(t.discount_cusd ?? 0)} off`;
+  if (t.voucher_type === "fixed_off") {
+    return t.discount_kes != null ? `KES ${t.discount_kes} off` : `${formatUSD(t.discount_cusd ?? 0)} off`;
+  }
   return t.retail_value_cusd ? `Free (up to ${formatUSD(t.retail_value_cusd)})` : "Free item";
 }

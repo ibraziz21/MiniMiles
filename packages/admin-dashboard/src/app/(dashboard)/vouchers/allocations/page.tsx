@@ -46,7 +46,7 @@ export default async function VoucherAllocationsPage() {
     supabase
       .from("voucher_funding_allocations")
       .select(
-        "id, program_id, state, quantity_cap, authorized_budget_minor, spend_voucher_templates(title), partners(name), voucher_funding_programs(name)",
+        "id, program_id, state, quantity_cap, authorized_budget_minor, spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title), partners(name), voucher_funding_programs(name)",
       )
       .order("created_at", { ascending: false }),
     supabase.from("v_voucher_funding_allocation_availability").select("allocation_id, quantity_claimed_total, available_budget_minor"),

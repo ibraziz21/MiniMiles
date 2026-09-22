@@ -41,6 +41,21 @@ export function AllocationActions({
     router.refresh();
   }
 
+  async function handleDelete() {
+    if (!confirm("Permanently delete this draft allocation? This cannot be undone.")) return;
+    setBusy(true);
+    setError(null);
+    const res = await fetch(`/api/admin/voucher-allocations/${allocationId}`, { method: "DELETE" });
+    const result = await res.json();
+    setBusy(false);
+    if (!res.ok) {
+      setError(result.error ?? "Delete failed.");
+      return;
+    }
+    router.push(`/vouchers/funds/${fundId}`);
+    router.refresh();
+  }
+
   return (
     <div className="space-y-2">
       {error && <p className="rounded-md bg-red-50 p-2 text-xs text-red-700">{error}</p>}
@@ -52,6 +67,9 @@ export function AllocationActions({
             </Button>
             <Button size="sm" disabled={busy} onClick={() => void act("submit")}>
               Submit for approval
+            </Button>
+            <Button size="sm" variant="destructive" disabled={busy} onClick={() => void handleDelete()}>
+              Delete draft
             </Button>
           </>
         )}

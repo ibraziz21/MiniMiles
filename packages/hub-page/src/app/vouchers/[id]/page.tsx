@@ -40,7 +40,7 @@ export default async function VoucherDetailPage({
       id, code, status, created_at, expires_at, redeemed_at,
       acquisition_source, sponsor, hub_user_id, user_address, rules_snapshot,
       spend_voucher_templates (
-        id, title, voucher_type, discount_percent, discount_cusd,
+        id, title, voucher_type, discount_percent, discount_cusd, discount_kes,
         applicable_category, retail_value_cusd, miles_cost,
         partners ( id, slug, name, image_url )
       ),
@@ -63,6 +63,7 @@ export default async function VoucherDetailPage({
         voucher_type: VoucherType;
         discount_percent: number | null;
         discount_cusd: number | null;
+        discount_kes: number | null;
         applicable_category: string | null;
         retail_value_cusd: number | null;
         partners: unknown;
@@ -115,6 +116,7 @@ export default async function VoucherDetailPage({
               : tpl.voucher_type,
           discount_percent: snapshotNumber("discount_percent", tpl.discount_percent),
           discount_cusd: snapshotNumber("discount_cusd", tpl.discount_cusd),
+          discount_kes: snapshotNumber("discount_kes", tpl.discount_kes),
           applicable_category:
             snapshotHas("applicable_category")
               ? typeof snapshot?.applicable_category === "string"

@@ -8,8 +8,6 @@ const state = vi.hoisted(() => ({
   availableIds: [] as string[],
   limitedTimeShouldError: false,
   balance: 0,
-  hasPass: true,
-  activeVoucherCount: 0,
   linkedAddresses: [] as string[],
   completedPartnerIds: [] as string[],
   newPartnerSettings: [] as unknown[],
@@ -37,16 +35,9 @@ vi.mock("@/lib/akiba/hubProfile", () => ({
   resolveHubProfile: (...args: unknown[]) => mockResolveHubProfile(...args),
 }));
 
-const mockGetOrCreatePass = vi.fn();
-vi.mock("@/lib/akiba/pass", () => ({
-  getOrCreatePass: (...args: unknown[]) => mockGetOrCreatePass(...args),
-}));
-
-const mockGetActiveVoucherSummary = vi.fn();
 const mockGetLinkedWalletAddresses = vi.fn();
 const mockGetSoonestExpiringVoucher = vi.fn();
 vi.mock("@/lib/akiba/myVouchers", () => ({
-  getActiveVoucherSummary: (...args: unknown[]) => mockGetActiveVoucherSummary(...args),
   getLinkedWalletAddresses: (...args: unknown[]) => mockGetLinkedWalletAddresses(...args),
   getSoonestExpiringVoucher: (...args: unknown[]) => mockGetSoonestExpiringVoucher(...args),
 }));
@@ -113,8 +104,6 @@ describe("getHomeFeed", () => {
     state.availableIds = [];
     state.limitedTimeShouldError = false;
     state.balance = 0;
-    state.hasPass = true;
-    state.activeVoucherCount = 0;
     state.linkedAddresses = [];
     state.completedPartnerIds = [];
     state.newPartnerSettings = [];
@@ -129,9 +118,7 @@ describe("getHomeFeed", () => {
     });
     mockGetUserBalance.mockImplementation(async () => ({ chainBalance: 0, ledgerBalance: state.balance, balance: state.balance, hasBalance: true }));
     mockResolveHubProfile.mockResolvedValue({ rows: [], activeRow: null, walletAddress: null, displayName: "Test", needsPicker: false });
-    mockGetOrCreatePass.mockImplementation(async () => ({ publicPassId: state.hasPass ? "pass-1" : null, isNew: false }));
     mockGetLinkedWalletAddresses.mockImplementation(async () => state.linkedAddresses);
-    mockGetActiveVoucherSummary.mockImplementation(async () => ({ activeCount: state.activeVoucherCount, expiringSoonCount: 0 }));
     mockGetSoonestExpiringVoucher.mockImplementation(async () => null);
   });
 
@@ -142,18 +129,16 @@ describe("getHomeFeed", () => {
 
     expect(feed.rewards).toBeNull();
     expect(mockGetUserBalance).not.toHaveBeenCalled();
-    expect(mockGetActiveVoucherSummary).not.toHaveBeenCalled();
+    expect(mockGetSoonestExpiringVoucher).not.toHaveBeenCalled();
   });
 
-  it("signed-in: rewards reflects balance, pass, and active voucher count", async () => {
+  it("signed-in: rewards provides the balance and urgent voucher context", async () => {
     state.balance = 500;
-    state.hasPass = true;
-    state.activeVoucherCount = 2;
     state.merchants = [merchant()];
 
     const feed = await getHomeFeed({ userId: "user-1", userEmail: "u@test.com" });
 
-    expect(feed.rewards).toEqual({ milesBalance: 500, activeVoucherCount: 2, hasPass: true, continueVoucher: null });
+    expect(feed.rewards).toEqual({ milesBalance: 500, continueVoucher: null });
   });
 
   it("cold-start (no intent, no location) orders for_you by offer presence then cheapest cost then name", async () => {
@@ -173,7 +158,7 @@ describe("getHomeFeed", () => {
 
     expect(forYou?.merchants.map((m) => m.id)).toEqual(["cheap-offer", "pricier-offer", "no-offer"]);
     expect(forYou?.personalized).toBe(false);
-    expect(forYou?.title).toBe("Places to explore");
+    expect(forYou?.title).toBe("Merchants on Akiba");
   });
 
   it("never emits an unsupported reason kind (earn/availability/new)", async () => {

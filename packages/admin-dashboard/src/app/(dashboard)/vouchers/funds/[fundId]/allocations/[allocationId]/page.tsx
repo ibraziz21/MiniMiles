@@ -34,7 +34,7 @@ export default async function VoucherAllocationDetailPage({
     supabase
       .from("voucher_funding_allocations")
       .select(
-        "*, spend_voucher_templates(title, description, discount_kes, minimum_spend_kes, terms_text, active, lifecycle_state), partners(name, country)",
+        "*, spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, description, discount_kes, minimum_spend_kes, terms_text, active, lifecycle_state), partners(name, country)",
       )
       .eq("id", allocationId)
       .single(),

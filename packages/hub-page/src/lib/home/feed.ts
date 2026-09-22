@@ -3,11 +3,9 @@ import { HIDDEN_PARTNER_FILTER } from "@/lib/akiba/hidden-partners";
 import { dealLabel, type VoucherTemplate } from "@/lib/akiba/deals";
 import { getUserBalance } from "@/lib/akiba/balance";
 import { resolveHubProfile } from "@/lib/akiba/hubProfile";
-import { getOrCreatePass } from "@/lib/akiba/pass";
-import { getActiveVoucherSummary, getLinkedWalletAddresses, getSoonestExpiringVoucher } from "@/lib/akiba/myVouchers";
+import { getLinkedWalletAddresses, getSoonestExpiringVoucher } from "@/lib/akiba/myVouchers";
 import { listPublicMerchants } from "@/lib/merchants/queries";
 import { getTopOffers, toMerchantValueSummary, getPurchaseAffinity, type TopOffer } from "@/lib/merchants/enrich";
-import { getNextRewardSummary } from "@/lib/akiba/nextReward";
 import { getActiveIntents, getIntentBySlug } from "./intents";
 import type { HomeFeedResponse, HomeFeedSection, MatchReason, MerchantValueSummary } from "./types";
 
@@ -71,10 +69,8 @@ async function buildForYouSection(
 
   const personalized = Boolean(intentQuery) || nearby || hasAnyAffinityMatch;
   const title = personalized
-    ? "Deals for you"
-    : params.userId
-      ? "Worth a look"
-      : "Places to explore";
+    ? "Picked for you"
+    : "Merchants on Akiba";
 
   return {
     id: "for_you",
@@ -269,17 +265,13 @@ async function getRewardsSnapshot(userId: string, email: string | null) {
     getLinkedWalletAddresses(userId),
   ]);
 
-  const [{ balance }, { publicPassId }, voucherSummary, continueVoucher] = await Promise.all([
+  const [{ balance }, continueVoucher] = await Promise.all([
     getUserBalance({ walletAddress, email }),
-    getOrCreatePass({ userId, email, walletAddress }),
-    getActiveVoucherSummary({ userId, walletAddresses }),
     getSoonestExpiringVoucher({ userId, walletAddresses }),
   ]);
 
   return {
     balance,
-    hasPass: !!publicPassId,
-    activeVoucherCount: voucherSummary.activeCount,
     continueVoucher,
   };
 }
@@ -290,38 +282,23 @@ export async function getHomeFeed(params: HomeFeedParams): Promise<HomeFeedRespo
   const intentQuery = intent?.query ?? null;
   const intentLabel = intent?.label ?? null;
 
-  // Shared across buildForYouSection and getNextRewardSummary so a signed-in
-  // load never queries merchant_transactions for purchase affinity twice.
+  // Shared across the personalized ranking pass so the signed-in load never
+  // queries merchant_transactions more than once.
   const purchaseAffinityPromise = getPurchaseAffinity(params.userId);
 
   let balance: number | null = null;
   let rewards: HomeFeedResponse["rewards"] = null;
-  let nextReward: HomeFeedResponse["nextReward"] = null;
 
   if (params.userId) {
-    const [snapshotResult, nextRewardResult] = await Promise.allSettled([
-      getRewardsSnapshot(params.userId, params.userEmail ?? null),
-      purchaseAffinityPromise.then((purchaseAffinity) =>
-        getNextRewardSummary({ hubUserId: params.userId as string, email: params.userEmail ?? null, purchaseAffinity })
-      ),
-    ]);
-
-    if (snapshotResult.status === "fulfilled") {
-      balance = snapshotResult.value.balance;
+    try {
+      const snapshot = await getRewardsSnapshot(params.userId, params.userEmail ?? null);
+      balance = snapshot.balance;
       rewards = {
-        milesBalance: snapshotResult.value.balance,
-        activeVoucherCount: snapshotResult.value.activeVoucherCount,
-        hasPass: snapshotResult.value.hasPass,
-        continueVoucher: snapshotResult.value.continueVoucher,
+        milesBalance: snapshot.balance,
+        continueVoucher: snapshot.continueVoucher,
       };
-    } else {
-      console.error("[home-feed] rewards snapshot failed:", snapshotResult.reason);
-    }
-
-    if (nextRewardResult.status === "fulfilled") {
-      nextReward = nextRewardResult.value;
-    } else {
-      console.error("[home-feed] next reward summary failed:", nextRewardResult.reason);
+    } catch (error) {
+      console.error("[home-feed] rewards snapshot failed:", error);
     }
   }
 
@@ -353,6 +330,8 @@ export async function getHomeFeed(params: HomeFeedParams): Promise<HomeFeedRespo
     intents: getActiveIntents(),
     sections,
     rewards,
-    nextReward,
+    // Temporarily disabled on Discovery. Keeping the response key avoids a
+    // breaking API-shape change while also avoiding every upstream read.
+    nextReward: null,
   };
 }

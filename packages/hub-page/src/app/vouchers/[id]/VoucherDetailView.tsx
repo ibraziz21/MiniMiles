@@ -37,6 +37,7 @@ export type DetailVoucher = {
     voucher_type: VoucherType;
     discount_percent: number | null;
     discount_cusd: number | null;
+    discount_kes?: number | null;
     applicable_category: string | null;
     retail_value_cusd: number | null;
     partner: { slug: string; name: string; image_url: string | null } | null;

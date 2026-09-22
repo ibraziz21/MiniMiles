@@ -17,7 +17,7 @@ export default async function EditVoucherAllocationPage({
   const { data: allocation } = await supabase
     .from("voucher_funding_allocations")
     .select(
-      "id, version, state, quantity_cap, authorized_budget_minor, claim_starts_at, claim_ends_at, voucher_validity_seconds, distribution_modes, recycle_expired_inventory, program_id, spend_voucher_templates(title, description, terms_text, discount_kes, minimum_spend_kes), partners(name)",
+      "id, version, state, quantity_cap, authorized_budget_minor, claim_starts_at, claim_ends_at, voucher_validity_seconds, distribution_modes, recycle_expired_inventory, program_id, spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, description, terms_text, discount_kes, minimum_spend_kes), partners(name)",
     )
     .eq("id", allocationId)
     .single();

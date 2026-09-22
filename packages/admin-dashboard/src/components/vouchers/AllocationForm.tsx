@@ -8,11 +8,13 @@ import { Input } from "@/components/ui/input";
 import {
   ELIGIBILITY_RULE_TYPES,
   ELIGIBILITY_RULE_LABELS,
+  ELIGIBILITY_RULE_WARNINGS,
   VERIFIED_ACTIVITY_TEMPLATE_KEYS,
   DISTRIBUTION_MODES,
   DISTRIBUTION_MODE_LABELS,
   type EligibilityRuleType,
 } from "@/lib/voucherFunds";
+import { AlertTriangle } from "lucide-react";
 
 export interface MerchantOption {
   id: string;
@@ -401,12 +403,19 @@ function RuleRow({
   onToggle: () => void;
   children?: React.ReactNode;
 }) {
+  const warning = ELIGIBILITY_RULE_WARNINGS[type];
   return (
     <div className="rounded-lg border border-slate-100 px-3 py-2">
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={checked} onChange={onToggle} />
         {ELIGIBILITY_RULE_LABELS[type]}
       </label>
+      {warning && (
+        <p className="mt-1 flex items-start gap-1.5 text-xs text-amber-700">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          {warning}
+        </p>
+      )}
       {checked && children}
     </div>
   );

@@ -69,3 +69,34 @@ export async function PATCH(
 
   return NextResponse.json({ ok: true, data });
 }
+
+// DELETE /api/admin/voucher-allocations/:allocationId — permanently remove a
+// draft allocation that was never submitted. Never available once submitted,
+// approved, or published — per §10 "Never provide destructive deletion after
+// approval or issuance", the correct removal for those is the "End" action,
+// which preserves the record and any already-issued vouchers.
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ allocationId: string }> },
+) {
+  const session = await requireAdminSession("voucher_funds.write");
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { allocationId } = await params;
+
+  const actorId = adminIdForWrite(session) ?? OPEN_ACCESS_ACTOR_ID;
+  const { error } = await supabase.rpc("delete_voucher_funding_allocation_draft_atomic", {
+    p_allocation_id: allocationId,
+    p_actor_id: actorId,
+  });
+
+  if (error) return rpcErrorResponse(error);
+
+  await writeAdminAuditLog({
+    adminUserId: adminIdForWrite(session),
+    action: "voucher_allocation.deleted",
+    targetType: "voucher_funding_allocation",
+    targetId: allocationId,
+  });
+
+  return NextResponse.json({ ok: true });
+}

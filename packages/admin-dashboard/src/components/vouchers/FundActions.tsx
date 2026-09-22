@@ -4,11 +4,15 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export function FundActions({
   fundId,
   state,
   approvalRevision,
+  version,
+  startsAt,
+  endsAt,
   canWrite,
   canApprove,
   canPublish,
@@ -16,6 +20,9 @@ export function FundActions({
   fundId: string;
   state: string;
   approvalRevision: number;
+  version: number;
+  startsAt: string;
+  endsAt: string;
   canWrite: boolean;
   canApprove: boolean;
   canPublish: boolean;
@@ -23,6 +30,7 @@ export function FundActions({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rescheduling, setRescheduling] = useState(false);
 
   async function act(action: string, body: Record<string, unknown> = {}) {
     setBusy(true);
@@ -38,8 +46,11 @@ export function FundActions({
       setError(result.error ?? "Action failed.");
       return;
     }
+    setRescheduling(false);
     router.refresh();
   }
+
+  const canReschedule = canPublish && ["approved", "scheduled", "active", "paused"].includes(state);
 
   return (
     <div className="space-y-2">
@@ -130,6 +141,70 @@ export function FundActions({
             </Button>
           </>
         )}
+        {canReschedule && (
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => setRescheduling((r) => !r)}>
+            Reschedule
+          </Button>
+        )}
+      </div>
+
+      {rescheduling && (
+        <RescheduleForm
+          initialStartsAt={startsAt}
+          initialEndsAt={endsAt}
+          busy={busy}
+          onCancel={() => setRescheduling(false)}
+          onSubmit={(startsAtValue, endsAtValue, reason) =>
+            void act("reschedule", { startsAt: startsAtValue, endsAt: endsAtValue, expectedVersion: version, reason })
+          }
+        />
+      )}
+    </div>
+  );
+}
+
+function RescheduleForm({
+  initialStartsAt,
+  initialEndsAt,
+  busy,
+  onCancel,
+  onSubmit,
+}: {
+  initialStartsAt: string;
+  initialEndsAt: string;
+  busy: boolean;
+  onCancel: () => void;
+  onSubmit: (startsAt: string, endsAt: string, reason: string) => void;
+}) {
+  const [startsAt, setStartsAt] = useState(initialStartsAt.slice(0, 16));
+  const [endsAt, setEndsAt] = useState(initialEndsAt.slice(0, 16));
+  const [reason, setReason] = useState("");
+
+  return (
+    <div className="max-w-md space-y-2 rounded-lg border border-slate-200 p-3">
+      <p className="text-xs font-medium text-slate-600">Correct this fund&apos;s start/end dates</p>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block space-y-1">
+          <span className="text-xs text-slate-500">Starts</span>
+          <Input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
+        </label>
+        <label className="block space-y-1">
+          <span className="text-xs text-slate-500">Ends</span>
+          <Input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
+        </label>
+      </div>
+      <Input placeholder="Reason (min 4 characters)" value={reason} onChange={(e) => setReason(e.target.value)} />
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          disabled={busy || reason.trim().length < 4 || !startsAt || !endsAt}
+          onClick={() => onSubmit(new Date(startsAt).toISOString(), new Date(endsAt).toISOString(), reason.trim())}
+        >
+          Save new dates
+        </Button>
+        <Button size="sm" variant="ghost" disabled={busy} onClick={onCancel}>
+          Cancel
+        </Button>
       </div>
     </div>
   );

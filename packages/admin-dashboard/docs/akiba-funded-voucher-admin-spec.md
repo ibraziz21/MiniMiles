@@ -8,6 +8,12 @@
 
 **Companion specification:** `Akiba-Platform/docs/akiba-funded-founding-merchant-vouchers-spec.md`
 
+**Required launch-hardening addendum:** `akiba-funded-voucher-launch-hardening-spec.md`
+
+> The addendum supersedes this document where it defines namespaced settlement
+> contracts, atomic parent-budget controls, eligibility enforcement, operator
+> identity, or launch gates.
+
 ---
 
 ## 0. Executive decision

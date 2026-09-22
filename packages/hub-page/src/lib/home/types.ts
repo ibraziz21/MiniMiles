@@ -89,15 +89,13 @@ export type HomeFeedResponse = {
   sections: HomeFeedSection[];
   rewards: null | {
     milesBalance: number;
-    activeVoucherCount: number;
-    hasPass: boolean;
     /**
      * The single soonest-expiring active voucher, for the "continue this"
      * strip (discovery-blueprint.md §3, workstream 7) — null when there's
      * nothing urgent enough to interrupt with. Nested under `rewards`
      * (rather than a separate top-level field) because it shares the same
-     * wallet-resolution dependency and failure fate as the rest of this
-     * snapshot — see getRewardsSnapshot in lib/home/feed.ts.
+     * wallet-resolution dependency and failure fate as the Miles balance —
+     * see getRewardsSnapshot in lib/home/feed.ts.
      */
     continueVoucher: import("@/lib/akiba/myVouchers").SoonestExpiringVoucher | null;
   };
