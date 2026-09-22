@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession, adminIdForWrite } from "@/lib/auth";
 import { writeAdminAuditLog } from "@/lib/audit";
 import { supabase } from "@/lib/supabase";
+import { hasPermission } from "@/types";
 
 export async function GET() {
-  const session = await requireAdminSession("finance.read");
+  const session = await requireAdminSession("voucher_settlements.read");
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const [balances, unbatched, batches, incidents] = await Promise.all([
@@ -31,11 +32,16 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await requireAdminSession("finance.write");
+  const session = await requireAdminSession("voucher_settlements.write");
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json().catch(() => null) as Record<string, unknown> | null;
   if (!body || typeof body.action !== "string") {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
+
+  const isMarkingPaid = body.action === "transition" && body.state === "paid";
+  if (isMarkingPaid && !hasPermission(session.role, "voucher_settlements.mark_paid")) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const actorId = adminIdForWrite(session) ?? "open-access";
@@ -44,13 +50,22 @@ export async function POST(req: NextRequest) {
   let targetId: string | undefined;
 
   if (body.action === "create_batch") {
-    if (typeof body.partner_id !== "string" || !Array.isArray(body.entry_ids) || body.entry_ids.length === 0) {
-      return NextResponse.json({ error: "Partner and payable entries are required" }, { status: 400 });
+    if (
+      typeof body.partner_id !== "string" ||
+      typeof body.currency !== "string" ||
+      !body.currency ||
+      !Array.isArray(body.entry_ids) ||
+      body.entry_ids.length === 0
+    ) {
+      return NextResponse.json(
+        { error: "Partner, currency, and payable entries are required" },
+        { status: 400 },
+      );
     }
     rpc = "create_partner_settlement_batch";
     args = {
       p_partner_id: body.partner_id,
-      p_currency: typeof body.currency === "string" ? body.currency : "cUSD",
+      p_currency: body.currency,
       p_entry_ids: body.entry_ids,
       p_idempotency_key: typeof body.idempotency_key === "string"
         ? body.idempotency_key

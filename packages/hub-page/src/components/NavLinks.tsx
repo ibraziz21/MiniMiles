@@ -1,8 +1,9 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Compass, ShoppingBag, Sparkles, Tag, QrCode } from "lucide-react";
+import { Compass, ShoppingBag, Tag, QrCode } from "lucide-react";
 import clsx from "clsx";
+import { EarnIcon } from "@/components/MilesIcon";
 import { track } from "@/lib/analytics/track";
 
 // Primary navigation — akiba-pass-navigation-rewards-earned-notifications-v1-spec.md §3.
@@ -14,11 +15,16 @@ import { track } from "@/lib/analytics/track";
 // duplicated in the bottom bar too.
 type PrimaryKey = "explore" | "merchants" | "rewards" | "earn" | "me";
 
-const PRIMARY_ITEMS: Array<{ key: PrimaryKey; href: string; label: string; icon: typeof Compass }> = [
+type PrimaryIcon = React.ComponentType<{
+  className?: string;
+  "aria-hidden"?: boolean | "true" | "false";
+}>;
+
+const PRIMARY_ITEMS: Array<{ key: PrimaryKey; href: string; label: string; icon: PrimaryIcon }> = [
   { key: "explore",   href: "/",         label: "Explore",   icon: Compass },
   { key: "merchants", href: "/merchants", label: "Merchants", icon: ShoppingBag },
   { key: "rewards",   href: "/vouchers",  label: "Rewards",   icon: Tag },
-  { key: "earn",      href: "/earn",      label: "Earn",      icon: Sparkles },
+  { key: "earn",      href: "/earn",      label: "Earn",      icon: EarnIcon },
 ];
 
 // §3.4 — explicit route-family map. Deliberately not `pathname.startsWith(href)`:
@@ -104,7 +110,7 @@ function NavItem({
 }: {
   href: string;
   label: string;
-  icon: typeof Compass;
+  icon: PrimaryIcon;
   active: boolean;
   onNavigate: () => void;
 }) {

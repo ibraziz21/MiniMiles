@@ -1,8 +1,9 @@
 import { HomeViewTracker } from "@/components/akiba/HomeViewTracker";
-import { HomeIntentSearch } from "@/components/home/HomeIntentSearch";
+import { DiscoveryMasthead } from "@/components/home/DiscoveryMasthead";
 import { IntentShortcuts } from "@/components/home/IntentShortcuts";
 import { MerchantRail } from "@/components/home/MerchantRail";
 import { LocationOptIn } from "@/components/home/LocationOptIn";
+import { VoucherRail } from "@/components/home/VoucherRail";
 import { getHomeFeed } from "@/lib/home/feed";
 import { listDirectoryCities } from "@/lib/merchants/queries";
 
@@ -18,28 +19,33 @@ export async function VisitorLanding() {
 
   const forYou = feed.sections.find((s) => s.id === "for_you") ?? null;
   const limitedTime = feed.sections.find((s) => s.id === "limited_time") ?? null;
+  const newMerchants = feed.sections.find((s) => s.id === "new") ?? null;
+  const voucherMerchants = [
+    ...(limitedTime?.merchants ?? []),
+    ...(forYou?.merchants ?? []),
+  ];
 
   return (
-    <main className="mx-auto max-w-2xl px-4 pt-4 pb-2 sm:pt-8 sm:pb-4">
+    <main className="mx-auto max-w-6xl px-4 pb-3 pt-4 sm:px-6 sm:pb-6 sm:pt-8 lg:px-8">
       <HomeViewTracker variant="visitor" />
 
-      <div className="mb-4">
-        <h1 className="font-sterling text-2xl font-semibold text-akiba-ink">
-          Find the best place to buy what you need.
-        </h1>
-      </div>
+      <DiscoveryMasthead />
 
-      <div className="mb-4">
-        <HomeIntentSearch placeholder="Search merchants or what you need…" />
-      </div>
+      <IntentShortcuts intents={feed.intents} title="What are you looking for?" />
 
-      <IntentShortcuts intents={feed.intents} title="Browse by need" />
+      <VoucherRail merchants={voucherMerchants} />
 
-      {forYou && <MerchantRail section={forYou} seeAllHref="/merchants" />}
+      {forYou && (
+        <MerchantRail
+          section={forYou}
+          seeAllHref="/merchants"
+          description="Browse places to shop, both nearby and online."
+        />
+      )}
 
       <LocationOptIn cities={cities} />
 
-      {limitedTime && <MerchantRail section={limitedTime} seeAllHref="/vouchers" />}
+      {newMerchants && <MerchantRail section={newMerchants} seeAllHref="/merchants" />}
     </main>
   );
 }

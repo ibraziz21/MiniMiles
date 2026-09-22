@@ -67,6 +67,12 @@ export type MerchantValueSummary = {
    * directory does.
    */
   voucherCount?: number;
+  /**
+   * Branch count from PublicMerchantSummary — carried through only for the
+   * directory-context card (discovery-blueprint.md §5), which shows it next
+   * to the nearest-branch location line. Home rails don't set this.
+   */
+  branchCount?: number;
 };
 
 export type HomeFeedSection = {
@@ -83,14 +89,20 @@ export type HomeFeedResponse = {
   sections: HomeFeedSection[];
   rewards: null | {
     milesBalance: number;
-    activeVoucherCount: number;
-    hasPass: boolean;
+    /**
+     * The single soonest-expiring active voucher, for the "continue this"
+     * strip (discovery-blueprint.md §3, workstream 7) — null when there's
+     * nothing urgent enough to interrupt with. Nested under `rewards`
+     * (rather than a separate top-level field) because it shares the same
+     * wallet-resolution dependency and failure fate as the Miles balance —
+     * see getRewardsSnapshot in lib/home/feed.ts.
+     */
+    continueVoucher: import("@/lib/akiba/myVouchers").SoonestExpiringVoucher | null;
   };
   /**
    * Next Reward Progress V1 (next-reward-progress-v1-spec.md) — null when
-   * signed out, when the HUB_NEXT_REWARD_* rollout flag is off for this
-   * member, or when the summary itself failed independently of every other
-   * section (see getNextRewardSummary in lib/akiba/nextReward.ts).
+   * signed out, or when the summary itself failed independently of every
+   * other section (see getNextRewardSummary in lib/akiba/nextReward.ts).
    */
   nextReward: import("@/lib/akiba/nextReward").NextRewardSummary | null;
 };

@@ -20,6 +20,11 @@ export type FinanceSettings = {
   businessEmail: string;
   businessPhone: string;
   businessAddress: string;
+  // Akiba-funded voucher fund approval — see
+  // packages/admin-dashboard/docs/akiba-funded-voucher-admin-spec.md §5 "maker-checker threshold".
+  // A fund's creator cannot approve their own commitment once its authorized
+  // budget (KES) exceeds this. Default 0 blocks all self-approval.
+  voucherFundMakerCheckerThresholdKes: number;
 };
 
 export type NotificationSettings = {
@@ -51,6 +56,7 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
     businessEmail: "",
     businessPhone: "",
     businessAddress: "",
+    voucherFundMakerCheckerThresholdKes: 0,
   },
   notifications: {
     financeAlertEmail: "",
@@ -153,6 +159,10 @@ export function normalizeAdminSettings(input: unknown): AdminSettings {
       businessEmail: normalizeEmail(finance.businessEmail, DEFAULT_ADMIN_SETTINGS.finance.businessEmail),
       businessPhone: asString(finance.businessPhone, DEFAULT_ADMIN_SETTINGS.finance.businessPhone, 80),
       businessAddress: asString(finance.businessAddress, DEFAULT_ADMIN_SETTINGS.finance.businessAddress, 240),
+      voucherFundMakerCheckerThresholdKes: asMoney(
+        finance.voucherFundMakerCheckerThresholdKes,
+        DEFAULT_ADMIN_SETTINGS.finance.voucherFundMakerCheckerThresholdKes,
+      ),
     },
     notifications: {
       financeAlertEmail: normalizeEmail(

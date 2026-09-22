@@ -12,6 +12,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateSecureCode } from "./codes";
 import { readChainBalanceStrict } from "@/lib/akiba/balance";
+import { resolveMemberCountry, resolveMerchantCountry, evaluateCountryEligibility } from "@/lib/akiba/countryEligibility";
 import type { IssueVoucherResult, RulesSnapshot } from "./types";
 
 export interface IssueVoucherInput {
@@ -36,6 +37,18 @@ export async function issueVoucher(
     userId, userAddress, email, templateId, merchantId, nonce,
     idempotencyKey, consentMethod, quoteId, disclosureVersion, totalPoints,
   } = input;
+
+  // Country revalidation at acquisition (discovery-blueprint.md §7/§8) — the
+  // one enforcement point every issuance path shares, checked first and
+  // before any side-effecting work (nonce consumption, reservation). Fails
+  // open when either country is unknown; see evaluateCountryEligibility.
+  const [memberCountry, merchantCountry] = await Promise.all([
+    resolveMemberCountry({ hubUserId: userId, email }).then((c) => c.code),
+    resolveMerchantCountry(merchantId),
+  ]);
+  if (!evaluateCountryEligibility(memberCountry, merchantCountry).eligible) {
+    return { ok: false, error: "This voucher isn't available in your country", httpStatus: 403 };
+  }
 
   // Wallet-signature issuance still consumes the signed nonce. The Hub modal
   // path is protected by its server-generated quote key and does not invent an

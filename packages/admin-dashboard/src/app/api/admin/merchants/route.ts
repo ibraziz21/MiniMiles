@@ -9,7 +9,7 @@ export async function GET() {
 
   const { data: partners, error } = await supabase
     .from("partners")
-    .select("id, slug, name, country, image_url")
+    .select("id, slug, name, country, image_url, status")
     .order("name");
 
   if (error) return NextResponse.json({ error: "Failed to fetch merchants" }, { status: 500 });

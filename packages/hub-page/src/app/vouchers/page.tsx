@@ -2,8 +2,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { VoucherTabs } from "./VoucherTabs";
 import { HIDDEN_PARTNER_FILTER, isHiddenPartner } from "@/lib/akiba/hidden-partners";
+import type { FundedOffer } from "@/components/vouchers/FundedOfferCard";
 
-export const metadata = { title: "Rewards — Akiba Pass" };
+export const metadata = { title: "Vouchers & Rewards — Akiba Pass" };
 export const revalidate = 60;
 
 type VoucherTemplate = {
@@ -57,11 +58,115 @@ async function getAllTemplates(hubUserId: string | null): Promise<VoucherTemplat
   });
 }
 
-const HOW_IT_WORKS = [
-  { n: "1", short: "Choose",        long: "Choose a voucher below" },
-  { n: "2", short: "Redeem",        long: "Redeem instantly with AkibaMiles" },
-  { n: "3", short: "Show merchant", long: "Show the QR or code to the merchant" },
-];
+type RawFundedAllocation = {
+  id: string;
+  claim_ends_at: string;
+  spend_voucher_templates:
+    | { title: string; description: string | null; terms_text: string | null; discount_kes: number | null; minimum_spend_kes: number | null }
+    | Array<{ title: string; description: string | null; terms_text: string | null; discount_kes: number | null; minimum_spend_kes: number | null }>
+    | null;
+  partners:
+    | { id: string; name: string; slug: string; image_url: string | null; status: string }
+    | Array<{ id: string; name: string; slug: string; image_url: string | null; status: string }>
+    | null;
+  voucher_eligibility_rule_sets:
+    | { customer_copy: string | null }
+    | Array<{ customer_copy: string | null }>
+    | null;
+};
+
+function one<T>(value: T | T[] | null): T | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+/**
+ * Active Akiba-funded voucher offers — mirrors the filter Akiba-Platform's
+ * own public discovery endpoint (GET /api/v1/voucher-funding-allocations)
+ * uses, queried directly since hub-page already holds a service-role client
+ * for cross-service reads elsewhere (myVouchers.ts). Never Miles-priced —
+ * see akiba-funded-voucher-admin-spec.md §7.3.
+ */
+async function getFundedOffers(): Promise<FundedOffer[]> {
+  const admin = createAdminClient();
+  const nowIso = new Date().toISOString();
+
+  const { data, error } = await admin
+    .from("voucher_funding_allocations")
+    .select(`
+      id, claim_ends_at,
+      spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey ( title, description, terms_text, discount_kes, minimum_spend_kes ),
+      partners ( id, name, slug, image_url, status ),
+      voucher_eligibility_rule_sets ( customer_copy )
+    `)
+    .eq("state", "active")
+    .lte("claim_starts_at", nowIso)
+    .gt("claim_ends_at", nowIso);
+
+  if (error) {
+    console.error("[vouchers] funded offers query failed:", error.message);
+    return [];
+  }
+
+  const rows = (data ?? []) as unknown as RawFundedAllocation[];
+  const offers: FundedOffer[] = [];
+  for (const row of rows) {
+    const template = one(row.spend_voucher_templates);
+    const merchant = one(row.partners);
+    const ruleSet = one(row.voucher_eligibility_rule_sets);
+    if (!template || !merchant) continue;
+    if (merchant.status !== "active") continue;
+    if (isHiddenPartner(merchant.id)) continue;
+    if (template.discount_kes == null || template.minimum_spend_kes == null) continue;
+
+    offers.push({
+      allocationId: row.id,
+      title: template.title,
+      discountKes: template.discount_kes,
+      minimumSpendKes: template.minimum_spend_kes,
+      terms: template.terms_text,
+      eligibilitySummary: ruleSet?.customer_copy ?? null,
+      claimEndsAt: row.claim_ends_at,
+      merchant: { name: merchant.name, slug: merchant.slug, imageUrl: merchant.image_url },
+    });
+  }
+  return offers;
+}
+
+/**
+ * Which of the current member's funded-offer allocations they've already
+ * claimed — computed directly against the DB with the same canonical-id
+ * resolution Akiba-Platform's own eligibility/claim routes use (identity_links
+ * keyed by email, falling back to the Supabase user id), rather than routing
+ * through Platform's HTTP+JWT chain from the client. That chain has more
+ * failure points (network, session-cookie timing, Platform's own auth) for a
+ * fact the page can just read straight from the same tables it already
+ * queries above — see ClaimOfferButton's client-side preview for the
+ * eligibility *reasons*, which still goes through Platform since that's real
+ * business logic this page must not reimplement.
+ */
+async function getClaimedAllocationIds(userId: string | null, email: string | null): Promise<Set<string>> {
+  if (!userId) return new Set();
+  const admin = createAdminClient();
+
+  let canonicalId = userId;
+  if (email) {
+    const { data: link } = await admin
+      .from("identity_links")
+      .select("canonical_id")
+      .eq("identity_type", "email")
+      .eq("identity_value", email)
+      .maybeSingle();
+    if (link?.canonical_id) canonicalId = link.canonical_id;
+  }
+
+  const { data, error } = await admin.from("voucher_claims").select("allocation_id").eq("canonical_id", canonicalId);
+  if (error) {
+    console.error("[vouchers] claimed-allocations query failed:", error.message);
+    return new Set();
+  }
+  return new Set((data ?? []).map((row) => row.allocation_id as string));
+}
 
 export default async function VouchersPage({
   searchParams,
@@ -69,54 +174,22 @@ export default async function VouchersPage({
   searchParams: { quest?: string };
 }) {
   const { data: { user } } = await (await createClient()).auth.getUser();
-  const templates = await getAllTemplates(user?.id ?? null);
+  const [templates, fundedOffers, claimedAllocationIds] = await Promise.all([
+    getAllTemplates(user?.id ?? null),
+    getFundedOffers(),
+    getClaimedAllocationIds(user?.id ?? null, user?.email ?? null),
+  ]);
   const questMode = searchParams.quest === "deal_viewed";
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-5 sm:py-8 sm:px-6 lg:px-8">
-
-      {/* ── Page header ──────────────────────────────────────────────────── */}
-      <div className="mb-4 sm:mb-8">
-        <h1 className="font-sterling text-2xl font-semibold text-akiba-ink sm:text-3xl">
-          Rewards
-        </h1>
-        <p className="mt-1 text-sm text-akiba-muted sm:mt-2 sm:text-base">
-          Use your Miles for discounts and offers from Akiba merchants.
-        </p>
-      </div>
-
-      {/* ── How it works ─────────────────────────────────────────────────── */}
-
-      {/* Mobile: compact pill row */}
-      <div className="mb-4 flex items-center gap-2 overflow-x-auto pb-0.5 sm:hidden">
-        {HOW_IT_WORKS.map(({ n, short }, i) => (
-          <div key={n} className="flex shrink-0 items-center gap-1.5">
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-akiba-teal text-[10px] font-bold text-white">
-              {n}
-            </span>
-            <span className="text-xs font-medium text-akiba-ink">{short}</span>
-            {i < HOW_IT_WORKS.length - 1 && (
-              <span className="ml-0.5 text-akiba-line">›</span>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Desktop: full info strip */}
-      <div className="mb-8 hidden sm:grid sm:grid-cols-3 gap-3 rounded-2xl border border-akiba-teal/20 bg-akiba-tint p-5">
-        {HOW_IT_WORKS.map(({ n, long }) => (
-          <div key={n} className="flex items-center gap-3">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-akiba-teal text-xs font-bold text-white">
-              {n}
-            </span>
-            <p className="text-sm font-medium text-akiba-ink">{long}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Tabs + cards ─────────────────────────────────────────────────── */}
-      <VoucherTabs templates={templates} isSignedIn={!!user} questMode={questMode} />
-
+    <main className="mx-auto max-w-7xl px-4 pb-8 pt-4 sm:px-6 sm:pb-12 sm:pt-8 lg:px-8">
+      <VoucherTabs
+        templates={templates}
+        fundedOffers={fundedOffers}
+        claimedAllocationIds={[...claimedAllocationIds]}
+        isSignedIn={!!user}
+        questMode={questMode}
+      />
     </main>
   );
 }

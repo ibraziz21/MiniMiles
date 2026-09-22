@@ -72,3 +72,77 @@ export async function getActiveVoucherSummary(opts: {
 
   return { activeCount: rows.length, expiringSoonCount };
 }
+
+export type SoonestExpiringVoucher = {
+  issuedVoucherId: string;
+  expiresAt: string;
+  merchantSlug: string;
+  merchantName: string;
+};
+
+type SoonestExpiringRow = {
+  id: string;
+  expires_at: string;
+  spend_voucher_templates:
+    | { partners: { slug: string; name: string } | Array<{ slug: string; name: string }> }
+    | Array<{ partners: { slug: string; name: string } | Array<{ slug: string; name: string }> }>;
+};
+
+/**
+ * The single soonest-expiring active voucher — home's "continue this" strip
+ * (discovery-blueprint.md §3, workstream 7). Mirrors getActiveVoucherSummary's
+ * exact ownership resolution above, but also joins through to the merchant
+ * (same partner join shape lib/home/feed.ts's buildLimitedTimeSection
+ * already uses) since the strip needs a merchant name/slug to link to.
+ * Returns null both on a lookup failure and when nothing is within the same
+ * EXPIRING_SOON_DAYS window getActiveVoucherSummary already uses — this is
+ * a "nothing urgent enough to interrupt with" signal either way, never a
+ * fabricated fallback.
+ */
+export async function getSoonestExpiringVoucher(opts: {
+  userId: string;
+  walletAddresses: string[];
+}): Promise<SoonestExpiringVoucher | null> {
+  const { userId, walletAddresses } = opts;
+  const admin = createAdminClient();
+
+  let query = admin
+    .from("issued_vouchers")
+    .select(
+      `id, expires_at,
+       spend_voucher_templates!inner ( partners!inner ( slug, name ) )`
+    )
+    .eq("status", "issued")
+    .not("expires_at", "is", null)
+    .order("expires_at", { ascending: true })
+    .limit(1);
+
+  query = walletAddresses.length > 0
+    ? query.or(`hub_user_id.eq.${userId},user_address.in.(${walletAddresses.join(",")})`)
+    : query.eq("hub_user_id", userId);
+
+  const { data, error } = await query;
+  if (error) {
+    console.error("[myVouchers] soonest-expiring query error →", error.message);
+    return null;
+  }
+
+  const row = (data as unknown as SoonestExpiringRow[] | null)?.[0];
+  if (!row) return null;
+
+  const soonCutoff = Date.now() + EXPIRING_SOON_DAYS * 86_400_000;
+  if (new Date(row.expires_at).getTime() > soonCutoff) return null;
+
+  const template = Array.isArray(row.spend_voucher_templates)
+    ? row.spend_voucher_templates[0]
+    : row.spend_voucher_templates;
+  const partner = template ? (Array.isArray(template.partners) ? template.partners[0] : template.partners) : null;
+  if (!partner) return null;
+
+  return {
+    issuedVoucherId: row.id,
+    expiresAt: row.expires_at,
+    merchantSlug: partner.slug,
+    merchantName: partner.name,
+  };
+}

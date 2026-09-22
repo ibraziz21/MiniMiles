@@ -28,7 +28,7 @@ export async function GET() {
       acquisition_source, sponsor,
       rules_snapshot,
       spend_voucher_templates (
-        id, voucher_type, discount_percent, discount_cusd,
+        id, voucher_type, discount_percent, discount_cusd, discount_kes,
         applicable_category, linked_product_id, retail_value_cusd, miles_cost,
         partners ( id, slug, name, image_url )
       ),

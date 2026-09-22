@@ -67,14 +67,34 @@ const navSections: Array<{ label: string; items: NavItem[] }> = [
       { href: "/merchants", label: "Merchants", icon: Store },
       { href: "/directory-reviews", label: "Profile Reviews", icon: ClipboardCheck },
       { href: "/leads", label: "Leads", icon: Inbox },
-      { href: "/vouchers", label: "Vouchers", icon: Tag },
+      {
+        href: "/vouchers",
+        label: "Vouchers",
+        icon: Tag,
+        children: [
+          { href: "/vouchers", label: "Overview", icon: LayoutDashboard, exact: true },
+          {
+            href: "/vouchers/funds",
+            label: "Akiba-Funded",
+            icon: Landmark,
+            children: [
+              { href: "/vouchers/funds", label: "Funds", icon: Landmark, exact: true },
+              { href: "/vouchers/allocations", label: "Merchant Allocations", icon: Store },
+              { href: "/vouchers/grants", label: "Member Grants", icon: Users },
+            ],
+          },
+          { href: "/vouchers/pricing", label: "Voucher Pricing", icon: Tag },
+          { href: "/vouchers/weekly-challenge", label: "Weekly Challenge", icon: Ticket },
+        ],
+      },
       {
         href: "/finance/subscriptions",
-        label: "Subscription Billing",
+        label: "Finance",
         icon: Landmark,
         children: [
-          { href: "/finance/subscriptions", label: "Payment Reviews", icon: Inbox, exact: true },
+          { href: "/finance/subscriptions", label: "Subscription Payments", icon: Inbox, exact: true },
           { href: "/finance/subscriptions/collections", label: "Collections", icon: ClipboardCheck },
+          { href: "/finance/settlements", label: "Voucher Reimbursements", icon: Ticket },
         ],
       },
       {

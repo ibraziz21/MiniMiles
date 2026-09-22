@@ -1,14 +1,34 @@
 import clsx from "clsx";
+import Image from "next/image";
 
-/** Inline SVG of the AkibaMiles brand symbol */
-export function MilesIcon({ className }: { className?: string }) {
+type IconProps = {
+  className?: string;
+  "aria-hidden"?: boolean | "true" | "false";
+};
+
+/** Akiba artwork used for Earn destinations and messaging. */
+export function EarnIcon({ className, "aria-hidden": ariaHidden = true }: IconProps) {
+  return (
+    <Image
+      src="/earn.svg"
+      alt=""
+      width={24}
+      height={24}
+      className={className}
+      aria-hidden={ariaHidden}
+    />
+  );
+}
+
+/** Compact AkibaMiles denomination symbol used beside amounts and balances. */
+export function MilesIcon({ className, "aria-hidden": ariaHidden = true }: IconProps) {
   return (
     <svg
       className={className}
       viewBox="0 0 16 16"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
+      aria-hidden={ariaHidden}
     >
       <circle cx="8" cy="8" r="8" fill="#238D9D" />
       <path

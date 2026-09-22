@@ -3,14 +3,18 @@ import { createClient } from "@/lib/supabase/server";
 import { getPublicMerchant, DirectoryUnavailableError } from "@/lib/merchants/queries";
 import {
   Store, Tag, Mail, Phone, MessageCircle, Globe, ArrowLeft,
-  Instagram, Facebook, Navigation, BadgeCheck,
+  Instagram, Facebook, Navigation,
 } from "lucide-react";
 import { buildDirectionsUrl, formatAddress } from "@/lib/merchants/directions";
 import { BranchCard } from "@/components/merchants/BranchCard";
 import { VoucherCard } from "@/components/merchants/VoucherCard";
 import { ExpandableDescription } from "@/components/merchants/ExpandableDescription";
+import { OperatingBadges } from "@/components/merchants/OperatingBadges";
+import { SaveMerchantButton } from "@/components/merchants/SaveMerchantButton";
 import { TrackedAnchor } from "@/components/TrackedAnchor";
 import { MerchantViewTracker } from "@/components/merchants/MerchantViewTracker";
+import { getSignedInBalance } from "@/lib/merchants/enrich";
+import { isMerchantSaved } from "@/lib/merchants/savedMerchants";
 import type { PublicMerchantDetail } from "@/lib/merchants/types";
 
 // A live-inventory merchant profile (publish state, hours, vouchers,
@@ -20,16 +24,18 @@ export const dynamic = "force-dynamic";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://hub.akibamiles.com";
 
-async function getSignedInUserId(): Promise<string | null> {
+async function getSignedInIdentity(): Promise<{ userId: string | null; email: string | null }> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  return user?.id ?? null;
+  return { userId: user?.id ?? null, email: user?.email ?? null };
 }
 
-async function safeGetMerchant(slug: string): Promise<PublicMerchantDetail | null | "unavailable"> {
-  const userId = await getSignedInUserId();
+async function safeGetMerchant(
+  slug: string,
+  userId: string | null
+): Promise<PublicMerchantDetail | null | "unavailable"> {
   try {
     return await getPublicMerchant(slug, userId);
   } catch (err) {
@@ -39,7 +45,8 @@ async function safeGetMerchant(slug: string): Promise<PublicMerchantDetail | nul
 }
 
 export async function generateMetadata({ params }: { params: { slug: string } }) {
-  const merchant = await safeGetMerchant(params.slug);
+  const { userId } = await getSignedInIdentity();
+  const merchant = await safeGetMerchant(params.slug, userId);
   if (!merchant || merchant === "unavailable") {
     return { title: "Merchant — Akiba Pass" };
   }
@@ -61,23 +68,6 @@ export async function generateMetadata({ params }: { params: { slug: string } })
       images: image ? [{ url: image }] : undefined,
     },
   };
-}
-
-function OperatingBadges({ operatingModel }: { operatingModel: string }) {
-  return (
-    <div className="flex gap-1.5">
-      {(operatingModel === "physical" || operatingModel === "hybrid") && (
-        <span className="flex items-center gap-1 rounded-full bg-akiba-card px-2.5 py-0.5 text-[11px] font-medium text-akiba-muted">
-          <Store className="h-3 w-3" /> In store
-        </span>
-      )}
-      {(operatingModel === "online" || operatingModel === "hybrid") && (
-        <span className="flex items-center gap-1 rounded-full bg-akiba-card px-2.5 py-0.5 text-[11px] font-medium text-akiba-muted">
-          <Globe className="h-3 w-3" /> Online
-        </span>
-      )}
-    </div>
-  );
 }
 
 function LocalBusinessJsonLd({ merchant }: { merchant: PublicMerchantDetail }) {
@@ -112,7 +102,11 @@ function LocalBusinessJsonLd({ merchant }: { merchant: PublicMerchantDetail }) {
 }
 
 export default async function MerchantPage({ params }: { params: { slug: string } }) {
-  const result = await safeGetMerchant(params.slug);
+  const { userId, email } = await getSignedInIdentity();
+  const [result, balance] = await Promise.all([
+    safeGetMerchant(params.slug, userId),
+    getSignedInBalance(userId, email),
+  ]);
 
   if (result === "unavailable") {
     return (
@@ -130,7 +124,10 @@ export default async function MerchantPage({ params }: { params: { slug: string 
   const merchant = result;
   if (!merchant) notFound();
 
-  const isSignedIn = !!(await getSignedInUserId());
+  const isSignedIn = !!userId;
+  const affordableVoucherCount =
+    balance != null ? merchant.vouchers.filter((v) => balance >= v.milesCost).length : null;
+  const initialSaved = userId ? await isMerchantSaved(userId, merchant.id) : false;
 
   const hasPhysicalLocation = merchant.locations.length > 0;
 
@@ -181,14 +178,9 @@ export default async function MerchantPage({ params }: { params: { slug: string 
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex flex-wrap items-start justify-between gap-1.5">
               <h1 className="font-sterling text-2xl font-semibold text-akiba-ink">{merchant.name}</h1>
-              <span
-                className="flex items-center gap-1 rounded-full bg-akiba-tint px-2 py-0.5 text-[11px] font-semibold text-akiba-teal"
-                title="Verified AkibaMiles merchant"
-              >
-                <BadgeCheck className="h-3.5 w-3.5" /> Verified
-              </span>
+              <SaveMerchantButton slug={merchant.slug} isSignedIn={isSignedIn} initialSaved={initialSaved} />
             </div>
             {merchant.shortDescription && <p className="mt-1 text-sm text-akiba-muted">{merchant.shortDescription}</p>}
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -345,7 +337,15 @@ export default async function MerchantPage({ params }: { params: { slug: string 
             <h2 className="mb-4 flex items-center gap-2 font-sterling text-lg font-semibold text-akiba-ink">
               <Tag className="h-5 w-5 text-akiba-teal" /> Vouchers
             </h2>
-            <p className="mb-4 text-xs text-akiba-muted">Burn miles to unlock offers at this merchant.</p>
+            <div className="mb-4">
+              <p className="text-xs text-akiba-muted">Burn miles to unlock offers at this merchant.</p>
+              {affordableVoucherCount != null && (
+                <p className="mt-1 text-xs font-semibold text-akiba-teal">
+                  You can afford {affordableVoucherCount} of {merchant.vouchers.length} voucher
+                  {merchant.vouchers.length === 1 ? "" : "s"} here
+                </p>
+              )}
+            </div>
             <div className="space-y-3">
               {merchant.vouchers.map((v) => (
                 <VoucherCard key={v.id} voucher={v} locations={merchant.locations} isSignedIn={isSignedIn} />
