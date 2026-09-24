@@ -113,11 +113,6 @@ export type IssuedVoucher = {
   } | null;
 };
 
-// Unified selectable voucher — wraps both spend and claw vouchers
-type SelectableVoucher =
-  | { kind: "spend"; voucher: IssuedVoucher }
-  | { kind: "claw"; voucherId: string; owner: string; expiresAt: number; discountBps: number; maxValue: string; label: string; rules_snapshot: IssuedVoucher["rules_snapshot"] };
-
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -217,12 +212,10 @@ export default function VoucherOrderSheet({
 
   // ── Step 1 — Vouchers ─────────────────────────────────────────────────────
   const [userVouchers, setUserVouchers] = useState<IssuedVoucher[]>([]);
-  const [clawVoucherOptions, setClawVoucherOptions] = useState<Extract<SelectableVoucher, { kind: "claw" }>[]>([]);
   const [loadingVouchers, setLoadingVouchers] = useState(false);
   const [selectedVoucher, setSelectedVoucher] = useState<IssuedVoucher | null>(
     preloadVoucher ?? null,
   );
-  const [selectedClawVoucher, setSelectedClawVoucher] = useState<Extract<SelectableVoucher, { kind: "claw" }> | null>(null);
 
   // ── Step 2 — Delivery (physical) / Destination (digital) ────────────────
   const [recipientName, setRecipientName] = useState("");
@@ -258,7 +251,7 @@ export default function VoucherOrderSheet({
   const effectiveCity =
     selectedLocality === OTHER_LOCALITY ? otherLocality.trim() : selectedLocality.trim();
 
-  const activeVoucherRules = selectedClawVoucher?.rules_snapshot ?? selectedVoucher?.rules_snapshot ?? null;
+  const activeVoucherRules = selectedVoucher?.rules_snapshot ?? null;
 
   const pricing = useMemo(() => {
     if (!selectedProduct) return null;
@@ -286,37 +279,14 @@ export default function VoucherOrderSheet({
   useEffect(() => {
     if (step !== 1 || !address) return;
     setLoadingVouchers(true);
-    const now = Math.floor(Date.now() / 1000);
-    Promise.all([
-      fetch(`/api/Spend/vouchers/user/${address}`).then((r) => r.json()).catch(() => ({})),
-      fetch(`/api/claw/vouchers/user/${address}`).then((r) => r.json()).catch(() => ({})),
-    ]).then(([spendData, clawData]) => {
-      const valid = (spendData.vouchers ?? []).filter((v: IssuedVoucher) => v.status === "issued");
-      setUserVouchers(valid);
-
-      const activeClawVouchers = (clawData.vouchers ?? [])
-        .filter((v: any) => v.voucherStatus === "active" && Number(v.expiresAt) > now)
-        .map((v: any): Extract<SelectableVoucher, { kind: "claw" }> => {
-          const discountBps = Number(v.discountBps);
-          const maxValueUsd = Number(v.maxValue) / 1e6;
-          const isLegendary = discountBps === 10000;
-          return {
-            kind: "claw",
-            voucherId: v.voucherId,
-            owner: v.owner,
-            expiresAt: Number(v.expiresAt),
-            discountBps,
-            maxValue: v.maxValue,
-            label: isLegendary ? `100% off (capped at $${maxValueUsd.toFixed(0)})` : `${discountBps / 100}% off`,
-            rules_snapshot: {
-              voucher_type: "percent_off",
-              discount_percent: discountBps / 100,
-              retail_value_cusd: isLegendary ? maxValueUsd : null,
-            },
-          };
-        });
-      setClawVoucherOptions(activeClawVouchers);
-    }).finally(() => setLoadingVouchers(false));
+    fetch(`/api/Spend/vouchers/user/${address}`)
+      .then((r) => r.json())
+      .catch(() => ({}))
+      .then((spendData) => {
+        const valid = (spendData.vouchers ?? []).filter((v: IssuedVoucher) => v.status === "issued");
+        setUserVouchers(valid);
+      })
+      .finally(() => setLoadingVouchers(false));
   }, [step, address]);
 
   useEffect(() => {
@@ -387,9 +357,6 @@ export default function VoucherOrderSheet({
           user_address: address,
           product_id: selectedProduct.id,
           voucher_code: selectedVoucher?.code ?? null,
-          claw_voucher_id: selectedClawVoucher?.voucherId ?? null,
-          claw_voucher_owner: selectedClawVoucher?.owner ?? null,
-          claw_voucher_expires_at: selectedClawVoucher?.expiresAt ?? null,
           recipient_name: isDigital ? null : recipientName.trim(),
           phone: isDigital && digitalKind === "code_delivery" ? null : phone.trim(),
           email: isDigital && digitalKind === "code_delivery" ? email.trim() : null,
@@ -589,44 +556,12 @@ export default function VoucherOrderSheet({
                 <div className="flex justify-center py-6">
                   <Spinner size={24} className="animate-spin text-[#238D9D]" />
                 </div>
-              ) : userVouchers.length === 0 && clawVoucherOptions.length === 0 ? (
+              ) : userVouchers.length === 0 ? (
                 <div className="bg-gray-50 rounded-2xl p-4 text-center text-sm text-gray-400 mb-4">
                   No vouchers in your wallet.
                 </div>
               ) : (
                 <div className="space-y-2 mb-4">
-                  {/* Claw vouchers */}
-                  {clawVoucherOptions.map((cv) => {
-                    const isSelected = selectedClawVoucher?.voucherId === cv.voucherId;
-                    return (
-                      <button
-                        key={cv.voucherId}
-                        onClick={() => {
-                          setSelectedClawVoucher(isSelected ? null : cv);
-                          setSelectedVoucher(null);
-                        }}
-                        className={`w-full text-left border-2 rounded-2xl p-3 transition-all ${
-                          isSelected
-                            ? "border-[#06B6D4] bg-[#06B6D40D]"
-                            : "border-gray-100 hover:border-[#06B6D433]"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-[#06B6D420] text-[#0891B2]">
-                                🎟️ Claw
-                              </span>
-                              <p className="font-semibold text-sm text-[#0891B2]">{cv.label}</p>
-                            </div>
-                            <p className="text-xs text-gray-500 mt-0.5">All products · expires {new Date(cv.expiresAt * 1000).toLocaleDateString("en-KE", { day: "numeric", month: "short" })}</p>
-                          </div>
-                          {isSelected && <CheckCircle size={20} className="text-[#06B6D4] shrink-0" />}
-                        </div>
-                      </button>
-                    );
-                  })}
-
                   {/* Spend vouchers */}
                   {userVouchers.map((v) => {
                     const isSelected = selectedVoucher?.id === v.id;
@@ -635,7 +570,6 @@ export default function VoucherOrderSheet({
                         key={v.id}
                         onClick={() => {
                           setSelectedVoucher(isSelected ? null : v);
-                          setSelectedClawVoucher(null);
                         }}
                         className={`w-full text-left border-2 rounded-2xl p-3 transition-all ${
                           isSelected
@@ -670,13 +604,12 @@ export default function VoucherOrderSheet({
                   title="Skip"
                   onClick={() => {
                     setSelectedVoucher(null);
-                    setSelectedClawVoucher(null);
                     setStep(2);
                   }}
                   className="flex-1 bg-gray-100 text-gray-600 rounded-xl h-12 font-medium"
                 />
                 <Button
-                  title={(selectedVoucher || selectedClawVoucher) ? "Apply & Continue" : "Continue"}
+                  title={selectedVoucher ? "Apply & Continue" : "Continue"}
                   onClick={() => setStep(2)}
                   className="flex-1 bg-[#238D9D] text-white rounded-xl h-12 font-medium"
                 />
@@ -843,21 +776,18 @@ export default function VoucherOrderSheet({
                   <span>${fmt(pricing.product_price_cusd)}</span>
                 </div>
 
-                {(selectedVoucher || selectedClawVoucher) && pricing.voucher_applied && (
+                {selectedVoucher && pricing.voucher_applied && (
                   <div className="flex justify-between text-sm text-green-600">
                     <span>
-                      {selectedClawVoucher
-                        ? <>🎟️ Claw voucher <span className="font-mono text-xs">#{selectedClawVoucher.voucherId}</span></>
-                        : <>Voucher <span className="font-mono text-xs">{selectedVoucher!.code}</span></>
-                      }
+                      Voucher <span className="font-mono text-xs">{selectedVoucher.code}</span>
                     </span>
                     <span>−${fmt(pricing.product_price_cusd - pricing.discounted_product_cusd)}</span>
                   </div>
                 )}
-                {(selectedVoucher || selectedClawVoucher) && !pricing.voucher_applied && (
+                {selectedVoucher && !pricing.voucher_applied && (
                   <div className="flex justify-between text-sm text-orange-500">
                     <span>
-                      {selectedClawVoucher ? "🎟️ Claw voucher" : <>Voucher <span className="font-mono text-xs">{selectedVoucher!.code}</span></>}
+                      Voucher <span className="font-mono text-xs">{selectedVoucher.code}</span>
                     </span>
                     <span className="text-xs">Not applicable to this item</span>
                   </div>

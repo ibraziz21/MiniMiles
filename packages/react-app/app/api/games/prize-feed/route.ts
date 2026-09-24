@@ -1,19 +1,17 @@
 // GET /api/games/prize-feed
 // Session-authed. Cross-game "My Prizes" feed for the games hub (spend-earn
-// companion spec games-hub-redesign-spec.md §3) — merges leaderboard voucher
-// wins and Claw vouchers into one newest-first list, capped 10. This is a
-// read-only feed with deep links; each game keeps its own claim flow.
+// companion spec games-hub-redesign-spec.md §3) — leaderboard voucher wins,
+// newest-first, capped 10. This is a read-only feed with deep links; each
+// game keeps its own claim flow.
 
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 import { requireSession } from "@/lib/auth";
-import { getClawVouchersForPlayer } from "@/lib/server/clawVouchers";
-import { RewardClass } from "@/lib/clawTypes";
 import { PRIZE_ACQUISITION_SOURCES } from "@/lib/games/prizeAcquisitionSources";
 
 export type PrizeFeedEntry = {
   id: string;
-  kind: "leaderboard_voucher" | "claw_voucher";
+  kind: "leaderboard_voucher";
   title: string;
   subtitle: string;
   status: "action_needed" | "active" | "done" | "expired";
@@ -45,14 +43,6 @@ const GAME_LABELS: Record<string, string> = {
 const RANK_EMOJI: Record<number, string> = { 1: "🏆", 2: "🥈", 3: "🥉" };
 const RANK_PLACE: Record<number, string> = { 1: "1st", 2: "2nd", 3: "3rd" };
 
-const CLAW_TIER_NAMES: Record<number, string> = { 0: "Basic", 1: "Boosted", 2: "Premium" };
-
-function clawDiscountLabel(rewardClass: number, discountBps: number): string {
-  if (rewardClass === RewardClass.Legendary) return "100% off (capped)";
-  if (rewardClass === RewardClass.Rare) return "20% off";
-  return `${(discountBps / 100).toFixed(0)}% off`;
-}
-
 const LEADERBOARD_SELECT = `
   id, code, status, created_at, expires_at, win_seen_at, win_meta, merchant_id,
   spend_merchants ( slug, name, country, image_url )
@@ -65,20 +55,14 @@ export async function GET() {
   }
   const address = session.walletAddress.toLowerCase();
 
-  const [leaderboardRes, clawRes] = await Promise.all([
-    supabase
-      .from("issued_vouchers")
-      .select(LEADERBOARD_SELECT)
-      .eq("user_address", address)
-      .in("acquisition_source", PRIZE_ACQUISITION_SOURCES)
-      .neq("status", "void")
-      .order("created_at", { ascending: false })
-      .limit(10),
-    getClawVouchersForPlayer(address).catch((err) => {
-      console.error("[prize-feed] claw lookup failed", err);
-      return { vouchers: [] };
-    }),
-  ]);
+  const leaderboardRes = await supabase
+    .from("issued_vouchers")
+    .select(LEADERBOARD_SELECT)
+    .eq("user_address", address)
+    .in("acquisition_source", PRIZE_ACQUISITION_SOURCES)
+    .neq("status", "void")
+    .order("created_at", { ascending: false })
+    .limit(10);
 
   if (leaderboardRes.error) {
     console.error("[prize-feed] leaderboard vouchers query", leaderboardRes.error.message);
@@ -122,26 +106,7 @@ export async function GET() {
       };
     });
 
-  const clawEntries: PrizeFeedEntry[] = (clawRes.vouchers ?? []).map((v) => {
-    const status: PrizeFeedEntry["status"] =
-      v.voucherStatus === "expired" ? "expired" : v.voucherStatus === "active" ? "active" : "done";
-
-    const cta: PrizeFeedEntry["cta"] =
-      status === "expired" ? null : { label: status === "active" ? "Use at merchant" : "View", href: "/claw" };
-
-    return {
-      id: `claw-${v.voucherId}`,
-      kind: "claw_voucher",
-      title: `${clawDiscountLabel(v.rewardClass, v.discountBps)} — Claw prize`,
-      subtitle: `${CLAW_TIER_NAMES[v.tierId] ?? "—"} tier · Akiba Claw`,
-      status,
-      cta,
-      created_at: v.createdAt ?? new Date(0).toISOString(),
-      expires_at: new Date(v.expiresAt * 1000).toISOString(),
-    };
-  });
-
-  const feed = [...leaderboardEntries, ...clawEntries]
+  const feed = leaderboardEntries
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 10);
 

@@ -11,7 +11,7 @@ export default async function NewVoucherAllocationPage({ params }: { params: Pro
 
   const { data: fund } = await supabase
     .from("voucher_funding_programs")
-    .select("id, name, state")
+    .select("id, name, state, country_code")
     .eq("id", fundId)
     .single();
   if (!fund) notFound();
@@ -27,7 +27,11 @@ export default async function NewVoucherAllocationPage({ params }: { params: Pro
   return (
     <div>
       <TopBar title={`New allocation — ${fund.name}`} subtitle="Merchant, benefit, eligibility, distribution, and schedule" />
-      <AllocationForm fundId={fundId} merchants={(partners ?? []) as MerchantOption[]} />
+      <AllocationForm
+        fundId={fundId}
+        fundCountryCode={fund.country_code}
+        merchants={(partners ?? []) as MerchantOption[]}
+      />
     </div>
   );
 }

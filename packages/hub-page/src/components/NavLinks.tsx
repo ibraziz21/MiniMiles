@@ -118,12 +118,15 @@ function NavItem({
     <a
       href={href}
       onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
       className={clsx(
-        "flex flex-1 flex-col items-center justify-center gap-1 transition-colors",
+        "flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 transition-colors active:bg-akiba-card/70",
         active ? "text-akiba-teal" : "text-akiba-muted"
       )}
     >
-      <Icon className="h-5 w-5" aria-hidden="true" />
+      <span className={clsx("flex h-8 min-w-10 items-center justify-center rounded-xl transition-colors", active && "bg-akiba-tint") }>
+        <Icon className="h-5 w-5" aria-hidden="true" />
+      </span>
       <span className="text-[10px] font-semibold tracking-wide">{label}</span>
     </a>
   );

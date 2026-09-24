@@ -1,14 +1,6 @@
 {
   "crons": [
     {
-      "path": "/api/crackpot/payout/process",
-      "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/crackpot/cycle/expire",
-      "schedule": "* * * * *"
-    },
-    {
       "path": "/api/internal/process-sponsored-game-jobs",
       "schedule": "*/5 * * * *"
     },

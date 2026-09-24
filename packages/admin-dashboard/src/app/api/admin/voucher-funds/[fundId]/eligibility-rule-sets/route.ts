@@ -18,22 +18,48 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fun
   const { fundId } = await params;
 
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
-  const mode = body?.mode === "any" ? "any" : "all";
-  const rules = Array.isArray(body?.rules) ? body.rules : null;
+  const requestedRules = Array.isArray(body?.rules) ? body.rules : null;
 
-  if (!rules || rules.length === 0 || !rules.every(isValidEligibilityRule)) {
+  if (!requestedRules || !requestedRules.every(isValidEligibilityRule)) {
     return NextResponse.json(
       { error: "Select at least one supported eligibility rule." },
       { status: 400 },
     );
   }
+  if (body?.mode === "any") {
+    return NextResponse.json(
+      { error: "Funded vouchers require every eligibility rule to match, including the fund country." },
+      { status: 400 },
+    );
+  }
+
+  const { data: fund, error: fundError } = await supabase
+    .from("voucher_funding_programs")
+    .select("country_code")
+    .eq("id", fundId)
+    .single();
+  if (fundError || !fund?.country_code) {
+    return NextResponse.json({ error: "Voucher fund not found." }, { status: 404 });
+  }
+
+  const countryCode = String(fund.country_code).trim().toUpperCase();
+  const rules = [
+    { type: "country_in", countries: [countryCode] },
+    ...requestedRules.filter((rule) => (rule as { type?: unknown }).type !== "country_in"),
+  ];
+  const mode = "all";
+  const customerCopy =
+    textOrNull(body?.customerCopy, 1000) ??
+    (countryCode === "KE"
+      ? "Available only to Kenyan members who meet all other requirements."
+      : `Available only to members in ${countryCode} who meet all other requirements.`);
 
   const actorId = adminIdForWrite(session) ?? OPEN_ACCESS_ACTOR_ID;
   const { data, error } = await supabase.rpc(VOUCHER_FUND_RPCS.createEligibilityRuleSet, {
     p_program_id: fundId,
     p_mode: mode,
     p_rules: rules,
-    p_customer_copy: textOrNull(body?.customerCopy, 1000),
+    p_customer_copy: customerCopy,
     p_created_by: actorId,
   });
 
@@ -44,7 +70,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fun
     action: "voucher_fund.eligibility_rule_set_created",
     targetType: "voucher_eligibility_rule_set",
     targetId: data.id,
-    metadata: { program_id: fundId, mode, rule_count: rules.length },
+    metadata: { program_id: fundId, mode, rule_count: rules.length, country_code: countryCode },
   });
 
   return NextResponse.json({ ok: true, data });

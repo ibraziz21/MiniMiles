@@ -23,6 +23,7 @@ import {
 import clsx from "clsx";
 import { GetVoucherButton } from "@/components/vouchers/GetVoucherButton";
 import { FundedOfferCard, type FundedOffer } from "@/components/vouchers/FundedOfferCard";
+import { LoyaltyVoucherCard, type LoyaltyOffer } from "@/components/vouchers/LoyaltyVoucherCard";
 import { MilesAmount } from "@/components/MilesIcon";
 import { recordDealViewProof } from "@/lib/akiba/dealViewProof";
 import { dealLabel } from "@/lib/akiba/deals";
@@ -52,6 +53,8 @@ const SOURCE_LABELS: Record<string, string> = {
   giveaway: "Giveaway reward",
   merchant_grant: "Gift from merchant",
   akiba_grant: "Gift from Akiba",
+  loyalty_free_claim: "Loyalty reward",
+  loyalty_miles_purchase: "Loyalty reward",
 };
 
 type IssuedVoucher = {
@@ -85,12 +88,14 @@ function primaryTabFor(tab: Tab): PrimaryTab {
 export function VoucherTabs({
   templates,
   fundedOffers,
+  loyaltyOffers,
   claimedAllocationIds,
   isSignedIn,
   questMode = false,
 }: {
   templates: VoucherTemplate[];
   fundedOffers: FundedOffer[];
+  loyaltyOffers: LoyaltyOffer[];
   claimedAllocationIds: string[];
   isSignedIn: boolean;
   questMode?: boolean;
@@ -156,11 +161,28 @@ export function VoucherTabs({
   const expired = myVouchers.filter((voucher) => voucher.status === "expired");
   const current = tab === "used" ? used : tab === "expired" ? expired : active;
   const claimedIds = useMemo(() => new Set(claimedAllocationIds), [claimedAllocationIds]);
-  const unclaimedOfferCount = fundedOffers.filter((offer) => !claimedIds.has(offer.allocationId)).length;
   const sortedFundedOffers = useMemo(
     () => [...fundedOffers].sort((a, b) => Number(claimedIds.has(a.allocationId)) - Number(claimedIds.has(b.allocationId))),
     [fundedOffers, claimedIds],
   );
+
+  // Loyalty offers split by acquisition mode: free ones join the funded
+  // offers in "Claim free offers", Miles-priced ones join the catalogue in
+  // "Shop with Miles" — same tab structure, one more card type in each grid.
+  const freeLoyaltyOffers = useMemo(
+    () => [...loyaltyOffers.filter((offer) => offer.acquisitionMode === "free")]
+      .sort((a, b) => Number(a.alreadyClaimed) - Number(b.alreadyClaimed)),
+    [loyaltyOffers],
+  );
+  const milesLoyaltyOffers = useMemo(
+    () => [...loyaltyOffers.filter((offer) => offer.acquisitionMode === "miles")]
+      .sort((a, b) => Number(a.alreadyClaimed) - Number(b.alreadyClaimed)),
+    [loyaltyOffers],
+  );
+  const unclaimedOfferCount = fundedOffers.filter((offer) => !claimedIds.has(offer.allocationId)).length
+    + freeLoyaltyOffers.filter((offer) => !offer.alreadyClaimed).length;
+  const availableMilesOfferCount = templates.length
+    + milesLoyaltyOffers.filter((offer) => !offer.alreadyClaimed).length;
 
   const selectPrimary = (next: PrimaryTab) => {
     setTab(next === "mine" ? "active" : next === "claim" ? "claimable" : "available");
@@ -187,7 +209,7 @@ export function VoucherTabs({
           selected={primaryTab === "claim"}
           icon={<Gift className="h-5 w-5" />}
           title="Claim free offers"
-          description="Funded by Akiba"
+          description={freeLoyaltyOffers.length > 0 ? "No Miles needed" : "Funded by Akiba"}
           badge={unclaimedOfferCount > 0 ? String(unclaimedOfferCount) : undefined}
           onClick={() => selectPrimary("claim")}
         />
@@ -196,7 +218,7 @@ export function VoucherTabs({
           selected={primaryTab === "shop"}
           icon={<WalletCards className="h-5 w-5" />}
           title="Shop with Miles"
-          description={`${templates.length} ${templates.length === 1 ? "reward" : "rewards"} available`}
+          description={`${availableMilesOfferCount} ${availableMilesOfferCount === 1 ? "reward" : "rewards"} available`}
           onClick={() => selectPrimary("shop")}
         />
       </div>
@@ -241,7 +263,7 @@ export function VoucherTabs({
                 subtitle={tab === "active" ? "Claim a free offer or use your Miles to get your first voucher." : "Your voucher history will appear here."}
                 action={tab === "active" ? (
                   <div className="mt-5 flex flex-wrap justify-center gap-2">
-                    {fundedOffers.length > 0 && <button type="button" onClick={() => setTab("claimable")} className="rounded-full border border-akiba-teal/25 bg-akiba-tint px-4 py-2 text-sm font-semibold text-akiba-teal">Claim free offer</button>}
+                    {(fundedOffers.length > 0 || freeLoyaltyOffers.length > 0) && <button type="button" onClick={() => setTab("claimable")} className="rounded-full border border-akiba-teal/25 bg-akiba-tint px-4 py-2 text-sm font-semibold text-akiba-teal">Claim free offer</button>}
                     <button type="button" onClick={() => setTab("available")} className="rounded-full bg-akiba-ink px-4 py-2 text-sm font-semibold text-white">Shop with Miles</button>
                   </div>
                 ) : undefined}
@@ -259,20 +281,22 @@ export function VoucherTabs({
             <SectionHeading
               eyebrow="No Miles needed"
               title="Claim free offers"
-              description="If you qualify, Akiba covers the voucher value and reimburses the merchant."
+              description={freeLoyaltyOffers.length > 0
+                ? "Free vouchers you can claim — funded by Akiba or by the merchant, depending on the offer."
+                : "If you qualify, Akiba covers the voucher value and reimburses the merchant."}
             />
-            {fundedOffers.length === 0 ? (
+            {fundedOffers.length === 0 && freeLoyaltyOffers.length === 0 ? (
               <EmptyState
                 icon={<Sparkles className="h-7 w-7" />}
                 title="No free offers right now"
-                subtitle="New Akiba-funded offers will appear here when they become available."
+                subtitle="New free offers will appear here when they become available."
                 action={<button type="button" onClick={() => setTab("available")} className="mt-5 rounded-full bg-akiba-ink px-4 py-2 text-sm font-semibold text-white">Shop with Miles instead</button>}
               />
             ) : (
               <>
                 <div className="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-950">
                   <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
-                  <p><span className="font-semibold">How it works:</span> We check your eligibility, then add the voucher straight to My vouchers. You never pay Miles for these offers.</p>
+                  <p><span className="font-semibold">How it works:</span> Choose an offer and we’ll confirm its availability and any requirements, then add it straight to My vouchers. You never pay Miles for these offers.</p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {sortedFundedOffers.map((offer) => (
@@ -282,6 +306,9 @@ export function VoucherTabs({
                       isSignedIn={isSignedIn}
                       alreadyClaimed={claimedIds.has(offer.allocationId)}
                     />
+                  ))}
+                  {freeLoyaltyOffers.map((offer) => (
+                    <LoyaltyVoucherCard key={offer.templateId} offer={offer} isSignedIn={isSignedIn} />
                   ))}
                 </div>
               </>
@@ -296,7 +323,7 @@ export function VoucherTabs({
               title="Shop with Miles"
               description="Exchange your AkibaMiles for vouchers from participating merchants."
             />
-            {templates.length === 0 ? (
+            {templates.length === 0 && milesLoyaltyOffers.length === 0 ? (
               <EmptyState
                 icon={<Tag className="h-7 w-7" />}
                 title="No Miles rewards available yet"
@@ -309,6 +336,9 @@ export function VoucherTabs({
                   <p>Choose a reward, review the Miles price, then confirm. Your balance is only charged after confirmation.</p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {milesLoyaltyOffers.map((offer) => (
+                    <LoyaltyVoucherCard key={offer.templateId} offer={offer} isSignedIn={isSignedIn} />
+                  ))}
                   {templates.map((template) => (
                     <AvailableCard key={template.id} template={template} isSignedIn={isSignedIn} questMode={questMode} />
                   ))}

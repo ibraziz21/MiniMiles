@@ -8,6 +8,9 @@ process.env.AKIBA_API_URL = "https://platform.test";
 
 const state = vi.hoisted(() => ({
   session: null as { user: { id: string }; access_token: string } | null,
+  countryEligibility: { ok: true, eligible: true, fundCountry: "KE", memberCountry: "KE" } as
+    | { ok: true; eligible: boolean; fundCountry: string; memberCountry: string | null }
+    | { ok: false; reason: "allocation_not_found" | "country_policy_unavailable" },
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -17,6 +20,12 @@ vi.mock("@/lib/supabase/server", () => ({
       getSession: async () => ({ data: { session: state.session } }),
     },
   }),
+}));
+vi.mock("@/lib/akiba/fundedVoucherCountryEligibility", () => ({
+  evaluateFundedVoucherCountryEligibility: async () => state.countryEligibility,
+}));
+vi.mock("@/lib/vouchers/claimIntent", () => ({
+  getVoucherClaimFriction: async () => ({ expiredUnusedCount: 1, activeUnusedCount: 0, redeemedCount: 0, requiresUsePlan: true }),
 }));
 
 const { GET } = await import("@/app/api/voucher-funding/[allocationId]/eligibility/route");
@@ -36,6 +45,7 @@ describe("GET /api/voucher-funding/:allocationId/eligibility", () => {
   beforeEach(() => {
     mockFetch.mockReset();
     state.session = null;
+    state.countryEligibility = { ok: true, eligible: true, fundCountry: "KE", memberCountry: "KE" };
   });
   afterEach(() => vi.restoreAllMocks());
 
@@ -59,10 +69,24 @@ describe("GET /api/voucher-funding/:allocationId/eligibility", () => {
 
     expect(res.status).toBe(200);
     expect(body.requirementsRemaining).toEqual(["pass_activated"]);
+    expect(body.claimFriction.requiresUsePlan).toBe(true);
     expect(mockFetch).toHaveBeenCalledWith(
       "https://platform.test/api/v1/voucher-funding-allocations/alloc-1/eligibility",
       expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer token-abc" }) }),
     );
+  });
+
+  it("returns an ineligible preview for a member outside Kenya without calling Platform", async () => {
+    state.session = { user: { id: "user-1" }, access_token: "token-abc" };
+    state.countryEligibility = { ok: true, eligible: false, fundCountry: "KE", memberCountry: "UG" };
+
+    const res = await callRoute();
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.eligible).toBe(false);
+    expect(body.requirementsRemaining).toEqual(["country_in"]);
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it("returns 502 when Platform is unreachable, without throwing", async () => {

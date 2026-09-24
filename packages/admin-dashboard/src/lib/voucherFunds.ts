@@ -138,11 +138,40 @@ export function isValidEligibilityRule(rule: unknown): rule is { type: Eligibili
   if (!rule || typeof rule !== "object" || Array.isArray(rule)) return false;
   const type = (rule as Record<string, unknown>).type;
   if (typeof type !== "string" || !(ELIGIBILITY_RULE_TYPES as readonly string[]).includes(type)) return false;
+  if (type === "country_in") {
+    const countries = (rule as Record<string, unknown>).countries;
+    if (
+      !Array.isArray(countries) ||
+      countries.length === 0 ||
+      !countries.every((country) => typeof country === "string" && /^[A-Z]{2}$/.test(country))
+    ) {
+      return false;
+    }
+  }
   if (type === "verified_activity_completed") {
     const key = (rule as Record<string, unknown>).templateKey;
     if (typeof key !== "string" || !key) return false;
   }
   return true;
+}
+
+export function hasRequiredFundCountryRule(
+  mode: unknown,
+  rules: unknown,
+  fundCountryCode: string,
+): boolean {
+  if (mode !== "all" || !Array.isArray(rules)) return false;
+  const expectedCountry = fundCountryCode.trim().toUpperCase();
+  return rules.some((rule) => {
+    if (!rule || typeof rule !== "object" || Array.isArray(rule)) return false;
+    const candidate = rule as Record<string, unknown>;
+    return (
+      candidate.type === "country_in" &&
+      Array.isArray(candidate.countries) &&
+      candidate.countries.length === 1 &&
+      candidate.countries[0] === expectedCountry
+    );
+  });
 }
 
 export const DISTRIBUTION_MODES = ["self_claim", "internal_grant", "auto_award"] as const;

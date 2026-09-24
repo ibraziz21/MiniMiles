@@ -1,5 +1,4 @@
 import clsx from "clsx";
-import Image from "next/image";
 
 type IconProps = {
   className?: string;
@@ -9,7 +8,10 @@ type IconProps = {
 /** Akiba artwork used for Earn destinations and messaging. */
 export function EarnIcon({ className, "aria-hidden": ariaHidden = true }: IconProps) {
   return (
-    <Image
+    // The source is a tiny local SVG with intrinsic dimensions; serving it
+    // directly avoids routing a UI glyph through Next's bitmap image loader.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
       src="/earn.svg"
       alt=""
       width={24}

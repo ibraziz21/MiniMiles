@@ -11,7 +11,7 @@ import { LeaderboardSection } from "./LeaderboardSection";
 
 // Games home — walletless-pass-skill-games-spec.md §6.2. Only Memory Flip and
 // Rule Tap; deliberately does NOT reuse React's GamesHub (which also
-// advertises Farkle, CrackPot, Claw, weekly prizes, and ticket entry).
+// advertises Farkle, weekly prizes, and ticket entry).
 export const metadata = { title: "Games — Akiba Pass" };
 
 type LauncherStatus =

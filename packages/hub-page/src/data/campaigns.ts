@@ -68,27 +68,6 @@ export const campaigns: Campaign[] = [
     ctaHref: "https://app.akibamiles.com",
   },
 
-  // ─── Games ─────────────────────────────────────────────────────────────────
-  {
-    id: "crackpot",
-    title: "CrackPot — Jackpot Code Game",
-    partner: "AkibaMiles",
-    category: "Games",
-    status: "coming-soon",
-    tagline: "Crack a 4-symbol Mastermind code before anyone else. Take the pot.",
-    description:
-      "A Mastermind-style jackpot game. Every failed attempt feeds the pot. The first player to crack the code wins everything. Miles version runs every 24 hours with a 200 Miles seed pot. A USDT version ($0.10/attempt, $2 seed) is coming once licensing is in place.",
-    details: [
-      { label: "Miles version", value: "10 Miles/attempt, 200 Miles seed" },
-      { label: "Pot cap", value: "10,000 Miles" },
-      { label: "USDT version", value: "$0.10/attempt, $2 seed (coming soon)" },
-      { label: "Mechanic", value: "4-position Mastermind, 6 symbols" },
-      { label: "Cycle", value: "24h (Miles) / 8h (USDT)" },
-    ],
-    cta: "Notify Me",
-    ctaHref: "https://app.akibamiles.com",
-  },
-
   // ─── Merchants & Vouchers ──────────────────────────────────────────────────
   {
     id: "leshan-group",

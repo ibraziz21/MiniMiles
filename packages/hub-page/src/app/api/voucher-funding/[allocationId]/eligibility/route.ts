@@ -10,6 +10,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getServerEnv } from "@/lib/env.server";
+import { evaluateFundedVoucherCountryEligibility } from "@/lib/akiba/fundedVoucherCountryEligibility";
+import { getVoucherClaimFriction } from "@/lib/vouchers/claimIntent";
 
 export async function GET(
   _req: Request,
@@ -25,6 +27,30 @@ export async function GET(
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const claimFriction = await getVoucherClaimFriction(user.id);
+
+  const countryEligibility = await evaluateFundedVoucherCountryEligibility({
+    allocationId,
+    hubUserId: user.id,
+    email: user.email ?? null,
+  });
+  if (!countryEligibility.ok) {
+    const status = countryEligibility.reason === "allocation_not_found" ? 404 : 503;
+    return NextResponse.json({ error: "This offer is not currently available." }, { status });
+  }
+  if (!countryEligibility.eligible) {
+    return NextResponse.json(
+      {
+        eligible: false,
+        alreadyClaimed: false,
+        requirementsRemaining: ["country_in"],
+        allocationAvailable: true,
+        claimFriction,
+      },
+      { headers: { "Cache-Control": "no-store, private" } },
+    );
   }
 
   const { akiba } = getServerEnv();
@@ -54,5 +80,8 @@ export async function GET(
     );
   }
 
-  return NextResponse.json(data.data, { headers: { "Cache-Control": "no-store, private" } });
+  return NextResponse.json(
+    { ...data.data, claimFriction },
+    { headers: { "Cache-Control": "no-store, private" } },
+  );
 }

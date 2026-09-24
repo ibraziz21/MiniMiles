@@ -56,7 +56,6 @@ export default function VoucherWizard({ products }: { products: MerchantProduct[
   // Step 4 — additional channels
   const [channels, setChannels] = useState<Record<AdditionalChannel, ChannelAlloc>>({
     weekly_leaderboard_challenge: { selected: false, qty: "" },
-    claw: { selected: false, qty: "" },
     raffle: { selected: false, qty: "" },
     giveaway: { selected: false, qty: "" },
     merchant_grant: { selected: false, qty: "" },

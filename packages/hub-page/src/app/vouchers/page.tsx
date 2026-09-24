@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { VoucherTabs } from "./VoucherTabs";
 import { HIDDEN_PARTNER_FILTER, isHiddenPartner } from "@/lib/akiba/hidden-partners";
 import type { FundedOffer } from "@/components/vouchers/FundedOfferCard";
+import type { LoyaltyOffer } from "@/components/vouchers/LoyaltyVoucherCard";
 
 export const metadata = { title: "Vouchers & Rewards — Akiba Pass" };
 export const revalidate = 60;
@@ -145,6 +146,66 @@ async function getFundedOffers(): Promise<FundedOffer[]> {
  * eligibility *reasons*, which still goes through Platform since that's real
  * business logic this page must not reimplement.
  */
+type RawLoyaltyOffer = {
+  template_id: string; title: string; description: string | null;
+  voucher_type: "free" | "percent_off" | "fixed_off" | "bogo";
+  discount_percent: number | null; discount_kes: number | null; retail_value_kes: number | null;
+  minimum_spend_kes: number | null; maximum_discount_kes: number | null;
+  merchant_id: string; merchant_name: string; merchant_slug: string; merchant_image_url: string | null;
+  access_policy: "public" | "loyalty_qualified"; acquisition_mode: "miles" | "free"; miles_cost: number;
+  qualification_mode: "any" | "all" | null; customer_copy: string | null;
+  progress: LoyaltyOffer["progress"]; eligible: boolean; already_claimed: boolean;
+  remaining: number | null; ends_at: string | null;
+};
+
+/**
+ * Loyalty-qualified-vouchers-spec.md offers — bridges into this page's
+ * existing direct-DB-read pattern (see getAllTemplates/getFundedOffers
+ * above) via list_loyalty_voucher_offers_hub
+ * (supabase/migrations/078_loyalty_voucher_offers_listing.sql), which calls
+ * Akiba-Platform's qualification functions directly since this is the same
+ * Postgres project. Covers what the existing Miles-catalogue/program pipeline
+ * structurally can't represent — any access_policy='loyalty_qualified'
+ * template, or any acquisition_mode='free' template — public+Miles templates
+ * are untouched and keep using getAllTemplates() above.
+ */
+async function getLoyaltyOffers(hubUserId: string | null, email: string | null): Promise<LoyaltyOffer[]> {
+  if (!hubUserId) return [];
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc("list_loyalty_voucher_offers_hub", {
+    p_hub_user_id: hubUserId,
+    p_email: email,
+  });
+  if (error) {
+    console.error("[vouchers] loyalty offers query failed:", error.message);
+    return [];
+  }
+  return ((data ?? []) as RawLoyaltyOffer[])
+    .filter((row) => !isHiddenPartner(row.merchant_id))
+    .map((row) => ({
+      templateId: row.template_id,
+      title: row.title,
+      description: row.description,
+      voucherType: row.voucher_type,
+      discountPercent: row.discount_percent,
+      discountKes: row.discount_kes,
+      retailValueKes: row.retail_value_kes,
+      minimumSpendKes: row.minimum_spend_kes,
+      maximumDiscountKes: row.maximum_discount_kes,
+      merchant: { id: row.merchant_id, name: row.merchant_name, slug: row.merchant_slug, imageUrl: row.merchant_image_url },
+      accessPolicy: row.access_policy,
+      acquisitionMode: row.acquisition_mode,
+      milesCost: row.miles_cost,
+      qualificationMode: row.qualification_mode,
+      customerCopy: row.customer_copy,
+      progress: row.progress ?? [],
+      eligible: row.eligible,
+      alreadyClaimed: row.already_claimed,
+      remaining: row.remaining,
+      endsAt: row.ends_at,
+    }));
+}
+
 async function getClaimedAllocationIds(userId: string | null, email: string | null): Promise<Set<string>> {
   if (!userId) return new Set();
   const admin = createAdminClient();
@@ -174,9 +235,10 @@ export default async function VouchersPage({
   searchParams: { quest?: string };
 }) {
   const { data: { user } } = await (await createClient()).auth.getUser();
-  const [templates, fundedOffers, claimedAllocationIds] = await Promise.all([
+  const [templates, fundedOffers, loyaltyOffers, claimedAllocationIds] = await Promise.all([
     getAllTemplates(user?.id ?? null),
     getFundedOffers(),
+    getLoyaltyOffers(user?.id ?? null, user?.email ?? null),
     getClaimedAllocationIds(user?.id ?? null, user?.email ?? null),
   ]);
   const questMode = searchParams.quest === "deal_viewed";
@@ -186,6 +248,7 @@ export default async function VouchersPage({
       <VoucherTabs
         templates={templates}
         fundedOffers={fundedOffers}
+        loyaltyOffers={loyaltyOffers}
         claimedAllocationIds={[...claimedAllocationIds]}
         isSignedIn={!!user}
         questMode={questMode}

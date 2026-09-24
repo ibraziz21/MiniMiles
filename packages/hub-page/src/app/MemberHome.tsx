@@ -42,7 +42,7 @@ export async function MemberHome({ user }: { user: User }) {
   ];
 
   return (
-    <main className="mx-auto max-w-6xl px-4 pb-3 pt-4 sm:px-6 sm:pb-6 sm:pt-8 lg:px-8">
+    <main className="mx-auto min-w-0 max-w-6xl px-4 pb-4 pt-3 sm:px-6 sm:pb-6 sm:pt-8 lg:px-8">
       <HomeViewTracker variant="member" />
 
       <DiscoveryMasthead firstName={firstName} milesBalance={feed.rewards?.milesBalance ?? null} />
@@ -56,7 +56,7 @@ export async function MemberHome({ user }: { user: User }) {
           href={`/merchants/${continueVoucher.merchantSlug}`}
           event="home_continue_voucher_tap"
           eventProps={{ merchant_id: continueVoucher.merchantSlug }}
-          className="mb-4 flex items-center justify-between gap-2 rounded-xl bg-akiba-tint px-3.5 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
+          className="mb-4 flex min-h-11 items-center justify-between gap-2 rounded-xl bg-akiba-tint px-3.5 py-2.5 text-sm transition active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
         >
           <span className="text-akiba-ink">
             Your voucher at <span className="font-semibold">{continueVoucher.merchantName}</span> expires{" "}

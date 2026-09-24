@@ -1,8 +1,8 @@
 /**
  * Launch-flow feature flags (production-readiness-security-spec.md §13,
  * Phase 0). One kill switch per flow named in the spec's rollout/rollback
- * checklist (§14): wallet linking, offline Pass, Hub-native quest claims,
- * and claw voucher issuance. Direct-commerce payment initiation is retired.
+ * checklist (§14): wallet linking, offline Pass, and Hub-native quest
+ * claims. Direct-commerce payment initiation is retired.
  *
  * Each flag is `explicit toggle AND required production config present` —
  * a flow stays disabled even if someone flips the toggle on without its
@@ -67,20 +67,10 @@ export function hubQuestClaimsFlag(env: FlagEnvironment = process.env): FeatureF
   );
 }
 
-/** Claw-game voucher issuance (on-chain reward -> Hub voucher). */
-export function clawVoucherIssuanceFlag(env: FlagEnvironment = process.env): FeatureFlagResult {
-  return evaluate(
-    isTruthy(env.CLAW_VOUCHER_ISSUANCE_ENABLED ?? "true"),
-    isConfigured(env.MINIPOINTS_ADDRESS, env.CELO_RPC_URL),
-    "Claw contract address or Celo RPC URL missing"
-  );
-}
-
 export function getAllFeatureFlags(env: FlagEnvironment = process.env) {
   return {
     walletLinking: walletLinkingFlag(env),
     offlinePass: offlinePassFlag(env),
     hubQuestClaims: hubQuestClaimsFlag(env),
-    clawVoucherIssuance: clawVoucherIssuanceFlag(env),
   };
 }
