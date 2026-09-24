@@ -16,19 +16,19 @@ export function VoucherRail({ merchants }: { merchants: MerchantValueSummary[] }
   if (offers.length === 0) return null;
 
   return (
-    <section className="mb-8" aria-label="Vouchers available now">
+    <section className="mb-7 sm:mb-8" aria-label="Vouchers available now">
       <SectionViewTracker sectionId="vouchers" personalized={false} />
-      <div className="mb-3 flex items-end justify-between gap-4">
+      <div className="mb-2.5 flex items-end justify-between gap-2 sm:mb-3 sm:gap-4">
         <div>
           <p className="mb-0.5 text-[11px] font-bold uppercase tracking-[0.15em] text-akiba-teal">Use your Miles</p>
           <h2 className="font-sterling text-xl font-semibold text-akiba-ink sm:text-2xl">Vouchers available now</h2>
         </div>
-        <Link href="/vouchers?tab=available" className="flex shrink-0 items-center gap-1 text-xs font-semibold text-akiba-teal transition hover:text-akiba-tealDark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal">
+        <Link href="/vouchers?tab=available" className="-mb-1 -mr-2 flex min-h-11 shrink-0 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-akiba-teal transition hover:bg-akiba-tint hover:text-akiba-tealDark active:bg-akiba-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal">
           See all <ArrowRight className="h-3.5 w-3.5" />
         </Link>
       </div>
 
-      <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
+      <div className="no-scrollbar -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
         {offers.map((merchant, index) => {
           const offer = merchant.topOffer!;
           return (
@@ -37,7 +37,7 @@ export function VoucherRail({ merchants }: { merchants: MerchantValueSummary[] }
               href={`/merchants/${merchant.slug}`}
               event="home_voucher_tap"
               eventProps={{ merchant_id: merchant.id, template_id: offer.templateId, position: index }}
-              className="group relative flex min-h-48 w-[78vw] max-w-[320px] shrink-0 snap-start flex-col overflow-hidden rounded-3xl border border-akiba-teal/20 bg-white p-4 transition hover:-translate-y-0.5 hover:border-akiba-teal/40 hover:shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal sm:w-72"
+              className="group relative flex min-h-48 w-[calc(100vw-3rem)] max-w-[320px] shrink-0 snap-start flex-col overflow-hidden rounded-3xl border border-akiba-teal/20 bg-white p-4 transition hover:-translate-y-0.5 hover:border-akiba-teal/40 hover:shadow-soft active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal sm:w-72"
             >
               <div className="absolute -right-8 -top-10 h-28 w-28 rounded-full bg-akiba-tint" />
               <div className="relative flex items-center justify-between gap-3">

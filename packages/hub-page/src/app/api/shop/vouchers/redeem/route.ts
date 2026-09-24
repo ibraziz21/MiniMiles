@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { issueVoucher } from "@/lib/vouchers/issuance";
+import {
+  claimIntentIsValid,
+  getVoucherClaimFriction,
+  isVoucherUsePlan,
+  recordVoucherClaimIntent,
+} from "@/lib/vouchers/claimIntent";
 
 export async function POST(request: Request) {
   // ── Auth ────────────────────────────────────────────────────────────────────
@@ -11,7 +17,7 @@ export async function POST(request: Request) {
 
   // ── Parse body ───────────────────────────────────────────────────────────────
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
-  const { template_id, quote_id, confirmed } = body ?? {};
+  const { template_id, quote_id, confirmed, intent_confirmed, use_plan } = body ?? {};
 
   if (typeof template_id !== "string" || !template_id) {
     return NextResponse.json({ error: "template_id is required" }, { status: 400 });
@@ -23,6 +29,14 @@ export async function POST(request: Request) {
   // enough on its own either; it must reference an actual quote (see below).
   if (confirmed !== true || typeof quote_id !== "string" || !quote_id) {
     return NextResponse.json({ error: "A confirmed quote is required" }, { status: 400 });
+  }
+
+  const claimFriction = await getVoucherClaimFriction(user.id);
+  if (!claimIntentIsValid(intent_confirmed, use_plan, claimFriction)) {
+    return NextResponse.json(
+      { error: claimFriction.requiresUsePlan ? "Confirm your intent and choose how you plan to use this voucher" : "Confirm that you intend to use this voucher before it expires" },
+      { status: 400 },
+    );
   }
 
   const admin = createAdminClient();
@@ -95,6 +109,16 @@ export async function POST(request: Request) {
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.httpStatus });
   }
+
+  await recordVoucherClaimIntent({
+    hubUserId: user.id,
+    voucherId: result.voucher.id,
+    flow: "miles_purchase",
+    templateId: template_id,
+    usePlan: isVoucherUsePlan(use_plan) ? use_plan : null,
+    friction: claimFriction,
+    disclosureVersion: quote.disclosure_version,
+  });
 
   return NextResponse.json(
     {

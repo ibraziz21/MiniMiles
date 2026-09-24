@@ -14,7 +14,6 @@ export const HUB_CHANNEL = "miles_purchase" as const;
 
 export type AdditionalChannel =
   | "weekly_leaderboard_challenge"
-  | "claw"
   | "raffle"
   | "giveaway"
   | "merchant_grant";
@@ -28,11 +27,6 @@ export const ADDITIONAL_CHANNELS: ReadonlyArray<{
     value: "weekly_leaderboard_challenge",
     label: "Weekly Leaderboard Challenge",
     description: "Award vouchers to qualifying weekly leaderboard participants.",
-  },
-  {
-    value: "claw",
-    label: "Claw Game",
-    description: "Make vouchers available as prizes in the Akiba Claw Game.",
   },
   {
     value: "raffle",
@@ -53,9 +47,13 @@ export const ADDITIONAL_CHANNELS: ReadonlyArray<{
 
 // Includes akiba_grant (Akiba-authored programs, not merchant-selectable in the
 // wizard) so list/detail pages can still label pre-existing rows.
+// claw is retained here for display only — the Claw Game feature was
+// decommissioned, but historical claw-channel programs/vouchers still need
+// a readable label instead of falling back to the raw enum value.
 export const CHANNEL_LABELS: Record<string, string> = {
   [HUB_CHANNEL]: "Hub Miles Purchase",
   akiba_grant: "Akiba Grant",
+  claw: "Claw Game (retired)",
   ...Object.fromEntries(ADDITIONAL_CHANNELS.map((c) => [c.value, c.label])),
 };
 

@@ -46,10 +46,12 @@ export interface AllocationFormInitial {
 // akiba-funded-voucher-admin-spec.md §7.2-§7.6.
 export function AllocationForm({
   fundId,
+  fundCountryCode,
   merchants,
   initial,
 }: {
   fundId: string;
+  fundCountryCode: string;
   merchants: MerchantOption[];
   initial?: AllocationFormInitial;
 }) {
@@ -75,12 +77,11 @@ export function AllocationForm({
     initial?.distributionModes ?? ["self_claim"],
   );
   const [recycleExpiredInventory, setRecycleExpiredInventory] = useState(initial?.recycleExpiredInventory ?? false);
-  const [ruleMode, setRuleMode] = useState<"all" | "any">("all");
   const [selectedRules, setSelectedRules] = useState<Record<string, boolean>>({
+    country_in: true,
     pass_activated: true,
     profile_country_set: true,
   });
-  const [countryList, setCountryList] = useState("KE");
   const [minAccountAgeDays, setMinAccountAgeDays] = useState("0");
   const [verifiedActivityKey, setVerifiedActivityKey] = useState<string>(VERIFIED_ACTIVITY_TEMPLATE_KEYS[0]);
   const [cooldownDays, setCooldownDays] = useState("0");
@@ -103,14 +104,12 @@ export function AllocationForm({
     setDistributionModes((prev) => (prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode]));
   }
   function toggleRule(type: string) {
+    if (type === "country_in") return;
     setSelectedRules((prev) => ({ ...prev, [type]: !prev[type] }));
   }
 
   function buildRules() {
-    const rules: Record<string, unknown>[] = [];
-    if (selectedRules.country_in) {
-      rules.push({ type: "country_in", countries: countryList.split(",").map((c) => c.trim().toUpperCase()).filter(Boolean) });
-    }
+    const rules: Record<string, unknown>[] = [{ type: "country_in", countries: [fundCountryCode] }];
     if (selectedRules.pass_activated) rules.push({ type: "pass_activated" });
     if (selectedRules.profile_country_set) rules.push({ type: "profile_country_set" });
     if (selectedRules.minimum_account_age_days) {
@@ -139,7 +138,7 @@ export function AllocationForm({
       const ruleRes = await fetch(`/api/admin/voucher-funds/${fundId}/eligibility-rule-sets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: ruleMode, rules, customerCopy }),
+        body: JSON.stringify({ mode: "all", rules, customerCopy }),
       });
       const ruleResult = await ruleRes.json();
       if (!ruleRes.ok) {
@@ -280,21 +279,22 @@ export function AllocationForm({
             <CardTitle>Eligibility</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-center gap-2 text-sm">
-              <span>Member must match</span>
-              <select value={ruleMode} onChange={(e) => setRuleMode(e.target.value as "all" | "any")} className="rounded border border-slate-200 px-2 py-1">
-                <option value="all">all selected rules</option>
-                <option value="any">any selected rule</option>
-              </select>
+            <div className="rounded-lg border border-teal-100 bg-teal-50 px-3 py-2 text-sm text-teal-900">
+              Members must match <strong>all</strong> selected rules. Country is locked to the fund ({fundCountryCode}).
             </div>
             {ELIGIBILITY_RULE_TYPES.map((type) => (
-              <RuleRow key={type} type={type} checked={Boolean(selectedRules[type])} onToggle={() => toggleRule(type)}>
+              <RuleRow
+                key={type}
+                type={type}
+                checked={Boolean(selectedRules[type])}
+                onToggle={() => toggleRule(type)}
+                disabled={type === "country_in"}
+              >
                 {type === "country_in" && (
                   <Input
                     className="mt-2 max-w-xs"
-                    value={countryList}
-                    onChange={(e) => setCountryList(e.target.value)}
-                    placeholder="KE, UG, TZ"
+                    value={fundCountryCode}
+                    readOnly
                   />
                 )}
                 {type === "minimum_account_age_days" && (
@@ -396,18 +396,20 @@ function RuleRow({
   type,
   checked,
   onToggle,
+  disabled = false,
   children,
 }: {
   type: EligibilityRuleType;
   checked: boolean;
   onToggle: () => void;
+  disabled?: boolean;
   children?: React.ReactNode;
 }) {
   const warning = ELIGIBILITY_RULE_WARNINGS[type];
   return (
     <div className="rounded-lg border border-slate-100 px-3 py-2">
       <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={checked} onChange={onToggle} />
+        <input type="checkbox" checked={checked} onChange={onToggle} disabled={disabled} />
         {ELIGIBILITY_RULE_LABELS[type]}
       </label>
       {warning && (

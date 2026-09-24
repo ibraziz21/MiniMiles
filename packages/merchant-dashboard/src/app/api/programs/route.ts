@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
   }
 
   const validChannels = new Set([
-    "miles_purchase", "claw", "raffle", "giveaway", "merchant_grant",
+    "miles_purchase", "raffle", "giveaway", "merchant_grant",
     "weekly_leaderboard_challenge",
   ]);
   const channelPayload = (channels as Array<{ channel: string; cap?: number | null; active?: boolean }>)

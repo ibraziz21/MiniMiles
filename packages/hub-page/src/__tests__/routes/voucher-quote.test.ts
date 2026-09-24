@@ -48,6 +48,9 @@ const mockFrom = vi.fn();
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({ from: mockFrom, rpc: mockRpc }),
 }));
+vi.mock("@/lib/vouchers/claimIntent", () => ({
+  getVoucherClaimFriction: async () => ({ expiredUnusedCount: 0, activeUnusedCount: 0, redeemedCount: 0, requiresUsePlan: false }),
+}));
 
 const { POST } = await import("@/app/api/shop/vouchers/quote/route");
 
@@ -173,6 +176,7 @@ describe("POST /api/shop/vouchers/quote", () => {
     expect(body.ledger_points).toBe(100);
     expect(body.onchain_points).toBe(0);
     expect(body.wallet_address).toBeNull();
+    expect(body.claim_friction).toEqual(expect.objectContaining({ requiresUsePlan: false }));
     expect(mockReadChain).not.toHaveBeenCalled();
   });
 

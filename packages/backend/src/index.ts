@@ -10,7 +10,6 @@ import { startMintWorker, runDrain, releaseCurrentLock } from "./mintWorker";
 import { startBurnWorker, releaseCurrentBurnLock } from "./burnWorker";
 import { startBurnBlacklistWatcher } from "./burnBlacklistWatcher";
 import { startProsperityPassWorker, releaseCurrentPassLock } from "./prosperityPassWorker";
-import { startCrackPotSweeper, runCrackPotSweep } from "./crackpotSweeper";
 import { startVaultEventWatcher } from "./vaultEventWatcher";
 import { startVaultRewardScheduler } from "./vaultRewardScheduler";
 import { startHubQuestEventWorker, getHubQuestEventHealth } from "./hubQuestEventWorker";
@@ -19,7 +18,6 @@ dotenv.config();
 
 const app = express();
 app.use(express.json());
-const crackPotEnabled = process.env.CRACKPOT_ENABLED === "true";
 
 // Mount the quest routes at /claim
 app.use("/claim", questRouter);
@@ -35,27 +33,6 @@ app.get("/", (_req, res) => {
 // never identities, metadata, idempotency keys, job IDs, or upstream bodies.
 app.get("/health", async (_req, res) => {
   res.json({ hubQuestEvents: await getHubQuestEventHealth() });
-});
-
-// Manual one-shot CrackPot sweep (protected)
-app.post("/crackpot/sweep", async (req, res) => {
-  if (!crackPotEnabled) {
-    res.status(503).json({ error: "crackpot-coming-soon" });
-    return;
-  }
-
-  const secret = process.env.ADMIN_QUEUE_SECRET ?? "";
-  const auth = req.headers.authorization;
-  if (!secret || auth !== `Bearer ${secret}`) {
-    res.status(401).json({ error: "unauthorized" });
-    return;
-  }
-  try {
-    const results = await runCrackPotSweep();
-    res.json({ ok: true, results });
-  } catch (err: any) {
-    res.status(500).json({ error: err?.message ?? "sweep failed" });
-  }
 });
 
 // Manual trigger (protected)
@@ -89,7 +66,6 @@ const server = app.listen(PORT, () => {
     startBurnWorker();
     startBurnBlacklistWatcher();
     startProsperityPassWorker();
-    if (crackPotEnabled) startCrackPotSweeper();
     startVaultEventWatcher();
     startVaultRewardScheduler();
     startFarkleSettlementWorker();

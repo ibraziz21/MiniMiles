@@ -35,6 +35,14 @@ vi.mock("@/lib/vouchers/issuance", () => ({
   issueVoucher: mockIssueVoucher,
 }));
 
+const mockRecordClaimIntent = vi.fn();
+vi.mock("@/lib/vouchers/claimIntent", () => ({
+  getVoucherClaimFriction: async () => ({ expiredUnusedCount: 0, activeUnusedCount: 0, redeemedCount: 0, requiresUsePlan: false }),
+  claimIntentIsValid: (confirmed: unknown) => confirmed === true,
+  isVoucherUsePlan: (value: unknown) => typeof value === "string",
+  recordVoucherClaimIntent: (...args: unknown[]) => mockRecordClaimIntent(...args),
+}));
+
 const { POST } = await import("@/app/api/shop/vouchers/redeem/route");
 
 function request(overrides: Record<string, unknown> = {}) {
@@ -45,6 +53,7 @@ function request(overrides: Record<string, unknown> = {}) {
       template_id: "template-1",
       quote_id: "quote-1",
       confirmed: true,
+      intent_confirmed: true,
       ...overrides,
     }),
   });
@@ -119,6 +128,12 @@ describe("POST /api/shop/vouchers/redeem", () => {
     expect(mockIssueVoucher).not.toHaveBeenCalled();
   });
 
+  it("requires confirmation that the member intends to use the voucher", async () => {
+    const response = await POST(request({ intent_confirmed: false }));
+    expect(response.status).toBe(400);
+    expect(mockIssueVoucher).not.toHaveBeenCalled();
+  });
+
   it("allows a walletless ledger-only quote", async () => {
     const response = await POST(request());
 
@@ -134,6 +149,7 @@ describe("POST /api/shop/vouchers/redeem", () => {
       }),
     );
     expect(mockAdminFrom).not.toHaveBeenCalledWith("hub_user_wallets");
+    expect(mockRecordClaimIntent).toHaveBeenCalledWith(expect.objectContaining({ voucherId: "voucher-1", flow: "miles_purchase" }));
   });
 
   it("uses the exact wallet bound to an on-chain quote", async () => {

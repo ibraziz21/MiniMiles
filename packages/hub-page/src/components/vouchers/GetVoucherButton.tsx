@@ -1,12 +1,13 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import clsx from "clsx";
 import { MilesAmount } from "@/components/MilesIcon";
 import { recordDealViewProof } from "@/lib/akiba/dealViewProof";
-import { useDialogA11y } from "@/hooks/useDialogA11y";
+import { VoucherEligibilityModal, type EligibilityRuleView } from "@/components/vouchers/VoucherEligibilityModal";
+import type { VoucherClaimFriction, VoucherUsePlan } from "@/lib/vouchers/claimIntent";
 
 function redeemErrorMessage(status: number, serverMessage?: string): string {
   if (status === 401) return "Sign in to redeem";
@@ -24,6 +25,7 @@ type Quote = {
   onchain_points: number;
   total_points: number;
   wallet_address?: string | null;
+  claim_friction: VoucherClaimFriction;
 };
 
 /**
@@ -56,19 +58,25 @@ export function GetVoucherButton({
   sourceSurface?: "home" | "me";
 }) {
   const router = useRouter();
-  const titleId = useId();
 
-  type RedeemStatus = "idle" | "quoting" | "confirming" | "loading" | "error" | "queued";
+  type RedeemStatus = "idle" | "quoting" | "confirming" | "ineligible" | "loading" | "error" | "queued";
   const [redeemStatus, setRedeemStatus] = useState<RedeemStatus>("idle");
   const [redeemError, setRedeemError] = useState<string | null>(null);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [queuedVoucherId, setQueuedVoucherId] = useState<string | null>(null);
+  const [intentConfirmed, setIntentConfirmed] = useState(false);
+  const [usePlan, setUsePlan] = useState<VoucherUsePlan | "">("");
 
-  const sheetOpen = redeemStatus === "confirming" || redeemStatus === "loading";
-  // No dismiss while a redeem request is in flight — there's nothing to
-  // cancel back to, and an accidental Escape mid-request would be confusing.
-  const closeSheet = redeemStatus === "loading" ? undefined : () => setRedeemStatus("idle");
-  const sheetRef = useDialogA11y<HTMLDivElement>(sheetOpen, closeSheet);
+  const modalOpen = ["quoting", "confirming", "ineligible", "loading", "error"].includes(redeemStatus);
+
+  function closeModal() {
+    if (redeemStatus === "loading") return;
+    setRedeemStatus("idle");
+    setRedeemError(null);
+    setQuote(null);
+    setIntentConfirmed(false);
+    setUsePlan("");
+  }
 
   async function handleRedeem() {
     if (!isSignedIn) {
@@ -81,6 +89,9 @@ export function GetVoucherButton({
     onInteract?.();
     setRedeemStatus("quoting");
     setRedeemError(null);
+    setQuote(null);
+    setIntentConfirmed(false);
+    setUsePlan("");
 
     try {
       const res = await fetch("/api/shop/vouchers/quote", {
@@ -90,7 +101,7 @@ export function GetVoucherButton({
       });
       const data = (await res.json()) as Quote & { error?: string };
       if (!res.ok) {
-        setRedeemStatus("error");
+        setRedeemStatus([400, 403, 409, 422].includes(res.status) ? "ineligible" : "error");
         setRedeemError(redeemErrorMessage(res.status, data.error));
         return;
       }
@@ -111,7 +122,13 @@ export function GetVoucherButton({
       const res = await fetch("/api/shop/vouchers/redeem", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ template_id: templateId, quote_id: quote.quote_id, confirmed: true }),
+        body: JSON.stringify({
+          template_id: templateId,
+          quote_id: quote.quote_id,
+          confirmed: true,
+          intent_confirmed: intentConfirmed,
+          use_plan: usePlan || null,
+        }),
       });
       const data = (await res.json()) as { voucher?: { id: string }; queued?: boolean; error?: string };
       if (!res.ok) {
@@ -137,21 +154,6 @@ export function GetVoucherButton({
 
   return (
     <div>
-      {redeemStatus === "error" && redeemError && (
-        <div role="alert" className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
-          {redeemError}
-          {redeemError === "Sign in to redeem" && (
-            <a href="/login" className="ml-1 underline">Sign in</a>
-          )}
-          {redeemError === "Connect a wallet first" && (
-            <a href="/me" className="ml-1 underline">Go to profile</a>
-          )}
-          {redeemError === "Not enough AkibaMiles" && (
-            <a href="/earn" className="ml-1 underline">Earn more Miles</a>
-          )}
-        </div>
-      )}
-
       {redeemStatus === "queued" && (
         <div role="status" aria-live="polite" className="mb-2 rounded-lg bg-akiba-tint px-3 py-2 text-xs text-akiba-teal">
           Voucher processing.
@@ -193,68 +195,35 @@ export function GetVoucherButton({
         )}
       </button>
 
-      {sheetOpen && (
-        // z-[60]: above the mobile BottomNav (z-50, including its elevated
-        // center Pass button) — otherwise
-        // this bottom sheet's Confirm/Cancel buttons render underneath the
-        // nav bar and become untappable on mobile. The sheet itself reserves
-        // the safe-area/home-indicator space BottomNav also reserves, plus
-        // extra clearance so its content never sits behind the nav bar.
-        <div
-          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 sm:items-center"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={titleId}
-        >
-          {closeSheet && (
-            <button
-              type="button"
-              className="absolute inset-0"
-              onClick={closeSheet}
-              aria-label="Dismiss"
-            />
-          )}
-          <div
-            ref={sheetRef}
-            tabIndex={-1}
-            className="relative max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] focus:outline-none sm:max-h-[90vh] sm:rounded-3xl sm:pb-6"
-          >
-            <h3 id={titleId} className="text-base font-bold text-akiba-ink">Confirm voucher redemption</h3>
-            {quote && (
-              <div className="mt-3 space-y-1.5 text-sm text-akiba-muted">
-                {quote.ledger_points > 0 && (
-                  <p className="flex items-center gap-1">
-                    <MilesAmount amount={quote.ledger_points} size="sm" className="text-akiba-ink" /> from your balance
-                  </p>
-                )}
-                {quote.onchain_points > 0 && (
-                  <p>
-                    <MilesAmount amount={quote.onchain_points} size="sm" className="text-akiba-ink" />{" "}
-                    will be burned from{" "}
-                    {quote.wallet_address ? `${quote.wallet_address.slice(0, 6)}…${quote.wallet_address.slice(-4)}` : "your linked wallet"}
-                  </p>
-                )}
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={handleConfirm}
-              disabled={redeemStatus === "loading"}
-              className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-akiba-teal py-2.5 text-sm font-semibold text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-akiba-teal/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus-visible:ring-offset-2"
-            >
-              {redeemStatus === "loading" ? (<><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Confirming…</>) : "Yes, confirm"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setRedeemStatus("idle")}
-              disabled={redeemStatus === "loading"}
-              className="mt-2 w-full py-2 text-sm font-medium text-akiba-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
-            >
-              Cancel
-            </button>
+      <VoucherEligibilityModal
+        open={modalOpen}
+        state={redeemStatus === "quoting" ? "checking" : redeemStatus === "confirming" ? "eligible" : redeemStatus === "ineligible" ? "ineligible" : redeemStatus === "loading" ? "submitting" : "error"}
+        rules={quote ? [
+          { label: "This voucher is available", passed: true },
+          { label: "Available for your country", passed: true },
+          { label: "You have enough AkibaMiles", passed: true },
+        ] satisfies EligibilityRuleView[] : redeemStatus === "ineligible" && redeemError ? [{
+          label: redeemError,
+          passed: false,
+          href: redeemError === "Connect a wallet first" ? "/me" : redeemError === "Not enough AkibaMiles" ? "/earn" : undefined,
+          cta: redeemError === "Connect a wallet first" ? "Go to profile" : redeemError === "Not enough AkibaMiles" ? "Earn more Miles" : undefined,
+        }] : []}
+        error={redeemError}
+        friction={quote?.claim_friction}
+        intentConfirmed={intentConfirmed}
+        usePlan={usePlan}
+        onIntentConfirmedChange={setIntentConfirmed}
+        onUsePlanChange={setUsePlan}
+        onConfirm={handleConfirm}
+        onClose={closeModal}
+        confirmLabel="Confirm and get voucher"
+        details={quote ? (
+          <div className="mt-4 rounded-2xl bg-akiba-card px-4 py-3 text-sm text-akiba-muted">
+            {quote.ledger_points > 0 && <p className="flex items-center gap-1"><MilesAmount amount={quote.ledger_points} size="sm" className="text-akiba-ink" /> from your balance</p>}
+            {quote.onchain_points > 0 && <p className="mt-1"><MilesAmount amount={quote.onchain_points} size="sm" className="text-akiba-ink" /> will be burned from {quote.wallet_address ? `${quote.wallet_address.slice(0, 6)}…${quote.wallet_address.slice(-4)}` : "your linked wallet"}</p>}
           </div>
-        </div>
-      )}
+        ) : null}
+      />
     </div>
   );
 }

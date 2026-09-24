@@ -11,8 +11,7 @@
 // completion.
 //
 // Header: Authorization: Bearer <CRON_SECRET|ADMIN_QUEUE_SECRET>  (same
-// convention as the other internal cron hooks in this app, e.g.
-// app/api/crackpot/payout/process/route.ts).
+// convention as the other internal cron hooks in this app.)
 
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";

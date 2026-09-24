@@ -5,11 +5,12 @@ import { getVoucherSpendableBalance } from "@/lib/akiba/voucherSpendableBalance"
 import { createHash } from "crypto";
 import { isHiddenPartner } from "@/lib/akiba/hidden-partners";
 import { resolveMemberCountry, resolveMerchantCountry, evaluateCountryEligibility } from "@/lib/akiba/countryEligibility";
+import { getVoucherClaimFriction } from "@/lib/vouchers/claimIntent";
 
 // Bumped whenever the confirmation modal's copy changes materially — stored
 // on the quote for audit purposes (see reserve_voucher_purchase's consent
 // binding, migration 046_hub_miles_spend_intents.sql).
-const DISCLOSURE_VERSION = "v1";
+const DISCLOSURE_VERSION = "v2";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -66,7 +67,10 @@ export async function POST(request: Request) {
   }
   const totalPoints = template.miles_cost as number;
 
-  const spendable = await getVoucherSpendableBalance({ hubUserId: user.id, email: user.email ?? null });
+  const [spendable, claimFriction] = await Promise.all([
+    getVoucherSpendableBalance({ hubUserId: user.id, email: user.email ?? null }),
+    getVoucherClaimFriction(user.id),
+  ]);
   if (!spendable.ok) {
     const message = spendable.reason === "identity_unresolved"
       ? "Could not resolve identity"
@@ -135,5 +139,6 @@ export async function POST(request: Request) {
     total_points: quote.total_points,
     disclosure_version: quote.disclosure_version,
     wallet_address: quote.wallet_address,
+    claim_friction: claimFriction,
   });
 }

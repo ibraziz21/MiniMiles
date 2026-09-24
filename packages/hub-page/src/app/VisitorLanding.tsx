@@ -26,7 +26,7 @@ export async function VisitorLanding() {
   ];
 
   return (
-    <main className="mx-auto max-w-6xl px-4 pb-3 pt-4 sm:px-6 sm:pb-6 sm:pt-8 lg:px-8">
+    <main className="mx-auto min-w-0 max-w-6xl px-4 pb-4 pt-3 sm:px-6 sm:pb-6 sm:pt-8 lg:px-8">
       <HomeViewTracker variant="visitor" />
 
       <DiscoveryMasthead />

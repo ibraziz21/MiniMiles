@@ -80,7 +80,7 @@ export function HomeIntentSearch({ placeholder }: { placeholder: string }) {
             type="button"
             aria-label="Clear search"
             onClick={() => setValue("")}
-            className="absolute right-[4.5rem] top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-akiba-muted transition hover:bg-akiba-card hover:text-akiba-ink sm:right-[5.25rem]"
+            className="absolute right-[4.25rem] top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-akiba-muted transition hover:bg-akiba-card hover:text-akiba-ink active:bg-akiba-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal sm:right-[5rem]"
           >
             <X className="h-4 w-4" />
           </button>
@@ -88,7 +88,7 @@ export function HomeIntentSearch({ placeholder }: { placeholder: string }) {
         <button
           type="submit"
           disabled={!value.trim()}
-          className="absolute right-2 top-1/2 min-h-10 -translate-y-1/2 rounded-xl bg-akiba-ink px-3 text-xs font-semibold text-white transition hover:bg-akiba-teal disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus-visible:ring-offset-2 sm:px-4 sm:text-sm"
+          className="absolute right-1.5 top-1/2 min-h-11 -translate-y-1/2 rounded-xl bg-akiba-ink px-3 text-xs font-semibold text-white transition hover:bg-akiba-teal active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus-visible:ring-offset-2 sm:right-2 sm:px-4 sm:text-sm"
         >
           Search
         </button>
@@ -101,7 +101,7 @@ export function HomeIntentSearch({ placeholder }: { placeholder: string }) {
             <button
               key={q}
               onMouseDown={() => submit(q)}
-              className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left text-sm text-akiba-ink hover:bg-akiba-card"
+              className="flex min-h-11 w-full items-center gap-2 rounded-xl px-2 py-2 text-left text-sm text-akiba-ink hover:bg-akiba-card active:bg-akiba-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
             >
               <Search className="h-3.5 w-3.5 text-akiba-muted" /> {q}
             </button>

@@ -25,4 +25,5 @@ export interface EligibilityPreview {
   alreadyClaimed: boolean;
   requirementsRemaining: string[];
   allocationAvailable: boolean;
+  claimFriction?: import("@/lib/vouchers/claimIntent").VoucherClaimFriction;
 }

@@ -7,7 +7,6 @@
 //   • Burn   → BurnVoucherSheet (reason survey)
 //   • Dismiss → soft claim; voucher stays in /vouchers until expiry
 // Handles multiple prizes (user placed in 2+ games) in one sheet.
-// Cloned from the claw's VoucherWinSheet pattern.
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";

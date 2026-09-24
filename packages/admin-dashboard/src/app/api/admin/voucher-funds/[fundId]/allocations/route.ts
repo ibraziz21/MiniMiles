@@ -6,6 +6,7 @@ import {
   VOUCHER_FUND_RPCS,
   OPEN_ACCESS_ACTOR_ID,
   DISTRIBUTION_MODES,
+  hasRequiredFundCountryRule,
   kesToMinor,
   textOrNull,
   positiveIntOrNull,
@@ -55,6 +56,35 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fun
     : [];
 
   const authorizedBudgetMinor = body.authorizedBudgetKes == null ? null : kesToMinor(body.authorizedBudgetKes);
+  const eligibilityRuleSetId = typeof body.eligibilityRuleSetId === "string" ? body.eligibilityRuleSetId : null;
+  if (!eligibilityRuleSetId) {
+    return NextResponse.json(
+      { error: "A country-restricted eligibility rule set is required." },
+      { status: 400 },
+    );
+  }
+
+  const [{ data: fund }, { data: ruleSet }] = await Promise.all([
+    supabase.from("voucher_funding_programs").select("country_code").eq("id", fundId).single(),
+    supabase
+      .from("voucher_eligibility_rule_sets")
+      .select("program_id, mode, rules")
+      .eq("id", eligibilityRuleSetId)
+      .single(),
+  ]);
+  if (!fund?.country_code) {
+    return NextResponse.json({ error: "Voucher fund not found." }, { status: 404 });
+  }
+  if (
+    !ruleSet ||
+    ruleSet.program_id !== fundId ||
+    !hasRequiredFundCountryRule(ruleSet.mode, ruleSet.rules, fund.country_code)
+  ) {
+    return NextResponse.json(
+      { error: `Eligibility must require all rules and restrict members to ${fund.country_code}.` },
+      { status: 400 },
+    );
+  }
 
   const actorId = adminIdForWrite(session) ?? OPEN_ACCESS_ACTOR_ID;
   const { data, error } = await supabase.rpc(VOUCHER_FUND_RPCS.createAllocation, {
@@ -73,7 +103,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fun
     p_voucher_validity_seconds: voucherValidityDays * 86400,
     p_distribution_modes: distributionModes.length > 0 ? distributionModes : null,
     p_recycle_expired_inventory: Boolean(body.recycleExpiredInventory),
-    p_eligibility_rule_set_id: typeof body.eligibilityRuleSetId === "string" ? body.eligibilityRuleSetId : null,
+    p_eligibility_rule_set_id: eligibilityRuleSetId,
     p_metadata: { notes: textOrNull(body.notes, 4000) },
   });
 

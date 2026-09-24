@@ -80,7 +80,14 @@ export function FundedOfferCard({
               <CheckCircle2 className="h-3.5 w-3.5" /> Added to My vouchers
             </p>
           )}
-          <ClaimOfferButton allocationId={offer.allocationId} isSignedIn={isSignedIn} alreadyClaimed={alreadyClaimed} />
+          <ClaimOfferButton
+            allocationId={offer.allocationId}
+            isSignedIn={isSignedIn}
+            alreadyClaimed={alreadyClaimed}
+            eligibilitySummary={offer.eligibilitySummary}
+            merchantName={offer.merchant.name}
+            claimEndsAt={offer.claimEndsAt}
+          />
         </div>
       </div>
 

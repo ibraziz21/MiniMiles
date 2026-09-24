@@ -11,6 +11,9 @@ process.env.AKIBA_API_URL = "https://platform.test";
 
 const state = vi.hoisted(() => ({
   session: null as { user: { id: string }; access_token: string } | null,
+  countryEligibility: { ok: true, eligible: true, fundCountry: "KE", memberCountry: "KE" } as
+    | { ok: true; eligible: boolean; fundCountry: string; memberCountry: string | null }
+    | { ok: false; reason: "allocation_not_found" | "country_policy_unavailable" },
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -20,6 +23,16 @@ vi.mock("@/lib/supabase/server", () => ({
       getSession: async () => ({ data: { session: state.session } }),
     },
   }),
+}));
+vi.mock("@/lib/akiba/fundedVoucherCountryEligibility", () => ({
+  evaluateFundedVoucherCountryEligibility: async () => state.countryEligibility,
+}));
+const mockRecordClaimIntent = vi.fn();
+vi.mock("@/lib/vouchers/claimIntent", () => ({
+  getVoucherClaimFriction: async () => ({ expiredUnusedCount: 0, activeUnusedCount: 0, redeemedCount: 0, requiresUsePlan: false }),
+  claimIntentIsValid: (confirmed: unknown) => confirmed === true,
+  isVoucherUsePlan: (value: unknown) => typeof value === "string",
+  recordVoucherClaimIntent: (...args: unknown[]) => mockRecordClaimIntent(...args),
 }));
 
 const { POST } = await import("@/app/api/voucher-funding/[allocationId]/claim/route");
@@ -32,7 +45,11 @@ function makeResponse(body: unknown, status = 200): Response {
 }
 
 function callRoute(allocationId = "alloc-1") {
-  return POST(new Request("http://localhost/x", { method: "POST" }), {
+  return POST(new Request("http://localhost/x", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ intent_confirmed: true }),
+  }), {
     params: Promise.resolve({ allocationId }),
   });
 }
@@ -41,6 +58,7 @@ describe("POST /api/voucher-funding/:allocationId/claim", () => {
   beforeEach(() => {
     mockFetch.mockReset();
     state.session = null;
+    state.countryEligibility = { ok: true, eligible: true, fundCountry: "KE", memberCountry: "KE" };
   });
   afterEach(() => vi.restoreAllMocks());
 
@@ -61,6 +79,7 @@ describe("POST /api/voucher-funding/:allocationId/claim", () => {
 
     expect(res.status).toBe(201);
     expect(body.voucherId).toBe("v-1");
+    expect(mockRecordClaimIntent).toHaveBeenCalledWith(expect.objectContaining({ voucherId: "v-1", flow: "funded_claim" }));
     expect(mockFetch).toHaveBeenCalledWith(
       "https://platform.test/api/v1/voucher-funding-allocations/alloc-1/claim",
       expect.objectContaining({
@@ -71,6 +90,30 @@ describe("POST /api/voucher-funding/:allocationId/claim", () => {
         }),
       }),
     );
+  });
+
+  it("requires confirmation that the member intends to use the voucher", async () => {
+    state.session = { user: { id: "user-1" }, access_token: "token-abc" };
+    const res = await POST(new Request("http://localhost/x", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ intent_confirmed: false }),
+    }), { params: Promise.resolve({ allocationId: "alloc-1" }) });
+
+    expect(res.status).toBe(400);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects a member outside Kenya before calling Platform", async () => {
+    state.session = { user: { id: "user-1" }, access_token: "token-abc" };
+    state.countryEligibility = { ok: true, eligible: false, fundCountry: "KE", memberCountry: "UG" };
+
+    const res = await callRoute();
+    const body = await res.json();
+
+    expect(res.status).toBe(422);
+    expect(body.code).toBe("COUNTRY_NOT_ELIGIBLE");
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it("propagates an ineligibility rejection from Platform as-is", async () => {

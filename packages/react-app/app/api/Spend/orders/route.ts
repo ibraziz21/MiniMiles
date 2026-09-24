@@ -5,9 +5,6 @@
 //   user_address              string
 //   product_id                number
 //   voucher_code              string | null   — spend (DB) voucher code
-//   claw_voucher_id           string | null   — claw voucher id (uint256 string)
-//   claw_voucher_owner        string | null   — must match on-chain owner
-//   claw_voucher_expires_at   number | null   — must match on-chain expiresAt
 //   recipient_name            string | null   — physical products only
 //   phone                     string | null   — physical, or digital airtime_topup
 //   email                     string | null   — digital code_delivery only
@@ -157,9 +154,6 @@ export async function POST(req: Request) {
     const {
       product_id,
       voucher_code,
-      claw_voucher_id,
-      claw_voucher_owner,
-      claw_voucher_expires_at,
       recipient_name,
       phone,
       email,
@@ -338,52 +332,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // ── Claw voucher redemption (if provided) ─────────────────────────────────
-    let clawVoucherApplied = false;
-    if (claw_voucher_id && !voucher_code) {
-      if (
-        typeof claw_voucher_id !== "string" || !/^\d+$/.test(claw_voucher_id) ||
-        typeof claw_voucher_owner !== "string" ||
-        typeof claw_voucher_expires_at !== "number"
-      ) {
-        return NextResponse.json({ error: "Invalid claw voucher fields" }, { status: 400 });
-      }
-
-      const webhookSecret = process.env.INTERNAL_WEBHOOK_SECRET ?? "";
-      if (!webhookSecret) {
-        return NextResponse.json({ error: "Claw voucher redemption not configured" }, { status: 500 });
-      }
-
-      const appUrl = process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-      const redeemRes = await fetch(`${appUrl}/api/claw/vouchers/redeem`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-webhook-secret": webhookSecret },
-        body: JSON.stringify({
-          voucherId: claw_voucher_id,
-          owner: claw_voucher_owner,
-          expiresAt: claw_voucher_expires_at,
-        }),
-      });
-      const redeemData = await redeemRes.json();
-      if (!redeemRes.ok) {
-        return NextResponse.json({ error: redeemData.error ?? "Claw voucher redemption failed" }, { status: redeemRes.status });
-      }
-
-      // Build voucherRules from on-chain discountBps / maxValue
-      const discountPct = redeemData.discountBps / 100;
-      const maxValueUsd = redeemData.maxValue ? Number(redeemData.maxValue) / 1e6 : null;
-      voucherRules = {
-        voucher_type:        "percent_off" as const,
-        discount_percent:    discountPct,
-        discount_cusd:       null,
-        applicable_category: null,
-        linked_product_id:   null,
-        retail_value_cusd:   maxValueUsd,
-      };
-      merchantVoucherValue = `CLAW_${discountPct}PCT`;
-      clawVoucherApplied = true;
-    }
-
     // ── Calculate expected total ──────────────────────────────────────────────
     const pricing = calculateOrderTotal({
       product_price_cusd: Number(product.price_cusd),
@@ -464,7 +412,7 @@ export async function POST(req: Request) {
         amount_cusd: pricing.total_cusd,
         voucher: merchantVoucherValue,
         voucher_id: voucher?.id ?? null,
-        voucher_code: voucher?.code ?? (clawVoucherApplied ? `claw:${claw_voucher_id}` : null),
+        voucher_code: voucher?.code ?? null,
         miles_cost: "0",
         discount_kes: discountKes,
         paid_kes: pricing.total_kes,

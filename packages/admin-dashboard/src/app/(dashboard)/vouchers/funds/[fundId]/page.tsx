@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FundActions } from "@/components/vouchers/FundActions";
 import { IssuedVouchersPanel, type IssuedVoucherRow } from "@/components/vouchers/IssuedVouchersPanel";
+import { getVoucherMemberDetails } from "@/lib/voucherMemberDetails";
 import { formatDateTime, formatMoney, formatNumber } from "@/lib/utils";
 
 const STATE_VARIANT: Record<string, "secondary" | "success" | "warning" | "destructive" | "outline"> = {
@@ -85,6 +86,10 @@ export default async function VoucherFundDetailPage({ params }: { params: Promis
           .limit(200)
       : { data: [] as unknown[] };
 
+  const memberDetailsByVoucher = await getVoucherMemberDetails(
+    (issuedVouchers ?? []).map((voucher) => (voucher as { id: string }).id),
+  );
+
   const voucherRows: IssuedVoucherRow[] = (issuedVouchers ?? []).map((v) => {
     const row = v as unknown as {
       id: string;
@@ -95,6 +100,7 @@ export default async function VoucherFundDetailPage({ params }: { params: Promis
       revoked_reason: string | null;
       partners: { name: string } | null;
     };
+    const memberDetails = memberDetailsByVoucher.get(row.id);
     return {
       id: row.id,
       code: row.code,
@@ -103,6 +109,11 @@ export default async function VoucherFundDetailPage({ params }: { params: Promis
       created_at: row.created_at,
       revoked_reason: row.revoked_reason,
       merchant_name: row.partners?.name ?? "Unknown merchant",
+      username: memberDetails?.username ?? null,
+      account_created_at: memberDetails?.accountCreatedAt ?? null,
+      account_age_days: memberDetails?.accountAgeDays ?? null,
+      country: memberDetails?.country ?? null,
+      spend_miles_earned: memberDetails?.spendMilesEarned ?? 0,
     };
   });
   const statusCounts = voucherRows.reduce<Record<string, number>>((acc, v) => {

@@ -66,7 +66,7 @@ export function LocationOptIn({ cities }: { cities: string[] }) {
             <a
               key={city}
               href={`/merchants?city=${encodeURIComponent(city)}`}
-              className="flex items-center gap-1.5 rounded-full border border-akiba-line bg-white px-3 py-1.5 text-xs font-medium text-akiba-ink hover:border-akiba-teal/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
+              className="flex min-h-11 items-center gap-1.5 rounded-full border border-akiba-line bg-white px-3 py-2 text-xs font-medium text-akiba-ink hover:border-akiba-teal/40 active:bg-akiba-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
             >
               <MapPin className="h-3 w-3" /> {city}
             </a>
@@ -90,7 +90,7 @@ export function LocationOptIn({ cities }: { cities: string[] }) {
       <button
         onClick={handleUseLocation}
         disabled={status === "locating"}
-        className="flex min-h-10 items-center justify-center gap-2 rounded-full bg-akiba-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-akiba-teal active:scale-[0.98] disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus-visible:ring-offset-2"
+        className="flex min-h-11 items-center justify-center gap-2 rounded-full bg-akiba-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-akiba-teal active:scale-[0.98] disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus-visible:ring-offset-2"
       >
         <LocateFixed className="h-4 w-4" />
         {status === "locating" ? "Locating…" : "Use my location"}

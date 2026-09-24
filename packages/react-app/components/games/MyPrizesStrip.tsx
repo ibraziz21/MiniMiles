@@ -3,8 +3,7 @@
 // Cross-game "My Prizes" inbox for the games hub (games-hub-redesign-spec.md
 // §3). A feed with deep links, not a unified claim flow — leaderboard
 // action_needed entries get an inline claim/burn (mirrors LeaderboardWinSheet
-// exactly), claw entries just deep-link into /claw which owns its own claim UI.
-// Hidden entirely when the feed is empty.
+// exactly). Hidden entirely when the feed is empty.
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
