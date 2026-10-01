@@ -17,6 +17,7 @@ import { sendPurchaseEvent } from "@/lib/akiba/purchase-events";
 import type { PurchaseEventPayload, PurchaseEventResult } from "@/lib/akiba/purchase-events";
 import { emitQuestActions } from "@/lib/akiba/quest-events";
 import { produceMilesEarnedNotification } from "@/lib/akiba/milesEarnedNotification";
+import { recordVerifiedEarningForDiscovery } from "@/lib/akiba/discoveryEarningIngestion";
 
 // purchase_completed fires here, not at order creation (orders/route.ts only
 // emits first_purchase/first_voucher_redeemed): a reward job is only marked
@@ -109,18 +110,32 @@ async function emitMilesEarnedNotification(
     .eq("id", payload.merchantId)
     .maybeSingle();
 
+  const event = {
+    eventId: `hub-order:${orderId}`,
+    hubUserId,
+    merchantId: payload.merchantId,
+    merchantName: merchant?.name ?? "an Akiba merchant",
+    milesAwarded: result.milesAwarded,
+    source: "merchant_purchase" as const,
+    occurredAt: new Date().toISOString(),
+    purchaseEventId: result.purchaseEventId,
+  };
+
   try {
-    await produceMilesEarnedNotification({
-      eventId: `hub-order:${orderId}`,
-      hubUserId,
-      merchantId: payload.merchantId,
-      merchantName: merchant?.name ?? "an Akiba merchant",
-      milesAwarded: result.milesAwarded,
-      source: "merchant_purchase",
-      occurredAt: new Date().toISOString(),
-      purchaseEventId: result.purchaseEventId,
-    });
+    await produceMilesEarnedNotification(event);
   } catch (err) {
     console.error("[reward-release] produceMilesEarnedNotification failed:", err);
+  }
+
+  // A Hub web checkout is inherently an online transaction — never an
+  // in-person visit — so this always resolves to "online" and never
+  // creates a discovery contribution request (§8.1). The event is still
+  // recorded as required by §11.1. recordVerifiedEarningForDiscovery
+  // already guards against throwing; this try/catch is defense in depth
+  // against that guarantee being removed later.
+  try {
+    await recordVerifiedEarningForDiscovery(event, "online");
+  } catch (err) {
+    console.error("[reward-release] recordVerifiedEarningForDiscovery threw unexpectedly:", err);
   }
 }

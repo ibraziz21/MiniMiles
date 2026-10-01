@@ -5,9 +5,11 @@ import { IntentShortcuts } from "@/components/home/IntentShortcuts";
 import { MerchantRail } from "@/components/home/MerchantRail";
 import { LocationOptIn } from "@/components/home/LocationOptIn";
 import { VoucherRail } from "@/components/home/VoucherRail";
+import { VerifiedDiscoverySpotlight } from "@/components/home/VerifiedDiscoverySpotlight";
 import { resolveHubProfile } from "@/lib/akiba/hubProfile";
 import { getHomeFeed } from "@/lib/home/feed";
 import { listDirectoryCities } from "@/lib/merchants/queries";
+import { getNextDiscoveryContributionRequest } from "@/lib/akiba/discoveryContributions";
 import type { User } from "@supabase/supabase-js";
 
 function daysUntilLabel(expiresAt: string): string {
@@ -21,10 +23,11 @@ function daysUntilLabel(expiresAt: string): string {
 export async function MemberHome({ user }: { user: User }) {
   const email = user.email ?? null;
 
-  const [{ displayName }, feed, cities] = await Promise.all([
+  const [{ displayName }, feed, cities, nextContribution] = await Promise.all([
     resolveHubProfile({ userId: user.id, email }),
     getHomeFeed({ userId: user.id, userEmail: email }),
     listDirectoryCities().catch(() => [] as string[]),
+    getNextDiscoveryContributionRequest(user.id).catch(() => null),
   ]);
 
   // displayName falls back to the raw email (resolveHubProfile) when the
@@ -67,6 +70,27 @@ export async function MemberHome({ user }: { user: User }) {
       )}
 
       <IntentShortcuts intents={feed.intents} title="What are you looking for?" />
+
+      {/* At most one pending-contribution nudge (verified-discovery-
+          acquisition-v1-spec.md §6.3, §8.2 surface 2) — the home-visit
+          entry point into the visit-card flow for a member who hasn't yet
+          answered their post-earn prompt. */}
+      {nextContribution && (
+        <TrackedLink
+          href={`/visit/${nextContribution.id}`}
+          event="home_discovery_nudge_tap"
+          eventProps={{ merchant_id: nextContribution.merchantId }}
+          className="mb-4 flex min-h-11 items-center justify-between gap-2 rounded-xl bg-akiba-tint px-3.5 py-2.5 text-sm transition active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
+        >
+          <span className="text-akiba-ink">
+            Add your visit at <span className="font-semibold">{nextContribution.merchantName}</span> to the Akiba
+            guide
+          </span>
+          <span className="shrink-0 font-semibold text-akiba-teal">Add visit →</span>
+        </TrackedLink>
+      )}
+
+      <VerifiedDiscoverySpotlight highlights={feed.verifiedHighlights} />
 
       <VoucherRail merchants={voucherMerchants} />
 

@@ -17,8 +17,9 @@ vi.mock("@/lib/supabase/server", () => ({
 
 const mockRpc = vi.fn();
 const mockFrom = vi.fn();
+const mockStorageFrom = vi.fn();
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({ from: mockFrom, rpc: mockRpc }),
+  createAdminClient: () => ({ from: mockFrom, rpc: mockRpc, storage: { from: mockStorageFrom } }),
 }));
 
 function setupAdmin() {
@@ -33,6 +34,24 @@ function setupAdmin() {
   });
 
   mockFrom.mockImplementation((table: string) => {
+    if (table === "merchant_discovery_contributions") {
+      const builder: Record<string, unknown> = {};
+      builder.select = vi.fn(() => builder);
+      builder.eq = vi.fn(() => builder);
+      builder.is = vi.fn(() => builder);
+      builder.order = vi.fn(() => builder);
+      builder.limit = vi.fn(async () => ({ data: [], error: null }));
+      return builder;
+    }
+    if (table === "merchant_visit_photos") {
+      const builder: Record<string, unknown> = {};
+      builder.select = vi.fn(() => builder);
+      builder.eq = vi.fn(() => builder);
+      builder.not = vi.fn(() => builder);
+      builder.order = vi.fn(() => builder);
+      builder.limit = vi.fn(async () => ({ data: [], error: null }));
+      return builder;
+    }
     if (table === "spend_voucher_templates") {
       return {
         select: () => ({
@@ -48,6 +67,10 @@ function setupAdmin() {
       return { select: async () => ({ data: state.restrictions, error: null }) };
     }
     throw new Error(`Unexpected table ${table}`);
+  });
+
+  mockStorageFrom.mockReturnValue({
+    createSignedUrls: vi.fn(async () => ({ data: [], error: null })),
   });
 }
 
@@ -89,7 +112,10 @@ describe("GET /api/merchants/[slug]", () => {
   });
 
   it("returns a published merchant without checkout-only fields", async () => {
-    state.detailJson = baseDetail({ storeActive: false, products: [] });
+    state.detailJson = baseDetail({
+      storeActive: false,
+      products: [{ id: "p-1", name: "Coffee", image_url: "https://images.example.com/coffee.jpg", price_cusd: 5 }],
+    });
     const { req: request, params } = req("acme");
 
     const res = await GET(request, { params });
@@ -98,6 +124,10 @@ describe("GET /api/merchants/[slug]", () => {
     expect(res.status).toBe(200);
     expect(body.merchant).not.toHaveProperty("storeActive");
     expect(body.merchant).not.toHaveProperty("products");
+    expect(body.merchant.merchantMedia).toEqual([
+      expect.objectContaining({ kind: "product", title: "Coffee" }),
+    ]);
+    expect(JSON.stringify(body)).not.toContain("price_cusd");
   });
 
   it("applies anonymous general availability when no session user is present", async () => {

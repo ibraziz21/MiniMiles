@@ -59,6 +59,45 @@ export type PublicVoucherSummary = {
   branchIds: string[] | null; // null = available at all branches
 };
 
+/**
+ * Merchant-authored media is useful context, never verified customer proof.
+ * `kind` keeps business/location imagery distinct from product imagery without
+ * exposing catalogue, price or inventory fields to the public profile.
+ */
+export type PublicMerchantMedia = {
+  id: string;
+  kind: "business" | "product";
+  imageUrl: string;
+  thumbnailUrl: string;
+  altText: string;
+  title: string | null;
+};
+
+/** Approved derivatives from verified post-purchase visits. */
+export type PublicCustomerPhoto = {
+  id: string;
+  visitId: string | null;
+  thumbnailUrl: string;
+  displayUrl: string;
+  altText: string;
+  itemLabel: string | null;
+};
+
+/** Anonymous, structured recommendation backed by an active verified visit. */
+export type PublicVerifiedVisit = {
+  id: string;
+  experienceLabels: string[];
+  photos: PublicCustomerPhoto[];
+};
+
+/** Private confirmation shown only to the signed-in contributing member. */
+export type MemberVerifiedVisitSummary = {
+  id: string;
+  submittedAt: string;
+  recommendation: "recommended" | "not_recommended" | "skipped";
+  photoState: "none" | "under_review" | "approved" | "not_approved";
+};
+
 export type PublicMerchantSummary = {
   id: string;
   slug: string;
@@ -93,6 +132,9 @@ export type PublicMerchantDetail = PublicMerchantSummary & {
   };
   locations: PublicMerchantLocation[];
   coreOfferings: Array<{ id: string; name: string; description: string | null }>;
+  merchantMedia: PublicMerchantMedia[];
+  verifiedVisits: PublicVerifiedVisit[];
+  approvedCustomerPhotos: PublicCustomerPhoto[];
   vouchers: PublicVoucherSummary[];
 };
 

@@ -10,7 +10,7 @@ export function BranchCard({ location }: { location: PublicMerchantLocation }) {
   return (
     <div className="rounded-2xl border border-akiba-line bg-white p-4">
       <div className="mb-1 flex items-start justify-between gap-2">
-        <h3 className="font-semibold text-akiba-ink">{location.name}</h3>
+        <h3 className="min-w-0 font-semibold leading-5 text-akiba-ink">{location.name}</h3>
         {open !== null && (
           <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${open ? "bg-akiba-tint text-akiba-teal" : "bg-akiba-card text-akiba-muted"}`}>
             {open ? "Open now" : "Closed"}
@@ -19,8 +19,8 @@ export function BranchCard({ location }: { location: PublicMerchantLocation }) {
       </div>
 
       <p className="flex items-start gap-1.5 text-sm text-akiba-muted">
-        <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        <span>
+        <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span className="min-w-0 break-words">
           {formatAddress(location)}
           {location.landmark && <span className="block text-xs">Near {location.landmark}</span>}
         </span>
@@ -33,16 +33,16 @@ export function BranchCard({ location }: { location: PublicMerchantLocation }) {
           href={buildDirectionsUrl(location)}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1.5 rounded-full border border-akiba-line px-3.5 py-2 text-xs font-semibold text-akiba-ink transition hover:border-akiba-teal/40 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
+          className="flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full border border-akiba-line px-3.5 py-2 text-xs font-semibold text-akiba-ink transition hover:border-akiba-teal/40 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal motion-reduce:transition-none"
         >
-          <Navigation className="h-3.5 w-3.5" /> Directions
+          <Navigation className="h-3.5 w-3.5" aria-hidden="true" /> Directions
         </a>
         {location.publicPhone && (
           <a
             href={`tel:${location.publicPhone}`}
-            className="flex items-center gap-1.5 rounded-full border border-akiba-line px-3.5 py-2 text-xs font-semibold text-akiba-ink transition hover:border-akiba-teal/40 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
+            className="flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full border border-akiba-line px-3.5 py-2 text-xs font-semibold text-akiba-ink transition hover:border-akiba-teal/40 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal motion-reduce:transition-none"
           >
-            <Phone className="h-3.5 w-3.5" /> Call
+            <Phone className="h-3.5 w-3.5" aria-hidden="true" /> Call
           </a>
         )}
         {location.publicWhatsapp && (
@@ -50,15 +50,15 @@ export function BranchCard({ location }: { location: PublicMerchantLocation }) {
             href={`https://wa.me/${location.publicWhatsapp.replace(/[^\d]/g, "")}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 rounded-full border border-akiba-line px-3.5 py-2 text-xs font-semibold text-akiba-ink transition hover:border-akiba-teal/40 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
+            className="flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full border border-akiba-line px-3.5 py-2 text-xs font-semibold text-akiba-ink transition hover:border-akiba-teal/40 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal motion-reduce:transition-none"
           >
-            <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+            <MessageCircle className="h-3.5 w-3.5" aria-hidden="true" /> WhatsApp
           </a>
         )}
       </div>
 
       {(location.acceptsAkibaPass || location.acceptsVouchers) && (
-        <div className="mt-3 flex gap-2 text-[11px] text-akiba-muted">
+        <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-akiba-muted">
           {location.acceptsAkibaPass && <span className="rounded-full bg-akiba-card px-2 py-0.5">Accepts Akiba Pass</span>}
           {location.acceptsVouchers && <span className="rounded-full bg-akiba-card px-2 py-0.5">Accepts vouchers</span>}
         </div>

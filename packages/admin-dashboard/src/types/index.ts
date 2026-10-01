@@ -246,6 +246,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, Set<string>> = {
     "referrals.read", "referrals.write",
     "notifications.read", "notifications.write",
     "voucher_funds.read", "voucher_funds.write", "voucher_funds.publish", "voucher_funds.grant",
+    "discovery.read", "discovery.write",
   ]),
   finance_admin: new Set([
     "finance.read", "finance.write",
@@ -273,6 +274,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, Set<string>> = {
     "referrals.read",
     "notifications.read",
     "voucher_funds.read", "voucher_settlements.read",
+    "discovery.read",
   ]),
 };
 

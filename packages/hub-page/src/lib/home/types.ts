@@ -82,11 +82,27 @@ export type HomeFeedSection = {
   merchants: MerchantValueSummary[];
 };
 
+export type VerifiedDiscoveryHighlight = {
+  merchantId: string;
+  merchantSlug: string;
+  merchantName: string;
+  verifiedVisitCount: number;
+  lovedLabels: string[];
+  recommendedItems: string[];
+  photo: {
+    id: string;
+    thumbnailUrl: string;
+    displayUrl: string;
+    altText: string;
+  };
+};
+
 export type HomeFeedResponse = {
   rankingVersion: string;
   generatedAt: string;
   intents: DiscoveryIntent[];
   sections: HomeFeedSection[];
+  verifiedHighlights: VerifiedDiscoveryHighlight[];
   rewards: null | {
     milesBalance: number;
     /**
