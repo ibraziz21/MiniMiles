@@ -10,6 +10,11 @@ vi.mock("@/lib/akiba/milesEarnedNotification", () => ({
   produceMilesEarnedNotification: (...args: unknown[]) => mockProduce(...args),
 }));
 
+const mockRecordDiscovery = vi.fn();
+vi.mock("@/lib/akiba/discoveryEarningIngestion", () => ({
+  recordVerifiedEarningForDiscovery: (...args: unknown[]) => mockRecordDiscovery(...args),
+}));
+
 const { POST } = await import("@/app/api/internal/miles-credited/route");
 
 const VALID_EVENT = {
@@ -40,6 +45,7 @@ describe("POST /api/internal/miles-credited", () => {
     delete process.env.AKIBA_API_KEYS;
     mockRpc.mockResolvedValue({ data: true, error: null });
     mockProduce.mockResolvedValue({ ok: true });
+    mockRecordDiscovery.mockResolvedValue(undefined);
   });
 
   it("rejects a caller with no bearer token", async () => {
@@ -115,5 +121,34 @@ describe("POST /api/internal/miles-credited", () => {
     mockProduce.mockResolvedValue({ ok: false, skipped: "insert_failed" });
     const res = await POST(request(VALID_EVENT));
     expect(res.status).toBe(500);
+  });
+
+  describe("discovery-event ingestion channel resolution", () => {
+    it("resolves merchant_scan to in_store regardless of any body-supplied channel", async () => {
+      await POST(request({ ...VALID_EVENT, channel: "online" }));
+      expect(mockRecordDiscovery).toHaveBeenCalledWith(expect.anything(), "in_store");
+    });
+
+    it("resolves merchant_purchase to the producer-supplied channel", async () => {
+      await POST(request({ ...VALID_EVENT, source: "merchant_purchase", channel: "in_store" }));
+      expect(mockRecordDiscovery).toHaveBeenCalledWith(expect.anything(), "in_store");
+    });
+
+    it("defaults merchant_purchase to unknown when no channel is supplied", async () => {
+      await POST(request({ ...VALID_EVENT, source: "merchant_purchase" }));
+      expect(mockRecordDiscovery).toHaveBeenCalledWith(expect.anything(), "unknown");
+    });
+
+    it("rejects an unrecognized channel value", async () => {
+      const res = await POST(request({ ...VALID_EVENT, channel: "teleport" }));
+      expect(res.status).toBe(400);
+      expect(mockRecordDiscovery).not.toHaveBeenCalled();
+    });
+
+    it("never lets a discovery-ingestion failure affect the response", async () => {
+      mockRecordDiscovery.mockRejectedValue(new Error("boom"));
+      const res = await POST(request(VALID_EVENT));
+      expect(res.status).toBe(200);
+    });
   });
 });

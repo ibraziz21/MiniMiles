@@ -19,7 +19,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getNextRewardSummary } from "@/lib/akiba/nextReward";
 import { isMilesEarnedNotificationEnabledFor } from "@/lib/akiba/milesEarnedNotificationsRollout";
 
-// Authoritative event contract (§6.2).
+// Authoritative event contract (§6.2). The discovery-* fields are optional
+// extensions for verified-discovery-acquisition-v1-spec.md §10.4/§11.1 —
+// only recordVerifiedEarningForDiscovery (discoveryEarningIngestion.ts)
+// reads them; the notification producer below ignores them entirely.
 export type MilesCreditedEvent = {
   eventId: string;
   hubUserId: string;
@@ -30,6 +33,11 @@ export type MilesCreditedEvent = {
   source: "merchant_scan" | "merchant_purchase";
   occurredAt: string;
   purchaseEventId?: string;
+  channel?: "in_store" | "online" | "unknown";
+  branchId?: string;
+  paidAmountMinor?: number;
+  currency?: string;
+  sourceItemRef?: string;
 };
 
 // Per-event award cap (§6.3 "amountMiles: positive integer within the

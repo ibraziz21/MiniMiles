@@ -8,16 +8,21 @@ const state = vi.hoisted(() => ({
   templates: [] as unknown[],
   availableIds: [] as string[],
   restrictions: [] as Array<{ template_id: string; location_id: string }>,
+  approvedPhotos: [] as Array<{ photo_id: string; contribution_id: string; thumbnail_key: string; display_key: string }>,
+  approvedPhotosError: null as { message: string } | null,
+  verifiedVisits: [] as unknown[],
 }));
 
 const mockRpc = vi.fn();
 const mockFrom = vi.fn();
+const mockStorageFrom = vi.fn();
+const mockPhotoEq = vi.fn();
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({ from: mockFrom, rpc: mockRpc }),
+  createAdminClient: () => ({ from: mockFrom, rpc: mockRpc, storage: { from: mockStorageFrom } }),
 }));
 
 function setupAdmin() {
-  mockRpc.mockImplementation((name: string) => {
+  mockRpc.mockImplementation((name: string, args?: Record<string, unknown>) => {
     if (name === "list_public_merchants") {
       return Promise.resolve({ data: state.summaryError ? null : state.summaryRows, error: state.summaryError });
     }
@@ -26,6 +31,23 @@ function setupAdmin() {
     }
     if (name === "list_available_voucher_template_ids_hub") {
       return Promise.resolve({ data: state.availableIds.map((id) => ({ template_id: id })), error: null });
+    }
+    if (name === "eligible_public_merchant_visits") {
+      mockPhotoEq(args);
+      const builder: Record<string, unknown> = {};
+      builder.order = vi.fn(() => builder);
+      builder.limit = vi.fn(async () => ({ data: state.verifiedVisits, error: null }));
+      return builder;
+    }
+    if (name === "eligible_public_merchant_visit_photos") {
+      mockPhotoEq(args);
+      const builder: Record<string, unknown> = {};
+      builder.order = vi.fn(() => builder);
+      builder.limit = vi.fn(async () => ({
+        data: state.approvedPhotosError ? null : state.approvedPhotos,
+        error: state.approvedPhotosError,
+      }));
+      return builder;
     }
     throw new Error(`Unexpected RPC ${name}`);
   });
@@ -51,6 +73,13 @@ function setupAdmin() {
       };
     }
     throw new Error(`Unexpected table ${table}`);
+  });
+
+  mockStorageFrom.mockReturnValue({
+    createSignedUrls: vi.fn(async (paths: string[]) => ({
+      data: paths.map((path) => ({ path, signedUrl: `https://signed.example.com/${path}?token=test` })),
+      error: null,
+    })),
   });
 }
 
@@ -224,13 +253,184 @@ describe("getPublicMerchant — voucher branch-restriction correctness", () => {
     state.templates = [];
     state.availableIds = [];
     state.restrictions = [];
+    state.approvedPhotos = [];
+    state.approvedPhotosError = null;
+    state.verifiedVisits = [];
     setupAdmin();
+  });
+
+  it("publishes one anonymous positive verified visit with only template-owned public labels", async () => {
+    state.detailJson = baseDetailJson();
+    state.verifiedVisits = [{
+      contribution_id: "visit-1",
+      experience_option_ids: ["friendly_staff", "relaxed", "unknown"],
+      template_snapshot: {
+        experience_options: [
+          { id: "friendly_staff", publicLabel: "Friendly staff", inputLabel: "user must not leak" },
+          { id: "relaxed", publicLabel: "Relaxed atmosphere" },
+        ],
+      },
+    }];
+
+    const merchant = await getPublicMerchant("acme", null);
+
+    expect(merchant?.verifiedVisits).toEqual([{
+      id: "visit-1",
+      experienceLabels: ["Friendly staff", "Relaxed atmosphere"],
+      photos: [],
+    }]);
+    expect(JSON.stringify(merchant?.verifiedVisits)).not.toContain("user must not leak");
+  });
+
+  it("publishes one approved verified-visit photo without a contributor threshold", async () => {
+    state.detailJson = baseDetailJson();
+    state.approvedPhotos = [{
+      photo_id: "approved-photo-1",
+      contribution_id: "visit-1",
+      thumbnail_key: "approved-photo-1/thumbnail.webp",
+      display_key: "approved-photo-1/display.webp",
+    }];
+
+    const merchant = await getPublicMerchant("acme", null);
+
+    expect(merchant?.approvedCustomerPhotos).toEqual([{
+      id: "approved-photo-1",
+      visitId: "visit-1",
+      thumbnailUrl: "https://signed.example.com/approved-photo-1/thumbnail.webp?token=test",
+      displayUrl: "https://signed.example.com/approved-photo-1/display.webp?token=test",
+      altText: "Photo from a verified visit to Acme",
+      itemLabel: null,
+    }]);
+    expect(mockPhotoEq).toHaveBeenCalledWith({ p_partner_id: "merchant-1" });
+  });
+
+  it("omits verified visits and customer photos independently when each kill switch is off", async () => {
+    state.detailJson = baseDetailJson();
+    state.verifiedVisits = [{
+      contribution_id: "visit-1",
+      experience_option_ids: [],
+      template_snapshot: { experience_options: [] },
+    }];
+    state.approvedPhotos = [{
+      photo_id: "approved-photo-1",
+      contribution_id: "visit-1",
+      thumbnail_key: "approved-photo-1/thumbnail.webp",
+      display_key: "approved-photo-1/display.webp",
+    }];
+
+    const originalVisits = process.env.HUB_DISCOVERY_VERIFIED_VISITS_PUBLIC_ENABLED;
+    process.env.HUB_DISCOVERY_VERIFIED_VISITS_PUBLIC_ENABLED = "false";
+    try {
+      const merchant = await getPublicMerchant("acme", null);
+      expect(merchant?.verifiedVisits).toEqual([]);
+      // The customer-photos flag is independent — still on, so photos
+      // still publish even with verified visits killed.
+      expect(merchant?.approvedCustomerPhotos).toHaveLength(1);
+    } finally {
+      process.env.HUB_DISCOVERY_VERIFIED_VISITS_PUBLIC_ENABLED = originalVisits;
+    }
+
+    const originalPhotos = process.env.HUB_DISCOVERY_CUSTOMER_PHOTOS_PUBLIC_ENABLED;
+    process.env.HUB_DISCOVERY_CUSTOMER_PHOTOS_PUBLIC_ENABLED = "false";
+    try {
+      const merchant = await getPublicMerchant("acme", null);
+      expect(merchant?.approvedCustomerPhotos).toEqual([]);
+      expect(merchant?.verifiedVisits).toHaveLength(1);
+    } finally {
+      process.env.HUB_DISCOVERY_CUSTOMER_PHOTOS_PUBLIC_ENABLED = originalPhotos;
+    }
   });
 
   it("returns null for a merchant the RPC hides (draft/suspended/inactive/hidden)", async () => {
     state.detailJson = null;
     const merchant = await getPublicMerchant("some-slug", null);
     expect(merchant).toBeNull();
+  });
+
+  it("keeps merchant-authored media separate from qualified customer photos", async () => {
+    state.detailJson = baseDetailJson({
+      bannerUrl: "https://images.example.com/banner.jpg",
+      merchantMedia: [
+        {
+          id: "media-1",
+          kind: "business",
+          imageUrl: "https://images.example.com/interior.jpg",
+          thumbnailUrl: "https://images.example.com/interior-thumb.jpg",
+          altText: "Acme dining room",
+          title: "Inside Acme",
+        },
+      ],
+      products: [
+        { id: "product-1", name: "House coffee", image_url: "https://images.example.com/coffee.jpg", price_cusd: 99 },
+      ],
+      approvedCustomerPhotos: [
+        {
+          id: "visit-photo-1",
+          thumbnailUrl: "https://cdn.example.com/visit-thumb.webp",
+          displayUrl: "https://cdn.example.com/visit.webp",
+          itemLabel: "House coffee",
+          hubUserId: "must-not-leak",
+          contributionId: "must-not-leak",
+        },
+      ],
+    });
+
+    const merchant = await getPublicMerchant("acme", null);
+
+    expect(merchant!.merchantMedia).toEqual([
+      {
+        id: "merchant-media-1",
+        kind: "business",
+        imageUrl: "https://images.example.com/interior.jpg",
+        thumbnailUrl: "https://images.example.com/interior-thumb.jpg",
+        altText: "Acme dining room",
+        title: "Inside Acme",
+      },
+      {
+        id: "product-product-1",
+        kind: "product",
+        imageUrl: "https://images.example.com/coffee.jpg",
+        thumbnailUrl: "https://images.example.com/coffee.jpg",
+        altText: "House coffee from Acme",
+        title: "House coffee",
+      },
+      {
+        id: "merchant-banner",
+        kind: "business",
+        imageUrl: "https://images.example.com/banner.jpg",
+        thumbnailUrl: "https://images.example.com/banner.jpg",
+        altText: "Acme business photo",
+        title: null,
+      },
+    ]);
+    expect(merchant!.approvedCustomerPhotos).toEqual([
+      {
+        id: "visit-photo-1",
+        visitId: null,
+        thumbnailUrl: "https://cdn.example.com/visit-thumb.webp",
+        displayUrl: "https://cdn.example.com/visit.webp",
+        altText: "House coffee",
+        itemLabel: "House coffee",
+      },
+    ]);
+    expect(JSON.stringify(merchant)).not.toContain("must-not-leak");
+    expect(JSON.stringify(merchant)).not.toContain("price_cusd");
+  });
+
+  it("fails closed for malformed or unsafe optional photo contracts without hiding the merchant", async () => {
+    state.detailJson = baseDetailJson({
+      merchantMedia: [
+        { id: "bad", imageUrl: "javascript:alert(1)" },
+        { id: "draft", publicationStatus: "draft", imageUrl: "https://images.example.com/draft.jpg" },
+      ],
+      approvedCustomerPhotos: [{ id: "bad", thumbnailUrl: "https://cdn.example.com/thumb.webp" }],
+      products: [{ id: "inactive", active: false, image_url: "https://images.example.com/inactive.jpg" }],
+    });
+
+    const merchant = await getPublicMerchant("acme", null);
+
+    expect(merchant!.merchantMedia).toEqual([]);
+    expect(merchant!.approvedCustomerPhotos).toEqual([]);
   });
 
   it("drops a voucher whose branch restriction resolves to zero valid branches", async () => {

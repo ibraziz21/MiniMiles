@@ -8,12 +8,14 @@ import {
 import { buildDirectionsUrl, formatAddress } from "@/lib/merchants/directions";
 import { BranchCard } from "@/components/merchants/BranchCard";
 import { VoucherCard } from "@/components/merchants/VoucherCard";
-import { ExpandableDescription } from "@/components/merchants/ExpandableDescription";
 import { OperatingBadges } from "@/components/merchants/OperatingBadges";
 import { SaveMerchantButton } from "@/components/merchants/SaveMerchantButton";
 import { TrackedAnchor } from "@/components/TrackedAnchor";
 import { MerchantViewTracker } from "@/components/merchants/MerchantViewTracker";
+import { MerchantPhotoTabs } from "@/components/merchants/MerchantPhotoTabs";
+import { MerchantProfileDisclosure } from "@/components/merchants/MerchantProfileDisclosure";
 import { getSignedInBalance } from "@/lib/merchants/enrich";
+import { getMemberVerifiedVisitSummary, hasOpenMerchantContributionRequest } from "@/lib/merchants/memberVisits";
 import { isMerchantSaved } from "@/lib/merchants/savedMerchants";
 import type { PublicMerchantDetail } from "@/lib/merchants/types";
 
@@ -127,19 +129,25 @@ export default async function MerchantPage({ params }: { params: { slug: string 
   const isSignedIn = !!userId;
   const affordableVoucherCount =
     balance != null ? merchant.vouchers.filter((v) => balance >= v.milesCost).length : null;
-  const initialSaved = userId ? await isMerchantSaved(userId, merchant.id) : false;
+  const [initialSaved, memberVerifiedVisit, canAddVerifiedVisit] = userId
+    ? await Promise.all([
+        isMerchantSaved(userId, merchant.id),
+        getMemberVerifiedVisitSummary(userId, merchant.id),
+        hasOpenMerchantContributionRequest(userId, merchant.id),
+      ])
+    : [false, null, false];
 
   const hasPhysicalLocation = merchant.locations.length > 0;
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <main className="mx-auto max-w-7xl px-4 pb-6 pt-4 sm:px-6 sm:py-6 lg:px-8">
       <MerchantViewTracker
         merchantId={merchant.id}
         hasVouchers={merchant.vouchers.length > 0}
       />
       {hasPhysicalLocation && <LocalBusinessJsonLd merchant={merchant} />}
 
-      <a href="/merchants" className="mb-6 flex items-center gap-1.5 text-sm text-akiba-muted hover:text-akiba-ink">
+      <a href="/merchants" className="mb-4 flex items-center gap-1.5 text-sm text-akiba-muted hover:text-akiba-ink sm:mb-6">
         <ArrowLeft className="h-4 w-4" /> All merchants
       </a>
 
@@ -147,10 +155,10 @@ export default async function MerchantPage({ params }: { params: { slug: string 
           bottom edge (Airbnb/Instagram-style profile hero). Falls back to
           the plain inline logo+name row below when there's no banner. */}
       {merchant.bannerUrl && (
-        <div className="relative -mx-4 mb-12 h-44 overflow-hidden bg-akiba-card sm:mx-0 sm:h-56 sm:rounded-2xl">
+        <div className="relative -mx-4 mb-8 h-28 overflow-hidden bg-akiba-card sm:mx-0 sm:mb-10 sm:h-48 sm:rounded-2xl lg:h-52">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={merchant.bannerUrl} alt="" className="h-full w-full object-cover" />
-          <div className="absolute -bottom-8 left-4 flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border-4 border-akiba-paper bg-white shadow-soft sm:h-24 sm:w-24">
+          <div className="absolute -bottom-6 left-4 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border-4 border-akiba-paper bg-white shadow-soft sm:-bottom-8 sm:h-24 sm:w-24">
             {merchant.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={merchant.logoUrl} alt={merchant.name} className="h-full w-full object-contain p-2" />
@@ -165,7 +173,7 @@ export default async function MerchantPage({ params }: { params: { slug: string 
           one clean, borderless identity block (a single visual unit, not a
           stack of separate boxed sections). Content sections below (visit
           us, offers and vouchers) get cards; identity doesn't need one. */}
-      <div className="mb-8 border-b border-akiba-line pb-6">
+      <div className="pb-3 sm:pb-5">
         <div className="flex items-start gap-3">
           {!merchant.bannerUrl && (
             <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-akiba-line bg-white">
@@ -178,9 +186,11 @@ export default async function MerchantPage({ params }: { params: { slug: string 
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-start justify-between gap-1.5">
-              <h1 className="font-sterling text-2xl font-semibold text-akiba-ink">{merchant.name}</h1>
-              <SaveMerchantButton slug={merchant.slug} isSignedIn={isSignedIn} initialSaved={initialSaved} />
+            <div className="relative">
+              <h1 className="pr-12 font-sterling text-xl font-semibold leading-tight text-akiba-ink sm:text-2xl">{merchant.name}</h1>
+              <div className="absolute right-0 top-0">
+                <SaveMerchantButton slug={merchant.slug} isSignedIn={isSignedIn} initialSaved={initialSaved} />
+              </div>
             </div>
             {merchant.shortDescription && <p className="mt-1 text-sm text-akiba-muted">{merchant.shortDescription}</p>}
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -201,31 +211,13 @@ export default async function MerchantPage({ params }: { params: { slug: string 
           </div>
         </div>
 
-        {/* Bio — the full description lives right under the identity row,
-            not in a separate "About" section further down the page. */}
-        {merchant.description && <ExpandableDescription text={merchant.description} />}
-
-        {/* What they offer — folded into the profile block too, a light
-            label rather than a full section heading since it's still part
-            of the same identity block. */}
-        {merchant.coreOfferings.length > 0 && (
-          <div className="mt-4">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-akiba-muted">What they offer</p>
-            <div className="flex flex-wrap gap-2">
-              {merchant.coreOfferings.map((o) => (
-                <span key={o.id} className="rounded-full border border-akiba-line bg-white px-3 py-1.5 text-sm text-akiba-ink" title={o.description ?? undefined}>
-                  {o.name}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
+        <MerchantProfileDisclosure description={merchant.description} offerings={merchant.coreOfferings} />
 
         {/* Quick actions — one row, always visible (no desktop-only column,
             no separate floating bar, no boxed "Contact" card). Directions/
             Call/WhatsApp/Website are labeled; Instagram/Facebook/Email are
             compact icon-only since they're secondary. */}
-        <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="-mx-4 mt-3 flex snap-x snap-mandatory flex-nowrap items-center gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
           {merchant.primaryLocation && (
             <TrackedAnchor
               event="merchant_directions_tap"
@@ -233,7 +225,7 @@ export default async function MerchantPage({ params }: { params: { slug: string 
               href={buildDirectionsUrl(merchant.locations.find((l) => l.isPrimary) ?? merchant.locations[0])}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 rounded-full bg-akiba-ink px-4 py-2 text-sm font-semibold text-white focus-visible:ring-2 focus-visible:ring-akiba-teal"
+              className="flex shrink-0 snap-start items-center justify-center gap-1.5 rounded-full bg-akiba-ink px-4 py-2 text-sm font-semibold text-white focus-visible:ring-2 focus-visible:ring-akiba-teal"
             >
               <Navigation className="h-4 w-4" /> Directions
             </TrackedAnchor>
@@ -243,7 +235,7 @@ export default async function MerchantPage({ params }: { params: { slug: string 
               event="merchant_call_tap"
               eventProps={{ merchantId: merchant.id }}
               href={`tel:${merchant.contacts.phone}`}
-              className="flex items-center justify-center gap-1.5 rounded-full border border-akiba-line bg-white px-4 py-2 text-sm font-semibold text-akiba-ink focus-visible:ring-2 focus-visible:ring-akiba-teal"
+              className="flex shrink-0 snap-start items-center justify-center gap-1.5 rounded-full border border-akiba-line bg-white px-4 py-2 text-sm font-semibold text-akiba-ink focus-visible:ring-2 focus-visible:ring-akiba-teal"
             >
               <Phone className="h-4 w-4" /> Call
             </TrackedAnchor>
@@ -255,7 +247,7 @@ export default async function MerchantPage({ params }: { params: { slug: string 
               href={`https://wa.me/${merchant.contacts.whatsapp.replace(/[^\d]/g, "")}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 rounded-full border border-akiba-line bg-white px-4 py-2 text-sm font-semibold text-akiba-ink focus-visible:ring-2 focus-visible:ring-akiba-teal"
+              className="flex shrink-0 snap-start items-center justify-center gap-1.5 rounded-full border border-akiba-line bg-white px-4 py-2 text-sm font-semibold text-akiba-ink focus-visible:ring-2 focus-visible:ring-akiba-teal"
             >
               <MessageCircle className="h-4 w-4" /> WhatsApp
             </TrackedAnchor>
@@ -267,7 +259,7 @@ export default async function MerchantPage({ params }: { params: { slug: string 
               href={merchant.websiteUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 rounded-full border border-akiba-line bg-white px-4 py-2 text-sm font-semibold text-akiba-ink focus-visible:ring-2 focus-visible:ring-akiba-teal"
+              className="flex shrink-0 snap-start items-center justify-center gap-1.5 rounded-full border border-akiba-line bg-white px-4 py-2 text-sm font-semibold text-akiba-ink focus-visible:ring-2 focus-visible:ring-akiba-teal"
             >
               <Globe className="h-4 w-4" /> Website
             </TrackedAnchor>
@@ -277,7 +269,7 @@ export default async function MerchantPage({ params }: { params: { slug: string 
               href={merchant.contacts.instagram}
               target="_blank" rel="noopener noreferrer"
               aria-label="Instagram" title="Instagram"
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-akiba-line bg-white text-akiba-ink hover:border-akiba-teal/40 hover:text-akiba-teal focus-visible:ring-2 focus-visible:ring-akiba-teal"
+              className="flex h-9 w-9 shrink-0 snap-start items-center justify-center rounded-full border border-akiba-line bg-white text-akiba-ink hover:border-akiba-teal/40 hover:text-akiba-teal focus-visible:ring-2 focus-visible:ring-akiba-teal"
             >
               <Instagram className="h-4 w-4" />
             </a>
@@ -287,7 +279,7 @@ export default async function MerchantPage({ params }: { params: { slug: string 
               href={merchant.contacts.facebook}
               target="_blank" rel="noopener noreferrer"
               aria-label="Facebook" title="Facebook"
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-akiba-line bg-white text-akiba-ink hover:border-akiba-teal/40 hover:text-akiba-teal focus-visible:ring-2 focus-visible:ring-akiba-teal"
+              className="flex h-9 w-9 shrink-0 snap-start items-center justify-center rounded-full border border-akiba-line bg-white text-akiba-ink hover:border-akiba-teal/40 hover:text-akiba-teal focus-visible:ring-2 focus-visible:ring-akiba-teal"
             >
               <Facebook className="h-4 w-4" />
             </a>
@@ -296,13 +288,13 @@ export default async function MerchantPage({ params }: { params: { slug: string 
             <a
               href={`mailto:${merchant.contacts.email}`}
               aria-label="Email" title="Email"
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-akiba-line bg-white text-akiba-ink hover:border-akiba-teal/40 hover:text-akiba-teal focus-visible:ring-2 focus-visible:ring-akiba-teal"
+              className="flex h-9 w-9 shrink-0 snap-start items-center justify-center rounded-full border border-akiba-line bg-white text-akiba-ink hover:border-akiba-teal/40 hover:text-akiba-teal focus-visible:ring-2 focus-visible:ring-akiba-teal"
             >
               <Mail className="h-4 w-4" />
             </a>
           )}
           {merchant.vouchers.length > 0 && (
-            <a href="#vouchers" className="flex items-center justify-center gap-1.5 rounded-full border border-akiba-teal/30 bg-akiba-tint px-4 py-2 text-sm font-semibold text-akiba-teal focus-visible:ring-2 focus-visible:ring-akiba-teal">
+            <a href="#vouchers" className="flex shrink-0 snap-start items-center justify-center gap-1.5 rounded-full border border-akiba-teal/30 bg-akiba-tint px-4 py-2 text-sm font-semibold text-akiba-teal focus-visible:ring-2 focus-visible:ring-akiba-teal">
               <Tag className="h-4 w-4" /> Vouchers
             </a>
           )}
@@ -310,26 +302,29 @@ export default async function MerchantPage({ params }: { params: { slug: string 
       </div>
 
       {/*
-        Section order: Branches -> Vouchers. Contact/socials,
+        Section order: Profile tabs -> Vouchers. Contact/socials,
         About and What they offer now live in the profile block above, so
-        this grid only carries the remaining content sections. `order-*`
-        gives the mobile (single-column) sequence; `lg:col-start-2` on
-        Vouchers alone reproduces a two-column desktop layout.
+        this grid only carries the remaining content sections. Locations
+        live in the tabbed profile content while vouchers stay transactional.
       */}
       <div className="grid items-start gap-8 lg:grid-cols-[1fr,320px]">
-        {/* Visit us / Branches */}
-        {merchant.locations.length > 0 && (
-          <section className="order-1 lg:col-start-1">
-            <h2 className="mb-4 font-sterling text-lg font-semibold text-akiba-ink">
-              {merchant.locations.length === 1 ? "Visit us" : "Branches"}
-            </h2>
+        <MerchantPhotoTabs
+          merchantName={merchant.name}
+          merchantId={merchant.id}
+          verifiedVisits={merchant.verifiedVisits}
+          customerPhotos={merchant.approvedCustomerPhotos}
+          merchantMedia={merchant.merchantMedia}
+          memberVerifiedVisit={memberVerifiedVisit}
+          contributionHref={canAddVerifiedVisit ? `/visit/merchant/${merchant.slug}` : null}
+          locationCount={merchant.locations.length}
+          locationsContent={merchant.locations.length > 0 ? (
             <div className="grid gap-3 sm:grid-cols-2">
-              {merchant.locations.map((loc) => (
-                <BranchCard key={loc.id} location={loc} />
+              {merchant.locations.map((location) => (
+                <BranchCard key={location.id} location={location} />
               ))}
             </div>
-          </section>
-        )}
+          ) : undefined}
+        />
 
         {/* Vouchers */}
         {merchant.vouchers.length > 0 && (

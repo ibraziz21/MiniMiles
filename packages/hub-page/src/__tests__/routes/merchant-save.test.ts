@@ -20,8 +20,9 @@ vi.mock("@/lib/supabase/server", () => ({
 
 const mockRpc = vi.fn();
 const mockFrom = vi.fn();
+const mockStorageFrom = vi.fn();
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({ from: mockFrom, rpc: mockRpc }),
+  createAdminClient: () => ({ from: mockFrom, rpc: mockRpc, storage: { from: mockStorageFrom } }),
 }));
 
 function setupAdmin() {
@@ -36,6 +37,24 @@ function setupAdmin() {
   });
 
   mockFrom.mockImplementation((table: string) => {
+    if (table === "merchant_discovery_contributions") {
+      const builder: Record<string, unknown> = {};
+      builder.select = vi.fn(() => builder);
+      builder.eq = vi.fn(() => builder);
+      builder.is = vi.fn(() => builder);
+      builder.order = vi.fn(() => builder);
+      builder.limit = vi.fn(async () => ({ data: [], error: null }));
+      return builder;
+    }
+    if (table === "merchant_visit_photos") {
+      const builder: Record<string, unknown> = {};
+      builder.select = vi.fn(() => builder);
+      builder.eq = vi.fn(() => builder);
+      builder.not = vi.fn(() => builder);
+      builder.order = vi.fn(() => builder);
+      builder.limit = vi.fn(async () => ({ data: [], error: null }));
+      return builder;
+    }
     if (table === "spend_voucher_templates") {
       return {
         select: () => ({
@@ -73,6 +92,10 @@ function setupAdmin() {
       };
     }
     throw new Error(`Unexpected table ${table}`);
+  });
+
+  mockStorageFrom.mockReturnValue({
+    createSignedUrls: vi.fn(async () => ({ data: [], error: null })),
   });
 }
 

@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   completedPartnerIds: [] as string[],
   newPartnerSettings: [] as unknown[],
   newMerchantsShouldError: false,
+  verifiedHighlights: [] as unknown[],
 }));
 
 const mockListPublicMerchants = vi.fn();
@@ -23,6 +24,10 @@ const mockRpc = vi.fn();
 const mockFrom = vi.fn();
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({ from: mockFrom, rpc: mockRpc }),
+}));
+
+vi.mock("@/lib/home/verifiedDiscovery", () => ({
+  getVerifiedDiscoveryHighlights: async () => state.verifiedHighlights,
 }));
 
 const mockGetUserBalance = vi.fn();
@@ -108,6 +113,7 @@ describe("getHomeFeed", () => {
     state.completedPartnerIds = [];
     state.newPartnerSettings = [];
     state.newMerchantsShouldError = false;
+    state.verifiedHighlights = [];
     setupAdmin();
 
     mockListPublicMerchants.mockImplementation((params: { lat?: number; lng?: number }) => {
@@ -130,6 +136,22 @@ describe("getHomeFeed", () => {
     expect(feed.rewards).toBeNull();
     expect(mockGetUserBalance).not.toHaveBeenCalled();
     expect(mockGetSoonestExpiringVoucher).not.toHaveBeenCalled();
+  });
+
+  it("carries the ranked verified-discovery slots independently of merchant rails", async () => {
+    state.verifiedHighlights = [{
+      merchantId: "m1",
+      merchantSlug: "arabica",
+      merchantName: "Arabica",
+      verifiedRecommendationBand: { kind: "exact", count: 5 },
+      lovedLabels: ["Friendly staff"],
+      recommendedItems: ["Spanish latte"],
+      photo: { id: "p1", thumbnailUrl: "https://example.com/t.webp", displayUrl: "https://example.com/d.webp", altText: "Visit photo" },
+    }];
+
+    const feed = await getHomeFeed({ userId: null });
+
+    expect(feed.verifiedHighlights).toEqual(state.verifiedHighlights);
   });
 
   it("signed-in: rewards provides the balance and urgent voucher context", async () => {

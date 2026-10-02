@@ -1,10 +1,18 @@
 import { createHash } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  isCustomerPhotosPublicEnabled,
+  isVerifiedVisitsPublicEnabled,
+} from "@/lib/akiba/verifiedDiscoveryPublicProofFlags";
+import { extractPublicExperienceLabels } from "@/lib/discovery/publicExperienceLabels";
 import { expandQueryAlias } from "./aliases";
 import type {
   MerchantDirectoryResponse,
+  PublicCustomerPhoto,
   PublicMerchantDetail,
+  PublicMerchantMedia,
   PublicMerchantSummary,
+  PublicVerifiedVisit,
   PublicVoucherSummary,
 } from "./types";
 
@@ -249,7 +257,244 @@ type RawDetailJson = {
   categories: PublicMerchantDetail["categories"];
   coreOfferings: PublicMerchantDetail["coreOfferings"];
   locations: Array<Record<string, unknown>>;
+  /** New provenance-separated contract. Optional during RPC rollout. */
+  merchantMedia?: unknown;
+  approvedCustomerPhotos?: unknown;
+  /** Legacy catalogue data is reduced to safe merchant-authored product media. */
+  products?: unknown;
 };
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? value as Record<string, unknown> : null;
+}
+
+function safePublicImageUrl(value: unknown): string | null {
+  if (typeof value !== "string" || value.length === 0 || value.length > 2048) return null;
+  if (value.startsWith("/") && !value.startsWith("//")) return value;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function safeLabel(value: unknown, fallback: string): string {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim().slice(0, 160)
+    : fallback;
+}
+
+function mapExplicitMerchantMedia(value: unknown, merchantName: string): PublicMerchantMedia[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 48).flatMap((entry, index) => {
+    const row = asRecord(entry);
+    if (!row) return [];
+    const publicationStatus = row.publicationStatus ?? row.publication_status;
+    if (typeof publicationStatus === "string" && publicationStatus !== "published") return [];
+    const imageUrl = safePublicImageUrl(row.imageUrl ?? row.image_url);
+    if (!imageUrl) return [];
+    const thumbnailUrl = safePublicImageUrl(row.thumbnailUrl ?? row.thumbnail_url) ?? imageUrl;
+    const kind = row.kind === "product" ? "product" : "business";
+    const title = typeof row.title === "string" && row.title.trim().length > 0
+      ? row.title.trim().slice(0, 120)
+      : null;
+    return [{
+      id: typeof row.id === "string" ? `merchant-${row.id}` : `merchant-media-${index}`,
+      kind,
+      imageUrl,
+      thumbnailUrl,
+      altText: safeLabel(row.altText ?? row.alt_text, title ?? `${merchantName} photo`),
+      title,
+    }];
+  });
+}
+
+function mapLegacyProductMedia(value: unknown, merchantName: string): PublicMerchantMedia[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 48).flatMap((entry, index) => {
+    const row = asRecord(entry);
+    if (!row) return [];
+    if (row.active === false) return [];
+    const imageUrl = safePublicImageUrl(row.imageUrl ?? row.image_url);
+    if (!imageUrl) return [];
+    const title = typeof row.name === "string" && row.name.trim().length > 0
+      ? row.name.trim().slice(0, 120)
+      : null;
+    return [{
+      id: typeof row.id === "string" ? `product-${row.id}` : `product-media-${index}`,
+      kind: "product" as const,
+      imageUrl,
+      thumbnailUrl: imageUrl,
+      altText: title ? `${title} from ${merchantName}` : `${merchantName} product photo`,
+      title,
+    }];
+  });
+}
+
+function mapApprovedCustomerPhotos(value: unknown, merchantName: string): PublicCustomerPhoto[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 48).flatMap((entry, index) => {
+    const row = asRecord(entry);
+    if (!row) return [];
+    const thumbnailUrl = safePublicImageUrl(row.thumbnailUrl ?? row.thumbnail_url);
+    const displayUrl = safePublicImageUrl(row.displayUrl ?? row.display_url);
+    if (!thumbnailUrl || !displayUrl) return [];
+    const itemLabel = typeof (row.itemLabel ?? row.item_label) === "string"
+      ? String(row.itemLabel ?? row.item_label).trim().slice(0, 120) || null
+      : null;
+    return [{
+      id: typeof row.id === "string" ? row.id : `customer-photo-${index}`,
+      visitId: typeof row.visitId === "string"
+        ? row.visitId
+        : null,
+      thumbnailUrl,
+      displayUrl,
+      altText: safeLabel(row.altText ?? row.alt_text, itemLabel ?? `Photo from a verified visit to ${merchantName}`),
+      itemLabel,
+    }];
+  });
+}
+
+// §7.1: "Public customer-photo signed URLs have a maximum 15-minute
+// lifetime and private/no-store response caching."
+const APPROVED_PHOTO_URL_TTL_SECONDS = 15 * 60;
+const APPROVED_PHOTO_LIMIT = 48;
+const DERIVED_VISIT_PHOTO_BUCKET = "discovery-visit-photos-derived";
+
+type EligiblePhotoRow = {
+  photo_id: string;
+  contribution_id: string;
+  thumbnail_key: string;
+  display_key: string;
+};
+
+/**
+ * Moderation is the publication gate for verified-visit photos, but
+ * moderation approval alone is not enough to publish (hardening spec
+ * §4.2): the underlying contribution and earning event must still be
+ * active, unwithdrawn and unsuppressed. That full predicate lives once in
+ * the canonical `eligible_public_merchant_visit_photos` projection rather
+ * than being re-derived here — a single approved photo is eligible
+ * immediately; unlike aggregate review insights, this gallery has no
+ * minimum unique-contributor threshold.
+ */
+async function getIndividuallyApprovedCustomerPhotos(
+  admin: ReturnType<typeof createAdminClient>,
+  partnerId: string,
+  merchantName: string,
+): Promise<PublicCustomerPhoto[]> {
+  if (!isCustomerPhotosPublicEnabled()) return [];
+
+  try {
+    const { data, error } = await admin
+      .rpc("eligible_public_merchant_visit_photos", { p_partner_id: partnerId })
+      .order("approved_at", { ascending: false })
+      .limit(APPROVED_PHOTO_LIMIT);
+
+    if (error) {
+      console.error("[merchants] approved visit-photo lookup failed:", error.message);
+      return [];
+    }
+
+    const rows = (data ?? []) as EligiblePhotoRow[];
+    if (rows.length === 0) return [];
+
+    const paths = rows.flatMap((photo) => [photo.thumbnail_key, photo.display_key]);
+    const { data: signed, error: signError } = await admin.storage
+      .from(DERIVED_VISIT_PHOTO_BUCKET)
+      .createSignedUrls(paths, APPROVED_PHOTO_URL_TTL_SECONDS);
+
+    if (signError || !signed) {
+      console.error("[merchants] approved visit-photo signing failed:", signError?.message ?? "no signed URLs");
+      return [];
+    }
+
+    return rows.flatMap((photo, index) => {
+      const thumbnailUrl = safePublicImageUrl(signed[index * 2]?.signedUrl);
+      const displayUrl = safePublicImageUrl(signed[index * 2 + 1]?.signedUrl);
+      if (!thumbnailUrl || !displayUrl) return [];
+      return [{
+        id: photo.photo_id,
+        visitId: typeof photo.contribution_id === "string" ? photo.contribution_id : null,
+        thumbnailUrl,
+        displayUrl,
+        altText: `Photo from a verified visit to ${merchantName}`,
+        itemLabel: null,
+      }];
+    });
+  } catch (error) {
+    console.error(
+      "[merchants] approved visit-photo projection failed:",
+      error instanceof Error ? error.message : error,
+    );
+    return [];
+  }
+}
+
+function mergeCustomerPhotos(
+  directApproved: PublicCustomerPhoto[],
+  projected: PublicCustomerPhoto[],
+): PublicCustomerPhoto[] {
+  const byId = new Map<string, PublicCustomerPhoto>();
+  for (const photo of [...directApproved, ...projected]) {
+    if (!byId.has(photo.id)) byId.set(photo.id, photo);
+  }
+  return [...byId.values()].slice(0, APPROVED_PHOTO_LIMIT);
+}
+
+const PUBLIC_VERIFIED_VISIT_LIMIT = 24;
+
+type EligibleVisitRow = {
+  contribution_id: string;
+  experience_option_ids: unknown;
+  template_snapshot: unknown;
+};
+
+/**
+ * Public visit cards intentionally project only a positive recommendation
+ * and template-owned public labels. Free text, negative feedback, identity,
+ * purchase data and timestamps never enter this response. The full
+ * eligibility predicate (merchant published/active, request submitted,
+ * earning event active, not withdrawn/suppressed) lives once in the
+ * canonical `eligible_public_merchant_visits` projection, not re-derived
+ * here.
+ */
+async function getPublicVerifiedVisits(
+  admin: ReturnType<typeof createAdminClient>,
+  partnerId: string,
+): Promise<PublicVerifiedVisit[]> {
+  if (!isVerifiedVisitsPublicEnabled()) return [];
+
+  try {
+    const { data, error } = await admin
+      .rpc("eligible_public_merchant_visits", { p_partner_id: partnerId })
+      .order("submitted_at", { ascending: false })
+      .limit(PUBLIC_VERIFIED_VISIT_LIMIT);
+
+    if (error) {
+      console.error("[merchants] verified-visit lookup failed:", error.message);
+      return [];
+    }
+
+    return ((data ?? []) as EligibleVisitRow[]).flatMap((row) => {
+      const experienceLabels = extractPublicExperienceLabels(row.template_snapshot, row.experience_option_ids, 6);
+      return [{ id: row.contribution_id, experienceLabels, photos: [] }];
+    });
+  } catch (error) {
+    console.error("[merchants] verified-visit projection failed:", error instanceof Error ? error.message : error);
+    return [];
+  }
+}
+
+function deduplicateMerchantMedia(media: PublicMerchantMedia[]): PublicMerchantMedia[] {
+  const seen = new Set<string>();
+  return media.filter((item) => {
+    if (seen.has(item.imageUrl)) return false;
+    seen.add(item.imageUrl);
+    return true;
+  });
+}
 
 function mapLocation(raw: Record<string, unknown>) {
   return {
@@ -311,15 +556,39 @@ export async function getPublicMerchant(
   const locations = (raw.locations ?? []).map(mapLocation);
   const branchCount = locations.length;
   const primaryLoc = locations.find((l) => l.isPrimary) ?? locations[0] ?? null;
+  const explicitMerchantMedia = mapExplicitMerchantMedia(raw.merchantMedia, raw.name);
+  const legacyProductMedia = mapLegacyProductMedia(raw.products, raw.name);
+  const bannerMedia: PublicMerchantMedia[] = raw.bannerUrl && safePublicImageUrl(raw.bannerUrl)
+    ? [{
+        id: "merchant-banner",
+        kind: "business",
+        imageUrl: raw.bannerUrl,
+        thumbnailUrl: raw.bannerUrl,
+        altText: `${raw.name} business photo`,
+        title: null,
+      }]
+    : [];
+  const merchantMedia = deduplicateMerchantMedia([
+    ...explicitMerchantMedia,
+    ...legacyProductMedia,
+    ...bannerMedia,
+  ]).slice(0, 48);
+  // Keep accepting the RPC projection during rollout, but moderation—not a
+  // multi-review threshold—is now the public gate for customer photos.
+  const projectedCustomerPhotos = mapApprovedCustomerPhotos(raw.approvedCustomerPhotos, raw.name);
 
   const voucherAccepting = new Set(locations.filter((l) => l.acceptsVouchers).map((l) => l.id));
   const locationIds = new Set(locations.map((l) => l.id));
 
   const [
+    directApprovedCustomerPhotos,
+    verifiedVisits,
     { data: templates, error: templatesErr },
     { data: availableRows, error: availabilityErr },
     { data: restrictionRows, error: restrictionsErr },
   ] = await Promise.all([
+    getIndividuallyApprovedCustomerPhotos(admin, raw.id, raw.name),
+    getPublicVerifiedVisits(admin, raw.id),
     admin
       .from("spend_voucher_templates")
       .select(
@@ -333,6 +602,14 @@ export async function getPublicMerchant(
       .from("voucher_template_locations")
       .select("template_id, location_id"),
   ]);
+  const approvedCustomerPhotos = mergeCustomerPhotos(
+    directApprovedCustomerPhotos,
+    projectedCustomerPhotos,
+  );
+  const verifiedVisitsWithPhotos = verifiedVisits.map((visit) => ({
+    ...visit,
+    photos: approvedCustomerPhotos.filter((photo) => photo.visitId === visit.id),
+  }));
 
   if (templatesErr || availabilityErr || restrictionsErr) {
     console.error(
@@ -413,6 +690,9 @@ export async function getPublicMerchant(
     voucherCount: vouchers.length,
     distanceKm: null,
     coreOfferings: raw.coreOfferings ?? [],
+    merchantMedia,
+    verifiedVisits: verifiedVisitsWithPhotos,
+    approvedCustomerPhotos,
     vouchers,
   };
 }

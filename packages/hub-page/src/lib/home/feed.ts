@@ -7,6 +7,7 @@ import { getLinkedWalletAddresses, getSoonestExpiringVoucher } from "@/lib/akiba
 import { listPublicMerchants } from "@/lib/merchants/queries";
 import { getTopOffers, toMerchantValueSummary, getPurchaseAffinity, type TopOffer } from "@/lib/merchants/enrich";
 import { getActiveIntents, getIntentBySlug } from "./intents";
+import { getVerifiedDiscoveryHighlights } from "./verifiedDiscovery";
 import type { HomeFeedResponse, HomeFeedSection, MatchReason, MerchantValueSummary } from "./types";
 
 const RANKING_VERSION = "home-v2-phase1";
@@ -309,9 +310,10 @@ export async function getHomeFeed(params: HomeFeedParams): Promise<HomeFeedRespo
     buildNearbySection(params, balance),
     buildLimitedTimeSection(params.userId, balance, limit),
     buildNewMerchantsSection(),
+    getVerifiedDiscoveryHighlights(),
   ]);
 
-  const [forYou, nearby, limitedTime, newMerchants] = results;
+  const [forYou, nearby, limitedTime, newMerchants, verifiedHighlights] = results;
   if (forYou.status === "fulfilled" && forYou.value.merchants.length > 0) sections.push(forYou.value);
   else if (forYou.status === "rejected") console.error("[home-feed] for_you section failed:", forYou.reason);
 
@@ -329,6 +331,7 @@ export async function getHomeFeed(params: HomeFeedParams): Promise<HomeFeedRespo
     generatedAt: new Date().toISOString(),
     intents: getActiveIntents(),
     sections,
+    verifiedHighlights: verifiedHighlights.status === "fulfilled" ? verifiedHighlights.value : [],
     rewards,
     // Temporarily disabled on Discovery. Keeping the response key avoids a
     // breaking API-shape change while also avoiding every upstream read.

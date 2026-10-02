@@ -34,6 +34,7 @@ describe("GET /api/home/feed", () => {
         generatedAt: new Date().toISOString(),
         intents: [],
         sections: [],
+        verifiedHighlights: [],
         rewards: args.userId ? { milesBalance: 0, continueVoucher: null } : null,
       };
     });

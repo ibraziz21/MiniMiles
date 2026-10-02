@@ -10,7 +10,9 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:integration": "vitest run --config vitest.config.integration.ts"
+    "test:integration": "vitest run --config vitest.config.integration.ts",
+    "discovery:process-photos": "curl -sS -X POST -H \"x-webhook-secret: $INTERNAL_WEBHOOK_SECRET\" http://localhost:3000/api/internal/process-photo-jobs",
+    "discovery:perf-check": "node scripts/verified-discovery-perf-check.mjs"
   },
   "dependencies": {
     "@akiba/skill-games": "workspace:*",
@@ -23,6 +25,7 @@
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "sharp": "^0.33.5",
     "viem": "^2.21.34",
     "web-push": "^3.6.7"
   },

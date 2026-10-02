@@ -15,31 +15,14 @@
  * (see /api/me/pass/resolve), rotatable via AKIBA_API_KEYS.
  */
 import { NextResponse } from "next/server";
-import { timingSafeEqual } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { produceMilesEarnedNotification, type MilesCreditedEvent } from "@/lib/akiba/milesEarnedNotification";
-
-function validKeys(): string[] {
-  const multi = (process.env.AKIBA_API_KEYS ?? "")
-    .split(",")
-    .map((k) => k.trim())
-    .filter(Boolean);
-  const single = (process.env.AKIBA_API_KEY ?? "").trim();
-  return multi.length > 0 ? multi : single ? [single] : [];
-}
-
-function keyMatches(candidate: string): boolean {
-  const cand = Buffer.from(candidate);
-  let ok = false;
-  for (const key of validKeys()) {
-    const buf = Buffer.from(key);
-    if (buf.length === cand.length && timingSafeEqual(buf, cand)) ok = true;
-  }
-  return ok;
-}
+import { recordVerifiedEarningForDiscovery, type EarningChannel } from "@/lib/akiba/discoveryEarningIngestion";
+import { isValidInternalApiKey } from "@/lib/akiba/internalApiAuth";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ALLOWED_SOURCES = new Set(["merchant_scan", "merchant_purchase"]);
+const ALLOWED_CHANNELS = new Set(["in_store", "online", "unknown"]);
 
 type RequestBody = Partial<MilesCreditedEvent>;
 
@@ -71,6 +54,21 @@ function validate(body: RequestBody): { ok: true; event: MilesCreditedEvent } | 
   if (body.purchaseEventId !== undefined && typeof body.purchaseEventId !== "string") {
     return { ok: false, error: "invalid_purchase_event_id" };
   }
+  if (body.channel !== undefined && !ALLOWED_CHANNELS.has(body.channel)) {
+    return { ok: false, error: "invalid_channel" };
+  }
+  if (body.branchId !== undefined && (typeof body.branchId !== "string" || !UUID_RE.test(body.branchId))) {
+    return { ok: false, error: "invalid_branch_id" };
+  }
+  if (body.paidAmountMinor !== undefined && !Number.isInteger(body.paidAmountMinor)) {
+    return { ok: false, error: "invalid_paid_amount_minor" };
+  }
+  if (body.currency !== undefined && (typeof body.currency !== "string" || !/^[A-Z]{3}$/.test(body.currency))) {
+    return { ok: false, error: "invalid_currency" };
+  }
+  if (body.sourceItemRef !== undefined && typeof body.sourceItemRef !== "string") {
+    return { ok: false, error: "invalid_source_item_ref" };
+  }
 
   return {
     ok: true,
@@ -84,8 +82,24 @@ function validate(body: RequestBody): { ok: true; event: MilesCreditedEvent } | 
       source: body.source as MilesCreditedEvent["source"],
       occurredAt: body.occurredAt,
       purchaseEventId: body.purchaseEventId,
+      channel: body.channel as MilesCreditedEvent["channel"],
+      branchId: body.branchId,
+      paidAmountMinor: body.paidAmountMinor,
+      currency: body.currency,
+      sourceItemRef: body.sourceItemRef,
     },
   };
+}
+
+// A scan proves physical presence by construction — never take the body's
+// word for it either way. A purchase's channel is the producer's own
+// authoritative claim (already Bearer-authenticated as a trusted caller
+// above); absent that claim, default to "unknown" rather than guessing —
+// "unknown" simply never qualifies for a discovery contribution request
+// (§8.1) until Akiba-Platform starts supplying it (§21.4).
+function resolveDiscoveryChannel(event: MilesCreditedEvent): EarningChannel {
+  if (event.source === "merchant_scan") return "in_store";
+  return event.channel ?? "unknown";
 }
 
 export async function POST(request: Request) {
@@ -93,7 +107,7 @@ export async function POST(request: Request) {
 
   const auth = request.headers.get("Authorization") ?? "";
   const callerKey = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
-  if (!callerKey || !keyMatches(callerKey)) {
+  if (!callerKey || !isValidInternalApiKey(callerKey)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -122,6 +136,17 @@ export async function POST(request: Request) {
   }
 
   const result = await produceMilesEarnedNotification(validated.event);
+
+  // Independent of the notification outcome above (§8.1) — never lets a
+  // discovery-ingestion failure affect this route's response. The function
+  // itself already guards against throwing; the try/catch here is defense
+  // in depth against that guarantee being removed later.
+  try {
+    await recordVerifiedEarningForDiscovery(validated.event, resolveDiscoveryChannel(validated.event));
+  } catch (err) {
+    console.error("[miles-credited] recordVerifiedEarningForDiscovery threw unexpectedly:", err);
+  }
+
   if (!result.ok && result.skipped === "insert_failed") {
     // Retryable per the doc comment above — caller's outbox should retry.
     return NextResponse.json({ error: "insert_failed" }, { status: 500 });

@@ -17,8 +17,9 @@ vi.mock("@/lib/supabase/server", () => ({
 
 const mockRpc = vi.fn();
 const mockFrom = vi.fn();
+const mockStorageFrom = vi.fn();
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({ from: mockFrom, rpc: mockRpc }),
+  createAdminClient: () => ({ from: mockFrom, rpc: mockRpc, storage: { from: mockStorageFrom } }),
 }));
 
 function setupAdmin() {
@@ -28,6 +29,12 @@ function setupAdmin() {
     }
     if (name === "list_available_voucher_template_ids_hub") {
       return Promise.resolve({ data: state.availableIds.map((id) => ({ template_id: id })), error: null });
+    }
+    if (name === "eligible_public_merchant_visits" || name === "eligible_public_merchant_visit_photos") {
+      const builder: Record<string, unknown> = {};
+      builder.order = vi.fn(() => builder);
+      builder.limit = vi.fn(async () => ({ data: [], error: null }));
+      return builder;
     }
     throw new Error(`Unexpected RPC ${name}`);
   });
@@ -48,6 +55,10 @@ function setupAdmin() {
       return { select: async () => ({ data: state.restrictions, error: null }) };
     }
     throw new Error(`Unexpected table ${table}`);
+  });
+
+  mockStorageFrom.mockReturnValue({
+    createSignedUrls: vi.fn(async () => ({ data: [], error: null })),
   });
 }
 
@@ -89,7 +100,10 @@ describe("GET /api/merchants/[slug]", () => {
   });
 
   it("returns a published merchant without checkout-only fields", async () => {
-    state.detailJson = baseDetail({ storeActive: false, products: [] });
+    state.detailJson = baseDetail({
+      storeActive: false,
+      products: [{ id: "p-1", name: "Coffee", image_url: "https://images.example.com/coffee.jpg", price_cusd: 5 }],
+    });
     const { req: request, params } = req("acme");
 
     const res = await GET(request, { params });
@@ -98,6 +112,10 @@ describe("GET /api/merchants/[slug]", () => {
     expect(res.status).toBe(200);
     expect(body.merchant).not.toHaveProperty("storeActive");
     expect(body.merchant).not.toHaveProperty("products");
+    expect(body.merchant.merchantMedia).toEqual([
+      expect.objectContaining({ kind: "product", title: "Coffee" }),
+    ]);
+    expect(JSON.stringify(body)).not.toContain("price_cusd");
   });
 
   it("applies anonymous general availability when no session user is present", async () => {

@@ -82,11 +82,38 @@ export type HomeFeedSection = {
   merchants: MerchantValueSummary[];
 };
 
+/**
+ * One approved photo may appear immediately (hardening spec §4.3), but that
+ * does not license an aggregate claim. Below the public exact-count
+ * threshold, render a banded "new" label instead of a number — "1 visit"
+ * reads as a trend from a single response, which the spec explicitly
+ * forbids implying.
+ */
+export type VerifiedRecommendationBand =
+  | { kind: "new" }
+  | { kind: "exact"; count: number };
+
+export type VerifiedDiscoveryHighlight = {
+  merchantId: string;
+  merchantSlug: string;
+  merchantName: string;
+  verifiedRecommendationBand: VerifiedRecommendationBand;
+  lovedLabels: string[];
+  recommendedItems: string[];
+  photo: {
+    id: string;
+    thumbnailUrl: string;
+    displayUrl: string;
+    altText: string;
+  };
+};
+
 export type HomeFeedResponse = {
   rankingVersion: string;
   generatedAt: string;
   intents: DiscoveryIntent[];
   sections: HomeFeedSection[];
+  verifiedHighlights: VerifiedDiscoveryHighlight[];
   rewards: null | {
     milesBalance: number;
     /**
