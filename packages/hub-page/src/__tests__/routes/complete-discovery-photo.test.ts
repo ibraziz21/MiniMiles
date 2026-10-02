@@ -1,14 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  processPendingPhotoJobs: vi.fn(),
   rpc: vi.fn(),
   from: vi.fn(),
   storageFrom: vi.fn(),
-}));
-
-vi.mock("@/lib/discovery/photoProcessing", () => ({
-  processPendingPhotoJobs: mocks.processPendingPhotoJobs,
 }));
 
 vi.mock("@/lib/push/origin", () => ({ isSameOriginRequest: () => true }));
@@ -53,19 +48,21 @@ describe("POST discovery photo complete", () => {
       list: vi.fn(async () => ({ data: [{ name: `${photoId}.jpg` }], error: null })),
     });
     mocks.rpc.mockResolvedValue({ data: [{ ok: true }], error: null });
-    mocks.processPendingPhotoJobs.mockResolvedValue({ claimed: 1, succeeded: 1, failed: 0 });
   });
 
-  it("processes one queued image immediately after upload completion", async () => {
+  // Hardening spec §5.5: the foreground completion request flips the state
+  // and enqueues the job, then returns — it must never itself claim and
+  // process a queue job (claim_photo_processing_jobs takes the oldest
+  // pending job regardless of which photo it belongs to, so doing that here
+  // could process a completely unrelated backlogged photo). Only the
+  // scheduled worker (/api/internal/process-photo-jobs) processes jobs.
+  it("flips the photo to processing and enqueues its job without claiming any queue job itself", async () => {
     const response = await POST(new Request("http://localhost/api/photo/complete", { method: "POST" }), {
       params: { id: contributionId, photoId },
     });
 
-    expect(response.status).toBe(200);
-    expect(mocks.processPendingPhotoJobs).toHaveBeenCalledWith(admin, 1);
-    await expect(response.json()).resolves.toMatchObject({
-      ok: true,
-      processing: { claimed: 1, succeeded: 1, failed: 0 },
-    });
+    expect(response.status).toBe(202);
+    expect(mocks.rpc).toHaveBeenCalledWith("complete_discovery_photo_upload", { p_photo_id: photoId });
+    await expect(response.json()).resolves.toMatchObject({ ok: true, photoId, status: "processing" });
   });
 });

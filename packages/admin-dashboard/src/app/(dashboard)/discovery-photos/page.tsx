@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { AlertCircle } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DiscoveryPhotoActions, DiscoveryPhotoPreview } from "@/components/discovery/DiscoveryPhotoActions";
+import { DiscoveryPhotoActions, DiscoveryPhotoPreview, DiscoverySuppressionActions } from "@/components/discovery/DiscoveryPhotoActions";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { hasPermission } from "@/types";
@@ -21,6 +21,14 @@ interface PhotoRow {
   partners: { name: string } | null;
 }
 
+interface ApprovedPhotoRow {
+  id: string;
+  partner_id: string;
+  approved_at: string | null;
+  suppressed_at: string | null;
+  partners: { name: string } | null;
+}
+
 async function getPendingPhotos(): Promise<{ rows: PhotoRow[]; error: string | null }> {
   const { data, error } = await supabase
     .from("merchant_visit_photos")
@@ -36,11 +44,32 @@ async function getPendingPhotos(): Promise<{ rows: PhotoRow[]; error: string | n
   return { rows: (data ?? []) as unknown as PhotoRow[], error: null };
 }
 
+// Live (approved) photos — the emergency-suppression surface (hardening
+// spec §7.1/§8.3). Anything here can currently appear in a public verified-
+// visit gallery or the Discovery spotlight.
+async function getApprovedPhotos(): Promise<{ rows: ApprovedPhotoRow[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from("merchant_visit_photos")
+    .select("id, partner_id, approved_at, suppressed_at, partners(name)")
+    .eq("moderation_status", "approved")
+    .order("approved_at", { ascending: false })
+    .limit(50);
+
+  if (error) {
+    console.error("[discovery-photos] approved queue failed", error.message);
+    return { rows: [], error: "The live photo list could not be loaded." };
+  }
+  return { rows: (data ?? []) as unknown as ApprovedPhotoRow[], error: null };
+}
+
 export default async function DiscoveryPhotosPage() {
   const session = await requireAdminSession("discovery.read");
   if (!session) redirect("/login");
 
-  const { rows, error } = await getPendingPhotos();
+  const [{ rows, error }, { rows: approvedRows, error: approvedError }] = await Promise.all([
+    getPendingPhotos(),
+    getApprovedPhotos(),
+  ]);
   const canWrite = hasPermission(session.role, "discovery.write");
 
   return (
@@ -80,6 +109,48 @@ export default async function DiscoveryPhotosPage() {
                     )}
                   </div>
                 ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Live ({approvedRows.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {approvedError && (
+              <div className="mb-4 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {approvedError}
+              </div>
+            )}
+            {approvedRows.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-200 px-4 py-10 text-center">
+                <p className="text-sm font-medium text-slate-900">Nothing approved yet</p>
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {approvedRows.map((row) => {
+                  const suppressed = row.suppressed_at !== null;
+                  return (
+                    <div key={row.id} className="flex flex-col gap-3 rounded-lg border border-slate-100 p-4">
+                      <DiscoveryPhotoPreview photoId={row.id} />
+                      <div>
+                        <p className="text-sm font-medium text-slate-900">{row.partners?.name ?? "Unknown merchant"}</p>
+                        <p className="text-xs text-slate-400">
+                          Approved {row.approved_at ? formatDateTime(row.approved_at) : "—"}
+                          {suppressed && <span className="ml-1 font-semibold text-red-600">· Suppressed</span>}
+                        </p>
+                      </div>
+                      {canWrite ? (
+                        <DiscoverySuppressionActions photoId={row.id} suppressed={suppressed} />
+                      ) : (
+                        <p className="text-xs text-slate-400">Read-only access</p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>

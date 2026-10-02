@@ -8,7 +8,7 @@ const state = vi.hoisted(() => ({
   templates: [] as unknown[],
   availableIds: [] as string[],
   restrictions: [] as Array<{ template_id: string; location_id: string }>,
-  approvedPhotos: [] as Array<{ id: string; contribution_id: string; thumbnail_key: string; display_key: string }>,
+  approvedPhotos: [] as Array<{ photo_id: string; contribution_id: string; thumbnail_key: string; display_key: string }>,
   approvedPhotosError: null as { message: string } | null,
   verifiedVisits: [] as unknown[],
 }));
@@ -22,7 +22,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 
 function setupAdmin() {
-  mockRpc.mockImplementation((name: string) => {
+  mockRpc.mockImplementation((name: string, args?: Record<string, unknown>) => {
     if (name === "list_public_merchants") {
       return Promise.resolve({ data: state.summaryError ? null : state.summaryRows, error: state.summaryError });
     }
@@ -32,24 +32,16 @@ function setupAdmin() {
     if (name === "list_available_voucher_template_ids_hub") {
       return Promise.resolve({ data: state.availableIds.map((id) => ({ template_id: id })), error: null });
     }
-    throw new Error(`Unexpected RPC ${name}`);
-  });
-
-  mockFrom.mockImplementation((table: string) => {
-    if (table === "merchant_discovery_contributions") {
+    if (name === "eligible_public_merchant_visits") {
+      mockPhotoEq(args);
       const builder: Record<string, unknown> = {};
-      builder.select = vi.fn(() => builder);
-      builder.eq = vi.fn(() => builder);
-      builder.is = vi.fn(() => builder);
       builder.order = vi.fn(() => builder);
       builder.limit = vi.fn(async () => ({ data: state.verifiedVisits, error: null }));
       return builder;
     }
-    if (table === "merchant_visit_photos") {
+    if (name === "eligible_public_merchant_visit_photos") {
+      mockPhotoEq(args);
       const builder: Record<string, unknown> = {};
-      builder.select = vi.fn(() => builder);
-      builder.eq = mockPhotoEq.mockImplementation(() => builder);
-      builder.not = vi.fn(() => builder);
       builder.order = vi.fn(() => builder);
       builder.limit = vi.fn(async () => ({
         data: state.approvedPhotosError ? null : state.approvedPhotos,
@@ -57,6 +49,10 @@ function setupAdmin() {
       }));
       return builder;
     }
+    throw new Error(`Unexpected RPC ${name}`);
+  });
+
+  mockFrom.mockImplementation((table: string) => {
     if (table === "spend_voucher_templates") {
       return {
         select: () => ({
@@ -266,17 +262,13 @@ describe("getPublicMerchant — voucher branch-restriction correctness", () => {
   it("publishes one anonymous positive verified visit with only template-owned public labels", async () => {
     state.detailJson = baseDetailJson();
     state.verifiedVisits = [{
-      id: "visit-1",
+      contribution_id: "visit-1",
       experience_option_ids: ["friendly_staff", "relaxed", "unknown"],
-      discovery_contribution_requests: {
-        state: "submitted",
-        template_snapshot: {
-          experience_options: [
-            { id: "friendly_staff", publicLabel: "Friendly staff", inputLabel: "user must not leak" },
-            { id: "relaxed", publicLabel: "Relaxed atmosphere" },
-          ],
-        },
-        verified_earning_events: { verification_status: "active" },
+      template_snapshot: {
+        experience_options: [
+          { id: "friendly_staff", publicLabel: "Friendly staff", inputLabel: "user must not leak" },
+          { id: "relaxed", publicLabel: "Relaxed atmosphere" },
+        ],
       },
     }];
 
@@ -293,7 +285,7 @@ describe("getPublicMerchant — voucher branch-restriction correctness", () => {
   it("publishes one approved verified-visit photo without a contributor threshold", async () => {
     state.detailJson = baseDetailJson();
     state.approvedPhotos = [{
-      id: "approved-photo-1",
+      photo_id: "approved-photo-1",
       contribution_id: "visit-1",
       thumbnail_key: "approved-photo-1/thumbnail.webp",
       display_key: "approved-photo-1/display.webp",
@@ -309,8 +301,44 @@ describe("getPublicMerchant — voucher branch-restriction correctness", () => {
       altText: "Photo from a verified visit to Acme",
       itemLabel: null,
     }]);
-    expect(mockPhotoEq).toHaveBeenCalledWith("partner_id", "merchant-1");
-    expect(mockPhotoEq).toHaveBeenCalledWith("moderation_status", "approved");
+    expect(mockPhotoEq).toHaveBeenCalledWith({ p_partner_id: "merchant-1" });
+  });
+
+  it("omits verified visits and customer photos independently when each kill switch is off", async () => {
+    state.detailJson = baseDetailJson();
+    state.verifiedVisits = [{
+      contribution_id: "visit-1",
+      experience_option_ids: [],
+      template_snapshot: { experience_options: [] },
+    }];
+    state.approvedPhotos = [{
+      photo_id: "approved-photo-1",
+      contribution_id: "visit-1",
+      thumbnail_key: "approved-photo-1/thumbnail.webp",
+      display_key: "approved-photo-1/display.webp",
+    }];
+
+    const originalVisits = process.env.HUB_DISCOVERY_VERIFIED_VISITS_PUBLIC_ENABLED;
+    process.env.HUB_DISCOVERY_VERIFIED_VISITS_PUBLIC_ENABLED = "false";
+    try {
+      const merchant = await getPublicMerchant("acme", null);
+      expect(merchant?.verifiedVisits).toEqual([]);
+      // The customer-photos flag is independent — still on, so photos
+      // still publish even with verified visits killed.
+      expect(merchant?.approvedCustomerPhotos).toHaveLength(1);
+    } finally {
+      process.env.HUB_DISCOVERY_VERIFIED_VISITS_PUBLIC_ENABLED = originalVisits;
+    }
+
+    const originalPhotos = process.env.HUB_DISCOVERY_CUSTOMER_PHOTOS_PUBLIC_ENABLED;
+    process.env.HUB_DISCOVERY_CUSTOMER_PHOTOS_PUBLIC_ENABLED = "false";
+    try {
+      const merchant = await getPublicMerchant("acme", null);
+      expect(merchant?.approvedCustomerPhotos).toEqual([]);
+      expect(merchant?.verifiedVisits).toHaveLength(1);
+    } finally {
+      process.env.HUB_DISCOVERY_CUSTOMER_PHOTOS_PUBLIC_ENABLED = originalPhotos;
+    }
   });
 
   it("returns null for a merchant the RPC hides (draft/suspended/inactive/hidden)", async () => {
@@ -481,24 +509,6 @@ describe("getPublicMerchant — voucher branch-restriction correctness", () => {
   it("never leaks the raw DB error when voucher availability lookup fails", async () => {
     state.detailJson = baseDetailJson();
     mockFrom.mockImplementation((table: string) => {
-      if (table === "merchant_discovery_contributions") {
-        const builder: Record<string, unknown> = {};
-        builder.select = vi.fn(() => builder);
-        builder.eq = vi.fn(() => builder);
-        builder.is = vi.fn(() => builder);
-        builder.order = vi.fn(() => builder);
-        builder.limit = vi.fn(async () => ({ data: [], error: null }));
-        return builder;
-      }
-      if (table === "merchant_visit_photos") {
-        const builder: Record<string, unknown> = {};
-        builder.select = vi.fn(() => builder);
-        builder.eq = vi.fn(() => builder);
-        builder.not = vi.fn(() => builder);
-        builder.order = vi.fn(() => builder);
-        builder.limit = vi.fn(async () => ({ data: [], error: null }));
-        return builder;
-      }
       if (table === "spend_voucher_templates") {
         return {
           select: () => ({

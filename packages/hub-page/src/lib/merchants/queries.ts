@@ -1,5 +1,10 @@
 import { createHash } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  isCustomerPhotosPublicEnabled,
+  isVerifiedVisitsPublicEnabled,
+} from "@/lib/akiba/verifiedDiscoveryPublicProofFlags";
+import { extractPublicExperienceLabels } from "@/lib/discovery/publicExperienceLabels";
 import { expandQueryAlias } from "./aliases";
 import type {
   MerchantDirectoryResponse,
@@ -351,35 +356,39 @@ function mapApprovedCustomerPhotos(value: unknown, merchantName: string): Public
   });
 }
 
-const APPROVED_PHOTO_URL_TTL_SECONDS = 60 * 60;
+// §7.1: "Public customer-photo signed URLs have a maximum 15-minute
+// lifetime and private/no-store response caching."
+const APPROVED_PHOTO_URL_TTL_SECONDS = 15 * 60;
 const APPROVED_PHOTO_LIMIT = 48;
 const DERIVED_VISIT_PHOTO_BUCKET = "discovery-visit-photos-derived";
 
-type ApprovedPhotoRow = {
-  id: string;
+type EligiblePhotoRow = {
+  photo_id: string;
   contribution_id: string;
   thumbnail_key: string;
   display_key: string;
 };
 
 /**
- * Moderation is the publication gate for verified-visit photos. A single
- * approved photo is eligible immediately; unlike aggregate review insights,
- * this gallery has no minimum unique-contributor threshold.
+ * Moderation is the publication gate for verified-visit photos, but
+ * moderation approval alone is not enough to publish (hardening spec
+ * §4.2): the underlying contribution and earning event must still be
+ * active, unwithdrawn and unsuppressed. That full predicate lives once in
+ * the canonical `eligible_public_merchant_visit_photos` projection rather
+ * than being re-derived here — a single approved photo is eligible
+ * immediately; unlike aggregate review insights, this gallery has no
+ * minimum unique-contributor threshold.
  */
 async function getIndividuallyApprovedCustomerPhotos(
   admin: ReturnType<typeof createAdminClient>,
   partnerId: string,
   merchantName: string,
 ): Promise<PublicCustomerPhoto[]> {
+  if (!isCustomerPhotosPublicEnabled()) return [];
+
   try {
     const { data, error } = await admin
-      .from("merchant_visit_photos")
-      .select("id, contribution_id, thumbnail_key, display_key")
-      .eq("partner_id", partnerId)
-      .eq("moderation_status", "approved")
-      .not("thumbnail_key", "is", null)
-      .not("display_key", "is", null)
+      .rpc("eligible_public_merchant_visit_photos", { p_partner_id: partnerId })
       .order("approved_at", { ascending: false })
       .limit(APPROVED_PHOTO_LIMIT);
 
@@ -388,7 +397,7 @@ async function getIndividuallyApprovedCustomerPhotos(
       return [];
     }
 
-    const rows = (data ?? []) as ApprovedPhotoRow[];
+    const rows = (data ?? []) as EligiblePhotoRow[];
     if (rows.length === 0) return [];
 
     const paths = rows.flatMap((photo) => [photo.thumbnail_key, photo.display_key]);
@@ -406,7 +415,7 @@ async function getIndividuallyApprovedCustomerPhotos(
       const displayUrl = safePublicImageUrl(signed[index * 2 + 1]?.signedUrl);
       if (!thumbnailUrl || !displayUrl) return [];
       return [{
-        id: photo.id,
+        id: photo.photo_id,
         visitId: typeof photo.contribution_id === "string" ? photo.contribution_id : null,
         thumbnailUrl,
         displayUrl,
@@ -436,36 +445,30 @@ function mergeCustomerPhotos(
 
 const PUBLIC_VERIFIED_VISIT_LIMIT = 24;
 
-type VerifiedVisitRow = {
-  id: string;
+type EligibleVisitRow = {
+  contribution_id: string;
   experience_option_ids: unknown;
-  discovery_contribution_requests: unknown;
+  template_snapshot: unknown;
 };
-
-function relatedRecord(value: unknown): Record<string, unknown> | null {
-  return asRecord(Array.isArray(value) ? value[0] : value);
-}
 
 /**
  * Public visit cards intentionally project only a positive recommendation
  * and template-owned public labels. Free text, negative feedback, identity,
- * purchase data and timestamps never enter this response.
+ * purchase data and timestamps never enter this response. The full
+ * eligibility predicate (merchant published/active, request submitted,
+ * earning event active, not withdrawn/suppressed) lives once in the
+ * canonical `eligible_public_merchant_visits` projection, not re-derived
+ * here.
  */
 async function getPublicVerifiedVisits(
   admin: ReturnType<typeof createAdminClient>,
   partnerId: string,
 ): Promise<PublicVerifiedVisit[]> {
+  if (!isVerifiedVisitsPublicEnabled()) return [];
+
   try {
     const { data, error } = await admin
-      .from("merchant_discovery_contributions")
-      .select(
-        "id, experience_option_ids, discovery_contribution_requests!inner(state, template_snapshot, verified_earning_events!inner(verification_status))",
-      )
-      .eq("partner_id", partnerId)
-      .is("withdrawn_at", null)
-      .eq("would_recommend", true)
-      .eq("discovery_contribution_requests.state", "submitted")
-      .eq("discovery_contribution_requests.verified_earning_events.verification_status", "active")
+      .rpc("eligible_public_merchant_visits", { p_partner_id: partnerId })
       .order("submitted_at", { ascending: false })
       .limit(PUBLIC_VERIFIED_VISIT_LIMIT);
 
@@ -474,27 +477,9 @@ async function getPublicVerifiedVisits(
       return [];
     }
 
-    return ((data ?? []) as VerifiedVisitRow[]).flatMap((row) => {
-      const request = relatedRecord(row.discovery_contribution_requests);
-      const event = relatedRecord(request?.verified_earning_events);
-      const template = asRecord(request?.template_snapshot);
-      if (request?.state !== "submitted" || event?.verification_status !== "active" || !template) return [];
-
-      const selectedIds = new Set(
-        Array.isArray(row.experience_option_ids)
-          ? row.experience_option_ids.filter((id): id is string => typeof id === "string")
-          : [],
-      );
-      const options = Array.isArray(template.experience_options) ? template.experience_options : [];
-      const experienceLabels = options.flatMap((option) => {
-        const record = asRecord(option);
-        if (!record || typeof record.id !== "string" || !selectedIds.has(record.id)) return [];
-        if (typeof record.publicLabel !== "string") return [];
-        const label = record.publicLabel.trim().slice(0, 80);
-        return label ? [label] : [];
-      }).slice(0, 6);
-
-      return [{ id: row.id, experienceLabels, photos: [] }];
+    return ((data ?? []) as EligibleVisitRow[]).flatMap((row) => {
+      const experienceLabels = extractPublicExperienceLabels(row.template_snapshot, row.experience_option_ids, 6);
+      return [{ id: row.contribution_id, experienceLabels, photos: [] }];
     });
   } catch (error) {
     console.error("[merchants] verified-visit projection failed:", error instanceof Error ? error.message : error);

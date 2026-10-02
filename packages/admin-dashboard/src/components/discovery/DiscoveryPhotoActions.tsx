@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { DISCOVERY_PHOTO_REJECTION_REASONS } from "@/lib/discoveryModeration";
 
 export function DiscoveryPhotoPreview({ photoId }: { photoId: string }) {
   const [url, setUrl] = useState<string | null>(null);
@@ -78,12 +79,77 @@ export function DiscoveryPhotoActions({ photoId }: { photoId: string }) {
           {loading === "reject" ? "Rejecting..." : "Reject"}
         </Button>
       </div>
-      <input
+      <select
         value={reasonCode}
         onChange={(event) => setReasonCode(event.target.value)}
-        placeholder="Rejection reason (required to reject)"
-        className="h-8 w-64 rounded-lg border border-slate-200 px-2 text-xs text-slate-900 placeholder:text-slate-400"
-      />
+        aria-label="Rejection reason (required to reject)"
+        className="h-8 w-64 rounded-lg border border-slate-200 px-2 text-xs text-slate-900"
+      >
+        <option value="">Rejection reason (required to reject)</option>
+        {DISCOVERY_PHOTO_REJECTION_REASONS.map((reason) => (
+          <option key={reason.value} value={reason.value}>
+            {reason.label}
+          </option>
+        ))}
+      </select>
+      {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+/**
+ * Emergency suppression for an already-approved (currently public) photo —
+ * hardening spec §7.1/§8.3. Independent of approve/reject: it works on a
+ * live photo and does not touch moderation_status.
+ */
+export function DiscoverySuppressionActions({ photoId, suppressed }: { photoId: string; suppressed: boolean }) {
+  const router = useRouter();
+  const [reason, setReason] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function runAction() {
+    setError("");
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/admin/discovery-photos/${photoId}/suppress`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ suppressed: !suppressed, reasonCode: !suppressed ? reason.trim() || undefined : undefined }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        setError(payload.error ?? "The photo could not be updated.");
+        return;
+      }
+      router.refresh();
+    } catch {
+      setError("Network error. Check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      {!suppressed && (
+        <input
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          placeholder="Suppression reason (optional, 64 chars max)"
+          maxLength={64}
+          className="h-8 w-64 rounded-lg border border-slate-200 px-2 text-xs text-slate-900 placeholder:text-slate-400"
+        />
+      )}
+      <Button
+        type="button"
+        size="sm"
+        variant={suppressed ? "default" : "destructive"}
+        disabled={loading}
+        onClick={runAction}
+      >
+        {loading ? "Saving..." : suppressed ? "Unsuppress" : "Suppress now"}
+      </Button>
       {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
     </div>
   );

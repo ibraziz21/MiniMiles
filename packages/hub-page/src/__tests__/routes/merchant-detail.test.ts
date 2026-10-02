@@ -30,28 +30,16 @@ function setupAdmin() {
     if (name === "list_available_voucher_template_ids_hub") {
       return Promise.resolve({ data: state.availableIds.map((id) => ({ template_id: id })), error: null });
     }
+    if (name === "eligible_public_merchant_visits" || name === "eligible_public_merchant_visit_photos") {
+      const builder: Record<string, unknown> = {};
+      builder.order = vi.fn(() => builder);
+      builder.limit = vi.fn(async () => ({ data: [], error: null }));
+      return builder;
+    }
     throw new Error(`Unexpected RPC ${name}`);
   });
 
   mockFrom.mockImplementation((table: string) => {
-    if (table === "merchant_discovery_contributions") {
-      const builder: Record<string, unknown> = {};
-      builder.select = vi.fn(() => builder);
-      builder.eq = vi.fn(() => builder);
-      builder.is = vi.fn(() => builder);
-      builder.order = vi.fn(() => builder);
-      builder.limit = vi.fn(async () => ({ data: [], error: null }));
-      return builder;
-    }
-    if (table === "merchant_visit_photos") {
-      const builder: Record<string, unknown> = {};
-      builder.select = vi.fn(() => builder);
-      builder.eq = vi.fn(() => builder);
-      builder.not = vi.fn(() => builder);
-      builder.order = vi.fn(() => builder);
-      builder.limit = vi.fn(async () => ({ data: [], error: null }));
-      return builder;
-    }
     if (table === "spend_voucher_templates") {
       return {
         select: () => ({

@@ -2,15 +2,37 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { createBrowserId } from "@/lib/browserId";
 import { createClient } from "@/lib/supabase/client";
+import {
+  ClosedState,
+  IntroStep,
+  RecommendStep,
+  NegativeReasonStep,
+  PartySizeStep,
+  ItemsStep,
+  RecommendItemsStep,
+  ExperienceTagsStep,
+  ReviewStep,
+  PhotosStep,
+  SuccessStep,
+  type Item,
+  type PhotoUpload,
+  type Step,
+  type TemplateSnapshot,
+} from "./steps";
 
 // Visit-card contribution flow (verified-discovery-acquisition-v1-spec.md
 // §8.3-§8.4). One focused choice per phone viewport; each answer adds to
 // the same visit-card composition rather than behaving like a numbered
-// survey. Known simplifications versus the full spec for this pass (not
-// silently dropped — call these out if extending):
+// survey. This component owns all state, handlers and the step sequence;
+// each step's markup lives in its own file under ./steps (hardening spec
+// P2 "large client components... split behind tested domain interfaces") —
+// it is a pure presentational component taking only the props it needs,
+// not this component's whole state.
+//
+// Known simplifications versus the full spec for this pass (not silently
+// dropped — call these out if extending):
 //  - no "You earned N Miles" figure on the intro screen (that confirmation
 //    already happened via the separate earned-Miles notification; this
 //    route doesn't have the Miles amount plumbed to it);
@@ -21,48 +43,6 @@ const MAX_ITEMS = 4;
 const MAX_RECOMMENDED_ITEMS = 3;
 const MAX_PHOTOS = 3;
 const ACCEPTED_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic"];
-
-type ExperienceOption = { id: string; inputLabel: string; publicLabel: string };
-type NegativeReasonOption = { id: string; label: string };
-
-type TemplateSnapshot = {
-  recommendation_prompt: string;
-  negative_reason_options: NegativeReasonOption[];
-  party_size_prompt: string;
-  item_prompt: string;
-  recommendation_item_prompt: string;
-  experience_prompt: string | null;
-  experience_options: ExperienceOption[];
-  max_experience_options: number;
-  photo_prompt: string;
-  photo_safety_guidance: string;
-};
-
-type Item = { clientItemKey: string; rawLabel: string; isRecommended: boolean };
-
-type Step =
-  | "intro"
-  | "recommend"
-  | "negativeReason"
-  | "partySize"
-  | "items"
-  | "recommendItems"
-  | "experienceTags"
-  | "review"
-  | "photos"
-  | "success";
-
-type PhotoUpload = {
-  localId: string;
-  file: File;
-  status: "pending" | "uploading" | "done" | "error";
-  photoId?: string;
-  error?: string;
-};
-
-function interpolate(template: string, merchantName: string): string {
-  return template.replace(/\{\{merchantName\}\}/g, merchantName);
-}
 
 export type InitialContribution = {
   wouldRecommend: boolean | null;
@@ -118,6 +98,22 @@ export function VisitCardFlow({
   useEffect(() => {
     headingRef.current?.focus();
   }, [step]);
+
+  // A member must not be able to silently abandon an in-flight browser
+  // upload by closing the tab or navigating away (hardening spec §6.2):
+  // either they confirm the browser's own "leave site" prompt, or the
+  // upload finishes first. The in-app "Done" action has its own, separate
+  // disabled-while-uploading guard below.
+  const hasActiveUpload = photos.some((photo) => photo.status === "uploading");
+  useEffect(() => {
+    if (!hasActiveUpload) return;
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasActiveUpload]);
 
   // Stable for the lifetime of this mount so a retry (network error, user
   // taps submit again) reuses the same key (§8.4: "A retry reuses the same
@@ -229,7 +225,7 @@ export function VisitCardFlow({
   }
 
   async function uploadPhoto(localId: string, file: File, activeContributionId: string) {
-    setPhotos((prev) => prev.map((p) => (p.localId === localId ? { ...p, status: "uploading" } : p)));
+    setPhotos((prev) => prev.map((p) => (p.localId === localId ? { ...p, status: "uploading", error: undefined } : p)));
 
     // The server already inserted an active 'uploading' row the moment the
     // intent was issued — it counts toward the 3-photo limit from that
@@ -301,18 +297,14 @@ export function VisitCardFlow({
     }
   }
 
+  function retryPhoto(localId: string) {
+    const photo = photos.find((p) => p.localId === localId);
+    if (!photo || !contributionId) return;
+    void uploadPhoto(localId, photo.file, contributionId);
+  }
+
   if (alreadyExpired || alreadyClosed) {
-    return (
-      <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-4 px-4 text-center">
-        <h1 ref={headingRef} tabIndex={-1} className="font-sterling text-xl font-semibold text-akiba-ink">
-          This invitation has closed
-        </h1>
-        <p className="text-sm text-akiba-muted">You can always find {merchantName} from the Akiba home page.</p>
-        <Link href="/" className="rounded-full bg-akiba-teal px-6 py-3 text-sm font-semibold text-white">
-          Back to Akiba
-        </Link>
-      </main>
-    );
+    return <ClosedState merchantName={merchantName} headingRef={headingRef} />;
   }
 
   const stepIndex = sequence.indexOf(step);
@@ -336,408 +328,132 @@ export function VisitCardFlow({
       )}
 
       {step === "intro" && (
-        <section className="flex flex-1 flex-col justify-center gap-6 text-center">
-          <h1 ref={headingRef} tabIndex={-1} className="font-sterling text-2xl font-semibold text-akiba-ink">
-            Add your visit to the Akiba guide
-          </h1>
-          <p className="text-sm text-akiba-muted">
-            Show people what to try at {merchantName} and what it&apos;s great for. Takes less than 30 seconds.
-            <br />
-            <span className="font-medium">Optional · Your Miles are already yours.</span>
-          </p>
-          <div className="flex flex-col gap-3">
-            <button
-              type="button"
-              onClick={goNext}
-              className="min-h-[48px] rounded-full bg-akiba-teal px-6 py-3 text-sm font-semibold text-white"
-            >
-              Add my visit
-            </button>
-            <button type="button" onClick={dismiss} className="min-h-[44px] text-sm font-medium text-akiba-muted">
-              Not now
-            </button>
-          </div>
-        </section>
+        <IntroStep merchantName={merchantName} onNext={goNext} onDismiss={dismiss} headingRef={headingRef} />
       )}
 
       {step === "recommend" && (
-        <section className="flex flex-1 flex-col justify-center gap-6">
-          <h1 ref={headingRef} tabIndex={-1} className="font-sterling text-xl font-semibold text-akiba-ink">
-            {interpolate(templateSnapshot.recommendation_prompt, merchantName)}
-          </h1>
-          <div className="flex flex-col gap-3">
-            {(
-              [
-                ["Yes, I would", true],
-                ["Not this time", false],
-                ["Skip", null],
-              ] as const
-            ).map(([label, value]) => (
-              <button
-                key={label}
-                type="button"
-                onClick={() => {
-                  setWouldRecommend(value);
-                  // Not goNext(): `sequence` is memoized off the current
-                  // render's wouldRecommend, which setWouldRecommend hasn't
-                  // applied yet — goNext() here would read the stale
-                  // sequence and send every answer to the same next step.
-                  // The destination only depends on the value just chosen,
-                  // so decide it directly instead of waiting on state.
-                  setStep(value === false ? "negativeReason" : "partySize");
-                }}
-                className={`min-h-[56px] rounded-2xl border px-5 py-4 text-left text-base font-medium transition ${
-                  wouldRecommend === value
-                    ? "border-akiba-teal bg-akiba-tint text-akiba-ink"
-                    : "border-akiba-line bg-white text-akiba-ink"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </section>
+        <RecommendStep
+          merchantName={merchantName}
+          prompt={templateSnapshot.recommendation_prompt}
+          wouldRecommend={wouldRecommend}
+          onSelect={(value) => {
+            setWouldRecommend(value);
+            // Not goNext(): `sequence` is memoized off the current render's
+            // wouldRecommend, which setWouldRecommend hasn't applied yet —
+            // goNext() here would read the stale sequence and send every
+            // answer to the same next step. The destination only depends on
+            // the value just chosen, so decide it directly instead of
+            // waiting on state.
+            setStep(value === false ? "negativeReason" : "partySize");
+          }}
+          headingRef={headingRef}
+        />
       )}
 
       {step === "negativeReason" && (
-        <section className="flex flex-1 flex-col justify-center gap-6">
-          <h1 ref={headingRef} tabIndex={-1} className="font-sterling text-xl font-semibold text-akiba-ink">
-            What would help next time? <span className="font-sans text-sm font-normal text-akiba-muted">(optional, private)</span>
-          </h1>
-          <div className="grid grid-cols-2 gap-3">
-            {templateSnapshot.negative_reason_options.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => setNegativeReasonId(option.id === negativeReasonId ? null : option.id)}
-                className={`min-h-[44px] rounded-xl border px-4 py-3 text-sm font-medium ${
-                  negativeReasonId === option.id
-                    ? "border-akiba-teal bg-akiba-tint text-akiba-ink"
-                    : "border-akiba-line bg-white text-akiba-ink"
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={submitting}
-            className="min-h-[48px] rounded-full bg-akiba-teal px-6 py-3 text-sm font-semibold text-white disabled:opacity-60"
-          >
-            {submitting ? "Saving…" : "Add to the Akiba guide"}
-          </button>
-        </section>
+        <NegativeReasonStep
+          options={templateSnapshot.negative_reason_options}
+          negativeReasonId={negativeReasonId}
+          onToggle={(id) => setNegativeReasonId(id === negativeReasonId ? null : id)}
+          onSubmit={submit}
+          submitting={submitting}
+          headingRef={headingRef}
+        />
       )}
 
       {step === "partySize" && (
-        <section className="flex flex-1 flex-col justify-center gap-6">
-          <h1 ref={headingRef} tabIndex={-1} className="font-sterling text-xl font-semibold text-akiba-ink">
-            {templateSnapshot.party_size_prompt}
-          </h1>
-          <p className="text-sm text-akiba-muted">Count the people whose food or items were on this bill.</p>
-          <div className="grid grid-cols-3 gap-3">
-            {["Just me", "2", "3", "4", "5", "6+"].map((label, index) => {
-              const value = index === 0 ? 1 : index + 1;
-              const isSixPlus = label === "6+";
-              const selected = isSixPlus ? partySizeIsSixPlus : partySize === value && !partySizeIsSixPlus;
-              return (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => {
-                    if (isSixPlus) {
-                      setPartySizeIsSixPlus(true);
-                      setPartySize(null);
-                    } else {
-                      setPartySizeIsSixPlus(false);
-                      setPartySize(value);
-                    }
-                  }}
-                  className={`min-h-[48px] rounded-xl border text-sm font-medium ${
-                    selected ? "border-akiba-teal bg-akiba-tint text-akiba-ink" : "border-akiba-line bg-white text-akiba-ink"
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-          <div className="mt-auto flex items-center justify-between gap-3">
-            <button type="button" onClick={goBack} className="min-h-[44px] text-sm font-medium text-akiba-muted">
-              Back
-            </button>
-            <button
-              type="button"
-              onClick={goNext}
-              className="min-h-[48px] flex-1 rounded-full bg-akiba-teal px-6 py-3 text-sm font-semibold text-white"
-            >
-              Continue
-            </button>
-          </div>
-        </section>
+        <PartySizeStep
+          prompt={templateSnapshot.party_size_prompt}
+          partySize={partySize}
+          partySizeIsSixPlus={partySizeIsSixPlus}
+          onSelect={(value, isSixPlus) => {
+            setPartySizeIsSixPlus(isSixPlus);
+            setPartySize(value);
+          }}
+          onBack={goBack}
+          onNext={goNext}
+          headingRef={headingRef}
+        />
       )}
 
       {step === "items" && (
-        <section className="flex flex-1 flex-col gap-6">
-          <h1 ref={headingRef} tabIndex={-1} className="font-sterling text-xl font-semibold text-akiba-ink">
-            {templateSnapshot.item_prompt}
-          </h1>
-          <div className="flex gap-2">
-            <label htmlFor="item-draft" className="sr-only">
-              Item name
-            </label>
-            <input
-              id="item-draft"
-              value={itemDraft}
-              onChange={(event) => setItemDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  addItem();
-                }
-              }}
-              maxLength={80}
-              placeholder="e.g. Spanish Latte"
-              className="min-h-[44px] flex-1 rounded-xl border border-akiba-line px-4 text-base text-akiba-ink"
-            />
-            <button
-              type="button"
-              onClick={addItem}
-              disabled={!itemDraft.trim() || items.length >= MAX_ITEMS}
-              className="min-h-[44px] rounded-xl bg-akiba-teal px-4 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              Add
-            </button>
-          </div>
-          <ul className="flex flex-wrap gap-2">
-            {items.map((item) => (
-              <li
-                key={item.clientItemKey}
-                className="flex items-center gap-2 rounded-full border border-akiba-line bg-white px-3 py-2 text-sm text-akiba-ink"
-              >
-                {item.rawLabel}
-                <button
-                  type="button"
-                  onClick={() => removeItem(item.clientItemKey)}
-                  aria-label={`Remove ${item.rawLabel}`}
-                  className="text-akiba-muted"
-                >
-                  ×
-                </button>
-              </li>
-            ))}
-          </ul>
-          <p className="text-xs text-akiba-muted">Up to {MAX_ITEMS} items. You can also skip this.</p>
-          <div className="mt-auto flex items-center justify-between gap-3">
-            <button type="button" onClick={goBack} className="min-h-[44px] text-sm font-medium text-akiba-muted">
-              Back
-            </button>
-            <button
-              type="button"
-              onClick={goNext}
-              className="min-h-[48px] flex-1 rounded-full bg-akiba-teal px-6 py-3 text-sm font-semibold text-white"
-            >
-              {items.length > 0 ? "Continue" : "Skip"}
-            </button>
-          </div>
-        </section>
+        <ItemsStep
+          prompt={templateSnapshot.item_prompt}
+          items={items}
+          itemDraft={itemDraft}
+          maxItems={MAX_ITEMS}
+          onDraftChange={setItemDraft}
+          onAdd={addItem}
+          onRemove={removeItem}
+          onBack={goBack}
+          onNext={goNext}
+          headingRef={headingRef}
+        />
       )}
 
       {step === "recommendItems" && (
-        <section className="flex flex-1 flex-col gap-6">
-          <h1 ref={headingRef} tabIndex={-1} className="font-sterling text-xl font-semibold text-akiba-ink">
-            {templateSnapshot.recommendation_item_prompt}
-          </h1>
-          <p className="text-xs text-akiba-muted">Choose up to {MAX_RECOMMENDED_ITEMS}.</p>
-          <div className="flex flex-col gap-2">
-            {items.map((item) => (
-              <button
-                key={item.clientItemKey}
-                type="button"
-                onClick={() => toggleRecommendedItem(item.clientItemKey)}
-                className={`min-h-[48px] rounded-xl border px-4 py-3 text-left text-sm font-medium ${
-                  item.isRecommended
-                    ? "border-akiba-teal bg-akiba-tint text-akiba-ink"
-                    : "border-akiba-line bg-white text-akiba-ink"
-                }`}
-              >
-                {item.rawLabel}
-              </button>
-            ))}
-          </div>
-          <div className="mt-auto flex items-center justify-between gap-3">
-            <button type="button" onClick={goBack} className="min-h-[44px] text-sm font-medium text-akiba-muted">
-              Back
-            </button>
-            <button
-              type="button"
-              onClick={goNext}
-              className="min-h-[48px] flex-1 rounded-full bg-akiba-teal px-6 py-3 text-sm font-semibold text-white"
-            >
-              Continue
-            </button>
-          </div>
-        </section>
+        <RecommendItemsStep
+          prompt={templateSnapshot.recommendation_item_prompt}
+          items={items}
+          maxRecommended={MAX_RECOMMENDED_ITEMS}
+          onToggle={toggleRecommendedItem}
+          onBack={goBack}
+          onNext={goNext}
+          headingRef={headingRef}
+        />
       )}
 
       {step === "experienceTags" && (
-        <section className="flex flex-1 flex-col gap-6">
-          <h1 ref={headingRef} tabIndex={-1} className="font-sterling text-xl font-semibold text-akiba-ink">
-            {interpolate(templateSnapshot.experience_prompt ?? "", merchantName)}
-          </h1>
-          <p className="text-xs text-akiba-muted">Choose up to {templateSnapshot.max_experience_options}.</p>
-          <div className="flex flex-wrap gap-2">
-            {templateSnapshot.experience_options.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => toggleExperienceOption(option.id)}
-                className={`min-h-[44px] rounded-full border px-4 py-2 text-sm font-medium ${
-                  experienceOptionIds.includes(option.id)
-                    ? "border-akiba-teal bg-akiba-tint text-akiba-ink"
-                    : "border-akiba-line bg-white text-akiba-ink"
-                }`}
-              >
-                {option.inputLabel}
-              </button>
-            ))}
-          </div>
-          <div className="mt-auto flex items-center justify-between gap-3">
-            <button type="button" onClick={goBack} className="min-h-[44px] text-sm font-medium text-akiba-muted">
-              Back
-            </button>
-            <button
-              type="button"
-              onClick={goNext}
-              className="min-h-[48px] flex-1 rounded-full bg-akiba-teal px-6 py-3 text-sm font-semibold text-white"
-            >
-              Continue
-            </button>
-          </div>
-        </section>
+        <ExperienceTagsStep
+          merchantName={merchantName}
+          prompt={templateSnapshot.experience_prompt ?? ""}
+          options={templateSnapshot.experience_options}
+          maxOptions={templateSnapshot.max_experience_options}
+          selectedIds={experienceOptionIds}
+          onToggle={toggleExperienceOption}
+          onBack={goBack}
+          onNext={goNext}
+          headingRef={headingRef}
+        />
       )}
 
       {step === "review" && (
-        <section className="flex flex-1 flex-col gap-6">
-          <h1 ref={headingRef} tabIndex={-1} className="font-sterling text-xl font-semibold text-akiba-ink">
-            Your visit card
-          </h1>
-          <dl className="flex flex-col gap-3 rounded-2xl border border-akiba-line bg-white p-4 text-sm">
-            <div>
-              <dt className="font-medium text-akiba-ink">Recommend</dt>
-              <dd className="text-akiba-muted">
-                {wouldRecommend === true ? "Yes, I would" : wouldRecommend === false ? "Not this time (private)" : "Skipped"}
-              </dd>
-            </div>
-            {items.length > 0 && (
-              <div>
-                <dt className="font-medium text-akiba-ink">Picks</dt>
-                <dd className="text-akiba-muted">
-                  {items.map((item) => `${item.rawLabel}${item.isRecommended ? " ★" : ""}`).join(", ")}
-                </dd>
-              </div>
-            )}
-            {experienceOptionIds.length > 0 && (
-              <div>
-                <dt className="font-medium text-akiba-ink">Great for</dt>
-                <dd className="text-akiba-muted">
-                  {templateSnapshot.experience_options
-                    .filter((option) => experienceOptionIds.includes(option.id))
-                    .map((option) => option.publicLabel)
-                    .join(", ")}
-                </dd>
-              </div>
-            )}
-          </dl>
-          <div className="mt-auto flex flex-col gap-3">
-            <button
-              type="button"
-              onClick={submit}
-              disabled={submitting}
-              className="min-h-[48px] rounded-full bg-akiba-teal px-6 py-3 text-sm font-semibold text-white disabled:opacity-60"
-            >
-              {submitting ? "Saving…" : "Add to the Akiba guide"}
-            </button>
-            <button type="button" onClick={goBack} className="min-h-[44px] text-sm font-medium text-akiba-muted">
-              Edit
-            </button>
-          </div>
-        </section>
+        <ReviewStep
+          wouldRecommend={wouldRecommend}
+          items={items}
+          experienceOptionIds={experienceOptionIds}
+          experienceOptions={templateSnapshot.experience_options}
+          onSubmit={submit}
+          submitting={submitting}
+          onBack={goBack}
+          headingRef={headingRef}
+        />
       )}
 
       {step === "photos" && contributionId && (
-        <section className="flex flex-1 flex-col gap-6">
-          <h1 ref={headingRef} tabIndex={-1} className="font-sterling text-xl font-semibold text-akiba-ink">
-            {templateSnapshot.photo_prompt}
-          </h1>
-          <p className="text-xs text-akiba-muted">{templateSnapshot.photo_safety_guidance}</p>
-          <div className="flex flex-wrap gap-3">
-            {photos.map((photo) => (
-              <div
-                key={photo.localId}
-                className="relative flex h-20 w-20 items-center justify-center rounded-xl border border-akiba-line bg-akiba-card text-xs text-akiba-muted"
-              >
-                {photo.status === "uploading" && "Uploading…"}
-                {photo.status === "done" && "Added"}
-                {photo.status === "error" && "Failed"}
-                <button
-                  type="button"
-                  onClick={() => removePhoto(photo.localId)}
-                  aria-label="Remove photo"
-                  className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-white text-akiba-ink shadow"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-            {photos.filter((p) => p.status !== "error").length < MAX_PHOTOS && (
-              <label className="flex h-20 w-20 min-h-[44px] cursor-pointer items-center justify-center rounded-xl border border-dashed border-akiba-line text-xs text-akiba-muted">
-                Add photo
-                <input
-                  type="file"
-                  accept={ACCEPTED_PHOTO_TYPES.join(",")}
-                  className="sr-only"
-                  onChange={(event) => handlePhotoSelect(event.target.files?.[0])}
-                />
-              </label>
-            )}
-          </div>
-          <div className="mt-auto flex flex-col gap-3">
-            <button
-              type="button"
-              onClick={() => setStep("success")}
-              className="min-h-[48px] rounded-full bg-akiba-teal px-6 py-3 text-sm font-semibold text-white"
-            >
-              Done
-            </button>
-          </div>
-        </section>
+        <PhotosStep
+          prompt={templateSnapshot.photo_prompt}
+          safetyGuidance={templateSnapshot.photo_safety_guidance}
+          photos={photos}
+          maxPhotos={MAX_PHOTOS}
+          acceptedTypes={ACCEPTED_PHOTO_TYPES}
+          hasActiveUpload={hasActiveUpload}
+          onSelect={handlePhotoSelect}
+          onRemove={removePhoto}
+          onRetry={retryPhoto}
+          onDone={() => setStep("success")}
+          headingRef={headingRef}
+        />
       )}
 
       {step === "success" && (
-        <section className="flex flex-1 flex-col items-center justify-center gap-6 text-center">
-          <h1 ref={headingRef} tabIndex={-1} className="font-sterling text-xl font-semibold text-akiba-ink">
-            Visit added. Thanks for helping people discover {merchantName}.
-          </h1>
-          <p className="text-sm text-akiba-muted">
-            {wouldRecommend === true
-              ? "Your anonymous recommendation now appears in Verified visits. Broader public insights still require enough customers to agree."
-              : "Your feedback was saved. Broader public insights appear only after enough customers contribute."}
-          </p>
-          <div className="flex w-full flex-col gap-3">
-            <Link
-              href={merchantSlug ? `/merchants/${merchantSlug}#photos` : "/merchants"}
-              className="min-h-[48px] rounded-full bg-akiba-teal px-6 py-3 text-sm font-semibold text-white"
-            >
-              View {merchantName}
-            </Link>
-            <button type="button" onClick={() => router.push("/")} className="min-h-[44px] text-sm font-medium text-akiba-muted">
-              Done
-            </button>
-          </div>
-        </section>
+        <SuccessStep
+          merchantName={merchantName}
+          merchantSlug={merchantSlug}
+          wouldRecommend={wouldRecommend}
+          onDone={() => router.push("/")}
+          headingRef={headingRef}
+        />
       )}
     </main>
   );

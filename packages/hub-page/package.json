@@ -10,7 +10,9 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:integration": "vitest run --config vitest.config.integration.ts"
+    "test:integration": "vitest run --config vitest.config.integration.ts",
+    "discovery:process-photos": "curl -sS -X POST -H \"x-webhook-secret: $INTERNAL_WEBHOOK_SECRET\" http://localhost:3000/api/internal/process-photo-jobs",
+    "discovery:perf-check": "node scripts/verified-discovery-perf-check.mjs"
   },
   "dependencies": {
     "@akiba/skill-games": "workspace:*",

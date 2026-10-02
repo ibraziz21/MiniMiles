@@ -28,6 +28,7 @@ import {
   ChevronRight,
   Sparkles,
   Image as ImageIcon,
+  Activity,
 } from "lucide-react";
 import { BrandMark } from "./BrandMark";
 import { useState } from "react";
@@ -70,6 +71,7 @@ const navSections: Array<{ label: string; items: NavItem[] }> = [
       { href: "/directory-reviews", label: "Profile Reviews", icon: ClipboardCheck },
       { href: "/discovery-items", label: "Discovery Items", icon: Sparkles },
       { href: "/discovery-photos", label: "Discovery Photos", icon: ImageIcon },
+      { href: "/verified-discovery-health", label: "Discovery Health", icon: Activity },
       { href: "/leads", label: "Leads", icon: Inbox },
       {
         href: "/vouchers",

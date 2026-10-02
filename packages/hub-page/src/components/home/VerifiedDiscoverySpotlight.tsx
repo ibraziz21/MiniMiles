@@ -16,10 +16,7 @@ export function VerifiedDiscoverySpotlight({ highlights }: { highlights: Verifie
     <section className="mb-7 sm:mb-8" aria-labelledby="verified-discovery-heading">
       <div className="mb-3 flex items-end justify-between gap-3">
         <div>
-          <div className="flex items-center gap-1.5 text-akiba-teal">
-            <Sparkles className="h-4 w-4" aria-hidden="true" />
-            <span className="text-[11px] font-semibold uppercase tracking-[0.12em]">From the community</span>
-          </div>
+      
           <h2 id="verified-discovery-heading" className="mt-1 font-sterling text-xl font-semibold text-akiba-ink sm:text-2xl">
             Places people loved
           </h2>
@@ -45,7 +42,13 @@ export function VerifiedDiscoverySpotlight({ highlights }: { highlights: Verifie
               key={highlight.merchantId}
               href={`/merchants/${highlight.merchantSlug}#photos`}
               event="home_verified_discovery_tap"
-              eventProps={{ merchant_id: highlight.merchantId, position: index, verified_visit_count: highlight.verifiedVisitCount }}
+              eventProps={{
+                merchant_id: highlight.merchantId,
+                position: index,
+                verified_visit_count: highlight.verifiedRecommendationBand.kind === "exact"
+                  ? highlight.verifiedRecommendationBand.count
+                  : null,
+              }}
               className={`group relative min-h-[19rem] w-[82vw] max-w-[330px] shrink-0 snap-start overflow-hidden rounded-[1.5rem] bg-akiba-ink text-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus-visible:ring-offset-2 motion-reduce:transform-none motion-reduce:transition-none sm:min-h-0 sm:w-auto sm:max-w-none ${
                 single ? "sm:col-span-2 sm:row-span-2" : isLead && highlights.length >= 3 ? "sm:row-span-2" : ""
               }`}
@@ -66,7 +69,9 @@ export function VerifiedDiscoverySpotlight({ highlights }: { highlights: Verifie
                   <BadgeCheck className="h-4 w-4" aria-hidden="true" /> Verified visits
                 </span>
                 <span className="rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold tabular-nums text-akiba-ink backdrop-blur-md">
-                  {highlight.verifiedVisitCount} {highlight.verifiedVisitCount === 1 ? "visit" : "visits"}
+                  {highlight.verifiedRecommendationBand.kind === "exact"
+                    ? `${highlight.verifiedRecommendationBand.count} visits`
+                    : "New from verified visits"}
                 </span>
               </div>
 

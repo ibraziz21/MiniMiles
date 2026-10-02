@@ -19,6 +19,10 @@
     {
       "path": "/api/internal/process-photo-jobs",
       "schedule": "*/1 * * * *"
+    },
+    {
+      "path": "/api/internal/process-discovery-projection-jobs",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

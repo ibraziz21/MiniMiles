@@ -8,7 +8,8 @@
 - **Related specs:** `home-redesign-spec.md`,
   `merchant-directory-in-store-discovery-spec.md`,
   `akiba-pass-navigation-rewards-earned-notifications-v1-spec.md`,
-  `next-reward-progress-v1-spec.md`
+  `next-reward-progress-v1-spec.md`,
+  `verified-discovery-market-readiness-hardening-spec.md`
 
 ---
 

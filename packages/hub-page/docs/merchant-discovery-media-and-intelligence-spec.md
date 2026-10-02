@@ -7,6 +7,7 @@
 **Related specifications:**
 
 - `verified-discovery-acquisition-v1-spec.md`
+- `verified-discovery-market-readiness-hardening-spec.md`
 - `post-visit-store-mission-spec.md`
 - `merchant-directory-in-store-discovery-spec.md`
 

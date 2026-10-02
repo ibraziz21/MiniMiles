@@ -6,7 +6,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { processPendingPhotoJobs } from "@/lib/discovery/photoProcessing";
 import { isSameOriginRequest } from "@/lib/push/origin";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -74,21 +73,14 @@ export async function POST(req: Request, { params }: { params: { id: string; pho
     return NextResponse.json({ error: "invalid_state" }, { status: 409 });
   }
 
-  // Do not make a completed browser upload wait for a deployment-only cron.
-  // Processing here makes the photo available to moderation immediately in
-  // local development and production; the scheduled worker remains the
-  // durable retry path if this best-effort pass fails.
-  try {
-    // A single image keeps this request's latency bounded. Concurrent photo
-    // completions claim distinct jobs; any older backlog remains covered by
-    // the scheduled batch worker.
-    const processing = await processPendingPhotoJobs(admin, 1);
-    return NextResponse.json({ ok: true, processing });
-  } catch (processingError) {
-    console.error(
-      "[discovery-photos/complete] immediate processing failed; queued for retry:",
-      processingError instanceof Error ? processingError.message : processingError,
-    );
-    return NextResponse.json({ ok: true, processing: { claimed: 0, succeeded: 0, failed: 0 } });
-  }
+  // Hand off to the worker and return — this request must not itself claim
+  // and process a job (hardening spec §5.5: "perform no arbitrary queue
+  // claim inside the foreground request"). claim_photo_processing_jobs
+  // takes the oldest pending job regardless of which photo it belongs to,
+  // so calling it here could process a completely unrelated backlogged
+  // photo instead of (or as well as) this one. The scheduled worker
+  // (/api/internal/process-photo-jobs) is the only path that processes
+  // jobs; `pnpm discovery:process-photos` triggers it on demand in local
+  // development.
+  return NextResponse.json({ ok: true, photoId: params.photoId, status: "processing" }, { status: 202 });
 }

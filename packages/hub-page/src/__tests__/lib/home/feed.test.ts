@@ -143,7 +143,7 @@ describe("getHomeFeed", () => {
       merchantId: "m1",
       merchantSlug: "arabica",
       merchantName: "Arabica",
-      verifiedVisitCount: 4,
+      verifiedRecommendationBand: { kind: "exact", count: 5 },
       lovedLabels: ["Friendly staff"],
       recommendedItems: ["Spanish latte"],
       photo: { id: "p1", thumbnailUrl: "https://example.com/t.webp", displayUrl: "https://example.com/d.webp", altText: "Visit photo" },
