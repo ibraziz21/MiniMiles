@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { VoucherTabs } from "./VoucherTabs";
 import { HIDDEN_PARTNER_FILTER, isHiddenPartner } from "@/lib/akiba/hidden-partners";
+import { akibaFundedVouchersHubFlag } from "@/lib/featureFlags.server";
 import type { FundedOffer } from "@/components/vouchers/FundedOfferCard";
 import type { LoyaltyOffer } from "@/components/vouchers/LoyaltyVoucherCard";
 
@@ -89,6 +90,12 @@ function one<T>(value: T | T[] | null): T | null {
  * see akiba-funded-voucher-admin-spec.md §7.3.
  */
 async function getFundedOffers(): Promise<FundedOffer[]> {
+  // Kill switch (akiba-funded-voucher-launch-hardening-spec.md §3) — this
+  // reads voucher_funding_allocations directly rather than through the
+  // eligibility/claim proxy routes, so it needs its own flag check; nothing
+  // upstream of this function would otherwise catch a disabled flag.
+  if (!akibaFundedVouchersHubFlag().enabled) return [];
+
   const admin = createAdminClient();
   const nowIso = new Date().toISOString();
 

@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireMerchantSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { createHash } from "crypto";
+import { resolveVoucherRecipientUsername, USERNAME_ERROR_MESSAGES } from "@/lib/voucherUsername";
 
 function stableGrantKey(programId: string, recipient: string): string {
   const normalizedRecipient = recipient.trim().toLowerCase();
@@ -31,13 +32,29 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
-  const programId          = typeof body.program_id            === "string" ? body.program_id.trim()         : null;
-  const recipientHubUserId = typeof body.recipient_hub_user_id === "string" ? body.recipient_hub_user_id     : null;
-  const recipientAddress   = typeof body.recipient_address     === "string" ? body.recipient_address.trim()  : null;
+  const programId           = typeof body.program_id            === "string" ? body.program_id.trim()         : null;
+  const recipientUsername   = typeof body.recipient_username    === "string" ? body.recipient_username.trim() : null;
+  let   recipientHubUserId  = typeof body.recipient_hub_user_id === "string" ? body.recipient_hub_user_id     : null;
+  const recipientAddress    = typeof body.recipient_address     === "string" ? body.recipient_address.trim()  : null;
 
   if (!programId) return NextResponse.json({ error: "Missing program_id" }, { status: 400 });
-  if (!recipientHubUserId && !recipientAddress) {
-    return NextResponse.json({ error: "Provide recipient_hub_user_id or recipient_address" }, { status: 400 });
+  if (!recipientUsername && !recipientHubUserId && !recipientAddress) {
+    return NextResponse.json({ error: "Provide recipient_username, recipient_hub_user_id, or recipient_address" }, { status: 400 });
+  }
+
+  // @username is the preferred recipient identity (voucher-web2-username-
+  // identity-spec.md §3.5) — resolved server-side to hub_user_id before
+  // eligibility/issuance. recipient_hub_user_id/recipient_address remain as
+  // legacy till fields until the historical ownership migration (spec §7).
+  if (recipientUsername) {
+    const resolved = await resolveVoucherRecipientUsername(recipientUsername);
+    if (!resolved.ok) {
+      return NextResponse.json(
+        { error: USERNAME_ERROR_MESSAGES[resolved.errorCode], code: resolved.errorCode },
+        { status: 422 },
+      );
+    }
+    recipientHubUserId = resolved.hubUserId;
   }
 
   // Verify program belongs to this merchant's partner (isolation)

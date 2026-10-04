@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession, adminIdForWrite } from "@/lib/auth";
 import { writeAdminAuditLog } from "@/lib/audit";
 import { supabase } from "@/lib/supabase";
+import { resolveVoucherRecipientUsername, USERNAME_ERROR_MESSAGES } from "@/lib/voucherUsername";
 
 function generateSecureCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -38,13 +39,30 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
-  const programId          = typeof body.program_id            === "string" ? body.program_id.trim()     : null;
-  const recipientHubUserId = typeof body.recipient_hub_user_id === "string" ? body.recipient_hub_user_id : null;
-  const recipientAddress   = typeof body.recipient_address     === "string" ? body.recipient_address.trim().toLowerCase() : null;
+  const programId           = typeof body.program_id            === "string" ? body.program_id.trim()     : null;
+  const recipientUsername   = typeof body.recipient_username    === "string" ? body.recipient_username.trim() : null;
+  let   recipientHubUserId  = typeof body.recipient_hub_user_id === "string" ? body.recipient_hub_user_id : null;
+  const recipientAddress    = typeof body.recipient_address     === "string" ? body.recipient_address.trim().toLowerCase() : null;
 
   if (!programId) return NextResponse.json({ error: "Missing program_id" }, { status: 400 });
-  if (!recipientHubUserId && !recipientAddress) {
-    return NextResponse.json({ error: "Provide recipient_hub_user_id or recipient_address" }, { status: 400 });
+  if (!recipientUsername && !recipientHubUserId && !recipientAddress) {
+    return NextResponse.json({ error: "Provide recipient_username, recipient_hub_user_id, or recipient_address" }, { status: 400 });
+  }
+
+  // @username is the preferred recipient identity (voucher-web2-username-
+  // identity-spec.md §3.5, §5.3) — resolved server-side to hub_user_id
+  // before eligibility/issuance. recipient_hub_user_id/recipient_address
+  // remain as legacy operator-facing fields until the historical ownership
+  // migration (spec §7) lands.
+  if (recipientUsername) {
+    const resolved = await resolveVoucherRecipientUsername(recipientUsername);
+    if (!resolved.ok) {
+      return NextResponse.json(
+        { error: USERNAME_ERROR_MESSAGES[resolved.errorCode], code: resolved.errorCode },
+        { status: 422 },
+      );
+    }
+    recipientHubUserId = resolved.hubUserId;
   }
 
   // Verify program exists and is eligible for Akiba grants
@@ -95,7 +113,7 @@ export async function POST(req: NextRequest) {
     action:       "vouchers.akiba_grant",
     targetType:   "voucher",
     targetId:     row.voucher_id,
-    metadata:     { program_id: programId, recipient, source_ref: sourceRef },
+    metadata:     { program_id: programId, recipient, recipient_username: recipientUsername ?? undefined, source_ref: sourceRef },
   });
 
   return NextResponse.json({ voucher_id: row.voucher_id, code: row.code }, { status: 201 });

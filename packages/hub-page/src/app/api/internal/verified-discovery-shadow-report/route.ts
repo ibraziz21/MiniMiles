@@ -19,11 +19,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getVerifiedDiscoveryPartnerAggregates } from "@/lib/home/verifiedDiscovery";
-
-function isAuthorized(request: Request): boolean {
-  const secret = process.env.INTERNAL_WEBHOOK_SECRET ?? "";
-  return !!secret && request.headers.get("x-webhook-secret") === secret;
-}
+import { isInternalWorkerRequest } from "@/lib/internalWorkerAuth";
 
 type SnapshotRow = {
   partner_id: string;
@@ -52,7 +48,7 @@ function isSupersetOf(superset: string[], subset: string[]): boolean {
 }
 
 export async function GET(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isInternalWorkerRequest(request, true)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -160,6 +156,14 @@ export async function GET(request: Request) {
   }
 
   const unsafeMismatches = mismatches.filter((m) => m.direction === "v2_shows_more");
+  if (unsafeMismatches.length > 0) {
+    console.error("[verified-discovery-shadow-report] unsafe mismatch", {
+      count: unsafeMismatches.length,
+      // Partner ids and field values stay in the authenticated response;
+      // the alert log contains aggregate telemetry only.
+      partnersCompared: comparable,
+    });
+  }
 
   return NextResponse.json(
     {

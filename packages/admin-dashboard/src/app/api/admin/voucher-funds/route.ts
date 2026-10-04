@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession, adminIdForWrite } from "@/lib/auth";
+import { fundedVoucherAdminGuard, fundedVoucherActorId } from "@/lib/voucherFundsAccess";
 import { writeAdminAuditLog } from "@/lib/audit";
 import { supabase } from "@/lib/supabase";
 import {
   VOUCHER_FUND_RPCS,
-  OPEN_ACCESS_ACTOR_ID,
   kesToMinor,
   textOrNull,
   rpcErrorResponse,
@@ -17,6 +17,8 @@ const COUNTRY_RE = /^[A-Z]{2}$/;
 export async function POST(req: NextRequest) {
   const session = await requireAdminSession("voucher_funds.write");
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const fundedVoucherGuard = fundedVoucherAdminGuard(session);
+  if (fundedVoucherGuard) return fundedVoucherGuard;
 
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
@@ -38,7 +40,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Start and end dates are required." }, { status: 400 });
   }
 
-  const actorId = adminIdForWrite(session) ?? OPEN_ACCESS_ACTOR_ID;
+  const actorId = fundedVoucherActorId(session);
   const { data, error } = await supabase.rpc(VOUCHER_FUND_RPCS.createProgram, {
     p_name: name,
     p_sponsorship_label: textOrNull(body.sponsorshipLabel, 200) ?? "Funded by Akiba",

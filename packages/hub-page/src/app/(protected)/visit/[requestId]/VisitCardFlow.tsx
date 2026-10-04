@@ -42,6 +42,7 @@ const PHOTO_CONSENT_VERSION = "v1";
 const MAX_ITEMS = 4;
 const MAX_RECOMMENDED_ITEMS = 3;
 const MAX_PHOTOS = 3;
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 const ACCEPTED_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic"];
 
 export type InitialContribution = {
@@ -90,9 +91,11 @@ export function VisitCardFlow({
     initialContribution?.experienceOptionIds ?? [],
   );
   const [submitting, setSubmitting] = useState(false);
+  const [dismissing, setDismissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [contributionId, setContributionId] = useState<string | null>(null);
   const [photos, setPhotos] = useState<PhotoUpload[]>([]);
+  const cancelledPhotoIds = useRef(new Set<string>());
 
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
@@ -104,7 +107,7 @@ export function VisitCardFlow({
   // either they confirm the browser's own "leave site" prompt, or the
   // upload finishes first. The in-app "Done" action has its own, separate
   // disabled-while-uploading guard below.
-  const hasActiveUpload = photos.some((photo) => photo.status === "uploading");
+  const hasActiveUpload = photos.some((photo) => photo.status === "pending" || photo.status === "uploading");
   useEffect(() => {
     if (!hasActiveUpload) return;
     function handleBeforeUnload(event: BeforeUnloadEvent) {
@@ -154,8 +157,22 @@ export function VisitCardFlow({
   }
 
   async function dismiss() {
-    await fetch(`/api/me/discovery-contributions/${requestId}/dismiss`, { method: "POST" }).catch(() => null);
-    router.push("/");
+    if (dismissing) return;
+    setDismissing(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/me/discovery-contributions/${requestId}/dismiss`, { method: "POST" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(typeof data.error === "string" ? data.error : "We couldn't dismiss this visit. Please try again.");
+        return;
+      }
+      router.push("/");
+    } catch {
+      setError("We couldn't dismiss this visit. Please try again.");
+    } finally {
+      setDismissing(false);
+    }
   }
 
   function addItem() {
@@ -246,17 +263,28 @@ export function VisitCardFlow({
       photoId = intent.photoId as string;
       setPhotos((prev) => prev.map((p) => (p.localId === localId ? { ...p, photoId } : p)));
 
+      if (cancelledPhotoIds.current.has(localId)) {
+        await fetch(`/api/me/discovery-contributions/${activeContributionId}/photos/${photoId}`, { method: "DELETE" });
+        return;
+      }
+
       const browserClient = createClient();
       const { error: uploadError } = await browserClient.storage
         .from(intent.bucket)
-        .uploadToSignedUrl(intent.path, intent.token, file);
+        .upload(intent.path, file, { contentType: file.type, upsert: false });
       if (uploadError) throw new Error(uploadError.message);
+
+      if (cancelledPhotoIds.current.has(localId)) {
+        await fetch(`/api/me/discovery-contributions/${activeContributionId}/photos/${photoId}`, { method: "DELETE" });
+        return;
+      }
 
       const completeRes = await fetch(
         `/api/me/discovery-contributions/${activeContributionId}/photos/${photoId}/complete`,
         { method: "POST" },
       );
-      if (!completeRes.ok) throw new Error("complete_failed");
+      const completion = await completeRes.json().catch(() => ({}));
+      if (!completeRes.ok) throw new Error(completion.error ?? "complete_failed");
 
       setPhotos((prev) => prev.map((p) => (p.localId === localId ? { ...p, status: "done" } : p)));
     } catch (err) {
@@ -281,6 +309,10 @@ export function VisitCardFlow({
       setError("Please choose a JPEG, PNG, WebP or HEIC photo.");
       return;
     }
+    if (file.size > MAX_PHOTO_BYTES) {
+      setError("Photos must be 10 MB or smaller.");
+      return;
+    }
     if (photos.filter((p) => p.status !== "error").length >= MAX_PHOTOS) return;
     const localId = createBrowserId();
     setPhotos((prev) => [...prev, { localId, file, status: "pending" }]);
@@ -288,6 +320,7 @@ export function VisitCardFlow({
   }
 
   function removePhoto(localId: string) {
+    cancelledPhotoIds.current.add(localId);
     const photo = photos.find((p) => p.localId === localId);
     setPhotos((prev) => prev.filter((p) => p.localId !== localId));
     if (photo?.photoId && contributionId) {
@@ -300,6 +333,7 @@ export function VisitCardFlow({
   function retryPhoto(localId: string) {
     const photo = photos.find((p) => p.localId === localId);
     if (!photo || !contributionId) return;
+    cancelledPhotoIds.current.delete(localId);
     void uploadPhoto(localId, photo.file, contributionId);
   }
 
@@ -328,7 +362,13 @@ export function VisitCardFlow({
       )}
 
       {step === "intro" && (
-        <IntroStep merchantName={merchantName} onNext={goNext} onDismiss={dismiss} headingRef={headingRef} />
+        <IntroStep
+          merchantName={merchantName}
+          onNext={goNext}
+          onDismiss={dismiss}
+          dismissing={dismissing}
+          headingRef={headingRef}
+        />
       )}
 
       {step === "recommend" && (

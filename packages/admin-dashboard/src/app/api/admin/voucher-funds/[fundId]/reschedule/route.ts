@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession, adminIdForWrite } from "@/lib/auth";
+import { fundedVoucherAdminGuard, fundedVoucherActorId } from "@/lib/voucherFundsAccess";
 import { writeAdminAuditLog } from "@/lib/audit";
 import { supabase } from "@/lib/supabase";
-import { OPEN_ACCESS_ACTOR_ID, textOrNull, rpcErrorResponse } from "@/lib/voucherFunds";
+import { textOrNull, rpcErrorResponse } from "@/lib/voucherFunds";
 
 // POST /api/admin/voucher-funds/:fundId/reschedule — correct an approved/
 // scheduled/active/paused fund's start/end dates without dropping it back to
@@ -10,6 +11,8 @@ import { OPEN_ACCESS_ACTOR_ID, textOrNull, rpcErrorResponse } from "@/lib/vouche
 export async function POST(req: NextRequest, { params }: { params: Promise<{ fundId: string }> }) {
   const session = await requireAdminSession("voucher_funds.publish");
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const fundedVoucherGuard = fundedVoucherAdminGuard(session);
+  if (fundedVoucherGuard) return fundedVoucherGuard;
   const { fundId } = await params;
 
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
@@ -26,7 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fun
     return NextResponse.json({ error: "A reason of at least 4 characters is required to reschedule." }, { status: 400 });
   }
 
-  const actorId = adminIdForWrite(session) ?? OPEN_ACCESS_ACTOR_ID;
+  const actorId = fundedVoucherActorId(session);
   const { data, error } = await supabase.rpc("reschedule_voucher_funding_program_atomic", {
     p_program_id: fundId,
     p_actor_id: actorId,

@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession, adminIdForWrite } from "@/lib/auth";
+import { fundedVoucherAdminGuard, fundedVoucherActorId } from "@/lib/voucherFundsAccess";
 import { writeAdminAuditLog } from "@/lib/audit";
 import { getAdminSettings } from "@/lib/adminSettings";
 import { supabase } from "@/lib/supabase";
-import { transitionProgram, OPEN_ACCESS_ACTOR_ID, minorToKes, rpcErrorResponse } from "@/lib/voucherFunds";
+import { transitionProgram, minorToKes, rpcErrorResponse } from "@/lib/voucherFunds";
 
 // POST /api/admin/voucher-funds/:fundId/approve — Finance approves the maximum KES commitment.
 // See packages/admin-dashboard/docs/akiba-funded-voucher-admin-spec.md §5 (maker-checker) and §7.7.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ fundId: string }> }) {
   const session = await requireAdminSession("voucher_funds.approve");
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const fundedVoucherGuard = fundedVoucherAdminGuard(session);
+  if (fundedVoucherGuard) return fundedVoucherGuard;
   const { fundId } = await params;
 
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
@@ -18,7 +21,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fun
     return NextResponse.json({ error: "A reason of at least 4 characters is required to approve." }, { status: 400 });
   }
 
-  const actorId = adminIdForWrite(session) ?? OPEN_ACCESS_ACTOR_ID;
+  const actorId = fundedVoucherActorId(session);
 
   const { data: program } = await supabase
     .from("voucher_funding_programs")

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession, adminIdForWrite } from "@/lib/auth";
+import { fundedVoucherAdminGuard, fundedVoucherActorId } from "@/lib/voucherFundsAccess";
 import { writeAdminAuditLog } from "@/lib/audit";
 import { supabase } from "@/lib/supabase";
 import {
   VOUCHER_FUND_RPCS,
-  OPEN_ACCESS_ACTOR_ID,
   DISTRIBUTION_MODES,
   hasRequiredFundCountryRule,
   kesToMinor,
@@ -18,6 +18,8 @@ import {
 export async function POST(req: NextRequest, { params }: { params: Promise<{ fundId: string }> }) {
   const session = await requireAdminSession("voucher_funds.write");
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const fundedVoucherGuard = fundedVoucherAdminGuard(session);
+  if (fundedVoucherGuard) return fundedVoucherGuard;
   const { fundId } = await params;
 
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
@@ -86,7 +88,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fun
     );
   }
 
-  const actorId = adminIdForWrite(session) ?? OPEN_ACCESS_ACTOR_ID;
+  const actorId = fundedVoucherActorId(session);
   const { data, error } = await supabase.rpc(VOUCHER_FUND_RPCS.createAllocation, {
     p_program_id: fundId,
     p_merchant_id: merchantId,

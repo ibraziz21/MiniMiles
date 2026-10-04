@@ -229,7 +229,11 @@ export default async function MePage() {
           <div className="divide-y divide-akiba-line overflow-hidden rounded-2xl border border-akiba-line bg-white">
             <UsernameEditor initialUsername={leaderboardProfile?.username ?? null} />
             <PhoneEditor initialPhone={hubProfile?.phone ?? null} />
-            <LocationEditor initialCountry={hubCountry} initialCity={hubProfile?.city ?? null} />
+            <LocationEditor
+              initialCountry={hubCountry}
+              initialCity={hubProfile?.city ?? null}
+              savedToProfile={Boolean(hubProfile?.country)}
+            />
           </div>
         </section>
 

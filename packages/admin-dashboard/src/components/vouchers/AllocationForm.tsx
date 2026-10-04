@@ -82,9 +82,9 @@ export function AllocationForm({
     pass_activated: true,
     profile_country_set: true,
   });
-  const [minAccountAgeDays, setMinAccountAgeDays] = useState("0");
+  const [minAccountAgeDays, setMinAccountAgeDays] = useState("7");
   const [verifiedActivityKey, setVerifiedActivityKey] = useState<string>(VERIFIED_ACTIVITY_TEMPLATE_KEYS[0]);
-  const [cooldownDays, setCooldownDays] = useState("0");
+  const [cooldownDays, setCooldownDays] = useState("30");
   const [customerCopy, setCustomerCopy] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -103,17 +103,27 @@ export function AllocationForm({
   function toggleMode(mode: string) {
     setDistributionModes((prev) => (prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode]));
   }
+  // country_in and profile_country_set together express the mandatory
+  // profile-country gate every funded allocation inherits from its program
+  // (profile-country-eligibility spec §7.2) — a system invariant the Admin
+  // cannot create, toggle, or delete, not an operator-selectable rule.
   function toggleRule(type: string) {
-    if (type === "country_in") return;
+    if (type === "country_in" || type === "profile_country_set") return;
     setSelectedRules((prev) => ({ ...prev, [type]: !prev[type] }));
   }
 
   function buildRules() {
-    const rules: Record<string, unknown>[] = [{ type: "country_in", countries: [fundCountryCode] }];
+    const rules: Record<string, unknown>[] = [
+      { type: "country_in", countries: [fundCountryCode] },
+      { type: "profile_country_set" },
+    ];
     if (selectedRules.pass_activated) rules.push({ type: "pass_activated" });
-    if (selectedRules.profile_country_set) rules.push({ type: "profile_country_set" });
     if (selectedRules.minimum_account_age_days) {
-      rules.push({ type: "minimum_account_age_days", days: Number(minAccountAgeDays) || 0 });
+      // Canonical field is `days`, required > 0 — `|| 0` previously let a
+      // blank/NaN input silently become "no minimum" (corrective-hardening-
+      // pass item 3). onSubmit rejects an invalid value before this ever
+      // reaches the request.
+      rules.push({ type: "minimum_account_age_days", days: Number(minAccountAgeDays) });
     }
     if (selectedRules.verified_activity_completed) {
       rules.push({ type: "verified_activity_completed", templateKey: verifiedActivityKey });
@@ -121,16 +131,35 @@ export function AllocationForm({
     if (selectedRules.first_funded_voucher) rules.push({ type: "first_funded_voucher" });
     if (selectedRules.no_prior_merchant_redemption) rules.push({ type: "no_prior_merchant_redemption" });
     if (selectedRules.fund_claim_cooldown) {
-      rules.push({ type: "fund_claim_cooldown", cooldownSeconds: (Number(cooldownDays) || 0) * 86400 });
+      // Canonical field is `days` — Platform's evaluator and rule-set-creation
+      // RPC both read `days` only; the legacy `cooldownSeconds` this used to
+      // send was silently ignored server-side (runtime-hardening-spec.md
+      // Phase 1 item 6).
+      rules.push({ type: "fund_claim_cooldown", days: Number(cooldownDays) });
     }
-    if (selectedRules.not_blocked) rules.push({ type: "not_blocked" });
     return rules;
+  }
+
+  function isValidBoundedDays(value: string, maxDays: number): boolean {
+    if (value.trim() === "") return false;
+    const n = Number(value);
+    return Number.isFinite(n) && Number.isInteger(n) && n > 0 && n <= maxDays;
   }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setError(null);
+
+    if (selectedRules.fund_claim_cooldown && !isValidBoundedDays(cooldownDays, 365)) {
+      setError("Cooldown must be a whole number of days between 1 and 365.");
+      return;
+    }
+    if (selectedRules.minimum_account_age_days && !isValidBoundedDays(minAccountAgeDays, 3650)) {
+      setError("Minimum account age must be a whole number of days between 1 and 3650.");
+      return;
+    }
+
+    setBusy(true);
 
     let eligibilityRuleSetId: string | undefined;
     const rules = buildRules();
@@ -282,13 +311,22 @@ export function AllocationForm({
             <div className="rounded-lg border border-teal-100 bg-teal-50 px-3 py-2 text-sm text-teal-900">
               Members must match <strong>all</strong> selected rules. Country is locked to the fund ({fundCountryCode}).
             </div>
-            {ELIGIBILITY_RULE_TYPES.map((type) => (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              <strong>Required:</strong> Member profile country must be {fundCountryCode}. This is a system
+              invariant enforced by the database on every claim — it cannot be removed or overridden here.
+            </div>
+            {/* not_blocked has no restriction source behind it yet and can
+                never be created for a new allocation (runtime-hardening-spec.md
+                §4.3) — it stays in ELIGIBILITY_RULE_TYPES only so a
+                historical allocation that already references it still has a
+                label to render elsewhere; it is never offered here. */}
+            {ELIGIBILITY_RULE_TYPES.filter((type) => type !== "not_blocked").map((type) => (
               <RuleRow
                 key={type}
                 type={type}
-                checked={Boolean(selectedRules[type])}
+                checked={type === "profile_country_set" ? true : Boolean(selectedRules[type])}
                 onToggle={() => toggleRule(type)}
-                disabled={type === "country_in"}
+                disabled={type === "country_in" || type === "profile_country_set"}
               >
                 {type === "country_in" && (
                   <Input
@@ -301,7 +339,9 @@ export function AllocationForm({
                   <Input
                     className="mt-2 max-w-[120px]"
                     type="number"
-                    min="0"
+                    min="1"
+                    max="3650"
+                    step="1"
                     value={minAccountAgeDays}
                     onChange={(e) => setMinAccountAgeDays(e.target.value)}
                   />
@@ -323,7 +363,9 @@ export function AllocationForm({
                   <Input
                     className="mt-2 max-w-[120px]"
                     type="number"
-                    min="0"
+                    min="1"
+                    max="365"
+                    step="1"
                     value={cooldownDays}
                     onChange={(e) => setCooldownDays(e.target.value)}
                   />

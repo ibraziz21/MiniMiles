@@ -75,6 +75,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   const actorId = adminIdForWrite(session);
+  if (!actorId) {
+    return NextResponse.json({ error: "A named admin session is required." }, { status: 403 });
+  }
   const correlationId = randomUUID();
 
   const { data, error } = await supabase.rpc("perform_visit_photo_transition", {

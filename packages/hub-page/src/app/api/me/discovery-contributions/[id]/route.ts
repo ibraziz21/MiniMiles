@@ -202,38 +202,16 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const admin = createAdminClient();
-  const { data: contribution, error: fetchError } = await admin
-    .from("merchant_discovery_contributions")
-    .select("id")
-    .eq("id", params.id)
-    .eq("hub_user_id", user.id)
-    .is("withdrawn_at", null)
-    .maybeSingle();
-
-  if (fetchError) {
-    console.error("[discovery-contributions/:id] withdraw lookup failed:", fetchError.message);
+  const { data, error } = await admin.rpc("withdraw_discovery_contribution", {
+    p_contribution_id: params.id,
+    p_hub_user_id: user.id,
+  });
+  if (error) {
+    console.error("[discovery-contributions/:id] withdraw failed:", error.message);
     return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
-  if (!contribution) return NextResponse.json({ error: "not_found" }, { status: 404 });
-
-  const now = new Date().toISOString();
-  const { error: withdrawError } = await admin
-    .from("merchant_discovery_contributions")
-    .update({ withdrawn_at: now })
-    .eq("id", params.id);
-
-  if (withdrawError) {
-    console.error("[discovery-contributions/:id] withdraw failed:", withdrawError.message);
-    return NextResponse.json({ error: "internal_error" }, { status: 500 });
-  }
-
-  // Withdrawing a contribution withdraws its photos too (§8.5); deleting
-  // one photo separately does not require withdrawing the contribution.
-  await admin
-    .from("merchant_visit_photos")
-    .update({ moderation_status: "withdrawn", withdrawn_at: now })
-    .eq("contribution_id", params.id)
-    .not("moderation_status", "in", "(rejected,withdrawn)");
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result?.ok) return NextResponse.json({ error: result?.error_code ?? "not_found" }, { status: 404 });
 
   return NextResponse.json({ ok: true });
 }

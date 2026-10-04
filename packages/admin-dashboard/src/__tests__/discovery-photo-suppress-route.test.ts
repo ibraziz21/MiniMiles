@@ -100,10 +100,10 @@ describe("POST /api/admin/discovery-photos/[id]/suppress", () => {
     expect(response.status).toBe(429);
   });
 
-  it("allows open-access development sessions without inventing an actor id", async () => {
+  it("requires a named actor even in open-access development mode", async () => {
     state.session = { adminUserId: "open-access", role: "super_admin", openAccess: true };
     const response = await POST(request({ suppressed: true }), { params: { id: photoId } });
-    expect(response.status).toBe(200);
-    expect(state.rpc).toHaveBeenCalledWith("set_visit_photo_suppression", expect.objectContaining({ p_actor_id: null }));
+    expect(response.status).toBe(403);
+    expect(state.rpc).not.toHaveBeenCalled();
   });
 });

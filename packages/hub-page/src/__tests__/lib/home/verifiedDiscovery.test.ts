@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   mentions: [] as unknown[],
   canonicalItems: [] as unknown[],
   signedUrls: [] as string[],
+  snapshots: [] as unknown[],
 }));
 
 function chainable(result: unknown): any {
@@ -35,6 +36,7 @@ vi.mock("@/lib/supabase/admin", () => ({
         return chainable({ data: state.visitsError ? null : state.visits, error: state.visitsError });
       }
       if (name === "eligible_public_merchant_visit_photos") return chainable({ data: state.photos, error: null });
+      if (name === "get_public_merchant_discovery_snapshots") return chainable({ data: state.snapshots, error: null });
       throw new Error(`Unexpected RPC ${name}`);
     },
     storage: {
@@ -75,6 +77,7 @@ describe("verified discovery highlights", () => {
     state.mentions = [];
     state.canonicalItems = [];
     state.signedUrls = [];
+    state.snapshots = [];
   });
 
   it("ranks photo-backed merchants by unique contributors and projects only threshold-safe insight labels", async () => {
@@ -172,7 +175,39 @@ describe("verified discovery highlights", () => {
     try {
       await expect(getVerifiedDiscoveryHighlights()).resolves.toEqual([]);
     } finally {
-      process.env.HUB_DISCOVERY_SPOTLIGHT_ENABLED = original;
+      if (original === undefined) delete process.env.HUB_DISCOVERY_SPOTLIGHT_ENABLED;
+      else process.env.HUB_DISCOVERY_SPOTLIGHT_ENABLED = original;
+    }
+  });
+
+  it("serves the full-corpus snapshot contract only after the cutover flag is explicitly enabled", async () => {
+    state.snapshots = [{
+      partner_id: "m1",
+      public_count_band: "7",
+      qualified_experience_labels: ["Friendly staff"],
+      qualified_recommended_items: ["Caffe latte"],
+      cover_photo_id: "p1",
+      cover_photo_thumbnail_key: "m1/t.webp",
+      cover_photo_display_key: "m1/d.webp",
+      rank_score: "7",
+    }];
+    state.partners = [{ partner_id: "m1", partners: { slug: "alpha", name: "Alpha Coffee" } }];
+    state.signedUrls = ["https://cdn.example/m1-t.webp", "https://cdn.example/m1-d.webp"];
+
+    const original = process.env.HUB_DISCOVERY_SNAPSHOT_READ_ENABLED;
+    process.env.HUB_DISCOVERY_SNAPSHOT_READ_ENABLED = "true";
+    try {
+      await expect(getVerifiedDiscoveryHighlights()).resolves.toEqual([
+        expect.objectContaining({
+          merchantId: "m1",
+          verifiedRecommendationBand: { kind: "exact", count: 7 },
+          lovedLabels: ["Friendly staff"],
+          recommendedItems: ["Caffe latte"],
+        }),
+      ]);
+    } finally {
+      if (original === undefined) delete process.env.HUB_DISCOVERY_SNAPSHOT_READ_ENABLED;
+      else process.env.HUB_DISCOVERY_SNAPSHOT_READ_ENABLED = original;
     }
   });
 });

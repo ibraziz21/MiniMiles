@@ -12,11 +12,22 @@ import { createClient } from "@/lib/supabase/server";
 import { getServerEnv } from "@/lib/env.server";
 import { evaluateFundedVoucherCountryEligibility } from "@/lib/akiba/fundedVoucherCountryEligibility";
 import { getVoucherClaimFriction } from "@/lib/vouchers/claimIntent";
+import { akibaFundedVouchersHubFlag } from "@/lib/featureFlags.server";
+import { getActiveUsernameForHubUser } from "@/lib/akiba/voucherUsername";
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ allocationId: string }> },
 ) {
+  // Phase 1 kill switch (akiba-funded-voucher-launch-hardening-spec.md §3) —
+  // checked before touching Supabase so a disabled flow never leaks whether
+  // the allocation/session is otherwise valid. Platform independently
+  // enforces the same flag on its own funded endpoints so bypassing this
+  // proxy never bypasses the kill switch.
+  if (!akibaFundedVouchersHubFlag().enabled) {
+    return NextResponse.json({ error: "This offer is not currently available." }, { status: 503 });
+  }
+
   const { allocationId } = await params;
   const supabase = await createClient();
 
@@ -30,6 +41,23 @@ export async function GET(
   }
 
   const claimFriction = await getVoucherClaimFriction(user.id);
+
+  // Username requirement (voucher-web2-username-identity-spec.md §3.4) comes
+  // before country in the preview, matching the self-claim requirement order
+  // — a member fixes identity (username) before the country gate matters.
+  const username = await getActiveUsernameForHubUser({ hubUserId: user.id, email: user.email ?? null });
+  if (!username) {
+    return NextResponse.json(
+      {
+        eligible: false,
+        alreadyClaimed: false,
+        requirementsRemaining: ["username_required"],
+        allocationAvailable: true,
+        claimFriction,
+      },
+      { headers: { "Cache-Control": "no-store, private" } },
+    );
+  }
 
   const countryEligibility = await evaluateFundedVoucherCountryEligibility({
     allocationId,
@@ -45,7 +73,7 @@ export async function GET(
       {
         eligible: false,
         alreadyClaimed: false,
-        requirementsRemaining: ["country_in"],
+        requirementsRemaining: [countryEligibility.reasonCode ?? "profile_country_mismatch"],
         allocationAvailable: true,
         claimFriction,
       },

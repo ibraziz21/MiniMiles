@@ -19,17 +19,25 @@ const COUNTRIES = [
 export function LocationEditor({
   initialCountry,
   initialCity,
+  savedToProfile,
 }: {
   initialCountry: string | null;
   initialCity: string | null;
+  /** False when `initialCountry` is only a legacy-wallet prefill suggestion,
+   *  not a value actually saved on hub_user_profiles. An unsaved suggestion
+   *  must never be shown as the member's active funded-offer country
+   *  decision (profile-country-eligibility spec §8.4) — it still fills the
+   *  select as a convenience, but the row's description stays "Add your
+   *  location" until the member explicitly saves. */
+  savedToProfile: boolean;
 }) {
   const router = useRouter();
   const countryId = useId();
   const cityId = useId();
   const [country, setCountry] = useState(initialCountry ?? "");
   const [city, setCity] = useState(initialCity ?? "");
-  const [savedCountry, setSavedCountry] = useState(initialCountry);
-  const [savedCity, setSavedCity] = useState(initialCity);
+  const [savedCountry, setSavedCountry] = useState(savedToProfile ? initialCountry : null);
+  const [savedCity, setSavedCity] = useState(savedToProfile ? initialCity : null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

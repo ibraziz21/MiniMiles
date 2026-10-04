@@ -1,7 +1,7 @@
 "use client";
 
 import Image, { type ImageLoaderProps } from "next/image";
-import { BadgeCheck, Camera, ChevronLeft, ChevronRight, MapPin, MessageSquarePlus, Store, X } from "lucide-react";
+import { BadgeCheck, Camera, ChevronLeft, ChevronRight, MapPin, MessageSquarePlus, Store, Ticket, X } from "lucide-react";
 import {
   useEffect,
   useId,
@@ -20,7 +20,7 @@ import type {
   PublicVerifiedVisit,
 } from "@/lib/merchants/types";
 
-type ProfileTab = "verified" | "merchant" | "locations";
+type ProfileTab = "verified" | "merchant" | "vouchers" | "locations";
 type GalleryPhoto = {
   id: string;
   thumbnailUrl: string;
@@ -66,6 +66,8 @@ export function MerchantPhotoTabs({
   merchantMedia,
   memberVerifiedVisit,
   contributionHref,
+  voucherCount,
+  vouchersContent,
   locationCount,
   locationsContent,
 }: {
@@ -76,6 +78,8 @@ export function MerchantPhotoTabs({
   merchantMedia: PublicMerchantMedia[];
   memberVerifiedVisit: MemberVerifiedVisitSummary | null;
   contributionHref: string | null;
+  voucherCount: number;
+  vouchersContent?: ReactNode;
   locationCount: number;
   locationsContent?: ReactNode;
 }) {
@@ -84,10 +88,14 @@ export function MerchantPhotoTabs({
   const viewerRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const lastTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const availableTabs: ProfileTab[] = locationCount > 0
-    ? ["verified", "merchant", "locations"]
-    : ["verified", "merchant"];
+  const availableTabs: ProfileTab[] = [
+    "verified",
+    "merchant",
+    "vouchers",
+    ...(locationCount > 0 ? (["locations"] as const) : []),
+  ];
   const [activeTab, setActiveTab] = useState<ProfileTab>(() => {
+    if (voucherCount > 0) return "vouchers";
     if (memberVerifiedVisit) return "verified";
     if (verifiedVisits.length > 0) return "verified";
     if (customerPhotos.length > 0) return "verified";
@@ -100,17 +108,17 @@ export function MerchantPhotoTabs({
   const photos = activeTab === "merchant" ? merchantMedia.map(toMerchantGalleryPhoto) : [];
   const visiblePhotos = showAll ? photos : photos.slice(0, INITIAL_PHOTO_COUNT);
   const viewerPhoto = viewerIndex == null ? null : photos[viewerIndex] ?? null;
-  const hasAnyContent =
-    memberVerifiedVisit !== null || verifiedVisits.length > 0 || customerPhotos.length > 0 || merchantMedia.length > 0 || locationCount > 0;
-
   useEffect(() => {
-    if (!hasAnyContent) return;
+    if (activeTab === "vouchers") {
+      track("merchant_vouchers_tab_view", { merchantId, voucherCount });
+      return;
+    }
     if (activeTab === "locations") {
       track("merchant_locations_tab_view", { merchantId, locationCount });
       return;
     }
     track("merchant_photo_source_view", { merchantId, source: activeTab });
-  }, [activeTab, hasAnyContent, locationCount, merchantId]);
+  }, [activeTab, locationCount, merchantId, voucherCount]);
 
   function selectTab(tab: ProfileTab) {
     setActiveTab(tab);
@@ -190,24 +198,28 @@ export function MerchantPhotoTabs({
     };
   }, [viewerIndex, photos.length]);
 
-  if (!hasAnyContent) return null;
-
   const verifiedTabId = `${tabsId}-verified-tab`;
   const verifiedPanelId = `${tabsId}-verified-panel`;
   const merchantTabId = `${tabsId}-merchant-tab`;
   const merchantPanelId = `${tabsId}-merchant-panel`;
+  const vouchersTabId = `${tabsId}-vouchers-tab`;
+  const vouchersPanelId = `${tabsId}-vouchers-panel`;
   const locationsTabId = `${tabsId}-locations-tab`;
   const locationsPanelId = `${tabsId}-locations-panel`;
   const activePanelId = activeTab === "verified"
     ? verifiedPanelId
     : activeTab === "merchant"
       ? merchantPanelId
-      : locationsPanelId;
+      : activeTab === "vouchers"
+        ? vouchersPanelId
+        : locationsPanelId;
   const activeTabId = activeTab === "verified"
     ? verifiedTabId
     : activeTab === "merchant"
       ? merchantTabId
-      : locationsTabId;
+      : activeTab === "vouchers"
+        ? vouchersTabId
+        : locationsTabId;
 
   return (
     <section
@@ -220,74 +232,62 @@ export function MerchantPhotoTabs({
       <div
         role="tablist"
         aria-label={`${merchantName} profile content`}
-        className={`sticky top-16 z-20 grid border-y border-akiba-line bg-akiba-paper/95 backdrop-blur-md supports-[backdrop-filter]:bg-akiba-paper/85 ${
-          locationCount > 0 ? "grid-cols-3" : "grid-cols-2"
-        }`}
+        className="sticky top-16 z-20 grid border-y border-akiba-line bg-akiba-paper/95 backdrop-blur-md supports-[backdrop-filter]:bg-akiba-paper/85"
+        style={{ gridTemplateColumns: `repeat(${availableTabs.length}, minmax(0, 1fr))` }}
       >
-        <button
-          ref={(node) => { tabRefs.current[0] = node; }}
-          id={verifiedTabId}
-          type="button"
-          role="tab"
-          aria-label="Verified visits"
-          aria-selected={activeTab === "verified"}
-          aria-controls={verifiedPanelId}
-          tabIndex={activeTab === "verified" ? 0 : -1}
-          onClick={() => selectTab("verified")}
-          onKeyDown={(event) => onTabKeyDown(event, 0)}
-          className={`relative flex min-h-14 min-w-0 cursor-pointer touch-manipulation flex-col items-center justify-center gap-1 px-1 py-1.5 text-[11px] font-semibold leading-tight transition-colors after:absolute after:inset-x-2 after:-bottom-px after:h-0.5 after:rounded-full after:content-[''] active:bg-akiba-card focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-akiba-teal motion-reduce:transition-none sm:min-h-14 sm:flex-row sm:gap-2 sm:px-3 sm:py-2 sm:text-sm md:min-h-14 ${
-            activeTab === "verified"
-              ? "text-akiba-ink after:bg-akiba-teal"
-              : "text-akiba-muted after:bg-transparent hover:text-akiba-ink"
-          }`}
-        >
-          <Camera className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden="true" />
-          <span className="sm:hidden">Verified</span>
-          <span className="hidden sm:inline">Verified visits</span>
-        </button>
-        <button
-          ref={(node) => { tabRefs.current[1] = node; }}
-          id={merchantTabId}
-          type="button"
-          role="tab"
-          aria-label="From the business"
-          aria-selected={activeTab === "merchant"}
-          aria-controls={merchantPanelId}
-          tabIndex={activeTab === "merchant" ? 0 : -1}
-          onClick={() => selectTab("merchant")}
-          onKeyDown={(event) => onTabKeyDown(event, 1)}
-          className={`relative flex min-h-14 min-w-0 cursor-pointer touch-manipulation flex-col items-center justify-center gap-1 px-1 py-1.5 text-[11px] font-semibold leading-tight transition-colors after:absolute after:inset-x-2 after:-bottom-px after:h-0.5 after:rounded-full after:content-[''] active:bg-akiba-card focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-akiba-teal motion-reduce:transition-none sm:min-h-14 sm:flex-row sm:gap-2 sm:px-3 sm:py-2 sm:text-sm md:min-h-14 ${
-            activeTab === "merchant"
-              ? "text-akiba-ink after:bg-akiba-teal"
-              : "text-akiba-muted after:bg-transparent hover:text-akiba-ink"
-          }`}
-        >
-          <Store className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden="true" />
-          <span className="sm:hidden">Business</span>
-          <span className="hidden sm:inline">From the business</span>
-        </button>
-        {locationCount > 0 && (
-          <button
-            ref={(node) => { tabRefs.current[2] = node; }}
-            id={locationsTabId}
-            type="button"
-            role="tab"
-            aria-label="Locations"
-            aria-selected={activeTab === "locations"}
-            aria-controls={locationsPanelId}
-            tabIndex={activeTab === "locations" ? 0 : -1}
-            onClick={() => selectTab("locations")}
-            onKeyDown={(event) => onTabKeyDown(event, 2)}
-            className={`relative flex min-h-14 min-w-0 cursor-pointer touch-manipulation flex-col items-center justify-center gap-1 px-1 py-1.5 text-[11px] font-semibold leading-tight transition-colors after:absolute after:inset-x-2 after:-bottom-px after:h-0.5 after:rounded-full after:content-[''] active:bg-akiba-card focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-akiba-teal motion-reduce:transition-none sm:min-h-14 sm:flex-row sm:gap-2 sm:px-3 sm:py-2 sm:text-sm md:min-h-14 ${
-              activeTab === "locations"
-                ? "text-akiba-ink after:bg-akiba-teal"
-                : "text-akiba-muted after:bg-transparent hover:text-akiba-ink"
-            }`}
-          >
-            <MapPin className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden="true" />
-            Locations
-          </button>
-        )}
+        {availableTabs.map((tab, index) => {
+          const tabId = tab === "verified"
+            ? verifiedTabId
+            : tab === "merchant"
+              ? merchantTabId
+              : tab === "vouchers"
+                ? vouchersTabId
+                : locationsTabId;
+          const panelId = tab === "verified"
+            ? verifiedPanelId
+            : tab === "merchant"
+              ? merchantPanelId
+              : tab === "vouchers"
+                ? vouchersPanelId
+                : locationsPanelId;
+          const label = tab === "verified"
+            ? "Verified visits"
+            : tab === "merchant"
+              ? "From the business"
+              : tab === "vouchers"
+                ? "Vouchers"
+                : "Locations";
+          return (
+            <button
+              key={tab}
+              ref={(node) => { tabRefs.current[index] = node; }}
+              id={tabId}
+              type="button"
+              role="tab"
+              aria-label={label}
+              aria-selected={activeTab === tab}
+              aria-controls={panelId}
+              tabIndex={activeTab === tab ? 0 : -1}
+              onClick={() => selectTab(tab)}
+              onKeyDown={(event) => onTabKeyDown(event, index)}
+              className={`relative flex min-h-14 min-w-0 cursor-pointer touch-manipulation flex-col items-center justify-center gap-1 px-1 py-1.5 text-[11px] font-semibold leading-tight transition-colors after:absolute after:inset-x-2 after:-bottom-px after:h-0.5 after:rounded-full after:content-[''] active:bg-akiba-card focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-akiba-teal motion-reduce:transition-none sm:min-h-14 sm:flex-row sm:gap-2 sm:px-3 sm:py-2 sm:text-sm md:min-h-14 ${
+                activeTab === tab
+                  ? "text-akiba-ink after:bg-akiba-teal"
+                  : "text-akiba-muted after:bg-transparent hover:text-akiba-ink"
+              }`}
+            >
+              {tab === "verified" && <Camera className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden="true" />}
+              {tab === "merchant" && <Store className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden="true" />}
+              {tab === "vouchers" && <Ticket className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden="true" />}
+              {tab === "locations" && <MapPin className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden="true" />}
+              {tab === "merchant" ? (
+                <><span className="sm:hidden">Business</span><span className="hidden sm:inline">From the business</span></>
+              ) : tab === "verified" ? (
+                <><span className="sm:hidden">Verified</span><span className="hidden sm:inline">Verified visits</span></>
+              ) : label}
+            </button>
+          );
+        })}
       </div>
 
       {activeTab !== "verified" && (
@@ -295,6 +295,9 @@ export function MerchantPhotoTabs({
       )}
       {activeTab !== "merchant" && (
         <div id={merchantPanelId} role="tabpanel" aria-labelledby={merchantTabId} hidden />
+      )}
+      {activeTab !== "vouchers" && (
+        <div id={vouchersPanelId} role="tabpanel" aria-labelledby={vouchersTabId} hidden />
       )}
       {locationCount > 0 && activeTab !== "locations" && (
         <div id={locationsPanelId} role="tabpanel" aria-labelledby={locationsTabId} hidden>
@@ -308,7 +311,42 @@ export function MerchantPhotoTabs({
         tabIndex={0}
         className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-akiba-teal"
       >
-        {activeTab === "locations" ? (
+        {activeTab === "vouchers" ? (
+          <div id="vouchers" className="px-4 py-5 sm:px-0 sm:py-6">
+            <div className="mb-4 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+              <div className="min-w-0">
+                <h3 className="font-sterling text-lg font-semibold text-akiba-ink">Offers at {merchantName}</h3>
+                <p className="mt-0.5 text-sm leading-5 text-akiba-muted">
+                  {voucherCount > 0
+                    ? "Akiba-funded offers first, then vouchers available with Miles."
+                    : "Vouchers for this merchant will appear here."}
+                </p>
+              </div>
+              <p className="shrink-0 text-xs font-semibold tabular-nums text-akiba-ink sm:pb-0.5 sm:text-sm">
+                {voucherCount} {voucherCount === 1 ? "offer" : "offers"}
+              </p>
+            </div>
+            {vouchersContent ?? (
+              <div className="rounded-2xl border border-akiba-line bg-white px-5 py-10 text-center sm:py-12">
+                <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-akiba-card text-akiba-muted">
+                  <Ticket className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
+                </span>
+                <p className="mt-3 font-sterling text-lg font-semibold text-akiba-ink">No vouchers right now</p>
+                <p className="mx-auto mt-1 max-w-md text-sm leading-5 text-akiba-muted">
+                  Check back later, or browse offers available from other Akiba merchants.
+                </p>
+                <TrackedLink
+                  href="/vouchers"
+                  event="merchant_vouchers_empty_browse_tap"
+                  eventProps={{ merchant_id: merchantId }}
+                  className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full border border-akiba-line px-4 py-2 text-sm font-semibold text-akiba-ink transition-colors hover:border-akiba-teal/40 hover:text-akiba-teal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal motion-reduce:transition-none"
+                >
+                  Browse all vouchers
+                </TrackedLink>
+              </div>
+            )}
+          </div>
+        ) : activeTab === "locations" ? (
           <div className="px-4 py-4 sm:px-0 sm:py-5">
             <div className="mb-4 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
               <div className="min-w-0">

@@ -36,6 +36,7 @@ import { useState } from "react";
 interface SidebarProps {
   adminName: string | null;
   adminRole: string;
+  fundedVouchersEnabled: boolean;
 }
 
 interface NavItem {
@@ -46,7 +47,8 @@ interface NavItem {
   children?: NavItem[];
 }
 
-const navSections: Array<{ label: string; items: NavItem[] }> = [
+export function buildNavSections(fundedVouchersEnabled: boolean): Array<{ label: string; items: NavItem[] }> {
+  return [
   {
     label: "Command",
     items: [
@@ -79,7 +81,7 @@ const navSections: Array<{ label: string; items: NavItem[] }> = [
         icon: Tag,
         children: [
           { href: "/vouchers", label: "Overview", icon: LayoutDashboard, exact: true },
-          {
+          ...(fundedVouchersEnabled ? [{
             href: "/vouchers/funds",
             label: "Akiba-Funded",
             icon: Landmark,
@@ -88,7 +90,7 @@ const navSections: Array<{ label: string; items: NavItem[] }> = [
               { href: "/vouchers/allocations", label: "Merchant Allocations", icon: Store },
               { href: "/vouchers/grants", label: "Member Grants", icon: Users },
             ],
-          },
+          }] : []),
           { href: "/vouchers/pricing", label: "Voucher Pricing", icon: Tag },
           { href: "/vouchers/weekly-challenge", label: "Weekly Challenge", icon: Ticket },
         ],
@@ -136,7 +138,8 @@ const navSections: Array<{ label: string; items: NavItem[] }> = [
       { href: "/settings", label: "Settings", icon: Settings },
     ],
   },
-];
+  ];
+}
 
 function NavLink({ item, depth = 0 }: { item: NavItem; depth?: number }) {
   const pathname = usePathname();
@@ -191,8 +194,9 @@ function NavLink({ item, depth = 0 }: { item: NavItem; depth?: number }) {
   );
 }
 
-export function Sidebar({ adminName, adminRole }: SidebarProps) {
+export function Sidebar({ adminName, adminRole, fundedVouchersEnabled }: SidebarProps) {
   const router = useRouter();
+  const navSections = buildNavSections(fundedVouchersEnabled);
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });

@@ -358,7 +358,7 @@ function mapApprovedCustomerPhotos(value: unknown, merchantName: string): Public
 
 // §7.1: "Public customer-photo signed URLs have a maximum 15-minute
 // lifetime and private/no-store response caching."
-const APPROVED_PHOTO_URL_TTL_SECONDS = 15 * 60;
+const APPROVED_PHOTO_URL_TTL_SECONDS = 5 * 60;
 const APPROVED_PHOTO_LIMIT = 48;
 const DERIVED_VISIT_PHOTO_BUCKET = "discovery-visit-photos-derived";
 

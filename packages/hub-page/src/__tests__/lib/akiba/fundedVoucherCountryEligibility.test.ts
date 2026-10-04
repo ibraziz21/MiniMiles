@@ -9,17 +9,17 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
-    from: () => ({
+    from: (table: string) => ({
       select: () => ({
         eq: () => ({
-          maybeSingle: async () => ({ data: state.allocation, error: null }),
+          maybeSingle: async () =>
+            table === "hub_user_profiles"
+              ? { data: { country_code: state.memberCountry }, error: null }
+              : { data: state.allocation, error: null },
         }),
       }),
     }),
   }),
-}));
-vi.mock("@/lib/akiba/countryEligibility", () => ({
-  resolveMemberCountry: async () => ({ code: state.memberCountry, name: state.memberCountry }),
 }));
 
 const { evaluateFundedVoucherCountryEligibility } = await import(
@@ -51,7 +51,13 @@ describe("evaluateFundedVoucherCountryEligibility", () => {
       email: null,
     });
 
-    expect(result).toEqual({ ok: true, eligible: false, fundCountry: "KE", memberCountry: "UG" });
+    expect(result).toEqual({
+      ok: true,
+      eligible: false,
+      fundCountry: "KE",
+      memberCountry: "UG",
+      reasonCode: "profile_country_mismatch",
+    });
   });
 
   it("fails closed when the member country is missing", async () => {
@@ -63,6 +69,12 @@ describe("evaluateFundedVoucherCountryEligibility", () => {
       email: null,
     });
 
-    expect(result).toEqual({ ok: true, eligible: false, fundCountry: "KE", memberCountry: null });
+    expect(result).toEqual({
+      ok: true,
+      eligible: false,
+      fundCountry: "KE",
+      memberCountry: null,
+      reasonCode: "profile_country_required",
+    });
   });
 });

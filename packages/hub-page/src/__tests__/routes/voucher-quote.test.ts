@@ -51,6 +51,12 @@ vi.mock("@/lib/supabase/admin", () => ({
 vi.mock("@/lib/vouchers/claimIntent", () => ({
   getVoucherClaimFriction: async () => ({ expiredUnusedCount: 0, activeUnusedCount: 0, redeemedCount: 0, requiresUsePlan: false }),
 }));
+// Claim-time username snapshot (voucher-web2-username-identity-spec.md
+// §3.6) — mocked wholesale like resolveHubProfile above; its own resolution
+// path isn't what this route's tests exercise.
+vi.mock("@/lib/akiba/voucherUsername", () => ({
+  getActiveUsernameForHubUser: async () => null,
+}));
 
 const { POST } = await import("@/app/api/shop/vouchers/quote/route");
 
@@ -180,34 +186,31 @@ describe("POST /api/shop/vouchers/quote", () => {
     expect(mockReadChain).not.toHaveBeenCalled();
   });
 
-  it("binds an on-chain shortfall to the primary wallet", async () => {
+  it("rejects an insufficient ledger balance with INSUFFICIENT_MILES, even with a wallet linked", async () => {
     state.ledger = 40;
     state.wallets = [
-      { address: "0xsecondary", is_primary: false, linked_at: "2026-01-02" },
-      { address: "0xPRIMARY", is_primary: true, linked_at: "2026-01-01" },
+      { address: "0xprimary", is_primary: true, linked_at: "2026-01-01" },
+    ];
+
+    const response = await POST(request());
+    const body = await response.json() as Record<string, unknown>;
+
+    expect(response.status).toBe(422);
+    expect(body.code).toBe("INSUFFICIENT_MILES");
+    expect(body.error).not.toMatch(/wallet|connect/i);
+  });
+
+  it("never produces a quote with a wallet address or on-chain points", async () => {
+    state.wallets = [
+      { address: "0xprimary", is_primary: true, linked_at: "2026-01-01" },
     ];
 
     const response = await POST(request());
     const body = await response.json() as Record<string, unknown>;
 
     expect(response.status).toBe(200);
-    expect(body.ledger_points).toBe(40);
-    expect(body.onchain_points).toBe(60);
-    expect(body.wallet_address).toBe("0xprimary");
-    expect(mockReadChain).toHaveBeenCalledWith("0xprimary");
-  });
-
-  it("subtracts existing on-chain reservations", async () => {
-    state.ledger = 0;
-    state.wallets = [
-      { address: "0xprimary", is_primary: true, linked_at: "2026-01-01" },
-    ];
-    state.reserved = [{ points: 25 }];
-    mockReadChain.mockResolvedValue({ ok: true, balance: 110 });
-
-    const response = await POST(request());
-
-    expect(response.status).toBe(422);
+    expect(body.wallet_address).toBeNull();
+    expect(body.onchain_points).toBe(0);
   });
 
   it("does not quote catalog inventory that reservation would reject", async () => {

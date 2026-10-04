@@ -1,5 +1,5 @@
 // POST /api/me/discovery-contributions/:contributionId/photos/:photoId/complete
-// Confirms the signed upload actually landed, then hands the photo to the
+// Confirms the owner-bound upload actually landed, then hands the photo to the
 // processing worker. The object key is derived server-side from the
 // authenticated contribution/photo, never accepted from the client
 // (verified-discovery-acquisition-v1-spec.md §11.2, §17).
@@ -39,6 +39,12 @@ export async function POST(req: Request, { params }: { params: { id: string; pho
     return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
   if (!photo) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  if (["processing", "pending", "approved"].includes(photo.moderation_status)) {
+    return NextResponse.json(
+      { ok: true, photoId: params.photoId, status: photo.moderation_status, idempotent: true },
+      { status: photo.moderation_status === "processing" ? 202 : 200 },
+    );
+  }
   if (photo.moderation_status !== "uploading") {
     return NextResponse.json({ error: "invalid_state" }, { status: 409 });
   }
@@ -63,6 +69,8 @@ export async function POST(req: Request, { params }: { params: { id: string; pho
   // completing from 'uploading'). One call rolls back entirely on failure.
   const { data: completed, error: completeError } = await admin.rpc("complete_discovery_photo_upload", {
     p_photo_id: params.photoId,
+    p_contribution_id: params.id,
+    p_hub_user_id: user.id,
   });
   if (completeError) {
     console.error("[discovery-photos/complete] complete_discovery_photo_upload failed:", completeError.message);
@@ -70,7 +78,7 @@ export async function POST(req: Request, { params }: { params: { id: string; pho
   }
   const result = Array.isArray(completed) ? completed[0] : completed;
   if (!result?.ok) {
-    return NextResponse.json({ error: "invalid_state" }, { status: 409 });
+    return NextResponse.json({ error: result?.error_code ?? "invalid_state" }, { status: 409 });
   }
 
   // Hand off to the worker and return — this request must not itself claim
@@ -82,5 +90,8 @@ export async function POST(req: Request, { params }: { params: { id: string; pho
   // (/api/internal/process-photo-jobs) is the only path that processes
   // jobs; `pnpm discovery:process-photos` triggers it on demand in local
   // development.
-  return NextResponse.json({ ok: true, photoId: params.photoId, status: "processing" }, { status: 202 });
+  return NextResponse.json(
+    { ok: true, photoId: params.photoId, status: result.current_state ?? "processing", idempotent: result.idempotent === true },
+    { status: 202 },
+  );
 }

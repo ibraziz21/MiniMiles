@@ -1,14 +1,14 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isDiscoverySpotlightEnabled } from "@/lib/akiba/verifiedDiscoveryPublicProofFlags";
+import {
+  isDiscoverySnapshotReadEnabled,
+  isDiscoverySpotlightEnabled,
+} from "@/lib/akiba/verifiedDiscoveryPublicProofFlags";
 import { extractPublicExperienceLabels } from "@/lib/discovery/publicExperienceLabels";
 import type { VerifiedDiscoveryHighlight, VerifiedRecommendationBand } from "./types";
 
-// Still a fixed scan cap, not the full eligible corpus — removing this
-// entirely is the separate, not-yet-built P1 "full-corpus projection"
-// (hardening spec §5.2/§5.4/§9). What this module fixes now is correctness
-// and safety within that capped window: the canonical eligibility
-// projection (never a hand-rolled predicate), same-member/day dedup, and
-// threshold-safe aggregate claims (§4.3).
+// The capped live computation remains only as the shadow comparator and
+// rollback path. Broad rollout enables the full-corpus SQL snapshot read
+// after the seven-day shadow gate.
 const CONTRIBUTION_SCAN_LIMIT = 500;
 // Ranking V1's "configured 90-day window" (§5.3) — also what
 // recompute_merchant_discovery_snapshot (091) uses, so the live path here
@@ -16,9 +16,9 @@ const CONTRIBUTION_SCAN_LIMIT = 500;
 // how far back either one looks.
 const RANKING_WINDOW_DAYS = 90;
 const HIGHLIGHT_LIMIT = 3;
-// §7.1: "Public customer-photo signed URLs have a maximum 15-minute
+// §7.1 takedown budget: retained public customer-photo URLs have a maximum five-minute
 // lifetime and private/no-store response caching."
-const PHOTO_URL_TTL_SECONDS = 15 * 60;
+const PHOTO_URL_TTL_SECONDS = 5 * 60;
 const DERIVED_PHOTO_BUCKET = "discovery-visit-photos-derived";
 // §4.3: "one to four contributions render `New from verified visits`, not
 // `1 verified visit`."
@@ -52,6 +52,17 @@ type EligiblePhotoRow = {
 type PartnerRow = {
   partner_id: string;
   partners: unknown;
+};
+
+type SnapshotRow = {
+  partner_id: string;
+  public_count_band: string | null;
+  qualified_experience_labels: unknown;
+  qualified_recommended_items: unknown;
+  cover_photo_id: string;
+  cover_photo_thumbnail_key: string;
+  cover_photo_display_key: string;
+  rank_score: number | string;
 };
 
 /**
@@ -267,6 +278,42 @@ async function computeVerifiedDiscoveryPartnerAggregates(
   return aggregates;
 }
 
+async function getSnapshotPartnerAggregates(
+  admin: ReturnType<typeof createAdminClient>,
+): Promise<Map<string, VerifiedDiscoveryPartnerAggregate>> {
+  const { data, error } = await admin.rpc("get_public_merchant_discovery_snapshots", { p_limit: HIGHLIGHT_LIMIT });
+  if (error) {
+    console.error("[home-verified-discovery] snapshot lookup failed:", error.message);
+    return new Map();
+  }
+
+  const result = new Map<string, VerifiedDiscoveryPartnerAggregate>();
+  for (const row of (data ?? []) as SnapshotRow[]) {
+    const count = Number(row.rank_score);
+    if (!Number.isFinite(count) || count < 0 || !row.cover_photo_id || !row.cover_photo_thumbnail_key || !row.cover_photo_display_key) {
+      continue;
+    }
+    const exactCount = Number(row.public_count_band);
+    result.set(row.partner_id, {
+      partnerId: row.partner_id,
+      uniqueContributorCount: count,
+      band: row.public_count_band !== "new" && Number.isInteger(exactCount) && exactCount >= EXACT_COUNT_BAND_THRESHOLD
+        ? { kind: "exact", count: exactCount }
+        : { kind: "new" },
+      lovedLabels: Array.isArray(row.qualified_experience_labels)
+        ? row.qualified_experience_labels.filter((label): label is string => typeof label === "string").slice(0, 3)
+        : [],
+      recommendedItems: Array.isArray(row.qualified_recommended_items)
+        ? row.qualified_recommended_items.filter((item): item is string => typeof item === "string").slice(0, 2)
+        : [],
+      coverPhotoId: row.cover_photo_id,
+      coverPhotoThumbnailKey: row.cover_photo_thumbnail_key,
+      coverPhotoDisplayKey: row.cover_photo_display_key,
+    });
+  }
+  return result;
+}
+
 /**
  * Returns up to three earned discovery slots, ranked by the number of
  * unique active positive contributors (same-member/same-merchant/same-day
@@ -286,7 +333,9 @@ export async function getVerifiedDiscoveryHighlights(): Promise<VerifiedDiscover
 
   const admin = createAdminClient();
   try {
-    const aggregates = await computeVerifiedDiscoveryPartnerAggregates(admin);
+    const aggregates = isDiscoverySnapshotReadEnabled()
+      ? await getSnapshotPartnerAggregates(admin)
+      : await computeVerifiedDiscoveryPartnerAggregates(admin);
     if (aggregates.size === 0) return [];
 
     const rankedPartnerIds = [...aggregates.values()]
