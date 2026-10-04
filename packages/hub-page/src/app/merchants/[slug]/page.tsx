@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getPublicMerchant, DirectoryUnavailableError } from "@/lib/merchants/queries";
 import {
-  Store, Tag, Mail, Phone, MessageCircle, Globe, ArrowLeft,
+  Store, Mail, Phone, MessageCircle, Globe, ArrowLeft,
   Instagram, Facebook, Navigation,
 } from "lucide-react";
 import { buildDirectionsUrl, formatAddress } from "@/lib/merchants/directions";
@@ -13,10 +13,16 @@ import { SaveMerchantButton } from "@/components/merchants/SaveMerchantButton";
 import { TrackedAnchor } from "@/components/TrackedAnchor";
 import { MerchantViewTracker } from "@/components/merchants/MerchantViewTracker";
 import { MerchantPhotoTabs } from "@/components/merchants/MerchantPhotoTabs";
+import { MerchantFundedVoucherCard } from "@/components/merchants/MerchantFundedVoucherCard";
 import { MerchantProfileDisclosure } from "@/components/merchants/MerchantProfileDisclosure";
 import { getSignedInBalance } from "@/lib/merchants/enrich";
 import { getMemberVerifiedVisitSummary, hasOpenMerchantContributionRequest } from "@/lib/merchants/memberVisits";
 import { isMerchantSaved } from "@/lib/merchants/savedMerchants";
+import { rankMerchantFundedOffers, rankMerchantVouchers } from "@/lib/merchants/voucherRanking";
+import {
+  getClaimedMerchantFundedAllocationIds,
+  getMerchantFundedOffers,
+} from "@/lib/vouchers/merchantFundedOffers.server";
 import type { PublicMerchantDetail } from "@/lib/merchants/types";
 
 // A live-inventory merchant profile (publish state, hours, vouchers,
@@ -127,8 +133,17 @@ export default async function MerchantPage({ params }: { params: { slug: string 
   if (!merchant) notFound();
 
   const isSignedIn = !!userId;
+  const fundedOffers = await getMerchantFundedOffers(merchant.id);
+  const rankedMilesVouchers = rankMerchantVouchers(merchant.vouchers, balance);
+  const claimedFundedAllocationIds = await getClaimedMerchantFundedAllocationIds(
+    fundedOffers.map((offer) => offer.allocationId),
+    userId,
+    email,
+  );
+  const rankedFundedOffers = rankMerchantFundedOffers(fundedOffers, claimedFundedAllocationIds);
+  const totalVoucherCount = fundedOffers.length + rankedMilesVouchers.length;
   const affordableVoucherCount =
-    balance != null ? merchant.vouchers.filter((v) => balance >= v.milesCost).length : null;
+    balance != null ? rankedMilesVouchers.filter((v) => balance >= v.milesCost).length : null;
   const [initialSaved, memberVerifiedVisit, canAddVerifiedVisit] = userId
     ? await Promise.all([
         isMerchantSaved(userId, merchant.id),
@@ -143,7 +158,7 @@ export default async function MerchantPage({ params }: { params: { slug: string 
     <main className="mx-auto max-w-7xl px-4 pb-6 pt-4 sm:px-6 sm:py-6 lg:px-8">
       <MerchantViewTracker
         merchantId={merchant.id}
-        hasVouchers={merchant.vouchers.length > 0}
+        hasVouchers={totalVoucherCount > 0}
       />
       {hasPhysicalLocation && <LocalBusinessJsonLd merchant={merchant} />}
 
@@ -293,62 +308,56 @@ export default async function MerchantPage({ params }: { params: { slug: string 
               <Mail className="h-4 w-4" />
             </a>
           )}
-          {merchant.vouchers.length > 0 && (
-            <a href="#vouchers" className="flex shrink-0 snap-start items-center justify-center gap-1.5 rounded-full border border-akiba-teal/30 bg-akiba-tint px-4 py-2 text-sm font-semibold text-akiba-teal focus-visible:ring-2 focus-visible:ring-akiba-teal">
-              <Tag className="h-4 w-4" /> Vouchers
-            </a>
-          )}
         </div>
       </div>
 
-      {/*
-        Section order: Profile tabs -> Vouchers. Contact/socials,
-        About and What they offer now live in the profile block above, so
-        this grid only carries the remaining content sections. Locations
-        live in the tabbed profile content while vouchers stay transactional.
-      */}
-      <div className="grid items-start gap-8 lg:grid-cols-[1fr,320px]">
-        <MerchantPhotoTabs
-          merchantName={merchant.name}
-          merchantId={merchant.id}
-          verifiedVisits={merchant.verifiedVisits}
-          customerPhotos={merchant.approvedCustomerPhotos}
-          merchantMedia={merchant.merchantMedia}
-          memberVerifiedVisit={memberVerifiedVisit}
-          contributionHref={canAddVerifiedVisit ? `/visit/merchant/${merchant.slug}` : null}
-          locationCount={merchant.locations.length}
-          locationsContent={merchant.locations.length > 0 ? (
+      <MerchantPhotoTabs
+        merchantName={merchant.name}
+        merchantId={merchant.id}
+        verifiedVisits={merchant.verifiedVisits}
+        customerPhotos={merchant.approvedCustomerPhotos}
+        merchantMedia={merchant.merchantMedia}
+        memberVerifiedVisit={memberVerifiedVisit}
+        contributionHref={canAddVerifiedVisit ? `/visit/merchant/${merchant.slug}` : null}
+        voucherCount={totalVoucherCount}
+        vouchersContent={totalVoucherCount > 0 ? (
+          <>
+            {affordableVoucherCount != null && rankedMilesVouchers.length > 0 && (
+              <p className="mb-3 text-xs font-semibold text-akiba-teal">
+                Your balance covers {affordableVoucherCount} of {rankedMilesVouchers.length} Miles voucher
+                {rankedMilesVouchers.length === 1 ? "" : "s"} here.
+              </p>
+            )}
             <div className="grid gap-3 sm:grid-cols-2">
-              {merchant.locations.map((location) => (
-                <BranchCard key={location.id} location={location} />
+              {rankedFundedOffers.map((offer) => (
+                <MerchantFundedVoucherCard
+                  key={offer.allocationId}
+                  offer={offer}
+                  isSignedIn={isSignedIn}
+                  alreadyClaimed={claimedFundedAllocationIds.has(offer.allocationId)}
+                />
+              ))}
+              {rankedMilesVouchers.map((voucher) => (
+                <VoucherCard
+                  key={voucher.id}
+                  voucher={voucher}
+                  locations={merchant.locations}
+                  isSignedIn={isSignedIn}
+                  balance={balance}
+                />
               ))}
             </div>
-          ) : undefined}
-        />
-
-        {/* Vouchers */}
-        {merchant.vouchers.length > 0 && (
-          <section id="vouchers" className="order-2 scroll-mt-20 rounded-2xl border border-akiba-line bg-white p-5 lg:col-start-2">
-            <h2 className="mb-4 flex items-center gap-2 font-sterling text-lg font-semibold text-akiba-ink">
-              <Tag className="h-5 w-5 text-akiba-teal" /> Vouchers
-            </h2>
-            <div className="mb-4">
-              <p className="text-xs text-akiba-muted">Burn miles to unlock offers at this merchant.</p>
-              {affordableVoucherCount != null && (
-                <p className="mt-1 text-xs font-semibold text-akiba-teal">
-                  You can afford {affordableVoucherCount} of {merchant.vouchers.length} voucher
-                  {merchant.vouchers.length === 1 ? "" : "s"} here
-                </p>
-              )}
-            </div>
-            <div className="space-y-3">
-              {merchant.vouchers.map((v) => (
-                <VoucherCard key={v.id} voucher={v} locations={merchant.locations} isSignedIn={isSignedIn} />
-              ))}
-            </div>
-          </section>
-        )}
-      </div>
+          </>
+        ) : undefined}
+        locationCount={merchant.locations.length}
+        locationsContent={merchant.locations.length > 0 ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {merchant.locations.map((location) => (
+              <BranchCard key={location.id} location={location} />
+            ))}
+          </div>
+        ) : undefined}
+      />
     </main>
   );
 }

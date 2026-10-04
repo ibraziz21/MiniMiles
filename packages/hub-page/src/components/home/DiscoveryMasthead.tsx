@@ -33,12 +33,7 @@ export function DiscoveryMasthead({
             )}
           </div>
         )}
-        <h1 className="font-sterling text-[clamp(1.55rem,7vw,1.75rem)] font-semibold leading-[1.08] tracking-[-0.025em] text-akiba-ink sm:text-4xl">
-          Find more value in the places you shop.
-        </h1>
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-akiba-muted sm:text-base">
-          Discover Akiba merchants and use your Miles on vouchers for everyday spending.
-        </p>
+
       </div>
 
       <div className="mt-4 sm:mt-6">
