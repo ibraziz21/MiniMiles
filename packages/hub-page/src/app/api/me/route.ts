@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildIdentities } from "@/lib/akiba/identities";
+import { isSupportedCountryInput } from "@/lib/akiba/countryCodes";
 
 const MINIPOINTS = process.env.MINIPOINTS_ADDRESS;
 const CELO_RPC = process.env.CELO_RPC_URL ?? "https://forno.celo.org";
@@ -92,6 +93,9 @@ export async function PATCH(request: Request) {
   if (country !== undefined) {
     if (typeof country !== "string" || country.trim().length === 0) {
       return NextResponse.json({ error: "country is required" }, { status: 400 });
+    }
+    if (!isSupportedCountryInput(country)) {
+      return NextResponse.json({ error: "Unsupported country" }, { status: 400 });
     }
     const identities = await buildIdentities({ userId: user.id, email: user.email ?? null });
     const { error } = await admin.rpc("set_hub_profile_country", {

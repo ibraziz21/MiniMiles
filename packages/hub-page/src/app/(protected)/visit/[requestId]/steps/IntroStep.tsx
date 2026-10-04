@@ -4,11 +4,13 @@ export function IntroStep({
   merchantName,
   onNext,
   onDismiss,
+  dismissing,
   headingRef,
 }: {
   merchantName: string;
   onNext: () => void;
   onDismiss: () => void;
+  dismissing: boolean;
   headingRef: RefObject<HTMLHeadingElement>;
 }) {
   return (
@@ -29,8 +31,13 @@ export function IntroStep({
         >
           Add my visit
         </button>
-        <button type="button" onClick={onDismiss} className="min-h-[44px] text-sm font-medium text-akiba-muted">
-          Not now
+        <button
+          type="button"
+          onClick={onDismiss}
+          disabled={dismissing}
+          className="min-h-[44px] text-sm font-medium text-akiba-muted disabled:opacity-60"
+        >
+          {dismissing ? "Closing…" : "Not now"}
         </button>
       </div>
     </section>

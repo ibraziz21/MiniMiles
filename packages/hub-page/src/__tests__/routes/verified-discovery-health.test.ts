@@ -79,6 +79,7 @@ describe("GET /api/internal/verified-discovery-health", () => {
       spotlightEnabled: true,
       verifiedVisitsPublicEnabled: true,
       customerPhotosPublicEnabled: true,
+      snapshotReadEnabled: false,
     });
   });
 

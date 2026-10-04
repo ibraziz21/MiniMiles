@@ -5,11 +5,12 @@
 **Owners:** Hub / Discovery (ops) — *placeholder: name the actual on-call
 owner here if this differs*
 **Related:** `verified-discovery-market-readiness-hardening-spec.md` §8
-("Observability and operational readiness"); migrations 090–092
+("Observability and operational readiness"); migrations 090–093
 
 > This runbook assumes no paging/alerting integration exists for this
 > feature (none does, as of this writing — there is no Slack/PagerDuty hook
-> anywhere in this codebase). Detection is manual: an operator checks the
+> anywhere in this codebase). Health and shadow checks run on Vercel Cron,
+> but detection still requires an operator to inspect those runs or the
 > **Discovery Health** page in admin-dashboard
 > (`/verified-discovery-health`). If that changes — an alert gets wired up —
 > update this runbook's §1 rather than leaving it describing a check nobody
@@ -19,7 +20,7 @@ owner here if this differs*
 
 ## 0. What this covers
 
-The verified-discovery hardening work (migrations 090–092): canonical
+The verified-discovery hardening work (migrations 090–093): canonical
 eligibility enforcement, atomic moderation + audit, the photo-processing
 queue, the shadow-mode projection/snapshot queue, emergency suppression, and
 the public-proof kill switches. It does not cover the original Stage 0/1/2
@@ -112,10 +113,10 @@ paths. If it happens anyway:
 ### 2.4 Emergency photo suppression
 
 Admin-dashboard → Discovery Photos → **Live** section → **Suppress now** on
-the affected photo. This sets `suppressed_at`, which every public read
-checks — there is no cache to wait out, no separate revocation step. The
-spec's five-minute budget for this (§7.1) should be met by the time it takes
-an operator to click the button.
+the affected photo. This sets `suppressed_at`, which every new public read
+checks immediately. Previously issued private derivative URLs have a
+five-minute maximum lifetime, so retained links stop working within the
+spec's five-minute takedown budget (§7.1).
 
 Equivalent API call (`discovery.write` admin session required):
 ```
@@ -154,9 +155,9 @@ days — a single good report is not that.
 
 ## 3. Feature kill switches
 
-Three independent env vars on the **hub-page** deployment, each defaulting
-to enabled (`lib/akiba/verifiedDiscoveryPublicProofFlags.ts`). Set any to
-`false`/`off`/`0`/`no` to hide that surface without a deploy, without
+Three independent env vars on the **hub-page** deployment. Production is
+fail-closed: each surface must be explicitly set to `true`/`on`/`1`/`yes`.
+Unset, false, or unrecognized values hide that surface without a deploy and without
 touching merchant search, merchant profiles, Miles or vouchers:
 
 | Variable | Hides |
@@ -164,6 +165,7 @@ touching merchant search, merchant profiles, Miles or vouchers:
 | `HUB_DISCOVERY_SPOTLIGHT_ENABLED` | The home "Places people loved" spotlight |
 | `HUB_DISCOVERY_VERIFIED_VISITS_PUBLIC_ENABLED` | Merchant-page "Verified visits" cards |
 | `HUB_DISCOVERY_CUSTOMER_PHOTOS_PUBLIC_ENABLED` | Public customer-photo galleries (merchant page + spotlight) |
+| `HUB_DISCOVERY_SNAPSHOT_READ_ENABLED` | Switches the spotlight from the capped shadow comparator to the full-corpus snapshot read; enable only after the seven-day gate and canary approval |
 
 These are **global** (all merchants), not per-merchant — there is currently
 no way to kill a single merchant's proof surface without a deploy, because
@@ -172,8 +174,9 @@ Akiba-Platform-owned tables this repo does not write to. A single-photo
 emergency action is §2.4; a single-merchant kill would need Akiba-Platform
 coordination.
 
-Revert by unsetting the var (or setting it to a truthy value) and
-redeploying/restarting — no migration involved.
+Re-enable by setting the exact value `true` (or `on`/`1`/`yes`) and
+redeploying/restarting — no migration involved. Do not rely on unsetting a
+flag in production; unset now intentionally means disabled.
 
 ## 4. Rollback decision
 
@@ -183,7 +186,7 @@ redeploying/restarting — no migration involved.
   roll back).
 - If a §3 kill switch is flipped off, that is the rollback — contribution
   capture and private moderation keep working normally underneath it.
-- Database changes (090–092) are additive (new columns, functions, tables);
+- Database changes (090–093) are additive (new columns, functions, tables);
   there is no migration-level rollback path and none is needed — the
   canonical eligibility projection being wrong would be a bug to fix
   forward, not a schema to revert.

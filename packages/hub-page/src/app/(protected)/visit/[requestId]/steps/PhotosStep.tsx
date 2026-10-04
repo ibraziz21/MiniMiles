@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import type { PhotoUpload } from "./types";
 
 export function PhotosStep({
@@ -26,6 +26,12 @@ export function PhotosStep({
   onDone: () => void;
   headingRef: RefObject<HTMLHeadingElement>;
 }) {
+  const firstErrorRef = useRef<HTMLDivElement>(null);
+  const errorCount = photos.filter((photo) => photo.status === "error").length;
+  useEffect(() => {
+    if (errorCount > 0) firstErrorRef.current?.focus();
+  }, [errorCount]);
+
   return (
     <section className="flex flex-1 flex-col gap-6">
       <h1 ref={headingRef} tabIndex={-1} className="font-sterling text-xl font-semibold text-akiba-ink">
@@ -33,20 +39,23 @@ export function PhotosStep({
       </h1>
       <p className="text-xs text-akiba-muted">{safetyGuidance}</p>
       <div className="flex flex-wrap gap-3">
-        {photos.map((photo) => (
+        {photos.map((photo, index) => (
           <div
             key={photo.localId}
+            ref={photo.status === "error" && index === photos.findIndex((candidate) => candidate.status === "error") ? firstErrorRef : undefined}
+            tabIndex={photo.status === "error" ? -1 : undefined}
             className="relative flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-xl border border-akiba-line bg-akiba-card p-1 text-center text-[11px] text-akiba-muted"
           >
             {photo.status === "uploading" && "Uploading…"}
             {photo.status === "done" && "Submitted for review"}
             {photo.status === "error" && (
               <>
-                <span>Failed</span>
+                <span className="max-w-full truncate" title={photo.file.name}>Failed: {photo.file.name}</span>
                 <button
                   type="button"
                   onClick={() => onRetry(photo.localId)}
-                  className="min-h-[20px] font-semibold text-akiba-teal underline"
+                  aria-label={`Retry ${photo.file.name}`}
+                  className="min-h-[44px] px-2 font-semibold text-akiba-teal underline"
                 >
                   Retry
                 </button>
@@ -55,8 +64,8 @@ export function PhotosStep({
             <button
               type="button"
               onClick={() => onRemove(photo.localId)}
-              aria-label={photo.status === "error" ? "Remove failed photo" : "Remove photo"}
-              className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-white text-akiba-ink shadow"
+              aria-label={`Remove ${photo.file.name}`}
+              className="absolute -right-3 -top-3 flex h-11 w-11 items-center justify-center rounded-full bg-white text-xl text-akiba-ink shadow"
             >
               ×
             </button>
@@ -69,7 +78,10 @@ export function PhotosStep({
               type="file"
               accept={acceptedTypes.join(",")}
               className="sr-only"
-              onChange={(event) => onSelect(event.target.files?.[0])}
+              onChange={(event) => {
+                onSelect(event.target.files?.[0]);
+                event.currentTarget.value = "";
+              }}
             />
           </label>
         )}

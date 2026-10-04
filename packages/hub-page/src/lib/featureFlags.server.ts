@@ -67,10 +67,28 @@ export function hubQuestClaimsFlag(env: FlagEnvironment = process.env): FeatureF
   );
 }
 
+/**
+ * Akiba-funded voucher discovery/eligibility/claim kill switch
+ * (akiba-funded-voucher-launch-hardening-spec.md §3). Unlike the flags above,
+ * this one is explicitly `false` by default everywhere (including non-prod)
+ * — Phase 1 is a real-money vertical slice, so it needs a deliberate opt-in
+ * rather than "on unless configured otherwise". Turning it off must stop new
+ * claims without touching already-issued voucher redemption, which never
+ * reads this flag.
+ */
+export function akibaFundedVouchersHubFlag(env: FlagEnvironment = process.env): FeatureFlagResult {
+  return evaluate(
+    isTruthy(env.AKIBA_FUNDED_VOUCHERS_HUB_ENABLED),
+    isConfigured(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_KEY),
+    "Supabase service credentials missing"
+  );
+}
+
 export function getAllFeatureFlags(env: FlagEnvironment = process.env) {
   return {
     walletLinking: walletLinkingFlag(env),
     offlinePass: offlinePassFlag(env),
     hubQuestClaims: hubQuestClaimsFlag(env),
+    akibaFundedVouchersHub: akibaFundedVouchersHubFlag(env),
   };
 }

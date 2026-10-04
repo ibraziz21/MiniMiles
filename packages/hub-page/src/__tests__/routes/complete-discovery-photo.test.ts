@@ -47,7 +47,10 @@ describe("POST discovery photo complete", () => {
     mocks.storageFrom.mockReturnValue({
       list: vi.fn(async () => ({ data: [{ name: `${photoId}.jpg` }], error: null })),
     });
-    mocks.rpc.mockResolvedValue({ data: [{ ok: true }], error: null });
+    mocks.rpc.mockResolvedValue({
+      data: [{ ok: true, current_state: "processing", idempotent: false, error_code: null }],
+      error: null,
+    });
   });
 
   // Hardening spec §5.5: the foreground completion request flips the state
@@ -62,7 +65,31 @@ describe("POST discovery photo complete", () => {
     });
 
     expect(response.status).toBe(202);
-    expect(mocks.rpc).toHaveBeenCalledWith("complete_discovery_photo_upload", { p_photo_id: photoId });
+    expect(mocks.rpc).toHaveBeenCalledWith("complete_discovery_photo_upload", {
+      p_photo_id: photoId,
+      p_contribution_id: contributionId,
+      p_hub_user_id: "user-1",
+    });
     await expect(response.json()).resolves.toMatchObject({ ok: true, photoId, status: "processing" });
+  });
+
+  it.each(["processing", "pending", "approved"])("treats a repeated completion in %s as success", async (state) => {
+    const lookupBuilder: Record<string, unknown> = {};
+    lookupBuilder.select = vi.fn(() => lookupBuilder);
+    lookupBuilder.eq = vi.fn(() => lookupBuilder);
+    lookupBuilder.maybeSingle = vi.fn(async () => ({
+      data: { id: photoId, private_source_key: `${contributionId}/${photoId}.jpg`, moderation_status: state },
+      error: null,
+    }));
+    mocks.from.mockReturnValue(lookupBuilder);
+
+    const response = await POST(new Request("http://localhost/api/photo/complete", { method: "POST" }), {
+      params: { id: contributionId, photoId },
+    });
+
+    expect(response.status).toBe(state === "processing" ? 202 : 200);
+    expect(mocks.storageFrom).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toMatchObject({ ok: true, status: state, idempotent: true });
   });
 });

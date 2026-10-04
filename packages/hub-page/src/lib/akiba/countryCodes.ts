@@ -24,3 +24,22 @@ export function normalizeCountry(raw: string | null | undefined): string | null 
   if (/^[a-z]{2}$/i.test(trimmed)) return trimmed.toUpperCase();
   return COUNTRY_NAME_TO_ISO[trimmed.toLowerCase()] ?? null;
 }
+
+const SUPPORTED_ISO_CODES = new Set(Object.values(COUNTRY_NAME_TO_ISO));
+
+/**
+ * Catalogue-membership check for profile writes (profile-country-eligibility
+ * spec §6.1 "rejects arbitrary nonempty text"). Distinct from
+ * `normalizeCountry`, which collapses "Other" and unrecognized input to the
+ * same `null` — a write path needs to tell those apart: `Other` is an
+ * accepted non-qualifying choice, an unrecognized string is a rejected one.
+ */
+export function isSupportedCountryInput(raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  const trimmed = raw.trim();
+  if (!trimmed) return false;
+  const lower = trimmed.toLowerCase();
+  if (lower === "other") return true;
+  if (/^[a-z]{2}$/i.test(trimmed)) return SUPPORTED_ISO_CODES.has(trimmed.toUpperCase());
+  return lower in COUNTRY_NAME_TO_ISO;
+}

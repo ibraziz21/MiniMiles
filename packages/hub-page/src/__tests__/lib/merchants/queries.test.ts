@@ -327,7 +327,8 @@ describe("getPublicMerchant — voucher branch-restriction correctness", () => {
       // still publish even with verified visits killed.
       expect(merchant?.approvedCustomerPhotos).toHaveLength(1);
     } finally {
-      process.env.HUB_DISCOVERY_VERIFIED_VISITS_PUBLIC_ENABLED = originalVisits;
+      if (originalVisits === undefined) delete process.env.HUB_DISCOVERY_VERIFIED_VISITS_PUBLIC_ENABLED;
+      else process.env.HUB_DISCOVERY_VERIFIED_VISITS_PUBLIC_ENABLED = originalVisits;
     }
 
     const originalPhotos = process.env.HUB_DISCOVERY_CUSTOMER_PHOTOS_PUBLIC_ENABLED;
@@ -337,7 +338,8 @@ describe("getPublicMerchant — voucher branch-restriction correctness", () => {
       expect(merchant?.approvedCustomerPhotos).toEqual([]);
       expect(merchant?.verifiedVisits).toHaveLength(1);
     } finally {
-      process.env.HUB_DISCOVERY_CUSTOMER_PHOTOS_PUBLIC_ENABLED = originalPhotos;
+      if (originalPhotos === undefined) delete process.env.HUB_DISCOVERY_CUSTOMER_PHOTOS_PUBLIC_ENABLED;
+      else process.env.HUB_DISCOVERY_CUSTOMER_PHOTOS_PUBLIC_ENABLED = originalPhotos;
     }
   });
 

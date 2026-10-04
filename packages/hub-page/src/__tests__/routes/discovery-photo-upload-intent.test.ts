@@ -15,7 +15,6 @@ const state = vi.hoisted(() => ({
   contribution: null as { id: string; partner_id: string } | null,
   contributionError: null as { message: string } | null,
   activeCount: 0,
-  signError: null as { message: string } | null,
   insertError: null as { code?: string; message: string } | null,
 }));
 
@@ -25,7 +24,6 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({ auth: { getUser: async () => ({ data: { user: state.user } }) } }),
 }));
 
-const mockCreateSignedUploadUrl = vi.fn();
 const mockInsert = vi.fn();
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -49,11 +47,6 @@ vi.mock("@/lib/supabase/admin", () => ({
         return builder;
       }
       throw new Error(`Unexpected table ${table}`);
-    },
-    storage: {
-      from: () => ({
-        createSignedUploadUrl: mockCreateSignedUploadUrl,
-      }),
     },
   }),
 }));
@@ -80,26 +73,21 @@ describe("POST discovery-contributions/:id/photos/upload-intent", () => {
     state.contribution = { id: CONTRIBUTION_ID, partner_id: "partner-1" };
     state.contributionError = null;
     state.activeCount = 0;
-    state.signError = null;
     state.insertError = null;
-    mockCreateSignedUploadUrl.mockResolvedValue({
-      data: { path: "signed/path.jpg", token: "signed-token" },
-      error: null,
-    });
   });
 
   it("rejects an unauthenticated request", async () => {
     state.user = null;
     const res = await POST(makeRequest({ contentType: "image/jpeg", consentVersion: "v1" }), { params: { id: CONTRIBUTION_ID } });
     expect(res.status).toBe(401);
-    expect(mockCreateSignedUploadUrl).not.toHaveBeenCalled();
+    expect(mockInsert).not.toHaveBeenCalled();
   });
 
   it("rejects a cross-origin request", async () => {
     state.sameOrigin = false;
     const res = await POST(makeRequest({ contentType: "image/jpeg", consentVersion: "v1" }), { params: { id: CONTRIBUTION_ID } });
     expect(res.status).toBe(403);
-    expect(mockCreateSignedUploadUrl).not.toHaveBeenCalled();
+    expect(mockInsert).not.toHaveBeenCalled();
   });
 
   it("rejects a malformed contribution id", async () => {
@@ -112,7 +100,7 @@ describe("POST discovery-contributions/:id/photos/upload-intent", () => {
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json.error).toBe("invalid_content_type");
-    expect(mockCreateSignedUploadUrl).not.toHaveBeenCalled();
+    expect(mockInsert).not.toHaveBeenCalled();
   });
 
   it("fails safely on a forged/spoofed MIME string that isn't on the allowlist", async () => {
@@ -125,7 +113,7 @@ describe("POST discovery-contributions/:id/photos/upload-intent", () => {
   it("rejects a stale consent version", async () => {
     const res = await POST(makeRequest({ contentType: "image/jpeg", consentVersion: "v0" }), { params: { id: CONTRIBUTION_ID } });
     expect(res.status).toBe(409);
-    expect(mockCreateSignedUploadUrl).not.toHaveBeenCalled();
+    expect(mockInsert).not.toHaveBeenCalled();
   });
 
   it("returns not_found for another member's contribution (ownership enforced in the query itself)", async () => {
@@ -148,14 +136,14 @@ describe("POST discovery-contributions/:id/photos/upload-intent", () => {
     state.withinRateLimit = false;
     const res = await POST(makeRequest({ contentType: "image/jpeg", consentVersion: "v1" }), { params: { id: CONTRIBUTION_ID } });
     expect(res.status).toBe(429);
-    expect(mockCreateSignedUploadUrl).not.toHaveBeenCalled();
+    expect(mockInsert).not.toHaveBeenCalled();
   });
 
-  it("enforces the active-photo cap before issuing a signed URL", async () => {
+  it("enforces the active-photo cap before creating an upload intent", async () => {
     state.activeCount = 3;
     const res = await POST(makeRequest({ contentType: "image/jpeg", consentVersion: "v1" }), { params: { id: CONTRIBUTION_ID } });
     expect(res.status).toBe(409);
-    expect(mockCreateSignedUploadUrl).not.toHaveBeenCalled();
+    expect(mockInsert).not.toHaveBeenCalled();
   });
 
   it("maps the trigger-enforced photo limit (DB race) to the same 409", async () => {
@@ -178,8 +166,9 @@ describe("POST discovery-contributions/:id/photos/upload-intent", () => {
       { params: { id: CONTRIBUTION_ID } },
     );
 
-    expect(mockCreateSignedUploadUrl).toHaveBeenCalledTimes(1);
-    const [objectKey] = mockCreateSignedUploadUrl.mock.calls[0];
+    expect(mockInsert).toHaveBeenCalledTimes(1);
+    const inserted = mockInsert.mock.calls[0][0];
+    const objectKey = inserted.private_source_key as string;
     expect(objectKey.startsWith(`${CONTRIBUTION_ID}/`)).toBe(true);
     expect(objectKey).not.toContain("..");
     expect(objectKey).not.toContain("attacker-controlled");
@@ -191,11 +180,14 @@ describe("POST discovery-contributions/:id/photos/upload-intent", () => {
     }));
   });
 
-  it("succeeds and returns the signed upload shape for a valid request", async () => {
+  it("succeeds and returns an owner-bound five-minute upload intent", async () => {
     const res = await POST(makeRequest({ contentType: "image/webp", consentVersion: "v1" }), { params: { id: CONTRIBUTION_ID } });
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json).toMatchObject({ bucket: "discovery-visit-photos", path: "signed/path.jpg", token: "signed-token" });
+    expect(json).toMatchObject({ bucket: "discovery-visit-photos", expiresInSeconds: 300 });
+    expect(json.path).toMatch(new RegExp(`^${CONTRIBUTION_ID}/.+\\.webp$`));
+    expect(json).not.toHaveProperty("token");
+    expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({ upload_intent_expires_at: json.expiresAt }));
     expect(typeof json.photoId).toBe("string");
   });
 });

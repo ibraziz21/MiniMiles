@@ -6,16 +6,12 @@
 // insists application code follow applies to its own tooling too.
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isInternalWorkerRequest } from "@/lib/internalWorkerAuth";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function isAuthorized(request: Request): boolean {
-  const secret = process.env.INTERNAL_WEBHOOK_SECRET ?? "";
-  return !!secret && request.headers.get("x-webhook-secret") === secret;
-}
-
 export async function GET(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isInternalWorkerRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

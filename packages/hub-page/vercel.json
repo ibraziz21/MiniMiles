@@ -23,6 +23,14 @@
     {
       "path": "/api/internal/process-discovery-projection-jobs",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/internal/verified-discovery-health",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/internal/verified-discovery-shadow-report",
+      "schedule": "15 2 * * *"
     }
   ]
 }

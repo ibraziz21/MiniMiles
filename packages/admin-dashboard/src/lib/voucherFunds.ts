@@ -116,7 +116,7 @@ export const ELIGIBILITY_RULE_LABELS: Record<EligibilityRuleType, string> = {
 // not aspirational. Only the rules with a real gap between what they sound
 // like and what they currently do get an entry here.
 export const ELIGIBILITY_RULE_WARNINGS: Partial<Record<EligibilityRuleType, string>> = {
-  not_blocked: "Not enforced yet — the platform has no blocklist table. Selecting this does nothing today.",
+  not_blocked: "Not enforced — the platform has no blocklist table yet. Cannot be added to a new rule set; shown here only because a historical allocation may still reference it.",
   first_funded_voucher: "Scoped to the member, not this fund — blocks anyone who has ever claimed from any Akiba fund.",
   fund_claim_cooldown: "Scoped to the member, not this fund — the cooldown counts a claim from any Akiba fund, not just this one.",
   minimum_account_age_days: "Requires a Hub account — always fails for a wallet-only identity.",
@@ -134,10 +134,28 @@ export const VERIFIED_ACTIVITY_TEMPLATE_KEYS = [
   "streak_completion",
 ] as const;
 
+/** Positive, bounded integer day count — corrective-hardening-pass item 3:
+ *  malformed, missing, zero, negative, fractional, or over-limit
+ *  configuration must be rejected, never silently coerced to zero. Shared by
+ *  `fund_claim_cooldown.days` (max 365, matching the Platform evaluator and
+ *  rule-set-creation RPC) and `minimum_account_age_days.days` (max 3650 —
+ *  ten years, one documented bound applied consistently since no existing
+ *  spec defines a stricter one). */
+function isValidBoundedPositiveInteger(value: unknown, maxDays: number): value is number {
+  return typeof value === "number" && Number.isFinite(value) && Number.isInteger(value) && value > 0 && value <= maxDays;
+}
+const MAX_COOLDOWN_DAYS = 365;
+const MAX_ACCOUNT_AGE_DAYS = 3650;
+
 export function isValidEligibilityRule(rule: unknown): rule is { type: EligibilityRuleType; [k: string]: unknown } {
   if (!rule || typeof rule !== "object" || Array.isArray(rule)) return false;
   const type = (rule as Record<string, unknown>).type;
   if (typeof type !== "string" || !(ELIGIBILITY_RULE_TYPES as readonly string[]).includes(type)) return false;
+  // not_blocked has no restriction source behind it yet — never let a new
+  // rule set be created with it (runtime-hardening-spec.md §4.3). It stays
+  // in ELIGIBILITY_RULE_TYPES/ELIGIBILITY_RULE_LABELS so a *historical*
+  // allocation that already references it still renders correctly.
+  if (type === "not_blocked") return false;
   if (type === "country_in") {
     const countries = (rule as Record<string, unknown>).countries;
     if (
@@ -150,7 +168,25 @@ export function isValidEligibilityRule(rule: unknown): rule is { type: Eligibili
   }
   if (type === "verified_activity_completed") {
     const key = (rule as Record<string, unknown>).templateKey;
-    if (typeof key !== "string" || !key) return false;
+    if (
+      typeof key !== "string" ||
+      !(VERIFIED_ACTIVITY_TEMPLATE_KEYS as readonly string[]).includes(key)
+    ) return false;
+  }
+  // The canonical field is `days` (not the legacy `cooldownSeconds` Admin
+  // used to send) — see AllocationForm.tsx and
+  // akiba-funded-voucher-runtime-hardening-spec.md Phase 1 item 6.
+  if (
+    type === "fund_claim_cooldown" &&
+    !isValidBoundedPositiveInteger((rule as Record<string, unknown>).days, MAX_COOLDOWN_DAYS)
+  ) {
+    return false;
+  }
+  if (
+    type === "minimum_account_age_days" &&
+    !isValidBoundedPositiveInteger((rule as Record<string, unknown>).days, MAX_ACCOUNT_AGE_DAYS)
+  ) {
+    return false;
   }
   return true;
 }

@@ -6,6 +6,7 @@ import { createHash } from "crypto";
 import { isHiddenPartner } from "@/lib/akiba/hidden-partners";
 import { resolveMemberCountry, resolveMerchantCountry, evaluateCountryEligibility } from "@/lib/akiba/countryEligibility";
 import { getVoucherClaimFriction } from "@/lib/vouchers/claimIntent";
+import { getActiveUsernameForHubUser } from "@/lib/akiba/voucherUsername";
 
 // Bumped whenever the confirmation modal's copy changes materially — stored
 // on the quote for audit purposes (see reserve_voucher_purchase's consent
@@ -78,24 +79,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 503 });
   }
 
-  const ledgerPoints = Math.min(totalPoints, spendable.ledgerBalance);
-  const onchainPoints = totalPoints - ledgerPoints;
-  const quoteWallet = onchainPoints > 0 ? spendable.walletAddress : null;
-
-  if (onchainPoints > 0) {
-    if (!quoteWallet) {
-      return NextResponse.json({ error: "Connect a wallet to cover the remaining balance" }, { status: 400 });
-    }
-    if (spendable.chainStatus === "chain_unavailable") {
-      return NextResponse.json({ error: "Could not verify your wallet balance — please retry" }, { status: 503 });
-    }
-    if (spendable.chainStatus === "reserved_unavailable") {
-      return NextResponse.json({ error: "Could not verify reserved wallet balance" }, { status: 503 });
-    }
-    if ((spendable.chainBalance ?? 0) < onchainPoints) {
-      return NextResponse.json({ error: "Not enough Miles" }, { status: 422 });
-    }
+  // Web2-ledger-only (voucher-web2-username-identity-spec.md §4.1/§6.3) — a
+  // shortfall is a hard INSUFFICIENT_MILES, never a prompt to connect a
+  // wallet to cover the remainder. No split ledger/on-chain quote exists
+  // anymore.
+  if (spendable.ledgerBalance < totalPoints) {
+    return NextResponse.json({ error: "Not enough Miles", code: "INSUFFICIENT_MILES" }, { status: 422 });
   }
+  const ledgerPoints = totalPoints;
+
+  // Display/audit snapshot only (voucher-web2-username-identity-spec.md
+  // §3.6) — never used for authorization, and never blocks a purchase when
+  // the member hasn't claimed a username yet.
+  const usernameAtClaim = await getActiveUsernameForHubUser({ hubUserId: user.id, email: user.email ?? null });
 
   const purchaseKey = `hub-voucher:${crypto.randomUUID()}`;
   const requestHash = createHash("sha256")
@@ -105,8 +101,6 @@ export async function POST(request: Request) {
       template.partner_id,
       totalPoints,
       ledgerPoints,
-      onchainPoints,
-      quoteWallet ?? "",
       DISCLOSURE_VERSION,
     ].join(":"))
     .digest("hex");
@@ -119,11 +113,12 @@ export async function POST(request: Request) {
       hub_user_id: user.id,
       template_id,
       merchant_id: template.partner_id,
-      wallet_address: quoteWallet,
+      wallet_address: null,
       ledger_points: ledgerPoints,
-      onchain_points: onchainPoints,
+      onchain_points: 0,
       total_points: totalPoints,
       disclosure_version: DISCLOSURE_VERSION,
+      username_at_claim: usernameAtClaim,
     })
     .select("id, ledger_points, onchain_points, total_points, disclosure_version, wallet_address")
     .single();

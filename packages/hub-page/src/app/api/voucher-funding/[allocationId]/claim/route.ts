@@ -23,6 +23,8 @@ import {
   isVoucherUsePlan,
   recordVoucherClaimIntent,
 } from "@/lib/vouchers/claimIntent";
+import { akibaFundedVouchersHubFlag } from "@/lib/featureFlags.server";
+import { getActiveUsernameForHubUser } from "@/lib/akiba/voucherUsername";
 
 const DISCLOSURE_VERSION = "funded-claim-v1";
 
@@ -30,6 +32,13 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ allocationId: string }> },
 ) {
+  // Phase 1 kill switch — see the eligibility route for why this is checked
+  // first. Platform independently enforces the same flag on its own claim
+  // endpoint so a direct call there cannot bypass this.
+  if (!akibaFundedVouchersHubFlag().enabled) {
+    return NextResponse.json({ error: "This offer is not currently available." }, { status: 503 });
+  }
+
   const { allocationId } = await params;
   const supabase = await createClient();
 
@@ -58,6 +67,18 @@ export async function POST(
     );
   }
 
+  // Username requirement (voucher-web2-username-identity-spec.md §3.4) — a
+  // new claim must never reach Platform without one. The client-supplied
+  // body never carries a username; this reads the authenticated session's
+  // own server-resolved value, so it can never become an ownership credential.
+  const username = await getActiveUsernameForHubUser({ hubUserId: user.id, email: user.email ?? null });
+  if (!username) {
+    return NextResponse.json(
+      { error: "Choose an Akiba username to claim this offer.", code: "USERNAME_REQUIRED" },
+      { status: 422 },
+    );
+  }
+
   const countryEligibility = await evaluateFundedVoucherCountryEligibility({
     allocationId,
     hubUserId: user.id,
@@ -68,8 +89,14 @@ export async function POST(
     return NextResponse.json({ error: "This offer is not currently available." }, { status });
   }
   if (!countryEligibility.eligible) {
+    const required = countryEligibility.reasonCode === "profile_country_required";
     return NextResponse.json(
-      { error: "This voucher is available only to Kenyan members.", code: "COUNTRY_NOT_ELIGIBLE" },
+      {
+        error: required
+          ? "Set your profile country to Kenya to claim this offer."
+          : "This offer is available only to members whose profile country is Kenya.",
+        code: required ? "COUNTRY_PROFILE_REQUIRED" : "COUNTRY_NOT_ELIGIBLE",
+      },
       { status: 422 },
     );
   }

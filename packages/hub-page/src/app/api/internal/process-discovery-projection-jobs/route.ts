@@ -18,6 +18,7 @@
 
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isInternalWorkerRequest } from "@/lib/internalWorkerAuth";
 
 const BATCH_SIZE = 25;
 
@@ -35,17 +36,14 @@ async function processProjectionJobs() {
 }
 
 export async function POST(req: Request) {
-  const secret = req.headers.get("x-webhook-secret");
-  if (!secret || secret !== process.env.INTERNAL_WEBHOOK_SECRET) {
+  if (!isInternalWorkerRequest(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   return processProjectionJobs();
 }
 
 export async function GET(req: Request) {
-  const cronSecret = process.env.CRON_SECRET ?? "";
-  const auth = req.headers.get("authorization") ?? "";
-  if (!cronSecret || auth !== `Bearer ${cronSecret}`) {
+  if (!isInternalWorkerRequest(req, true)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   return processProjectionJobs();

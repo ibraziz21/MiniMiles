@@ -1,5 +1,5 @@
 // POST /api/me/discovery-contributions/:contributionId/photos/upload-intent
-// Issues a short-lived signed upload URL into the PRIVATE source bucket
+// Creates a short-lived, owner-bound upload intent into the PRIVATE source bucket
 // (verified-discovery-acquisition-v1-spec.md §11.2, §13.2, §17). The object
 // is never public: a scheduled worker (process-photo-jobs) must validate,
 // strip EXIF/GPS and re-encode it before it can even reach `pending`
@@ -14,7 +14,7 @@ import { isSameOriginRequest } from "@/lib/push/origin";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SOURCE_BUCKET = "discovery-visit-photos";
 const MAX_ACTIVE_PHOTOS = 3;
-const SIGNED_UPLOAD_TTL_SECONDS = 300;
+const UPLOAD_INTENT_TTL_SECONDS = 300;
 // Comfortably longer than the signed-upload TTL above, so a genuinely
 // in-progress upload is never mistaken for abandoned.
 const UPLOADING_STALE_AFTER_MS = 15 * 60 * 1000;
@@ -99,15 +99,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const photoId = randomUUID();
   const objectKey = `${params.id}/${photoId}.${extension}`;
 
-  const { error: signError, data: signed } = await admin.storage
-    .from(SOURCE_BUCKET)
-    .createSignedUploadUrl(objectKey);
-
-  if (signError || !signed) {
-    console.error("[discovery-photos/upload-intent] createSignedUploadUrl failed:", signError?.message);
-    return NextResponse.json({ error: "internal_error" }, { status: 500 });
-  }
-
+  const expiresAt = new Date(Date.now() + UPLOAD_INTENT_TTL_SECONDS * 1000).toISOString();
   const { error: insertError } = await admin.from("merchant_visit_photos").insert({
     id: photoId,
     contribution_id: params.id,
@@ -116,6 +108,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     private_source_key: objectKey,
     moderation_status: "uploading",
     consent_version: consentVersion,
+    upload_intent_expires_at: expiresAt,
   });
 
   if (insertError) {
@@ -129,8 +122,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   return NextResponse.json({
     photoId,
     bucket: SOURCE_BUCKET,
-    path: signed.path,
-    token: signed.token,
-    expiresInSeconds: SIGNED_UPLOAD_TTL_SECONDS,
+    path: objectKey,
+    expiresAt,
+    expiresInSeconds: UPLOAD_INTENT_TTL_SECONDS,
   });
 }

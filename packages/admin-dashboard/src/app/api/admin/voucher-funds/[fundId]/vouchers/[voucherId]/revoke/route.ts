@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession, adminIdForWrite } from "@/lib/auth";
+import { fundedVoucherAdminGuard, fundedVoucherActorId } from "@/lib/voucherFundsAccess";
 import { writeAdminAuditLog } from "@/lib/audit";
 import { supabase } from "@/lib/supabase";
-import { OPEN_ACCESS_ACTOR_ID, textOrNull } from "@/lib/voucherFunds";
+import { textOrNull } from "@/lib/voucherFunds";
 
 // POST /api/admin/voucher-funds/:fundId/vouchers/:voucherId/revoke — pre-redemption
 // revocation, restricted to fraud/error/legal cases (§10 Danger zone, §9.3).
@@ -13,6 +14,8 @@ export async function POST(
 ) {
   const session = await requireAdminSession("voucher_funds.publish");
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const fundedVoucherGuard = fundedVoucherAdminGuard(session);
+  if (fundedVoucherGuard) return fundedVoucherGuard;
   const { fundId, voucherId } = await params;
 
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
@@ -31,7 +34,7 @@ export async function POST(
     return NextResponse.json({ error: "Voucher not found." }, { status: 404 });
   }
 
-  const actorId = adminIdForWrite(session) ?? OPEN_ACCESS_ACTOR_ID;
+  const actorId = fundedVoucherActorId(session);
   const { data, error } = await supabase.rpc("revoke_akiba_funded_voucher_atomic", {
     p_issued_voucher_id: voucherId,
     p_actor_id: actorId,

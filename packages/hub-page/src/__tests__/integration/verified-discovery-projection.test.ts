@@ -21,7 +21,7 @@ const DB_CONFIG = {
 };
 
 const MIGRATIONS_DIR = resolve(__dirname, "../../../../../supabase/migrations");
-const MIGRATION_NUMBERS = ["081", "082", "083", "084", "085", "086", "087", "088", "089", "090", "091"];
+const MIGRATION_NUMBERS = ["081", "082", "083", "084", "085", "086", "087", "088", "089", "090", "091", "092", "093"];
 
 const SETUP_SQL = `
 DROP SCHEMA IF EXISTS public CASCADE;
@@ -57,6 +57,9 @@ CREATE TABLE partner_settings (
 
 DROP SCHEMA IF EXISTS storage CASCADE;
 CREATE SCHEMA storage;
+DROP SCHEMA IF EXISTS auth CASCADE;
+CREATE SCHEMA auth;
+CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT NULL::uuid $$;
 CREATE TABLE storage.buckets (
   id                 text PRIMARY KEY,
   name               text NOT NULL,
@@ -64,6 +67,12 @@ CREATE TABLE storage.buckets (
   file_size_limit    bigint,
   allowed_mime_types text[]
 );
+CREATE TABLE storage.objects (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  bucket_id text NOT NULL,
+  name text NOT NULL
+);
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 `;
 
 let pool: pg.Pool;
@@ -107,7 +116,7 @@ async function makeMerchant(overrides?: { directoryStatus?: string; partnerStatu
 async function makeContributor(
   partnerId: string,
   labels: Array<{ id: string; publicLabel: string }> = [],
-): Promise<{ contributionId: string; earningEventId: string }> {
+): Promise<{ contributionId: string; earningEventId: string; hubUserId: string }> {
   const hubUserId = randomUUID();
   const earningEventId = randomUUID();
   const requestId = randomUUID();
@@ -135,7 +144,7 @@ async function makeContributor(
     [contributionId, requestId, hubUserId, partnerId, labels.map((l) => l.id)],
   );
 
-  return { contributionId, earningEventId };
+  return { contributionId, earningEventId, hubUserId };
 }
 
 async function addApprovedPhoto(contributionId: string, partnerId: string): Promise<string> {
@@ -316,6 +325,7 @@ describe("verified-discovery projection queue migration (091)", () => {
       const { contributionId, earningEventId } = await makeContributor(partnerId);
       const photoId = await addApprovedPhoto(contributionId, partnerId);
       await pool.query(`SELECT recompute_merchant_discovery_snapshot($1)`, [partnerId]);
+      await pool.query(`DELETE FROM merchant_discovery_projection_jobs WHERE partner_id = $1`, [partnerId]);
 
       const { rows: beforeReversal } = await pool.query(
         `SELECT * FROM get_public_merchant_discovery_snapshots(50) WHERE partner_id = $1`,
@@ -334,6 +344,105 @@ describe("verified-discovery projection queue migration (091)", () => {
         [partnerId],
       );
       expect(afterReversal).toHaveLength(0);
+    });
+
+    it("omits a snapshot while any refresh is pending so stale aggregates never publish", async () => {
+      const partnerId = await makeMerchant();
+      const { contributionId } = await makeContributor(partnerId);
+      await addApprovedPhoto(contributionId, partnerId);
+      await pool.query(`SELECT recompute_merchant_discovery_snapshot($1)`, [partnerId]);
+      await pool.query(`DELETE FROM merchant_discovery_projection_jobs WHERE partner_id = $1`, [partnerId]);
+
+      const { rows: ready } = await pool.query(
+        `SELECT * FROM get_public_merchant_discovery_snapshots(50) WHERE partner_id = $1`,
+        [partnerId],
+      );
+      expect(ready).toHaveLength(1);
+
+      await pool.query(`SELECT enqueue_merchant_discovery_projection_refresh($1, 'test_change')`, [partnerId]);
+      const { rows: stale } = await pool.query(
+        `SELECT * FROM get_public_merchant_discovery_snapshots(50) WHERE partner_id = $1`,
+        [partnerId],
+      );
+      expect(stale).toHaveLength(0);
+    });
+  });
+
+  describe("final hardening upload and retry invariants (093)", () => {
+    it("completes an owned upload once and treats the retry as idempotent", async () => {
+      const partnerId = await makeMerchant();
+      const { contributionId, hubUserId } = await makeContributor(partnerId);
+      const photoId = randomUUID();
+      await pool.query(
+        `INSERT INTO merchant_visit_photos
+          (id, contribution_id, hub_user_id, partner_id, private_source_key, consent_version, upload_intent_expires_at)
+         VALUES ($1, $2, $3, $4, $5, 'v1', now() + interval '5 minutes')`,
+        [photoId, contributionId, hubUserId, partnerId, `${contributionId}/${photoId}.jpg`],
+      );
+
+      const { rows: [first] } = await pool.query(
+        `SELECT * FROM complete_discovery_photo_upload($1, $2, $3)`,
+        [photoId, contributionId, hubUserId],
+      );
+      const { rows: [retry] } = await pool.query(
+        `SELECT * FROM complete_discovery_photo_upload($1, $2, $3)`,
+        [photoId, contributionId, hubUserId],
+      );
+      expect(first).toMatchObject({ ok: true, current_state: "processing", idempotent: false });
+      expect(retry).toMatchObject({ ok: true, current_state: "processing", idempotent: true });
+
+      const { rows: jobs } = await pool.query(`SELECT id FROM photo_processing_jobs WHERE photo_id = $1`, [photoId]);
+      expect(jobs).toHaveLength(1);
+    });
+
+    it("rejects the wrong owner and expires stale upload intents", async () => {
+      const partnerId = await makeMerchant();
+      const { contributionId, hubUserId } = await makeContributor(partnerId);
+      const photoId = randomUUID();
+      await pool.query(
+        `INSERT INTO merchant_visit_photos
+          (id, contribution_id, hub_user_id, partner_id, private_source_key, consent_version, upload_intent_expires_at)
+         VALUES ($1, $2, $3, $4, $5, 'v1', now() - interval '1 second')`,
+        [photoId, contributionId, hubUserId, partnerId, `${contributionId}/${photoId}.jpg`],
+      );
+
+      const { rows: [wrongOwner] } = await pool.query(
+        `SELECT * FROM complete_discovery_photo_upload($1, $2, $3)`,
+        [photoId, contributionId, randomUUID()],
+      );
+      const { rows: [expired] } = await pool.query(
+        `SELECT * FROM complete_discovery_photo_upload($1, $2, $3)`,
+        [photoId, contributionId, hubUserId],
+      );
+      expect(wrongOwner).toMatchObject({ ok: false, error_code: "not_found" });
+      expect(expired).toMatchObject({ ok: false, current_state: "withdrawn", error_code: "upload_intent_expired" });
+    });
+
+    it("increments every projection claim and dead-letters exhausted jobs", async () => {
+      const partnerId = await makeMerchant();
+      await pool.query(`DELETE FROM merchant_discovery_projection_jobs`);
+      const { rows: [inserted] } = await pool.query(
+        `INSERT INTO merchant_discovery_projection_jobs (partner_id, status, attempts)
+         VALUES ($1, 'pending', 5) RETURNING id`,
+        [partnerId],
+      );
+
+      const { rows: claimed } = await pool.query(`SELECT * FROM claim_merchant_discovery_projection_jobs(1)`);
+      expect(claimed[0]).toMatchObject({ id: inserted.id, status: "processing", attempts: 6 });
+
+      await pool.query(
+        `UPDATE merchant_discovery_projection_jobs
+         SET status = 'pending', locked_at = NULL, next_retry_at = now() - interval '1 second'
+         WHERE id = $1`,
+        [inserted.id],
+      );
+      const { rows: claimedAgain } = await pool.query(`SELECT * FROM claim_merchant_discovery_projection_jobs(1)`);
+      expect(claimedAgain).toHaveLength(0);
+      const { rows: [terminal] } = await pool.query(
+        `SELECT status, attempts FROM merchant_discovery_projection_jobs WHERE id = $1`,
+        [inserted.id],
+      );
+      expect(terminal).toMatchObject({ status: "failed", attempts: 6 });
     });
   });
 

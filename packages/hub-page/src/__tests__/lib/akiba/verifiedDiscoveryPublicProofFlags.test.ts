@@ -2,14 +2,20 @@ import { describe, expect, it } from "vitest";
 import {
   isCustomerPhotosPublicEnabled,
   isDiscoverySpotlightEnabled,
+  isDiscoverySnapshotReadEnabled,
   isVerifiedVisitsPublicEnabled,
 } from "@/lib/akiba/verifiedDiscoveryPublicProofFlags";
 
 describe("verifiedDiscoveryPublicProofFlags", () => {
-  it("defaults every surface to enabled with no env configured", () => {
-    expect(isDiscoverySpotlightEnabled({})).toBe(true);
-    expect(isVerifiedVisitsPublicEnabled({})).toBe(true);
-    expect(isCustomerPhotosPublicEnabled({})).toBe(true);
+  it("fails closed in production when flags are missing", () => {
+    const env = { NODE_ENV: "production" };
+    expect(isDiscoverySpotlightEnabled(env)).toBe(false);
+    expect(isVerifiedVisitsPublicEnabled(env)).toBe(false);
+    expect(isCustomerPhotosPublicEnabled(env)).toBe(false);
+  });
+
+  it("keeps local development enabled by default", () => {
+    expect(isDiscoverySpotlightEnabled({ NODE_ENV: "development" })).toBe(true);
   });
 
   it("kills only the spotlight when only its flag is set", () => {
@@ -31,7 +37,13 @@ describe("verifiedDiscoveryPublicProofFlags", () => {
     expect(isVerifiedVisitsPublicEnabled(env)).toBe(true);
   });
 
-  it("treats an unrecognized value as not falsy (fails open to enabled, not closed)", () => {
-    expect(isDiscoverySpotlightEnabled({ HUB_DISCOVERY_SPOTLIGHT_ENABLED: "disabled-typo" })).toBe(true);
+  it("fails closed for an unrecognized value", () => {
+    expect(isDiscoverySpotlightEnabled({ HUB_DISCOVERY_SPOTLIGHT_ENABLED: "disabled-typo" })).toBe(false);
+  });
+
+  it("keeps the full-corpus snapshot read explicitly opt-in in every environment", () => {
+    expect(isDiscoverySnapshotReadEnabled({ NODE_ENV: "development" })).toBe(false);
+    expect(isDiscoverySnapshotReadEnabled({ HUB_DISCOVERY_SNAPSHOT_READ_ENABLED: "true" })).toBe(true);
+    expect(isDiscoverySnapshotReadEnabled({ HUB_DISCOVERY_SNAPSHOT_READ_ENABLED: "typo" })).toBe(false);
   });
 });

@@ -10,15 +10,11 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getVerifiedDiscoveryPublicProofFlagsSummary } from "@/lib/akiba/verifiedDiscoveryPublicProofFlags";
+import { isInternalWorkerRequest } from "@/lib/internalWorkerAuth";
 
 const STUCK_PROCESSING_MINUTES = 10;
 // §8.2: "projection lag exceeds 15 minutes for 15 consecutive minutes".
 const PROJECTION_LAG_WARNING_MINUTES = 15;
-
-function isAuthorized(request: Request): boolean {
-  const secret = process.env.INTERNAL_WEBHOOK_SECRET ?? "";
-  return !!secret && request.headers.get("x-webhook-secret") === secret;
-}
 
 type PhotoJobRow = { status: string; attempts: number; created_at: string; updated_at: string };
 type ModerationPhotoRow = { id: string; moderation_status: string; submitted_at: string };
@@ -27,7 +23,7 @@ type SnapshotRow = { partner_id: string; generated_at: string; suppression_reaso
 type ModeratedPhotoRow = { id: string };
 
 export async function GET(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isInternalWorkerRequest(request, true)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -154,6 +150,13 @@ export async function GET(request: Request) {
   let oldestSnapshotAgeMs = 0;
   for (const snapshot of snapshots) {
     oldestSnapshotAgeMs = Math.max(oldestSnapshotAgeMs, Date.now() - new Date(snapshot.generated_at).getTime());
+  }
+
+  if (warnings.length > 0) {
+    // Vercel Cron invokes this route every five minutes. A structured error
+    // log gives the deployment's log alerting a stable signal without
+    // including member, merchant, or photo identifiers.
+    console.error("[verified-discovery-health] unhealthy", { warnings });
   }
 
   return NextResponse.json(
