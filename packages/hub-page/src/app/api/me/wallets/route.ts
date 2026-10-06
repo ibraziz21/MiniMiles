@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { listLinkedWallets } from "@/lib/akiba/wallets";
 
 // Direct linking (POST) was removed in favor of the two-step verified flow
 // (production-readiness-security-spec.md §3.2): POST /api/me/wallets/challenge
@@ -16,16 +16,16 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("hub_user_wallets")
-    .select("ecosystem, address, is_primary, linked_at, verification_status")
-    .eq("user_id", user.id)
-    .order("linked_at");
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    const wallets = await listLinkedWallets(user.id);
+    return NextResponse.json(wallets.map((w) => ({
+      ecosystem: w.ecosystem,
+      address: w.address,
+      is_primary: w.isPrimary,
+      linked_at: w.linkedAt,
+      verification_status: w.verificationStatus,
+    })));
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unknown error" }, { status: 500 });
   }
-
-  return NextResponse.json(data ?? []);
 }

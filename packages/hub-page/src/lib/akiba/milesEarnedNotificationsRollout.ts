@@ -74,3 +74,25 @@ export function isMilesEarnedNotificationEnabledFor(
   if (config.percentage <= 0) return false;
   return rolloutBucket(idLc) < config.percentage;
 }
+
+/**
+ * Member-level eligibility only — enabled + allowlist + percentage bucket,
+ * without the merchant pilot-cohort gate `isMilesEarnedNotificationEnabledFor`
+ * applies at send-time. For callers (e.g. the mobile capability service)
+ * that need to answer "is this notification class live for this member at
+ * all" without a specific merchant in hand. identifier: prefer email; falls
+ * back to hubUserId for email-less lookups.
+ */
+export function isMilesEarnedNotificationsEnabledForMember(
+  identifier: string,
+  env: RolloutEnvironment = process.env,
+): boolean {
+  const config = getMilesEarnedRolloutConfig(env);
+  if (!config.enabled) return false;
+
+  const idLc = identifier.trim().toLowerCase();
+  if (config.allowlist.has(idLc)) return true;
+  if (config.percentage >= 100) return true;
+  if (config.percentage <= 0) return false;
+  return rolloutBucket(idLc) < config.percentage;
+}
