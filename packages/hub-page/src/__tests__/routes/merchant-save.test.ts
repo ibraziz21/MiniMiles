@@ -8,6 +8,7 @@ const state = vi.hoisted(() => ({
   restrictions: [] as Array<{ template_id: string; location_id: string }>,
   savedRow: null as { id: string } | null,
   savedList: [] as Array<{ created_at: string; partners: { id: string; slug: string; name: string; image_url: string | null } }>,
+  savedBanners: [] as Array<{ partner_id: string; banner_url: string | null }>,
   upsertError: null as { message: string } | null,
   deleteError: null as { message: string } | null,
 }));
@@ -91,6 +92,13 @@ function setupAdmin() {
         }),
       };
     }
+    if (table === "partner_settings") {
+      return {
+        select: () => ({
+          in: async () => ({ data: state.savedBanners, error: null }),
+        }),
+      };
+    }
     throw new Error(`Unexpected table ${table}`);
   });
 
@@ -126,6 +134,7 @@ describe("merchant save/unsave/list routes", () => {
     state.restrictions = [];
     state.savedRow = null;
     state.savedList = [];
+    state.savedBanners = [];
     state.upsertError = null;
     state.deleteError = null;
     setupAdmin();
@@ -209,11 +218,12 @@ describe("merchant save/unsave/list routes", () => {
       state.savedList = [
         { created_at: "2026-01-01T00:00:00Z", partners: { id: "m1", slug: "acme", name: "Acme", image_url: null } },
       ];
+      state.savedBanners = [{ partner_id: "m1", banner_url: "https://cdn.example/acme-banner.jpg" }];
       const res = await GET_LIST();
       const body = await res.json();
       expect(res.status).toBe(200);
       expect(body.merchants).toEqual([
-        { id: "m1", slug: "acme", name: "Acme", logoUrl: null, savedAt: "2026-01-01T00:00:00Z" },
+        { id: "m1", slug: "acme", name: "Acme", logoUrl: null, bannerUrl: "https://cdn.example/acme-banner.jpg", savedAt: "2026-01-01T00:00:00Z" },
       ]);
     });
   });

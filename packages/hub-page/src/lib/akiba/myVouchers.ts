@@ -3,6 +3,7 @@
 // match, or legacy user_address match via linked wallets) — queried directly
 // server-side here rather than round-tripping through that API route.
 import { createAdminClient } from "@/lib/supabase/admin";
+import { dealLabel } from "@/lib/akiba/deals";
 
 const EXPIRING_SOON_DAYS = 7;
 
@@ -41,6 +42,122 @@ export type VoucherStripSummary = {
   activeCount: number;
   expiringSoonCount: number;
 };
+
+export type OwnedVoucherPreview = {
+  id: string;
+  status: "issued" | "pending" | "claiming";
+  title: string;
+  valueLabel: string;
+  merchantName: string;
+  merchantLogoUrl: string | null;
+  expiresAt: string | null;
+};
+
+export type OwnedVoucherPreviewResult = {
+  items: OwnedVoucherPreview[];
+  totalCount: number;
+};
+
+type PreviewTemplate = {
+  title: string;
+  voucher_type: "free" | "percent_off" | "fixed_off";
+  discount_percent: number | null;
+  discount_cusd: number | null;
+  discount_kes: number | null;
+  retail_value_cusd: number | null;
+  partners:
+    | { name: string; image_url: string | null }
+    | Array<{ name: string; image_url: string | null }>
+    | null;
+};
+
+type PreviewSnapshot = {
+  title?: string;
+  voucher_type?: "free" | "percent_off" | "fixed_off";
+  discount_percent?: number | null;
+  discount_cusd?: number | null;
+  discount_kes?: number | null;
+  retail_value_cusd?: number | null;
+} | null;
+
+type PreviewRow = {
+  id: string;
+  status: "issued" | "pending" | "claiming";
+  expires_at: string | null;
+  rules_snapshot: PreviewSnapshot;
+  spend_voucher_templates: PreviewTemplate | PreviewTemplate[] | null;
+};
+
+/**
+ * The small, server-rendered voucher preview used on Profile. It returns only
+ * active vouchers and the fields the compact cards need; the complete wallet
+ * and history remain on /vouchers.
+ */
+export async function getOwnedVoucherPreviews(opts: {
+  userId: string;
+  walletAddresses: string[];
+  limit?: number;
+}): Promise<OwnedVoucherPreviewResult> {
+  const { userId, walletAddresses, limit = 2 } = opts;
+  const admin = createAdminClient();
+
+  let query = admin
+    .from("issued_vouchers")
+    .select(
+      `id, status, expires_at, rules_snapshot,
+       spend_voucher_templates (
+         title, voucher_type, discount_percent, discount_cusd, discount_kes,
+         retail_value_cusd,
+         partners ( name, image_url )
+       )`,
+      { count: "exact" },
+    )
+    .in("status", ["issued", "pending", "claiming"])
+    .order("expires_at", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  query = walletAddresses.length > 0
+    ? query.or(`hub_user_id.eq.${userId},user_address.in.(${walletAddresses.join(",")})`)
+    : query.eq("hub_user_id", userId);
+
+  const { data, error, count } = await query;
+  if (error) {
+    console.error("[myVouchers] profile preview query error →", error.message);
+    return { items: [], totalCount: 0 };
+  }
+
+  const items = ((data ?? []) as unknown as PreviewRow[]).map((row) => {
+    const template = Array.isArray(row.spend_voucher_templates)
+      ? row.spend_voucher_templates[0] ?? null
+      : row.spend_voucher_templates;
+    const merchant = template
+      ? (Array.isArray(template.partners) ? template.partners[0] ?? null : template.partners)
+      : null;
+    const valueSource = template ?? row.rules_snapshot;
+    const canFormatValue = valueSource?.voucher_type != null;
+
+    return {
+      id: row.id,
+      status: row.status,
+      title: template?.title ?? row.rules_snapshot?.title ?? "Akiba voucher",
+      valueLabel: canFormatValue
+        ? dealLabel({
+            voucher_type: valueSource.voucher_type!,
+            discount_percent: valueSource.discount_percent ?? null,
+            discount_cusd: valueSource.discount_cusd ?? null,
+            discount_kes: valueSource.discount_kes ?? null,
+            retail_value_cusd: valueSource.retail_value_cusd ?? null,
+          })
+        : "Voucher",
+      merchantName: merchant?.name ?? "Akiba reward",
+      merchantLogoUrl: merchant?.image_url ?? null,
+      expiresAt: row.expires_at,
+    };
+  });
+
+  return { items, totalCount: count ?? items.length };
+}
 
 export async function getActiveVoucherSummary(opts: {
   userId: string;

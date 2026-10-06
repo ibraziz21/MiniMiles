@@ -1,5 +1,6 @@
 import { ChevronRight } from "lucide-react";
 import clsx from "clsx";
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 /**
@@ -63,15 +64,22 @@ export function SettingsRow({
     </>
   );
 
-  const className =
-    "flex min-h-11 w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-akiba-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-akiba-teal";
+  const interactive = Boolean(href || onClick);
+  const className = clsx(
+    "flex min-h-11 w-full items-center gap-3 px-4 py-3.5 text-left",
+    interactive && "transition hover:bg-akiba-card active:bg-akiba-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-akiba-teal",
+  );
 
   if (href) {
     return (
-      <a href={href} className={className}>
+      <Link href={href} className={className}>
         {content}
-      </a>
+      </Link>
     );
+  }
+
+  if (!onClick) {
+    return <div className={className}>{content}</div>;
   }
 
   return (

@@ -7,6 +7,7 @@
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { applyImmutableRulesSnapshot } from "@/lib/vouchers/rulesSnapshot";
 import { VoucherDetailView, type DetailVoucher, type VoucherType } from "./VoucherDetailView";
 
 export const dynamic = "force-dynamic";
@@ -73,29 +74,7 @@ export default async function VoucherDetailPage({
     | { slug: string; name: string; image_url: string | null }
     | null;
   const program = firstOrNull(voucher.voucher_programs) as { name: string } | null;
-  const snapshot =
-    voucher.rules_snapshot && typeof voucher.rules_snapshot === "object" && !Array.isArray(voucher.rules_snapshot)
-      ? voucher.rules_snapshot as Record<string, unknown>
-      : null;
-
-  const snapshotType =
-    snapshot?.voucher_type === "percent" ? "percent_off" :
-    snapshot?.voucher_type === "fixed" ? "fixed_off" :
-    snapshot?.voucher_type === "free_product" ? "free" :
-    snapshot?.voucher_type;
-
-  const snapshotHas = (key: string) =>
-    snapshot !== null && Object.prototype.hasOwnProperty.call(snapshot, key);
-
-  const snapshotNumber = (key: string, fallback: number | null): number | null => {
-    if (!snapshotHas(key)) return fallback;
-    const value = snapshot?.[key];
-    if (typeof value === "number") return value;
-    if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) {
-      return Number(value);
-    }
-    return null;
-  };
+  const merged = tpl ? applyImmutableRulesSnapshot(tpl, voucher.rules_snapshot) : null;
 
   const detail: DetailVoucher = {
     id: voucher.id,
@@ -107,23 +86,15 @@ export default async function VoucherDetailPage({
     acquisition_source: voucher.acquisition_source ?? null,
     sponsor: voucher.sponsor ?? null,
     program_name: program?.name ?? null,
-    template: tpl
+    template: merged
       ? {
-          title: typeof snapshot?.title === "string" ? snapshot.title : tpl.title,
-          voucher_type:
-            typeof snapshotType === "string"
-              ? snapshotType as VoucherType
-              : tpl.voucher_type,
-          discount_percent: snapshotNumber("discount_percent", tpl.discount_percent),
-          discount_cusd: snapshotNumber("discount_cusd", tpl.discount_cusd),
-          discount_kes: snapshotNumber("discount_kes", tpl.discount_kes),
-          applicable_category:
-            snapshotHas("applicable_category")
-              ? typeof snapshot?.applicable_category === "string"
-                ? snapshot.applicable_category
-                : null
-              : tpl.applicable_category,
-          retail_value_cusd: snapshotNumber("retail_value_cusd", tpl.retail_value_cusd),
+          title: merged.title,
+          voucher_type: merged.voucherType,
+          discount_percent: merged.discountPercent,
+          discount_cusd: merged.discountCusd,
+          discount_kes: merged.discountKes,
+          applicable_category: merged.applicableCategory,
+          retail_value_cusd: merged.retailValueCusd,
           partner: partner
             ? { slug: partner.slug, name: partner.name, image_url: partner.image_url }
             : null,
