@@ -7,7 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { AddMerchantNote } from "@/components/merchants/AddMerchantNote";
+import { GrantTrialControl } from "@/components/merchants/GrantTrialControl";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
+import { hasPermission } from "@/types";
 
 async function getMerchantDetail(id: string) {
   const [partnerRes, settingsRes, subscriptionRes, vouchersRes, teamRes, notesRes] = await Promise.all([
@@ -15,7 +17,7 @@ async function getMerchantDetail(id: string) {
     supabase.from("partner_settings").select("directory_status").eq("partner_id", id).maybeSingle(),
     supabase
       .from("partner_subscriptions")
-      .select("plan,status,billing_period,included_monthly_miles,miles_issued_current_period,overage_miles_current_period,next_renewal_at")
+      .select("plan,status,billing_period,included_monthly_miles,miles_issued_current_period,overage_miles_current_period,period_end,next_renewal_at")
       .eq("partner_id", id)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -48,6 +50,7 @@ export default async function MerchantDetailPage({ params }: { params: { id: str
   const activeVoucherTypes = voucher_templates.filter(
     (voucher) => voucher.lifecycle_state === "published" && voucher.active,
   ).length;
+  const canManageMerchants = hasPermission(session.role, "merchants.write");
 
   return (
     <div>
@@ -83,6 +86,14 @@ export default async function MerchantDetailPage({ params }: { params: { id: str
               ) : (
                 <Badge variant="outline">No subscription</Badge>
               )}
+              {subscription?.status === "trialing" && subscription.period_end ? (
+                <p className="mt-2 text-xs text-slate-500">Trial ends {formatDate(subscription.period_end)}</p>
+              ) : null}
+              <GrantTrialControl
+                merchantId={params.id}
+                canManage={canManageMerchants}
+                subscriptionStatus={subscription?.status}
+              />
             </CardContent>
           </Card>
           <Card>
