@@ -8,7 +8,10 @@ const state = vi.hoisted(() => ({
   restrictions: [] as Array<{ template_id: string; location_id: string }>,
   savedRow: null as { id: string } | null,
   savedList: [] as Array<{ created_at: string; partners: { id: string; slug: string; name: string; image_url: string | null } }>,
+  savedLogos: [] as Array<{ partner_id: string; logo_url: string | null }>,
   savedBanners: [] as Array<{ partner_id: string; banner_url: string | null }>,
+  savedLogoError: null as { message: string } | null,
+  savedBannerError: null as { message: string } | null,
   upsertError: null as { message: string } | null,
   deleteError: null as { message: string } | null,
 }));
@@ -94,8 +97,11 @@ function setupAdmin() {
     }
     if (table === "partner_settings") {
       return {
-        select: () => ({
-          in: async () => ({ data: state.savedBanners, error: null }),
+        select: (columns: string) => ({
+          in: async () => ({
+            data: columns.includes("logo_url") ? state.savedLogos : state.savedBanners,
+            error: columns.includes("logo_url") ? state.savedLogoError : state.savedBannerError,
+          }),
         }),
       };
     }
@@ -134,7 +140,10 @@ describe("merchant save/unsave/list routes", () => {
     state.restrictions = [];
     state.savedRow = null;
     state.savedList = [];
+    state.savedLogos = [];
     state.savedBanners = [];
+    state.savedLogoError = null;
+    state.savedBannerError = null;
     state.upsertError = null;
     state.deleteError = null;
     setupAdmin();
@@ -218,13 +227,32 @@ describe("merchant save/unsave/list routes", () => {
       state.savedList = [
         { created_at: "2026-01-01T00:00:00Z", partners: { id: "m1", slug: "acme", name: "Acme", image_url: null } },
       ];
+      state.savedLogos = [{ partner_id: "m1", logo_url: "https://cdn.example/acme-logo.png" }];
       state.savedBanners = [{ partner_id: "m1", banner_url: "https://cdn.example/acme-banner.jpg" }];
       const res = await GET_LIST();
       const body = await res.json();
       expect(res.status).toBe(200);
       expect(body.merchants).toEqual([
-        { id: "m1", slug: "acme", name: "Acme", logoUrl: null, bannerUrl: "https://cdn.example/acme-banner.jpg", savedAt: "2026-01-01T00:00:00Z" },
+        { id: "m1", slug: "acme", name: "Acme", logoUrl: "https://cdn.example/acme-logo.png", bannerUrl: "https://cdn.example/acme-banner.jpg", savedAt: "2026-01-01T00:00:00Z" },
       ]);
+    });
+
+    it("still returns the canonical logo when optional banner support is unavailable", async () => {
+      state.user = { id: "u1" };
+      state.savedList = [
+        { created_at: "2026-01-01T00:00:00Z", partners: { id: "m1", slug: "acme", name: "Acme", image_url: null } },
+      ];
+      state.savedLogos = [{ partner_id: "m1", logo_url: "https://cdn.example/acme-logo.png" }];
+      state.savedBannerError = { message: "column partner_settings.banner_url does not exist" };
+
+      const res = await GET_LIST();
+      const body = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(body.merchants[0]).toMatchObject({
+        logoUrl: "https://cdn.example/acme-logo.png",
+        bannerUrl: null,
+      });
     });
   });
 });

@@ -165,7 +165,7 @@ const PARTNER_GROUPS: PartnerGroup[] = [
         description: 'Join the AkibaMiles Telegram community',
         reward: '5 akibaMiles',
         color: '#238D9D1A',
-        actionLink: 'https://t.me/+kAqhzNJmBCZmYTZk',
+        actionLink: 'https://t.me/+OkPgZhxDj8plNTA8',
         instructions: [
           { title: 'Open Telegram', text: 'Open the Telegram App' },
           { title: 'Join Group', text: 'Hit the Join Group button' },
