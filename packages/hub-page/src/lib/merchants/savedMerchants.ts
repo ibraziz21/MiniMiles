@@ -112,26 +112,40 @@ export async function listSavedMerchants(userId: string): Promise<SavedMerchantS
 
   if (saved.length === 0) return saved;
 
-  // Banner support was added to the merchant schema after saved merchants.
-  // Fetch it separately so environments that have not applied that optional
-  // column yet still return the merchant's logo instead of losing the entire
-  // saved list to a failed nested select.
-  const { data: settings, error: settingsError } = await admin
-    .from("partner_settings")
-    .select("partner_id, banner_url")
-    .in("partner_id", saved.map((merchant) => merchant.id));
+  const partnerIds = saved.map((merchant) => merchant.id);
 
-  if (settingsError) {
-    console.warn("[savedMerchants] banner query failed; using logos:", settingsError.message);
-    return saved;
+  // Merchant Dashboard stores the canonical logo in partner_settings.logo_url;
+  // partners.image_url is only a legacy fallback. Banner support arrived later,
+  // so fetch it independently: a deployment missing banner_url must never stop
+  // the already-supported merchant logo from rendering.
+  const [logoResult, bannerResult] = await Promise.all([
+    admin
+      .from("partner_settings")
+      .select("partner_id, logo_url")
+      .in("partner_id", partnerIds),
+    admin
+      .from("partner_settings")
+      .select("partner_id, banner_url")
+      .in("partner_id", partnerIds),
+  ]);
+
+  if (logoResult.error) {
+    console.warn("[savedMerchants] logo query failed; using legacy partner images:", logoResult.error.message);
+  }
+  if (bannerResult.error) {
+    console.warn("[savedMerchants] banner query failed; continuing without banners:", bannerResult.error.message);
   }
 
+  const logoByPartner = new Map(
+    ((logoResult.data ?? []) as Array<{ partner_id: string; logo_url: string | null }>).map((row) => [row.partner_id, row.logo_url])
+  );
   const bannerByPartner = new Map(
-    ((settings ?? []) as Array<{ partner_id: string; banner_url: string | null }>).map((row) => [row.partner_id, row.banner_url])
+    ((bannerResult.data ?? []) as Array<{ partner_id: string; banner_url: string | null }>).map((row) => [row.partner_id, row.banner_url])
   );
 
   return saved.map((merchant) => ({
     ...merchant,
+    logoUrl: logoByPartner.get(merchant.id) ?? merchant.logoUrl,
     bannerUrl: bannerByPartner.get(merchant.id) ?? null,
   }));
 }

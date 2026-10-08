@@ -9,7 +9,7 @@ export const siteConfig = {
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.akibamiles.com",
   email: "hello@akibamiles.com",
   xUrl: "https://x.com/Akibamiles",
-  telegramUrl: "https://t.me/+sdAigcRrq2AxYjc8",
+  telegramUrl: "https://t.me/+OkPgZhxDj8plNTA8",
 };
 
 export const navLinks = [
