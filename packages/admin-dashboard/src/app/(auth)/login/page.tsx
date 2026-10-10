@@ -45,23 +45,23 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-100 via-white to-[#238D9D]/5 p-4">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-surface-subtle via-surface to-primary/5 p-4">
       <div className="w-full max-w-sm space-y-8">
         {/* Brand */}
         <div className="flex flex-col items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-[0_16px_40px_rgba(35,141,157,0.2)] ring-1 ring-[#238D9D]/10">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface shadow-[0_16px_40px_rgba(15,118,110,0.2)] ring-1 ring-primary/10">
             <BrandMark className="h-9 w-9" />
           </div>
           <div className="text-center">
-            <h1 className="text-xl font-bold text-slate-900">AkibaMiles Admin</h1>
-            <p className="mt-1 text-sm text-slate-500">Internal staff access only</p>
+            <h1 className="text-xl font-bold text-ink">AkibaMiles Admin</h1>
+            <p className="mt-1 text-sm text-ink-muted">Internal staff access only</p>
           </div>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+        <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-border bg-surface p-8 shadow-sm">
           <div className="space-y-1.5">
-            <label htmlFor="email" className="text-sm font-medium text-slate-700">
+            <label htmlFor="email" className="text-sm font-medium text-ink-muted">
               Email
             </label>
             <Input
@@ -76,7 +76,7 @@ function LoginForm() {
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="password" className="text-sm font-medium text-slate-700">
+            <label htmlFor="password" className="text-sm font-medium text-ink-muted">
               Password
             </label>
             <Input
@@ -99,7 +99,7 @@ function LoginForm() {
           </Button>
         </form>
 
-        <p className="text-center text-xs text-slate-400">
+        <p className="text-center text-xs text-ink-muted">
           AkibaMiles Internal — not for public access
         </p>
       </div>

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireAdminSession, adminIdForWrite } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatNumber } from "@/lib/utils";
@@ -75,14 +75,14 @@ export default async function AdminProgramsPage() {
 
   return (
     <div>
-      <TopBar
+      <PageHeader
         title="Voucher Programs"
         subtitle="All active, paused and draft programs across merchants and Akiba"
       />
-      <div className="p-6 space-y-4">
+      <div className="p-4 sm:p-6 space-y-4">
         {programs.length === 0 && (
           <Card>
-            <CardContent className="py-10 text-center text-slate-400 text-sm">
+            <CardContent className="py-10 text-center text-ink-muted text-sm">
               No voucher programs found. Create one from merchant-dashboard or via the Akiba grant tool.
             </CardContent>
           </Card>

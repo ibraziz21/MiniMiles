@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
+import { DetailHeader } from "@/components/shell/DetailHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { SubscriptionPaymentReview } from "@/components/finance/SubscriptionPaymentReview";
 import { formatDateTime } from "@/lib/utils";
 import {
@@ -155,47 +157,43 @@ export default async function SubscriptionPaymentDetailPage({
 
   return (
     <div>
-      <TopBar
+      <PageHeader
         title={`Subscription payment · ${detail.merchant_name ?? detail.partner_id}`}
         subtitle={`Invoice ${detail.invoice_number ?? detail.invoice_id.slice(0, 8)} · submitted ${formatDateTime(detail.submitted_at)}`}
       />
-      <div className="space-y-6 p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link
-            href="/finance/subscriptions"
-            className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Back to queue
-          </Link>
-          <div className="flex items-center gap-2">
-            <Badge variant={STATUS_VARIANT[detail.status] ?? "secondary"}>{detail.status}</Badge>
-            <span
-              className={`rounded px-2 py-0.5 text-xs font-medium ${
-                sla === "red"
-                  ? "bg-red-100 text-red-700"
-                  : sla === "amber"
-                    ? "bg-amber-100 text-amber-700"
-                    : "bg-slate-100 text-slate-600"
-              }`}
-            >
-              {formatAge(ageMinutes)} waiting
-            </span>
-            {detail.receipt_number && (
-              <a
-                href={`/api/admin/subscription-receipts/${detail.payment_attempt_id}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 text-xs font-medium text-[#176B78] hover:underline"
+      <div className="space-y-6 p-4 sm:p-6">
+        <DetailHeader
+          backHref="/finance/subscriptions"
+          backLabel="Back to queue"
+          title={detail.merchant_name ?? detail.partner_id}
+          subtitle={`Invoice ${detail.invoice_number ?? detail.invoice_id.slice(0, 8)}`}
+          badges={
+            <>
+              <Badge variant={STATUS_VARIANT[detail.status] ?? "secondary"}>{detail.status}</Badge>
+              <span
+                className={cn(
+                  "rounded-control px-2 py-0.5 text-xs font-medium",
+                  sla === "red" ? "bg-danger/10 text-danger" : sla === "amber" ? "bg-warning/10 text-warning" : "bg-surface-subtle text-ink-muted",
+                )}
               >
-                Receipt {detail.receipt_number} <ExternalLink className="h-3 w-3" />
-              </a>
-            )}
-          </div>
-        </div>
+                {formatAge(ageMinutes)} waiting
+              </span>
+              {detail.receipt_number && (
+                <a
+                  href={`/api/admin/subscription-receipts/${detail.payment_attempt_id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  Receipt {detail.receipt_number} <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </>
+          }
+        />
 
         {flags.length > 0 && (
-          <div className="flex flex-wrap gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+          <div className="flex flex-wrap gap-2 rounded-card border border-warning/30 bg-warning/5 p-3">
             {flags.map((flag) => (
               <Badge key={flag} variant="warning">
                 {RISK_FLAG_LABELS[flag] ?? flag}
@@ -228,7 +226,7 @@ export default async function SubscriptionPaymentDetailPage({
               <Row label="Renewal date" value={formatDateTime(detail.renewal_date)} />
               <Link
                 href={`/merchants/${detail.partner_id}`}
-                className="mt-2 inline-block text-sm font-medium text-[#176B78] hover:underline"
+                className="mt-2 inline-block text-sm font-medium text-primary hover:underline"
               >
                 Open merchant detail
               </Link>
@@ -275,7 +273,7 @@ export default async function SubscriptionPaymentDetailPage({
                 </details>
               )}
               {detail.pending_effect && (
-                <p className="mt-2 rounded-lg bg-[#238D9D]/10 p-2 text-xs text-[#176B78]">
+                <p className="mt-2 rounded-card bg-primary/10 p-2 text-xs text-primary-strong">
                   On confirm: {detail.pending_effect}
                 </p>
               )}

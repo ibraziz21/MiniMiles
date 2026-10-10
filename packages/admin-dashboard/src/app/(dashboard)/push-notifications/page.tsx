@@ -4,9 +4,11 @@ import { requireAdminSession } from "@/lib/auth";
 import { hasPermission } from "@/types";
 import { supabase } from "@/lib/supabase";
 import { formatDateTime } from "@/lib/utils";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { PushCampaignComposer } from "@/components/push/PushCampaignComposer";
 import { Badge } from "@/components/ui/badge";
+import { MetricCard } from "@/components/ui/metric-card";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type AudienceRow = { hub_user_id: string; active_device_count: number };
 type CampaignRow = {
@@ -50,79 +52,93 @@ export default async function PushNotificationsPage() {
 
   return (
     <div>
-      <TopBar title="Push Notifications" subtitle="Send opt-in announcements through the Akiba PWA" />
-      <div className="space-y-6 p-6">
+      <PageHeader title="Push Notifications" subtitle="Send opt-in announcements through the Akiba PWA" />
+      <div className="space-y-6 p-4 sm:p-6">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            { label: "Opted-in users", value: audience.length, icon: Users },
-            { label: "Active devices", value: activeDevices, icon: Smartphone },
-            { label: "Campaigns", value: campaigns.length, icon: Send },
-            { label: "Accepted deliveries", value: acceptedDeliveries, icon: CheckCircle2 },
-          ].map((stat) => (
-            <div key={stat.label} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-slate-500">{stat.label}</p>
-                <stat.icon className="h-4 w-4 text-[#238D9D]" />
-              </div>
-              <p className="mt-2 text-3xl font-semibold text-slate-950">{stat.value.toLocaleString()}</p>
-            </div>
-          ))}
+          <MetricCard label="Opted-in users" value={audience.length.toLocaleString()} icon={Users} />
+          <MetricCard label="Active devices" value={activeDevices.toLocaleString()} icon={Smartphone} />
+          <MetricCard label="Campaigns" value={campaigns.length.toLocaleString()} icon={Send} />
+          <MetricCard label="Accepted deliveries" value={acceptedDeliveries.toLocaleString()} icon={CheckCircle2} />
         </div>
 
         {!pushSchemaReady ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-800">
+          <div className="rounded-card border border-danger/30 bg-danger/5 p-5 text-sm text-danger">
             Push campaigns are not available in this environment yet. Apply Supabase migration 062 before sending announcements.
           </div>
         ) : canWrite ? (
           <PushCampaignComposer audienceCount={audience.length} />
         ) : (
-          <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
+          <div className="rounded-card border border-border bg-surface p-5 text-sm text-ink-muted">
             You have read-only access to notification campaigns. A super or operations admin must send them.
           </div>
         )}
 
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+        <div className="overflow-hidden rounded-card border border-border bg-surface">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
             <div>
-              <h2 className="text-base font-semibold text-slate-950">Campaign history</h2>
-              <p className="mt-0.5 text-sm text-slate-500">Provider acceptance and durable job outcomes</p>
+              <h2 className="text-base font-semibold text-ink">Campaign history</h2>
+              <p className="mt-0.5 text-sm text-ink-muted">Provider acceptance and durable job outcomes</p>
             </div>
-            <BellRing className="h-5 w-5 text-[#238D9D]" />
+            <BellRing className="h-5 w-5 text-primary" />
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50 text-xs font-medium uppercase tracking-wider text-slate-400">
-                  <th className="px-4 py-3 text-left">Campaign</th>
-                  <th className="px-4 py-3 text-left">Type</th>
-                  <th className="px-4 py-3 text-right">Audience</th>
-                  <th className="px-4 py-3 text-right">Processed</th>
-                  <th className="px-4 py-3 text-right">Accepted devices</th>
-                  <th className="px-4 py-3 text-left">Created by</th>
-                  <th className="px-4 py-3 text-left">Time</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {campaigns.length === 0 && (
-                  <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">No campaigns sent yet.</td></tr>
-                )}
+
+          {campaigns.length === 0 ? (
+            <EmptyState message="No campaigns sent yet." isHealthy className="border-0" />
+          ) : (
+            <>
+              {/* Mobile: cards */}
+              <div className="space-y-3 p-4 lg:hidden">
                 {campaigns.map((campaign) => (
-                  <tr key={campaign.id} className="hover:bg-slate-50">
-                    <td className="max-w-sm px-4 py-3">
-                      <p className="truncate font-medium text-slate-900">{campaign.title}</p>
-                      <p className="mt-0.5 truncate text-xs text-slate-500">{campaign.body}</p>
-                    </td>
-                    <td className="px-4 py-3"><Badge variant="secondary">{campaign.campaign_type}</Badge></td>
-                    <td className="px-4 py-3 text-right font-mono text-slate-700">{campaign.queued_count}</td>
-                    <td className="px-4 py-3 text-right font-mono text-slate-700">{campaign.processed_recipients}</td>
-                    <td className="px-4 py-3 text-right font-mono text-slate-700">{campaign.accepted_deliveries}</td>
-                    <td className="px-4 py-3 text-xs text-slate-500">{campaign.created_by ?? "System"}</td>
-                    <td className="px-4 py-3 text-xs text-slate-500">{formatDateTime(campaign.created_at)}</td>
-                  </tr>
+                  <div key={campaign.id} className="rounded-card border border-border p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="truncate font-medium text-ink">{campaign.title}</p>
+                      <Badge variant="secondary">{campaign.campaign_type}</Badge>
+                    </div>
+                    <p className="mt-0.5 truncate text-xs text-ink-muted">{campaign.body}</p>
+                    <p className="mt-2 text-xs text-ink-muted">
+                      Audience {campaign.queued_count} · Processed {campaign.processed_recipients} · Accepted {campaign.accepted_deliveries}
+                    </p>
+                    <p className="mt-1 text-xs text-ink-muted">
+                      {campaign.created_by ?? "System"} · {formatDateTime(campaign.created_at)}
+                    </p>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </div>
+
+              {/* Desktop: table */}
+              <div className="hidden overflow-x-auto lg:block">
+                <table className="w-full min-w-[900px] text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-surface-subtle text-xs font-medium uppercase tracking-wider text-ink-muted">
+                      <th className="px-4 py-3 text-left">Campaign</th>
+                      <th className="px-4 py-3 text-left">Type</th>
+                      <th className="px-4 py-3 text-right">Audience</th>
+                      <th className="px-4 py-3 text-right">Processed</th>
+                      <th className="px-4 py-3 text-right">Accepted devices</th>
+                      <th className="px-4 py-3 text-left">Created by</th>
+                      <th className="px-4 py-3 text-left">Time</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {campaigns.map((campaign) => (
+                      <tr key={campaign.id} className="hover:bg-surface-subtle">
+                        <td className="max-w-sm px-4 py-3">
+                          <p className="truncate font-medium text-ink">{campaign.title}</p>
+                          <p className="mt-0.5 truncate text-xs text-ink-muted">{campaign.body}</p>
+                        </td>
+                        <td className="px-4 py-3"><Badge variant="secondary">{campaign.campaign_type}</Badge></td>
+                        <td className="px-4 py-3 text-right font-mono text-ink">{campaign.queued_count}</td>
+                        <td className="px-4 py-3 text-right font-mono text-ink">{campaign.processed_recipients}</td>
+                        <td className="px-4 py-3 text-right font-mono text-ink">{campaign.accepted_deliveries}</td>
+                        <td className="px-4 py-3 text-xs text-ink-muted">{campaign.created_by ?? "System"}</td>
+                        <td className="px-4 py-3 text-xs text-ink-muted">{formatDateTime(campaign.created_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

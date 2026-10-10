@@ -1,11 +1,8 @@
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { TopBar } from "@/components/layout/TopBar";
-import { Badge } from "@/components/ui/badge";
-import { formatNumber } from "@/lib/utils";
-import { Store } from "lucide-react";
+import { PageHeader } from "@/components/shell/PageHeader";
+import { MerchantsListView } from "@/components/merchants/MerchantsListView";
 
 async function getMerchants() {
   const [partnersRes, subscriptionsRes, vouchersRes, teamRes] = await Promise.all([
@@ -57,61 +54,9 @@ export default async function MerchantsPage() {
 
   return (
     <div>
-      <TopBar title="Merchants" subtitle={`${merchants.length} merchant${merchants.length !== 1 ? "s" : ""} registered`} />
-      <div className="p-6">
-        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50 text-xs font-medium uppercase tracking-wider text-slate-400">
-                  <th className="px-4 py-3 text-left">Merchant</th>
-                  <th className="px-4 py-3 text-left">Subscription</th>
-                  <th className="px-4 py-3 text-right">Voucher Types</th>
-                  <th className="px-4 py-3 text-right">Active</th>
-                  <th className="px-4 py-3 text-right">Team</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {merchants.length === 0 && (
-                  <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">No merchants yet.</td></tr>
-                )}
-                {merchants.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3">
-                      <Link href={`/merchants/${m.id}`} className="flex items-center gap-2 font-medium text-slate-900 hover:text-[#238D9D]">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 shrink-0">
-                          {m.image_url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={m.image_url} alt={m.name} className="h-7 w-7 rounded-lg object-cover" />
-                          ) : (
-                            <Store className="h-3.5 w-3.5 text-slate-400" />
-                          )}
-                        </div>
-                        <span>{m.name}</span>
-                      </Link>
-                      <p className="mt-0.5 pl-9 text-xs text-slate-400">{m.country ?? "—"}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      {m.subscription ? (
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="capitalize text-slate-700">{m.subscription.plan}</span>
-                          <Badge variant={m.subscription.status === "active" ? "success" : m.subscription.status === "suspended" ? "destructive" : "secondary"}>
-                            {m.subscription.status.replaceAll("_", " ")}
-                          </Badge>
-                        </div>
-                      ) : (
-                        <Badge variant="outline">No subscription</Badge>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-slate-700">{formatNumber(m.voucher_types)}</td>
-                    <td className="px-4 py-3 text-right font-mono text-slate-700">{formatNumber(m.active_voucher_types)}</td>
-                    <td className="px-4 py-3 text-right text-slate-500">{m.team_count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      <PageHeader title="Merchants" subtitle={`${merchants.length} merchant${merchants.length !== 1 ? "s" : ""} registered`} />
+      <div className="p-4 sm:p-6">
+        <MerchantsListView merchants={merchants} />
       </div>
     </div>
   );

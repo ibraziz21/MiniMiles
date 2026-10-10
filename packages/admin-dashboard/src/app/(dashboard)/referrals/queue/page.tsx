@@ -2,9 +2,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { formatDateTime, formatNumber } from "@/lib/utils";
 import { ReferralJobActions } from "@/components/referrals/ReferralJobActions";
 
@@ -116,109 +117,158 @@ export default async function ReferralQueuePage() {
 
   return (
     <div>
-      <TopBar title="Referral review queue" subtitle={`${jobs.length} reward job${jobs.length === 1 ? "" : "s"} awaiting review`} />
-      <div className="p-6">
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50 text-xs font-medium uppercase tracking-wider text-slate-400">
-                  <th className="px-4 py-3 text-left">Referral</th>
-                  <th className="px-4 py-3 text-left">Referrer → Referred</th>
-                  <th className="px-4 py-3 text-left">Milestone</th>
-                  <th className="px-4 py-3 text-right">Amount</th>
-                  <th className="px-4 py-3 text-left">Proof</th>
-                  {!isReadonly && <th className="px-4 py-3 text-left">Risk</th>}
-                  <th className="px-4 py-3 text-left">Last error</th>
-                  <th className="px-4 py-3 text-left">Queued</th>
-                  {canWrite && <th className="px-4 py-3 text-left">Action</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {jobs.length === 0 && (
-                  <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400">Nothing needs review.</td></tr>
-                )}
-                {jobs.map((job) => {
-                  const referral = referralsById.get(job.referral_id);
-                  return (
-                    <tr key={job.id} className="align-top hover:bg-slate-50">
-                      <td className="px-4 py-3 font-mono text-xs text-slate-500">{job.referral_id.slice(0, 8)}…</td>
-                      <td className="px-4 py-3 text-xs text-slate-700">
-                        {maskEmail(emailByUserId.get(referral?.referrer_user_id ?? ""))}
-                        <br />→ {maskEmail(emailByUserId.get(referral?.referred_user_id ?? ""))}
-                      </td>
-                      <td className="px-4 py-3 text-slate-700">
-                        <span className="capitalize">{job.milestone}</span>
-                        {job.released_at && (
-                          <Badge variant="outline" className="ml-1.5 align-middle">reversal</Badge>
+      <PageHeader title="Referral review queue" subtitle={`${jobs.length} reward job${jobs.length === 1 ? "" : "s"} awaiting review`} />
+      <div className="p-4 sm:p-6">
+        {jobs.length === 0 ? (
+          <EmptyState message="Nothing needs review." isHealthy />
+        ) : (
+          <>
+            {/* Mobile: cards */}
+            <div className="space-y-3 lg:hidden">
+              {jobs.map((job) => {
+                const referral = referralsById.get(job.referral_id);
+                return (
+                  <div key={job.id} className="rounded-card border border-border bg-surface p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-mono text-xs text-ink-muted">{job.referral_id.slice(0, 8)}…</p>
+                      <span className="font-mono text-sm text-ink">{formatNumber(job.amount_miles)} mi</span>
+                    </div>
+                    <p className="mt-1 text-sm text-ink">
+                      {maskEmail(emailByUserId.get(referral?.referrer_user_id ?? ""))} → {maskEmail(emailByUserId.get(referral?.referred_user_id ?? ""))}
+                    </p>
+                    <p className="mt-1 text-xs text-ink-muted">
+                      <span className="capitalize">{job.milestone}</span>
+                      {job.released_at && <Badge variant="outline" className="ml-1.5 align-middle">reversal</Badge>}
+                      {" · "}
+                      {referral?.qualification_type ?? "—"} · queued {formatDateTime(job.created_at)}
+                    </p>
+                    {!isReadonly && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <Badge variant={referral?.risk_decision === "block" ? "destructive" : "warning"}>
+                          risk {referral?.risk_score ?? 0}
+                        </Badge>
+                        {referral?.risk_reason_codes && referral.risk_reason_codes.length > 0 && (
+                          <p className="text-[11px] text-ink-muted">{referral.risk_reason_codes.join(", ")}</p>
                         )}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-slate-700">{formatNumber(job.amount_miles)}</td>
-                      <td className="px-4 py-3 text-xs text-slate-500">
-                        {referral?.qualification_type ?? "—"}
-                        {referral?.qualification_reference && (
-                          <p className="font-mono text-[11px] text-slate-400">{referral.qualification_reference}</p>
-                        )}
-                      </td>
-                      {!isReadonly && (
-                        <td className="px-4 py-3">
-                          <Badge variant={referral?.risk_decision === "block" ? "destructive" : "warning"}>
-                            {referral?.risk_score ?? 0}
-                          </Badge>
-                          {referral?.risk_reason_codes && referral.risk_reason_codes.length > 0 && (
-                            <p className="mt-1 max-w-[160px] text-[11px] text-slate-400">
-                              {referral.risk_reason_codes.join(", ")}
-                            </p>
-                          )}
-                        </td>
-                      )}
-                      <td className="px-4 py-3 max-w-[180px] text-xs text-slate-500">
-                        {job.last_error_code ?? "—"}
-                        {job.attempts > 0 && <span className="text-slate-400"> ({job.attempts} attempts)</span>}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-slate-500">{formatDateTime(job.created_at)}</td>
-                      {canWrite && (
-                        <td className="px-4 py-3">
-                          <ReferralJobActions
-                            jobId={job.id}
-                            referralId={job.referral_id}
-                            jobStatus={job.status}
-                            showReverse={false}
-                          />
-                        </td>
-                      )}
+                      </div>
+                    )}
+                    {job.last_error_code && (
+                      <p className="mt-1 text-xs text-ink-muted">
+                        {job.last_error_code}
+                        {job.attempts > 0 && ` (${job.attempts} attempts)`}
+                      </p>
+                    )}
+                    {canWrite && (
+                      <div className="mt-3">
+                        <ReferralJobActions jobId={job.id} referralId={job.referral_id} jobStatus={job.status} showReverse={false} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop: table */}
+            <div className="hidden overflow-hidden rounded-card border border-border bg-surface lg:block">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-surface-subtle text-xs font-medium uppercase tracking-wider text-ink-muted">
+                      <th className="px-4 py-3 text-left">Referral</th>
+                      <th className="px-4 py-3 text-left">Referrer → Referred</th>
+                      <th className="px-4 py-3 text-left">Milestone</th>
+                      <th className="px-4 py-3 text-right">Amount</th>
+                      <th className="px-4 py-3 text-left">Proof</th>
+                      {!isReadonly && <th className="px-4 py-3 text-left">Risk</th>}
+                      <th className="px-4 py-3 text-left">Last error</th>
+                      <th className="px-4 py-3 text-left">Queued</th>
+                      {canWrite && <th className="px-4 py-3 text-left">Action</th>}
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {jobs.map((job) => {
+                      const referral = referralsById.get(job.referral_id);
+                      return (
+                        <tr key={job.id} className="align-top hover:bg-surface-subtle">
+                          <td className="px-4 py-3 font-mono text-xs text-ink-muted">{job.referral_id.slice(0, 8)}…</td>
+                          <td className="px-4 py-3 text-xs text-ink">
+                            {maskEmail(emailByUserId.get(referral?.referrer_user_id ?? ""))}
+                            <br />→ {maskEmail(emailByUserId.get(referral?.referred_user_id ?? ""))}
+                          </td>
+                          <td className="px-4 py-3 text-ink">
+                            <span className="capitalize">{job.milestone}</span>
+                            {job.released_at && (
+                              <Badge variant="outline" className="ml-1.5 align-middle">reversal</Badge>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-ink">{formatNumber(job.amount_miles)}</td>
+                          <td className="px-4 py-3 text-xs text-ink-muted">
+                            {referral?.qualification_type ?? "—"}
+                            {referral?.qualification_reference && (
+                              <p className="font-mono text-[11px] text-ink-muted">{referral.qualification_reference}</p>
+                            )}
+                          </td>
+                          {!isReadonly && (
+                            <td className="px-4 py-3">
+                              <Badge variant={referral?.risk_decision === "block" ? "destructive" : "warning"}>
+                                {referral?.risk_score ?? 0}
+                              </Badge>
+                              {referral?.risk_reason_codes && referral.risk_reason_codes.length > 0 && (
+                                <p className="mt-1 max-w-[160px] text-[11px] text-ink-muted">
+                                  {referral.risk_reason_codes.join(", ")}
+                                </p>
+                              )}
+                            </td>
+                          )}
+                          <td className="px-4 py-3 max-w-[180px] text-xs text-ink-muted">
+                            {job.last_error_code ?? "—"}
+                            {job.attempts > 0 && <span className="text-ink-muted"> ({job.attempts} attempts)</span>}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-ink-muted">{formatDateTime(job.created_at)}</td>
+                          {canWrite && (
+                            <td className="px-4 py-3">
+                              <ReferralJobActions
+                                jobId={job.id}
+                                referralId={job.referral_id}
+                                jobStatus={job.status}
+                                showReverse={false}
+                              />
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
 
         {!isReadonly && (
           <Card className="mt-6">
             <CardHeader><CardTitle>Extended-hold referrals ({reviewTier.length})</CardTitle></CardHeader>
             <CardContent>
-              <p className="mb-3 text-xs text-slate-500">
+              <p className="mb-3 text-xs text-ink-muted">
                 Risk score 30-59 — not blocked, holds doubled automatically. Progressing normally through the
                 reward pipeline; shown here for visibility only, not action.
               </p>
               {reviewTier.length === 0 ? (
-                <p className="rounded-lg border border-dashed border-slate-200 py-6 text-center text-sm text-slate-400">Nothing on extended hold.</p>
+                <p className="rounded-card border border-dashed border-border py-6 text-center text-sm text-ink-muted">Nothing on extended hold.</p>
               ) : (
                 <div className="space-y-2">
                   {reviewTier.map((r) => (
-                    <div key={r.id} className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-                      <Link href={`/referrals/lookup?q=${r.id}`} className="font-mono text-xs text-[#238D9D] underline-offset-2 hover:underline">
+                    <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-card border border-warning/30 bg-warning/5 p-3 text-sm">
+                      <Link href={`/referrals/lookup?q=${r.id}`} className="font-mono text-xs text-primary underline-offset-2 hover:underline">
                         {r.id.slice(0, 8)}…
                       </Link>
-                      <p className="text-xs text-slate-700">
+                      <p className="text-xs text-ink">
                         {maskEmail(emailByUserIdForReview.get(r.referrer_user_id))} → {maskEmail(emailByUserIdForReview.get(r.referred_user_id))}
                       </p>
-                      <p className="text-slate-700">status: {r.status}</p>
+                      <p className="text-ink">status: {r.status}</p>
                       <Badge variant="warning">{r.risk_score}</Badge>
-                      <p className="max-w-[200px] text-[11px] text-slate-400">{r.risk_reason_codes.join(", ")}</p>
-                      <p className="text-xs text-slate-400">{formatDateTime(r.created_at)}</p>
+                      <p className="max-w-[200px] text-[11px] text-ink-muted">{r.risk_reason_codes.join(", ")}</p>
+                      <p className="text-xs text-ink-muted">{formatDateTime(r.created_at)}</p>
                     </div>
                   ))}
                 </div>

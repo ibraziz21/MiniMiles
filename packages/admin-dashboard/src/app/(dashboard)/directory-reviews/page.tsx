@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AlertCircle, ArrowRight, CheckCircle2, Clock3, PauseCircle, ShieldX } from "lucide-react";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MetricCard } from "@/components/ui/metric-card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { requireAdminSession } from "@/lib/auth";
 import { directoryStatusLabel } from "@/lib/merchant-directory-review";
 import { supabase } from "@/lib/supabase";
@@ -68,55 +70,23 @@ export default async function DirectoryReviewsPage() {
 
   return (
     <div>
-      <TopBar
+      <PageHeader
         title="Merchant Profile Reviews"
         subtitle="Verify public business details before they appear in Hub"
       />
-      <div className="space-y-6 p-6">
+      <div className="space-y-6 p-4 sm:p-6">
         {error && (
-          <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="flex items-center gap-3 rounded-card border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
             <AlertCircle className="h-4 w-4 shrink-0" />
             {error}
           </div>
         )}
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Card>
-            <CardContent className="flex items-center gap-4 p-5">
-              <Clock3 className="h-8 w-8 text-amber-500" />
-              <div>
-                <p className="text-2xl font-semibold text-slate-950">{counts.pending}</p>
-                <p className="text-sm text-slate-500">Awaiting review</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex items-center gap-4 p-5">
-              <CheckCircle2 className="h-8 w-8 text-emerald-500" />
-              <div>
-                <p className="text-2xl font-semibold text-slate-950">{counts.published}</p>
-                <p className="text-sm text-slate-500">Published</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex items-center gap-4 p-5">
-              <PauseCircle className="h-8 w-8 text-orange-500" />
-              <div>
-                <p className="text-2xl font-semibold text-slate-950">{counts.changes}</p>
-                <p className="text-sm text-slate-500">Changes requested</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex items-center gap-4 p-5">
-              <ShieldX className="h-8 w-8 text-red-500" />
-              <div>
-                <p className="text-2xl font-semibold text-slate-950">{counts.suspended}</p>
-                <p className="text-sm text-slate-500">Suspended</p>
-              </div>
-            </CardContent>
-          </Card>
+          <MetricCard label="Awaiting review" value={String(counts.pending)} icon={Clock3} tone={counts.pending > 0 ? "warning" : "neutral"} />
+          <MetricCard label="Published" value={String(counts.published)} icon={CheckCircle2} tone="success" />
+          <MetricCard label="Changes requested" value={String(counts.changes)} icon={PauseCircle} tone={counts.changes > 0 ? "warning" : "neutral"} />
+          <MetricCard label="Suspended" value={String(counts.suspended)} icon={ShieldX} tone={counts.suspended > 0 ? "danger" : "neutral"} />
         </div>
 
         <Card>
@@ -125,55 +95,74 @@ export default async function DirectoryReviewsPage() {
           </CardHeader>
           <CardContent>
             {pending.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-slate-200 px-4 py-10 text-center">
-                <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500" />
-                <p className="mt-3 text-sm font-medium text-slate-900">Review queue is clear</p>
-                <p className="mt-1 text-sm text-slate-500">
-                  New merchant submissions will appear here automatically.
-                </p>
-              </div>
+              <EmptyState icon={CheckCircle2} message="Review queue is clear. New merchant submissions will appear here automatically." isHealthy />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-100 text-xs font-medium uppercase tracking-wider text-slate-400">
-                      <th className="pb-3 text-left">Merchant</th>
-                      <th className="pb-3 text-left">Account</th>
-                      <th className="pb-3 text-left">Submitted</th>
-                      <th className="pb-3 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {pending.map((row) => (
-                      <tr key={row.partner_id}>
-                        <td className="py-3">
-                          <p className="font-medium text-slate-900">
-                            {row.partners?.name ?? "Unnamed merchant"}
-                          </p>
-                          <p className="text-xs text-slate-400">/{row.partners?.slug ?? "—"}</p>
-                        </td>
-                        <td className="py-3">
-                          <Badge variant={row.partners?.status === "active" ? "success" : "destructive"}>
-                            {row.partners?.status ?? "unknown"}
-                          </Badge>
-                        </td>
-                        <td className="py-3 text-slate-600">
-                          {formatDateTime(row.directory_submitted_at)}
-                        </td>
-                        <td className="py-3 text-right">
-                          <Link
-                            href={`/directory-reviews/${row.partner_id}`}
-                            className="inline-flex items-center gap-1.5 font-medium text-[#176B78] hover:text-[#125762]"
-                          >
-                            Review profile
-                            <ArrowRight className="h-3.5 w-3.5" />
-                          </Link>
-                        </td>
+              <>
+                {/* Mobile: cards */}
+                <div className="space-y-3 lg:hidden">
+                  {pending.map((row) => (
+                    <Link
+                      key={row.partner_id}
+                      href={`/directory-reviews/${row.partner_id}`}
+                      className="block rounded-card border border-border p-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-medium text-ink">{row.partners?.name ?? "Unnamed merchant"}</p>
+                          <p className="text-xs text-ink-muted">/{row.partners?.slug ?? "—"}</p>
+                        </div>
+                        <Badge variant={row.partners?.status === "active" ? "success" : "destructive"}>
+                          {row.partners?.status ?? "unknown"}
+                        </Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-ink-muted">Submitted {formatDateTime(row.directory_submitted_at)}</p>
+                    </Link>
+                  ))}
+                </div>
+
+                {/* Desktop: table */}
+                <div className="hidden overflow-x-auto lg:block">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-xs font-medium uppercase tracking-wider text-ink-muted">
+                        <th className="pb-3 text-left">Merchant</th>
+                        <th className="pb-3 text-left">Account</th>
+                        <th className="pb-3 text-left">Submitted</th>
+                        <th className="pb-3 text-right">Action</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {pending.map((row) => (
+                        <tr key={row.partner_id}>
+                          <td className="py-3">
+                            <p className="font-medium text-ink">
+                              {row.partners?.name ?? "Unnamed merchant"}
+                            </p>
+                            <p className="text-xs text-ink-muted">/{row.partners?.slug ?? "—"}</p>
+                          </td>
+                          <td className="py-3">
+                            <Badge variant={row.partners?.status === "active" ? "success" : "destructive"}>
+                              {row.partners?.status ?? "unknown"}
+                            </Badge>
+                          </td>
+                          <td className="py-3 text-ink-muted">
+                            {formatDateTime(row.directory_submitted_at)}
+                          </td>
+                          <td className="py-3 text-right">
+                            <Link
+                              href={`/directory-reviews/${row.partner_id}`}
+                              className="inline-flex items-center gap-1.5 font-medium text-primary hover:text-primary-strong"
+                            >
+                              Review profile
+                              <ArrowRight className="h-3.5 w-3.5" />
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
@@ -188,13 +177,13 @@ export default async function DirectoryReviewsPage() {
                 <Link
                   key={row.partner_id}
                   href={`/directory-reviews/${row.partner_id}`}
-                  className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-3 transition-colors hover:bg-slate-50"
+                  className="flex items-center justify-between rounded-card border border-border px-3 py-3 transition-colors hover:bg-surface-subtle"
                 >
                   <div>
-                    <p className="text-sm font-medium text-slate-900">
+                    <p className="text-sm font-medium text-ink">
                       {row.partners?.name ?? "Unnamed merchant"}
                     </p>
-                    <p className="mt-0.5 text-xs text-slate-400">
+                    <p className="mt-0.5 text-xs text-ink-muted">
                       Updated {formatDateTime(row.directory_updated_at)}
                     </p>
                   </div>

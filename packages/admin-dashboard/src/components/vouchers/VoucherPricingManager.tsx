@@ -34,7 +34,7 @@ export function VoucherPricingManager({
   }
 
   if (bands.length === 0) {
-    return <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
+    return <p className="rounded-card bg-amber-50 p-4 text-sm text-amber-800">
       No active voucher pricing bands were found. Apply the Akiba voucher runtime migration first.
     </p>;
   }
@@ -107,12 +107,12 @@ function BandEditor({
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-semibold text-slate-900">{band.display_name}</p>
-          <p className="mt-1 text-xs text-slate-500">Approved band</p>
-          <p className="text-lg font-bold text-[#238D9D]">
+          <p className="font-semibold text-ink">{band.display_name}</p>
+          <p className="mt-1 text-xs text-ink-muted">Approved band</p>
+          <p className="text-lg font-bold text-primary">
             {band.minimum_miles_price}–{band.maximum_miles_price} Miles
           </p>
         </div>
@@ -125,16 +125,16 @@ function BandEditor({
 
       <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
         <label className="block space-y-1.5">
-          <span className="text-xs font-medium text-slate-600">Exact customer price (Miles)</span>
+          <span className="text-xs font-medium text-ink-muted">Exact customer price (Miles)</span>
           <Input type="number" step="1" min={band.minimum_miles_price} max={band.maximum_miles_price}
             value={price} onChange={(event) => setPrice(event.target.value)} disabled={!canEdit || loading} />
         </label>
         <label className="block space-y-1.5">
-          <span className="text-xs font-medium text-slate-600">Change reason</span>
+          <span className="text-xs font-medium text-ink-muted">Change reason</span>
           <textarea value={reason} onChange={(event) => setReason(event.target.value)}
             placeholder="e.g. Mombasa launch pricing approval"
             maxLength={240} disabled={!canEdit || loading}
-            className="min-h-20 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#238D9D] disabled:cursor-not-allowed disabled:opacity-50" />
+            className="min-h-20 w-full rounded-card border border-border bg-surface px-3 py-2 text-sm text-ink shadow-sm placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50" />
         </label>
         {error && <p className="text-xs text-red-700">{error}</p>}
         {saved && <p className="flex items-center gap-1 text-xs text-emerald-700">

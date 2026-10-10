@@ -92,6 +92,7 @@ export default function VoucherDetailScreen() {
 }
 
 function VoucherDetailContent({ detail }: { detail: VoucherDetail }) {
+  const status = effectiveVoucherStatus(detail.status, detail.expiresAt);
   const createdAt = formatDate(detail.createdAt);
   const expiresAt = formatDate(detail.expiresAt);
   const redeemedAt = formatDate(detail.redeemedAt);
@@ -99,7 +100,7 @@ function VoucherDetailContent({ detail }: { detail: VoucherDetail }) {
   return (
     <View style={styles.content}>
       <Card style={styles.card}>
-        <Badge label={detail.status} tone={detail.status === 'redeemed' ? 'muted' : 'teal'} />
+        <Badge label={status} tone={status === 'issued' ? 'teal' : 'muted'} />
         {detail.merchantName ? <Text style={styles.body}>{detail.merchantName}</Text> : null}
         {detail.milesCost != null ? <MilesAmount amount={detail.milesCost} color={colors.teal} /> : null}
         {detail.discountPercent != null ? (
@@ -113,11 +114,17 @@ function VoucherDetailContent({ detail }: { detail: VoucherDetail }) {
 
       <Card style={styles.card}>
         {createdAt ? <Text style={styles.meta}>Issued {createdAt}</Text> : null}
-        {expiresAt ? <Text style={styles.meta}>Expires {expiresAt}</Text> : null}
+        {expiresAt ? <Text style={styles.meta}>{status === 'expired' ? 'Expired' : 'Expires'} {expiresAt}</Text> : null}
         {redeemedAt ? <Text style={styles.meta}>Redeemed {redeemedAt}</Text> : null}
       </Card>
     </View>
   );
+}
+
+function effectiveVoucherStatus(status: string, expiresAt: string | null) {
+  if (!['issued', 'pending', 'claiming'].includes(status) || !expiresAt) return status;
+  const expiryMs = Date.parse(expiresAt);
+  return Number.isFinite(expiryMs) && expiryMs <= Date.now() ? 'expired' : status;
 }
 
 const styles = StyleSheet.create({

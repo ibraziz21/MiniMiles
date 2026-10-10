@@ -30,6 +30,11 @@ export function formatNumber(n: number | null | undefined): string {
   return new Intl.NumberFormat("en-KE").format(n);
 }
 
+/** Convert integer ledger minor units into display units. */
+export function minorToMajor(amountMinor: number | string | null | undefined): number {
+  return Number(amountMinor ?? 0) / 100;
+}
+
 // Renders money using its own row currency — never assume cUSD/USD.
 // See packages/admin-dashboard/docs/akiba-funded-voucher-admin-spec.md §12.
 export function formatMoney(amount: number | string | null | undefined, currency: string | null | undefined): string {

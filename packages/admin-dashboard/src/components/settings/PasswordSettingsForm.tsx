@@ -60,13 +60,13 @@ export function PasswordSettingsForm({
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      <div className="flex items-start gap-3 rounded-lg border border-cyan-100 bg-cyan-50 p-3">
-        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#238D9D]" />
+      <div className="flex items-start gap-3 rounded-card border border-cyan-100 bg-cyan-50 p-3">
+        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
         <div>
-          <p className="text-sm font-semibold text-slate-900">
+          <p className="text-sm font-semibold text-ink">
             {mustChangePassword ? "Temporary password reset required" : email}
           </p>
-          <p className="mt-1 text-xs leading-5 text-slate-600">
+          <p className="mt-1 text-xs leading-5 text-ink-muted">
             {mustChangePassword
               ? "Set a private password before using the rest of the admin dashboard."
               : "Replace temporary credentials with a private password. Current sessions stay active."}
@@ -75,7 +75,7 @@ export function PasswordSettingsForm({
       </div>
 
       <label className="block space-y-1.5">
-        <span className="text-xs font-medium text-slate-600">Current password</span>
+        <span className="text-xs font-medium text-ink-muted">Current password</span>
         <Input
           type="password"
           value={currentPassword}
@@ -88,7 +88,7 @@ export function PasswordSettingsForm({
 
       <div className="grid gap-3 md:grid-cols-2">
         <label className="block space-y-1.5">
-          <span className="text-xs font-medium text-slate-600">New password</span>
+          <span className="text-xs font-medium text-ink-muted">New password</span>
           <Input
             type="password"
             value={newPassword}
@@ -100,7 +100,7 @@ export function PasswordSettingsForm({
           />
         </label>
         <label className="block space-y-1.5">
-          <span className="text-xs font-medium text-slate-600">Confirm new password</span>
+          <span className="text-xs font-medium text-ink-muted">Confirm new password</span>
           <Input
             type="password"
             value={confirmPassword}
@@ -118,7 +118,7 @@ export function PasswordSettingsForm({
           <KeyRound className="h-4 w-4" />
           {loading ? "Updating..." : "Update password"}
         </Button>
-        <p className="text-xs text-slate-500">Minimum {minLength} characters.</p>
+        <p className="text-xs text-ink-muted">Minimum {minLength} characters.</p>
       </div>
 
       {disabled && (

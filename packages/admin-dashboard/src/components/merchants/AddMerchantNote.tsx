@@ -45,7 +45,7 @@ export function AddMerchantNote({ merchantId }: AddMerchantNoteProps) {
         value={note}
         onChange={(event) => setNote(event.target.value)}
         placeholder="Add an internal operations note..."
-        className="min-h-20 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition-colors placeholder:text-slate-400 focus:border-[#238D9D] focus:ring-2 focus:ring-[#238D9D]/10"
+        className="min-h-20 w-full rounded-card border border-border bg-surface px-3 py-2 text-sm outline-none transition-colors placeholder:text-ink-muted focus:border-primary focus:ring-2 focus:ring-primary/10"
       />
       <div className="flex items-center gap-3">
         <Button onClick={submit} disabled={loading || !note.trim()} size="sm">

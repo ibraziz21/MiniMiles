@@ -2,12 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
 @layer base {
   :root {
     --radius: 0.5rem;
-    --background: 248 250 252;
+    --background: 246 248 250;
     --foreground: 15 23 42;
   }
 
@@ -16,11 +14,23 @@
   }
 
   body {
-    @apply bg-[#F6F8FA] text-slate-900 font-sans antialiased;
+    @apply bg-canvas text-ink font-sans antialiased;
+  }
+
+  button,
+  a,
+  summary,
+  select {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  summary::-webkit-details-marker {
+    display: none;
   }
 
   ::selection {
-    background: rgba(35, 141, 157, 0.18);
+    background: rgba(15, 118, 110, 0.18);
   }
 
   ::-webkit-scrollbar {
@@ -33,5 +43,16 @@
     border: 3px solid transparent;
     border-radius: 999px;
     background-clip: content-box;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

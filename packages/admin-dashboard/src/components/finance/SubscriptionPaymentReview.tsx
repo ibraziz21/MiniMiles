@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog";
 import {
   normalizeDecimalString,
   REJECTION_CODES,
@@ -59,6 +60,8 @@ export function SubscriptionPaymentReview(props: Props) {
   const [merchantMessage, setMerchantMessage] = useState("");
   const [internalNote, setInternalNote] = useState("");
   const [mode, setMode] = useState<"none" | "confirm" | "reject">("none");
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
 
   const confirmReady = useMemo(() => {
     return (
@@ -240,9 +243,29 @@ export function SubscriptionPaymentReview(props: Props) {
               <Button
                 size="sm"
                 disabled={!confirmReady || busy === "confirm"}
-                onClick={() => {
+                onClick={() => setConfirmDialogOpen(true)}
+              >
+                {busy === "confirm" ? "Confirming…" : "Confirm payment"}
+              </Button>
+              <ConfirmActionDialog
+                open={confirmDialogOpen}
+                onOpenChange={setConfirmDialogOpen}
+                title="Confirm this payment?"
+                description={
+                  <>
+                    This marks the invoice as paid and applies the subscription effect immediately. This
+                    decision is immutable once confirmed.
+                    {override && (
+                      <span className="mt-2 block font-medium text-warning">
+                        Recording as a super-admin override.
+                      </span>
+                    )}
+                  </>
+                }
+                confirmLabel="Confirm payment"
+                onConfirm={async () => {
                   const amount = normalizeDecimalString(confirmedAmount);
-                  call(
+                  await call(
                     "confirm",
                     {
                       expectedVersion: version,
@@ -255,10 +278,9 @@ export function SubscriptionPaymentReview(props: Props) {
                     },
                     "confirm",
                   );
+                  setConfirmDialogOpen(false);
                 }}
-              >
-                {busy === "confirm" ? "Confirming…" : "Confirm payment"}
-              </Button>
+              />
               {!confirmReady && (
                 <p className="text-xs text-slate-400">
                   Complete every checklist item and required field to enable confirmation.
@@ -272,6 +294,7 @@ export function SubscriptionPaymentReview(props: Props) {
               <select
                 value={rejectionCode}
                 onChange={(e) => setRejectionCode(e.target.value as RejectionCode)}
+                aria-label="Rejection code"
                 className="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm"
               >
                 <option value="">Select a rejection code…</option>
@@ -304,8 +327,19 @@ export function SubscriptionPaymentReview(props: Props) {
                   (rejectionCode === "other" && internalNote.trim().length === 0) ||
                   busy === "reject"
                 }
-                onClick={() =>
-                  call(
+                onClick={() => setRejectDialogOpen(true)}
+              >
+                {busy === "reject" ? "Rejecting…" : "Reject attempt"}
+              </Button>
+              <ConfirmActionDialog
+                open={rejectDialogOpen}
+                onOpenChange={setRejectDialogOpen}
+                title="Reject this payment attempt?"
+                description="The merchant will see the message below. This decision is immutable once rejected."
+                confirmLabel="Reject attempt"
+                variant="destructive"
+                onConfirm={async () => {
+                  await call(
                     "reject",
                     {
                       expectedVersion: version,
@@ -314,11 +348,10 @@ export function SubscriptionPaymentReview(props: Props) {
                       internalNote: internalNote.trim() || null,
                     },
                     "reject",
-                  )
-                }
-              >
-                {busy === "reject" ? "Rejecting…" : "Reject attempt"}
-              </Button>
+                  );
+                  setRejectDialogOpen(false);
+                }}
+              />
             </div>
           )}
         </div>

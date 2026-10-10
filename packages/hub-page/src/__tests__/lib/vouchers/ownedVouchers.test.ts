@@ -47,6 +47,22 @@ function makeQueryBuilder(rows: FixtureRow[]) {
       const statusIn = inCalls.find((c) => c.col === "status");
       if (statusIn) result = result.filter((r) => statusIn.vals.includes(r.status));
 
+      const activeExpiryOr = orCalls.find((expr) => expr.startsWith("expires_at.is.null,expires_at.gt."));
+      if (activeExpiryOr) {
+        const cutoff = activeExpiryOr.slice("expires_at.is.null,expires_at.gt.".length);
+        result = result.filter((r) => r.expires_at === null || r.expires_at > cutoff);
+      }
+
+      const expiredStatusOr = orCalls.find((expr) => expr.startsWith("status.in.(expired,void)"));
+      if (expiredStatusOr) {
+        result = result.filter((r) =>
+          ["expired", "void"].includes(r.status) ||
+          (["issued", "pending", "claiming"].includes(r.status) &&
+            r.expires_at !== null &&
+            Date.parse(r.expires_at) <= Date.now()),
+        );
+      }
+
       const cursorOr = orCalls.find((expr) => expr.startsWith("created_at.lt."));
       if (cursorOr) {
         const match = /created_at\.lt\.([^,]+),and\(created_at\.eq\.([^,]+),id\.lt\.([^)]+)\)/.exec(cursorOr);
@@ -108,6 +124,27 @@ describe("listOwnedVouchers", () => {
   it("maps status=expired to expired/void", async () => {
     const result = await listOwnedVouchers({ userId: "u1", walletAddresses: [], status: "expired" });
     expect(result.vouchers.map((v) => v.id)).toEqual(["v0"]);
+  });
+
+  it("treats an issued voucher past expires_at as expired", async () => {
+    state.rows.push({
+      id: "elapsed",
+      status: "issued",
+      created_at: "2026-01-04T00:00:00Z",
+      expires_at: "2000-01-01T00:00:00Z",
+      redeemed_at: null,
+      spend_voucher_templates: template("Elapsed"),
+      voucher_programs: { name: "Program" },
+    });
+
+    const all = await listOwnedVouchers({ userId: "u1", walletAddresses: [] });
+    expect(all.vouchers.find((voucher) => voucher.id === "elapsed")?.status).toBe("expired");
+
+    const active = await listOwnedVouchers({ userId: "u1", walletAddresses: [], status: "active" });
+    expect(active.vouchers.map((voucher) => voucher.id)).not.toContain("elapsed");
+
+    const expired = await listOwnedVouchers({ userId: "u1", walletAddresses: [], status: "expired" });
+    expect(expired.vouchers.map((voucher) => voucher.id)).toContain("elapsed");
   });
 
   it("returns every status when no status filter is given", async () => {

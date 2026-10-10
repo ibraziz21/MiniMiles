@@ -6,22 +6,22 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#238D9D] disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-control text-sm font-medium transition-[color,background-color,border-color,box-shadow,transform] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       variant: {
-        default: "bg-[#238D9D] text-white hover:bg-[#1d7a89]",
-        destructive: "bg-red-500 text-white hover:bg-red-600",
-        outline: "border border-slate-200 bg-white text-slate-900 hover:bg-slate-50",
-        secondary: "bg-slate-100 text-slate-900 hover:bg-slate-200",
-        ghost: "text-slate-700 hover:bg-slate-100 hover:text-slate-900",
-        link: "text-[#238D9D] underline-offset-4 hover:underline",
+        default: "bg-primary text-white hover:bg-primary-strong",
+        destructive: "bg-danger text-white hover:bg-red-800",
+        outline: "border border-border bg-surface text-ink hover:border-primary/25 hover:bg-surface-subtle",
+        secondary: "bg-surface-subtle text-ink hover:bg-border",
+        ghost: "text-ink-muted hover:bg-surface-subtle hover:text-ink",
+        link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-9 px-4 py-2",
-        sm: "h-8 px-3 text-xs",
-        lg: "h-10 px-6",
-        icon: "h-9 w-9",
+        default: "h-11 px-4 py-2 sm:h-9",
+        sm: "h-11 px-3 text-xs sm:h-8",
+        lg: "h-12 px-6 sm:h-10",
+        icon: "h-11 w-11 sm:h-9 sm:w-9",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

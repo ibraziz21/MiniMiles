@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
-  ArrowLeft,
   CheckCircle2,
   ExternalLink,
   Globe2,
@@ -9,7 +8,8 @@ import {
   Store,
   XCircle,
 } from "lucide-react";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
+import { DetailHeader } from "@/components/shell/DetailHeader";
 import { DirectoryReviewActions } from "@/components/merchants/DirectoryReviewActions";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -230,43 +230,42 @@ export default async function DirectoryReviewDetailPage({
 
   return (
     <div>
-      <TopBar
+      <PageHeader
         title={preview.name}
         subtitle={`Public profile · ${directoryStatusLabel(settings.directory_status)}`}
       />
-      <div className="space-y-6 p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link
-            href="/directory-reviews"
-            className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Back to profile reviews
-          </Link>
-          <div className="flex items-center gap-2">
-            <Link
-              href={`/merchants/${params.id}`}
-              className="text-sm font-medium text-[#176B78] hover:text-[#125762]"
-            >
-              Merchant account
-            </Link>
-            {publicHref && settings.directory_status === "published" && (
-              <a
-                href={publicHref}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 text-sm font-medium text-[#176B78] hover:text-[#125762]"
+      <div className="space-y-6 p-4 sm:p-6">
+        <DetailHeader
+          backHref="/directory-reviews"
+          backLabel="Back to profile reviews"
+          title={preview.name}
+          subtitle={directoryStatusLabel(settings.directory_status)}
+          actions={
+            <div className="flex items-center gap-3">
+              <Link
+                href={`/merchants/${params.id}`}
+                className="text-sm font-medium text-primary hover:text-primary-strong"
               >
-                Open in Hub <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            )}
-          </div>
-        </div>
+                Merchant account
+              </Link>
+              {publicHref && settings.directory_status === "published" && (
+                <a
+                  href={publicHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-primary-strong"
+                >
+                  Open in Hub <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              )}
+            </div>
+          }
+        />
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-slate-500">Directory status</CardTitle>
+              <CardTitle className="text-sm text-ink-muted">Directory status</CardTitle>
             </CardHeader>
             <CardContent>
               <Badge variant={STATUS_VARIANT[settings.directory_status] ?? "secondary"}>
@@ -276,27 +275,27 @@ export default async function DirectoryReviewDetailPage({
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-slate-500">Completeness</CardTitle>
+              <CardTitle className="text-sm text-ink-muted">Completeness</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-semibold text-slate-950">
+              <p className="text-2xl font-semibold text-ink">
                 {completeness.completedCount}/{completeness.requiredCount}
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-slate-500">Submitted</CardTitle>
+              <CardTitle className="text-sm text-ink-muted">Submitted</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm font-medium text-slate-900">
+              <p className="text-sm font-medium text-ink">
                 {formatDateTime(settings.directory_submitted_at)}
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-slate-500">Account eligibility</CardTitle>
+              <CardTitle className="text-sm text-ink-muted">Account eligibility</CardTitle>
             </CardHeader>
             <CardContent>
               {settings.partners?.status === "active" && settings.partners?.type === "merchant" ? (
@@ -320,7 +319,7 @@ export default async function DirectoryReviewDetailPage({
             {completeness.sections.map((section) => (
               <div
                 key={section.key}
-                className={`rounded-lg border p-3 ${
+                className={`rounded-card border p-3 ${
                   section.complete
                     ? "border-emerald-200 bg-emerald-50"
                     : "border-red-200 bg-red-50"
@@ -332,7 +331,7 @@ export default async function DirectoryReviewDetailPage({
                   ) : (
                     <XCircle className="h-4 w-4 text-red-600" />
                   )}
-                  <p className="text-sm font-medium text-slate-900">{section.label}</p>
+                  <p className="text-sm font-medium text-ink">{section.label}</p>
                 </div>
                 {section.missing.map((item) => (
                   <p key={item.code} className="mt-2 text-xs text-red-700">{item.message}</p>
@@ -348,21 +347,21 @@ export default async function DirectoryReviewDetailPage({
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-5 sm:flex-row">
-              <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+              <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-card border border-border bg-surface-subtle">
                 {preview.logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={preview.logoUrl} alt="" className="h-full w-full object-cover" />
                 ) : (
-                  <Store className="h-8 w-8 text-slate-300" />
+                  <Store className="h-8 w-8 text-ink-muted" />
                 )}
               </div>
               <div className="space-y-3">
                 <div>
-                  <p className="text-lg font-semibold text-slate-950">{preview.name}</p>
-                  <p className="text-sm text-slate-500">/{preview.slug}</p>
+                  <p className="text-lg font-semibold text-ink">{preview.name}</p>
+                  <p className="text-sm text-ink-muted">/{preview.slug}</p>
                 </div>
-                <p className="text-sm font-medium text-slate-700">{preview.shortDescription ?? "—"}</p>
-                <p className="max-w-4xl whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                <p className="text-sm font-medium text-ink">{preview.shortDescription ?? "—"}</p>
+                <p className="max-w-4xl whitespace-pre-wrap text-sm leading-6 text-ink-muted">
                   {preview.description ?? "No description supplied."}
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -392,7 +391,7 @@ export default async function DirectoryReviewDetailPage({
                 </Badge>
               ))}
               {preview.categories.length === 0 && (
-                <p className="text-sm text-slate-400">No categories supplied.</p>
+                <p className="text-sm text-ink-muted">No categories supplied.</p>
               )}
             </CardContent>
           </Card>
@@ -402,20 +401,20 @@ export default async function DirectoryReviewDetailPage({
               <CardTitle>Public contact</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
-              {!hasContact && <p className="text-slate-400">No public contact supplied.</p>}
-              {preview.contacts.phone && <p><span className="text-slate-500">Phone:</span> {preview.contacts.phone}</p>}
-              {preview.contacts.email && <p><span className="text-slate-500">Email:</span> {preview.contacts.email}</p>}
-              {preview.contacts.whatsapp && <p><span className="text-slate-500">WhatsApp:</span> {preview.contacts.whatsapp}</p>}
+              {!hasContact && <p className="text-ink-muted">No public contact supplied.</p>}
+              {preview.contacts.phone && <p><span className="text-ink-muted">Phone:</span> {preview.contacts.phone}</p>}
+              {preview.contacts.email && <p><span className="text-ink-muted">Email:</span> {preview.contacts.email}</p>}
+              {preview.contacts.whatsapp && <p><span className="text-ink-muted">WhatsApp:</span> {preview.contacts.whatsapp}</p>}
               {preview.websiteUrl && (
                 <p>
-                  <span className="text-slate-500">Website:</span>{" "}
-                  <a href={preview.websiteUrl} target="_blank" rel="noreferrer" className="text-[#176B78] hover:underline">
+                  <span className="text-ink-muted">Website:</span>{" "}
+                  <a href={preview.websiteUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">
                     {preview.websiteUrl}
                   </a>
                 </p>
               )}
-              {preview.contacts.instagram && <p><span className="text-slate-500">Instagram:</span> {preview.contacts.instagram}</p>}
-              {preview.contacts.facebook && <p><span className="text-slate-500">Facebook:</span> {preview.contacts.facebook}</p>}
+              {preview.contacts.instagram && <p><span className="text-ink-muted">Instagram:</span> {preview.contacts.instagram}</p>}
+              {preview.contacts.facebook && <p><span className="text-ink-muted">Facebook:</span> {preview.contacts.facebook}</p>}
             </CardContent>
           </Card>
         </div>
@@ -426,15 +425,15 @@ export default async function DirectoryReviewDetailPage({
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {preview.coreOfferings.map((offering) => (
-              <div key={offering.id} className="rounded-lg border border-slate-100 p-3">
-                <p className="text-sm font-medium text-slate-900">{offering.name}</p>
+              <div key={offering.id} className="rounded-card border border-border p-3">
+                <p className="text-sm font-medium text-ink">{offering.name}</p>
                 {offering.description && (
-                  <p className="mt-1 text-xs leading-5 text-slate-500">{offering.description}</p>
+                  <p className="mt-1 text-xs leading-5 text-ink-muted">{offering.description}</p>
                 )}
               </div>
             ))}
             {preview.coreOfferings.length === 0 && (
-              <p className="text-sm text-slate-400">No core offerings supplied.</p>
+              <p className="text-sm text-ink-muted">No core offerings supplied.</p>
             )}
           </CardContent>
         </Card>
@@ -445,15 +444,15 @@ export default async function DirectoryReviewDetailPage({
           </CardHeader>
           <CardContent className="space-y-4">
             {preview.locations.map((location) => (
-              <div key={location.id} className="rounded-xl border border-slate-200 p-4">
+              <div key={location.id} className="rounded-card border border-border p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-[#238D9D]" />
-                      <p className="font-medium text-slate-900">{location.name}</p>
+                      <MapPin className="h-4 w-4 text-primary" />
+                      <p className="font-medium text-ink">{location.name}</p>
                       {location.isPrimary && <Badge>Primary</Badge>}
                     </div>
-                    <p className="mt-2 text-sm text-slate-600">
+                    <p className="mt-2 text-sm text-ink-muted">
                       {nonEmpty([
                         location.addressLine1,
                         location.addressLine2,
@@ -467,7 +466,7 @@ export default async function DirectoryReviewDetailPage({
                       ]) || "No address supplied"}
                     </p>
                     {location.landmark && (
-                      <p className="mt-1 text-xs text-slate-500">Landmark: {location.landmark}</p>
+                      <p className="mt-1 text-xs text-ink-muted">Landmark: {location.landmark}</p>
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -479,7 +478,7 @@ export default async function DirectoryReviewDetailPage({
                   </div>
                 </div>
 
-                <div className="mt-3 grid gap-3 text-xs text-slate-600 md:grid-cols-2">
+                <div className="mt-3 grid gap-3 text-xs text-ink-muted md:grid-cols-2">
                   <div>
                     <p>Phone: {location.publicPhone ?? "—"}</p>
                     <p>Email: {location.publicEmail ?? "—"}</p>
@@ -489,24 +488,24 @@ export default async function DirectoryReviewDetailPage({
                     <p>Coordinates: {location.latitude != null && location.longitude != null ? `${location.latitude}, ${location.longitude}` : "—"}</p>
                     <p>Timezone: {location.timezone ?? "—"}</p>
                     {location.mapsUrl && (
-                      <a href={location.mapsUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[#176B78] hover:underline">
+                      <a href={location.mapsUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
                         Open map <ExternalLink className="h-3 w-3" />
                       </a>
                     )}
                   </div>
                 </div>
                 <details className="mt-3">
-                  <summary className="cursor-pointer text-xs font-medium text-slate-600">
+                  <summary className="cursor-pointer text-xs font-medium text-ink-muted">
                     Inspect opening hours
                   </summary>
-                  <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+                  <pre className="mt-2 overflow-x-auto rounded-card bg-surface-subtle p-3 text-xs text-ink-muted">
                     {JSON.stringify(location.openingHours ?? {}, null, 2)}
                   </pre>
                 </details>
               </div>
             ))}
             {preview.locations.length === 0 && (
-              <div className="flex items-center gap-2 text-sm text-slate-400">
+              <div className="flex items-center gap-2 text-sm text-ink-muted">
                 <Globe2 className="h-4 w-4" />
                 Online-only profile; no public branch supplied.
               </div>
@@ -521,16 +520,16 @@ export default async function DirectoryReviewDetailPage({
             </CardHeader>
             <CardContent className="space-y-2">
               {preview.products.map((product) => (
-                <div key={product.id} className="flex items-start justify-between gap-3 rounded-lg border border-slate-100 p-3">
+                <div key={product.id} className="flex items-start justify-between gap-3 rounded-card border border-border p-3">
                   <div>
-                    <p className="text-sm font-medium text-slate-900">{product.name}</p>
-                    <p className="text-xs text-slate-500">{product.category ?? product.productType ?? "Uncategorised"}</p>
+                    <p className="text-sm font-medium text-ink">{product.name}</p>
+                    <p className="text-xs text-ink-muted">{product.category ?? product.productType ?? "Uncategorised"}</p>
                   </div>
-                  <p className="whitespace-nowrap text-sm font-medium text-slate-700">${product.priceCusd}</p>
+                  <p className="whitespace-nowrap text-sm font-medium text-ink">${product.priceCusd}</p>
                 </div>
               ))}
               {preview.products.length === 0 && (
-                <p className="text-sm text-slate-400">
+                <p className="text-sm text-ink-muted">
                   No active products, or the merchant storefront is inactive.
                 </p>
               )}
@@ -543,17 +542,17 @@ export default async function DirectoryReviewDetailPage({
             </CardHeader>
             <CardContent className="space-y-2">
               {vouchers.map((voucher) => (
-                <div key={voucher.id} className="flex items-center justify-between rounded-lg border border-slate-100 p-3">
+                <div key={voucher.id} className="flex items-center justify-between rounded-card border border-border p-3">
                   <div>
-                    <p className="text-sm font-medium text-slate-900">{voucher.title}</p>
-                    <p className="text-xs text-slate-500">{voucher.miles_cost} miles</p>
+                    <p className="text-sm font-medium text-ink">{voucher.title}</p>
+                    <p className="text-xs text-ink-muted">{voucher.miles_cost} miles</p>
                   </div>
                   <Badge variant={voucher.active ? "success" : "secondary"}>
                     {voucher.active ? "Active" : "Inactive"}
                   </Badge>
                 </div>
               ))}
-              {vouchers.length === 0 && <p className="text-sm text-slate-400">No vouchers offered.</p>}
+              {vouchers.length === 0 && <p className="text-sm text-ink-muted">No vouchers offered.</p>}
             </CardContent>
           </Card>
         </div>
@@ -566,7 +565,7 @@ export default async function DirectoryReviewDetailPage({
             {canWrite ? (
               <DirectoryReviewActions merchantId={params.id} status={settings.directory_status} />
             ) : (
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-ink-muted">
                 You have read-only access. An operations admin must make the review decision.
               </p>
             )}
@@ -579,39 +578,39 @@ export default async function DirectoryReviewDetailPage({
           </CardHeader>
           <CardContent className="space-y-3">
             {events.map((event) => (
-              <div key={event.id} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+              <div key={event.id} className="rounded-card border border-border bg-surface-subtle p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-medium text-slate-900">
+                  <p className="text-sm font-medium text-ink">
                     {directoryStatusLabel(event.action)}
-                    <span className="ml-2 font-normal text-slate-500">
+                    <span className="ml-2 font-normal text-ink-muted">
                       {event.from_status ? `${directoryStatusLabel(event.from_status)} → ` : ""}
                       {directoryStatusLabel(event.to_status)}
                     </span>
                   </p>
-                  <p className="text-xs text-slate-400">{formatDateTime(event.created_at)}</p>
+                  <p className="text-xs text-ink-muted">{formatDateTime(event.created_at)}</p>
                 </div>
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 text-xs text-ink-muted">
                   Actor: {directoryStatusLabel(event.actor_type)}
                   {event.actor_user_id ? ` · ${event.actor_user_id}` : ""}
                 </p>
                 {event.affected_sections.length > 0 && (
-                  <p className="mt-2 text-xs text-slate-600">
+                  <p className="mt-2 text-xs text-ink-muted">
                     Sections: {event.affected_sections.map(directoryStatusLabel).join(", ")}
                   </p>
                 )}
                 {event.merchant_safe_message && (
-                  <p className="mt-2 text-sm text-slate-700">
+                  <p className="mt-2 text-sm text-ink">
                     <span className="font-medium">Merchant message:</span> {event.merchant_safe_message}
                   </p>
                 )}
                 {event.internal_note && (
-                  <p className="mt-2 text-sm text-slate-600">
+                  <p className="mt-2 text-sm text-ink-muted">
                     <span className="font-medium">Internal note:</span> {event.internal_note}
                   </p>
                 )}
               </div>
             ))}
-            {events.length === 0 && <p className="text-sm text-slate-400">No review events yet.</p>}
+            {events.length === 0 && <p className="text-sm text-ink-muted">No review events yet.</p>}
           </CardContent>
         </Card>
       </div>

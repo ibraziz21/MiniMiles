@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { requireAdminSession } from "@/lib/auth";
@@ -31,15 +31,15 @@ export default async function VerifiedDiscoveryHealthPage() {
 
   return (
     <div>
-      <TopBar title="Discovery Health" subtitle="Verified-discovery queues, moderation audit integrity and projection freshness" />
-      <div className="space-y-6 p-6">
+      <PageHeader title="Discovery Health" subtitle="Verified-discovery queues, moderation audit integrity and projection freshness" />
+      <div className="space-y-6 p-4 sm:p-6">
         {health.error ? (
-          <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="flex items-center gap-3 rounded-card border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
             <AlertCircle className="h-4 w-4 shrink-0" />
             {health.error}
           </div>
         ) : (
-          <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-sm ${health.healthy ? "border-green-200 bg-green-50 text-green-700" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+          <div className={`flex items-center gap-3 rounded-card border px-4 py-3 text-sm ${health.healthy ? "border-success/30 bg-success/5 text-success" : "border-warning/30 bg-warning/5 text-warning"}`}>
             {health.healthy ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
             <div>
               <p className="font-medium">{health.healthy ? "Healthy" : "Needs attention"}</p>
@@ -52,7 +52,7 @@ export default async function VerifiedDiscoveryHealthPage() {
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Card>
-            <CardHeader><CardTitle className="text-sm font-medium text-slate-500">Photo processing</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm font-medium text-ink-muted">Photo processing</CardTitle></CardHeader>
             <CardContent className="space-y-1 text-sm">
               <p>Pending: <span className="font-semibold">{health.photoProcessingQueue.pending}</span></p>
               <p>Processing: <span className="font-semibold">{health.photoProcessingQueue.processing}</span></p>
@@ -63,7 +63,7 @@ export default async function VerifiedDiscoveryHealthPage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-sm font-medium text-slate-500">Moderation queue</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm font-medium text-ink-muted">Moderation queue</CardTitle></CardHeader>
             <CardContent className="space-y-1 text-sm">
               <p>Pending: <span className="font-semibold">{health.moderationQueue.pending}</span></p>
               <p>Oldest pending: <span className="font-semibold">{ms(health.moderationQueue.oldestPendingAgeMs)}</span></p>
@@ -74,7 +74,7 @@ export default async function VerifiedDiscoveryHealthPage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-sm font-medium text-slate-500">Projection queue (shadow)</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm font-medium text-ink-muted">Projection queue (shadow)</CardTitle></CardHeader>
             <CardContent className="space-y-1 text-sm">
               <p>Pending: <span className="font-semibold">{health.projectionQueue.pending}</span></p>
               <p>Processing: <span className="font-semibold">{health.projectionQueue.processing}</span></p>
@@ -85,7 +85,7 @@ export default async function VerifiedDiscoveryHealthPage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-sm font-medium text-slate-500">Snapshots (shadow)</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm font-medium text-ink-muted">Snapshots (shadow)</CardTitle></CardHeader>
             <CardContent className="space-y-1 text-sm">
               <p>Eligible merchants: <span className="font-semibold">{health.snapshots.count}</span></p>
               <p>Oldest: <span className="font-semibold">{ms(health.snapshots.oldestAgeMs)}</span></p>

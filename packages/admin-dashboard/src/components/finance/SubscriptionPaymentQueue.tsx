@@ -118,6 +118,7 @@ export function SubscriptionPaymentQueue({ rows, view, canDecide, initialFilters
           <select
             value={filters.status}
             onChange={(e) => set("status", e.target.value)}
+            aria-label="Filter by status"
             className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm"
           >
             <option value="">Any status</option>
@@ -133,6 +134,7 @@ export function SubscriptionPaymentQueue({ rows, view, canDecide, initialFilters
           <select
             value={filters.method}
             onChange={(e) => set("method", e.target.value)}
+            aria-label="Filter by payment method"
             className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm"
           >
             <option value="">Any method</option>
@@ -144,41 +146,49 @@ export function SubscriptionPaymentQueue({ rows, view, canDecide, initialFilters
           </select>
           <Input
             placeholder="Invoice type"
+            aria-label="Filter by invoice type"
             value={filters.invoiceType}
             onChange={(e) => set("invoiceType", e.target.value)}
           />
           <Input
             placeholder="Merchant / partner ID"
+            aria-label="Filter by merchant or partner ID"
             value={filters.merchant}
             onChange={(e) => set("merchant", e.target.value)}
           />
           <Input
             placeholder="Reviewer admin ID"
+            aria-label="Filter by reviewer admin ID"
             value={filters.reviewer}
             onChange={(e) => set("reviewer", e.target.value)}
           />
           <Input
             placeholder="Payer / provider reference"
+            aria-label="Filter by payer or provider reference"
             value={filters.providerReference}
             onChange={(e) => set("providerReference", e.target.value)}
           />
           <Input
             type="date"
+            aria-label="Submitted from date"
             value={filters.submittedFrom}
             onChange={(e) => set("submittedFrom", e.target.value)}
           />
           <Input
             type="date"
+            aria-label="Submitted to date"
             value={filters.submittedTo}
             onChange={(e) => set("submittedTo", e.target.value)}
           />
           <Input
             placeholder="Min amount (KES)"
+            aria-label="Minimum amount in KES"
             value={filters.amountMin}
             onChange={(e) => set("amountMin", e.target.value)}
           />
           <Input
             placeholder="Max amount (KES)"
+            aria-label="Maximum amount in KES"
             value={filters.amountMax}
             onChange={(e) => set("amountMax", e.target.value)}
           />
@@ -193,10 +203,74 @@ export function SubscriptionPaymentQueue({ rows, view, canDecide, initialFilters
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
-      {/* Table */}
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      {/* Mobile: cards (spec — mobile uses cards instead of a compressed desktop table) */}
+      <div className="space-y-3 lg:hidden">
+        {rows.length === 0 && (
+          <p className="rounded-card border border-dashed border-border bg-surface px-4 py-8 text-center text-sm text-ink-muted">
+            Nothing in this {view === "history" ? "history" : "queue"}.
+          </p>
+        )}
+        {rows.map((row) => {
+          const ageMin = minutesSince(row.submitted_at);
+          const sla = slaState(row.submitted_at);
+          const stale = row.status === "under_review" && isStaleReview(row.review_started_at);
+          const flags = row.risk_flags ?? [];
+          return (
+            <div key={row.payment_attempt_id} className="rounded-card border border-border bg-surface p-4">
+              <div className="flex items-start justify-between gap-2">
+                <Link
+                  href={`/finance/subscriptions/${row.payment_attempt_id}`}
+                  className="font-medium text-primary hover:underline"
+                >
+                  {row.merchant_name ?? row.partner_id}
+                </Link>
+                <span className={`inline-flex shrink-0 rounded-control px-1.5 py-0.5 text-xs font-medium ${SLA_BADGE[sla]}`}>
+                  {view === "history" ? formatDateTime(row.decided_at) : formatAge(ageMin)}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-ink-muted">
+                {row.invoice_number ?? row.invoice_id.slice(0, 8)} · {row.invoice_type} ·{" "}
+                {row.submitted_amount ?? "—"} {row.submitted_currency ?? ""}
+              </p>
+              {stale && <p className="mt-1 text-xs text-warning">stale review &gt; {STALE_REVIEW_MINUTES}m</p>}
+              {flags.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {flags.map((flag) => (
+                    <Badge key={flag} variant="warning" className="text-[10px]">
+                      {RISK_FLAG_LABELS[flag] ?? flag}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <div className="mt-3">
+                {view === "history" ? (
+                  <p className="text-xs text-ink-muted">
+                    {row.status === "rejected"
+                      ? REJECTION_CODE_LABELS[row.decision_reason as keyof typeof REJECTION_CODE_LABELS] ?? row.decision_reason
+                      : row.receipt_number}
+                  </p>
+                ) : row.status === "submitted" && canDecide ? (
+                  <Button size="sm" onClick={() => startReview(row)} disabled={claiming === row.payment_attempt_id}>
+                    {claiming === row.payment_attempt_id ? "Claiming…" : "Start review"}
+                  </Button>
+                ) : (
+                  <Link
+                    href={`/finance/subscriptions/${row.payment_attempt_id}`}
+                    className="text-xs font-medium text-primary hover:underline"
+                  >
+                    Open
+                  </Link>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop: table */}
+      <div className="hidden overflow-x-auto rounded-card border border-border bg-surface lg:block">
         <table className="w-full min-w-[1100px] text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500">
             <tr>
@@ -244,7 +318,7 @@ export function SubscriptionPaymentQueue({ rows, view, canDecide, initialFilters
                   <td className="px-3 py-2">
                     <Link
                       href={`/finance/subscriptions/${row.payment_attempt_id}`}
-                      className="font-medium text-[#176B78] hover:underline"
+                      className="font-medium text-primary hover:underline"
                     >
                       {row.merchant_name ?? row.partner_id}
                     </Link>
@@ -306,7 +380,7 @@ export function SubscriptionPaymentQueue({ rows, view, canDecide, initialFilters
                     ) : (
                       <Link
                         href={`/finance/subscriptions/${row.payment_attempt_id}`}
-                        className="text-xs font-medium text-[#176B78] hover:underline"
+                        className="text-xs font-medium text-primary hover:underline"
                       >
                         Open
                       </Link>

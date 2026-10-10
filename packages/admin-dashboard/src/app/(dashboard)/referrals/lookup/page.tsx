@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -116,7 +116,7 @@ function JobsTable({ jobs }: { jobs: Job[] }) {
   return (
     <table className="w-full text-xs">
       <thead>
-        <tr className="text-slate-400">
+        <tr className="text-ink-muted">
           <th className="py-1 text-left font-medium">Milestone</th>
           <th className="py-1 text-right font-medium">Amount</th>
           <th className="py-1 text-left font-medium">Status</th>
@@ -125,11 +125,11 @@ function JobsTable({ jobs }: { jobs: Job[] }) {
       </thead>
       <tbody>
         {jobs.map((j) => (
-          <tr key={j.id} className="border-t border-slate-100">
+          <tr key={j.id} className="border-t border-border">
             <td className="py-1 capitalize">{j.milestone}</td>
             <td className="py-1 text-right font-mono">{j.amount_miles}</td>
             <td className="py-1"><Badge variant={j.status === "released" ? "success" : j.status === "voided" || j.status === "reversed" ? "destructive" : "secondary"}>{j.status}</Badge></td>
-            <td className="py-1 font-mono text-slate-400">{j.platform_reference ?? "—"}</td>
+            <td className="py-1 font-mono text-ink-muted">{j.platform_reference ?? "—"}</td>
           </tr>
         ))}
       </tbody>
@@ -149,14 +149,14 @@ function ReferralCard({ referral, jobs, showRisk }: { referral: Referral; jobs: 
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="grid grid-cols-2 gap-3 text-xs text-slate-600 sm:grid-cols-4">
-          <div><p className="text-slate-400">Signup</p>{referral.signup_reward_miles} mi</div>
-          <div><p className="text-slate-400">Activation</p>{referral.activation_reward_miles} mi</div>
-          <div><p className="text-slate-400">Qualification</p>{referral.qualification_type ?? "—"}</div>
-          <div><p className="text-slate-400">Created</p>{formatDateTime(referral.created_at)}</div>
+        <div className="grid grid-cols-2 gap-3 text-xs text-ink-muted sm:grid-cols-4">
+          <div><p className="text-ink-muted">Signup</p>{referral.signup_reward_miles} mi</div>
+          <div><p className="text-ink-muted">Activation</p>{referral.activation_reward_miles} mi</div>
+          <div><p className="text-ink-muted">Qualification</p>{referral.qualification_type ?? "—"}</div>
+          <div><p className="text-ink-muted">Created</p>{formatDateTime(referral.created_at)}</div>
         </div>
         {showRisk && (
-          <div className="rounded-lg bg-slate-50 p-2 text-xs text-slate-600">
+          <div className="rounded-card bg-surface-subtle p-2 text-xs text-ink-muted">
             Risk score {referral.risk_score} · {referral.risk_decision}
             {referral.risk_reason_codes.length > 0 && <> · {referral.risk_reason_codes.join(", ")}</>}
             {referral.rejection_reason_code && <> · rejected: {referral.rejection_reason_code}</>}
@@ -184,15 +184,15 @@ export default async function ReferralLookupPage({ searchParams }: { searchParam
 
   return (
     <div>
-      <TopBar title="Referral lookup" subtitle="Search by referral ID, Hub user ID, referral code, email, or ledger reference" />
-      <div className="space-y-6 p-6">
+      <PageHeader title="Referral lookup" subtitle="Search by referral ID, Hub user ID, referral code, email, or ledger reference" />
+      <div className="space-y-6 p-4 sm:p-6">
         <form className="flex gap-2" action="/referrals/lookup">
           <Input name="q" defaultValue={query} placeholder="Referral ID, user ID, code, email, or ledger ref…" className="max-w-md" />
           <Button type="submit">Search</Button>
         </form>
 
         {result?.type === "not_found" && (
-          <p className="text-sm text-slate-500">No match found for &quot;{query}&quot;.</p>
+          <p className="text-sm text-ink-muted">No match found for &quot;{query}&quot;.</p>
         )}
 
         {result?.type === "referral" && (
@@ -201,16 +201,16 @@ export default async function ReferralLookupPage({ searchParams }: { searchParam
 
         {result?.type === "user" && (
           <div className="space-y-4">
-            <p className="font-mono text-xs text-slate-400">Hub user: {result.userId}</p>
+            <p className="font-mono text-xs text-ink-muted">Hub user: {result.userId}</p>
             {result.asReferred && (
               <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">As referred friend</p>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">As referred friend</p>
                 <ReferralCard referral={result.asReferred} jobs={jobsByReferral.get(result.asReferred.id) ?? []} showRisk={showRisk} />
               </div>
             )}
             {result.asReferrer.length > 0 && (
               <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
                   As referrer ({result.asReferrer.length})
                 </p>
                 <div className="space-y-3">
@@ -221,13 +221,13 @@ export default async function ReferralLookupPage({ searchParams }: { searchParam
               </div>
             )}
             {!result.asReferred && result.asReferrer.length === 0 && (
-              <p className="text-sm text-slate-500">This user has no referral activity.</p>
+              <p className="text-sm text-ink-muted">This user has no referral activity.</p>
             )}
           </div>
         )}
 
         {!result && (
-          <p className="text-sm text-slate-400">Enter a search term above.</p>
+          <p className="text-sm text-ink-muted">Enter a search term above.</p>
         )}
       </div>
     </div>

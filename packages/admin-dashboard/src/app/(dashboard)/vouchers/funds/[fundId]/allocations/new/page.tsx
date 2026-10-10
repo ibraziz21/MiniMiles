@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { AllocationForm, type MerchantOption } from "@/components/vouchers/AllocationForm";
 
 export default async function NewVoucherAllocationPage({ params }: { params: Promise<{ fundId: string }> }) {
@@ -26,7 +26,7 @@ export default async function NewVoucherAllocationPage({ params }: { params: Pro
 
   return (
     <div>
-      <TopBar title={`New allocation — ${fund.name}`} subtitle="Merchant, benefit, eligibility, distribution, and schedule" />
+      <PageHeader title={`New allocation — ${fund.name}`} subtitle="Merchant, benefit, eligibility, distribution, and schedule" />
       <AllocationForm
         fundId={fundId}
         fundCountryCode={fund.country_code}

@@ -77,8 +77,8 @@ export function SystemSettingsForm({ settings: initialSettings, canEdit }: Syste
     <form onSubmit={submit} className="space-y-6">
       <section className="space-y-3">
         <div className="flex items-center gap-2">
-          <Settings2 className="h-4 w-4 text-[#238D9D]" />
-          <h3 className="text-sm font-semibold text-slate-900">Security Policy</h3>
+          <Settings2 className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-semibold text-ink">Security Policy</h3>
         </div>
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
           <NumberField
@@ -123,7 +123,7 @@ export function SystemSettingsForm({ settings: initialSettings, canEdit }: Syste
       </section>
 
       <section className="space-y-3 border-t border-slate-100 pt-5">
-        <h3 className="text-sm font-semibold text-slate-900">Subscription Receipt Details</h3>
+        <h3 className="text-sm font-semibold text-ink">Subscription Receipt Details</h3>
         <div className="grid gap-3 md:grid-cols-2">
           <TextField
             label="Receipt prefix"
@@ -154,12 +154,12 @@ export function SystemSettingsForm({ settings: initialSettings, canEdit }: Syste
             onChange={(value) => updateFinance("businessPhone", value)}
           />
           <label className="block space-y-1.5 md:col-span-1">
-            <span className="text-xs font-medium text-slate-600">Business address</span>
+            <span className="text-xs font-medium text-ink-muted">Business address</span>
             <textarea
               value={settings.finance.businessAddress}
               onChange={(e) => updateFinance("businessAddress", e.target.value)}
               disabled={!canEdit || loading}
-              className="min-h-9 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#238D9D] disabled:cursor-not-allowed disabled:opacity-50"
+              className="min-h-9 w-full rounded-card border border-border bg-surface px-3 py-2 text-sm text-ink shadow-sm placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
             />
           </label>
         </div>
@@ -167,7 +167,7 @@ export function SystemSettingsForm({ settings: initialSettings, canEdit }: Syste
       </section>
 
       <section className="space-y-3 border-t border-slate-100 pt-5">
-        <h3 className="text-sm font-semibold text-slate-900">Notifications</h3>
+        <h3 className="text-sm font-semibold text-ink">Notifications</h3>
         <div className="grid gap-3 md:grid-cols-3">
           <TextField
             label="Finance alert email"
@@ -198,7 +198,7 @@ export function SystemSettingsForm({ settings: initialSettings, canEdit }: Syste
           <Save className="h-4 w-4" />
           {loading ? "Saving..." : "Save settings"}
         </Button>
-        {!canEdit && <p className="text-xs text-slate-500">Only super admins can update system settings.</p>}
+        {!canEdit && <p className="text-xs text-ink-muted">Only super admins can update system settings.</p>}
         {error && <p className="text-xs text-red-600">{error}</p>}
         {success && <p className="text-xs text-emerald-600">Settings saved.</p>}
       </div>
@@ -221,7 +221,7 @@ function TextField({
 }) {
   return (
     <label className="block space-y-1.5">
-      <span className="text-xs font-medium text-slate-600">{label}</span>
+      <span className="text-xs font-medium text-ink-muted">{label}</span>
       <Input
         type={type}
         value={value}
@@ -251,7 +251,7 @@ function NumberField({
 }) {
   return (
     <label className="block space-y-1.5">
-      <span className="text-xs font-medium text-slate-600">{label}</span>
+      <span className="text-xs font-medium text-ink-muted">{label}</span>
       <Input
         type="number"
         value={value}
@@ -277,13 +277,13 @@ function Checkbox({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+    <label className="inline-flex items-center gap-2 text-sm text-ink">
       <input
         type="checkbox"
         checked={checked}
         disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
-        className="h-4 w-4 rounded border-slate-300 text-[#238D9D] focus:ring-[#238D9D]"
+        className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
       />
       {label}
     </label>

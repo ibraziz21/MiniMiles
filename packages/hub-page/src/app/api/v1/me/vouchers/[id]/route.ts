@@ -11,6 +11,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getLinkedWalletAddresses } from "@/lib/akiba/myVouchers";
 import { userOwnsVoucher } from "@/lib/vouchers/issuance";
 import { applyImmutableRulesSnapshot, type RulesSnapshotInputTemplate } from "@/lib/vouchers/rulesSnapshot";
+import { resolveOwnedVoucherStatus } from "@/lib/vouchers/ownedVoucherStatus";
 
 function one<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
@@ -62,7 +63,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
   const response = apiSuccess(request, {
     id: voucher.id,
-    status: voucher.status,
+    status: resolveOwnedVoucherStatus(voucher.status, voucher.expires_at),
     title: merged?.title ?? null,
     voucherType: merged?.voucherType ?? null,
     discountPercent: merged?.discountPercent ?? null,

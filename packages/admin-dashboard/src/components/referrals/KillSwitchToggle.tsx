@@ -46,8 +46,8 @@ export function KillSwitchToggle({
   return (
     <div className="flex items-center justify-between gap-4 py-3">
       <div>
-        <p className="text-sm font-medium text-slate-900">{label}</p>
-        <p className="text-xs text-slate-500">{description}</p>
+        <p className="text-sm font-medium text-ink">{label}</p>
+        <p className="text-xs text-ink-muted">{description}</p>
       </div>
       <button
         type="button"
@@ -57,13 +57,13 @@ export function KillSwitchToggle({
         disabled={disabled || loading}
         onClick={toggle}
         className={cn(
-          "relative h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#238D9D] disabled:opacity-50",
-          enabled ? "bg-[#238D9D]" : "bg-slate-300",
+          "relative h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50",
+          enabled ? "bg-primary" : "bg-border",
         )}
       >
         <span
           className={cn(
-            "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+            "absolute top-0.5 h-5 w-5 rounded-full bg-surface shadow transition-transform",
             enabled ? "translate-x-[22px]" : "translate-x-0.5",
           )}
         />

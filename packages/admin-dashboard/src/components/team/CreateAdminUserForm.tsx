@@ -48,10 +48,10 @@ export function CreateAdminUserForm() {
   }
 
   return (
-    <form onSubmit={submit} className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
+    <form onSubmit={submit} className="mb-4 rounded-xl border border-border bg-surface p-4">
       <div className="mb-3 flex items-center gap-2">
-        <UserPlus className="h-4 w-4 text-[#238D9D]" />
-        <p className="text-sm font-semibold text-slate-900">Add Admin User</p>
+        <UserPlus className="h-4 w-4 text-primary" />
+        <p className="text-sm font-semibold text-ink">Add Admin User</p>
       </div>
       <div className="grid gap-3 md:grid-cols-5">
         <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" />
@@ -59,7 +59,8 @@ export function CreateAdminUserForm() {
         <select
           value={role}
           onChange={(e) => setRole(e.target.value as AdminRole)}
-          className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900"
+          aria-label="Role"
+          className="h-9 rounded-card border border-border bg-surface px-3 text-sm text-ink"
         >
           {ADMIN_ROLES.map((adminRole) => (
             <option key={adminRole} value={adminRole}>{ADMIN_ROLE_LABELS[adminRole]}</option>

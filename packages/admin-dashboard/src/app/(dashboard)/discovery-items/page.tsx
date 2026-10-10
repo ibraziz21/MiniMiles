@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import { AlertCircle } from "lucide-react";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { DiscoveryItemActions } from "@/components/discovery/DiscoveryItemActions";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
@@ -48,13 +49,13 @@ export default async function DiscoveryItemsPage() {
 
   return (
     <div>
-      <TopBar
+      <PageHeader
         title="Discovery Items"
         subtitle="Customer-generated product candidates awaiting qualification"
       />
-      <div className="space-y-6 p-6">
+      <div className="space-y-6 p-4 sm:p-6">
         {error && (
-          <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="flex items-center gap-3 rounded-card border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
             <AlertCircle className="h-4 w-4 shrink-0" />
             {error}
           </div>
@@ -66,29 +67,24 @@ export default async function DiscoveryItemsPage() {
           </CardHeader>
           <CardContent>
             {rows.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-slate-200 px-4 py-10 text-center">
-                <p className="text-sm font-medium text-slate-900">No candidates waiting</p>
-                <p className="mt-1 text-sm text-slate-500">
-                  New customer-named items will appear here once they&apos;re mentioned.
-                </p>
-              </div>
+              <EmptyState message="No candidates waiting. New customer-named items will appear here once they're mentioned." isHealthy />
             ) : (
               <div className="space-y-3">
                 {rows.map((row) => (
-                  <div key={row.id} className="flex flex-wrap items-start justify-between gap-4 rounded-lg border border-slate-100 p-4">
+                  <div key={row.id} className="flex flex-wrap items-start justify-between gap-4 rounded-card border border-border p-4">
                     <div>
-                      <p className="font-medium text-slate-900">{row.canonical_name}</p>
-                      <p className="text-xs text-slate-400">
+                      <p className="font-medium text-ink">{row.canonical_name}</p>
+                      <p className="text-xs text-ink-muted">
                         {row.partners?.name ?? "Unknown merchant"} · {row.category ?? "Uncategorised"} · first seen{" "}
                         {formatDateTime(row.first_seen_at)}
                       </p>
-                      <p className="mt-1 text-xs text-slate-400">ID: {row.id}</p>
+                      <p className="mt-1 text-xs text-ink-muted">ID: {row.id}</p>
                       <Badge variant="warning">{row.status}</Badge>
                     </div>
                     {canWrite ? (
                       <DiscoveryItemActions itemId={row.id} />
                     ) : (
-                      <p className="text-xs text-slate-400">Read-only access</p>
+                      <p className="text-xs text-ink-muted">Read-only access</p>
                     )}
                   </div>
                 ))}

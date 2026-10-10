@@ -43,23 +43,23 @@ export function VerifiedInsightForm({ pollId, existing }: VerifiedInsightFormPro
   return (
     <form onSubmit={submit} className="space-y-4">
       <div className="space-y-1.5">
-        <label className="text-sm font-medium text-slate-700">Summary</label>
+        <label className="text-sm font-medium text-ink">Summary</label>
         <textarea
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
           rows={4}
           placeholder="Write a verified summary of the poll findings…"
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#238D9D]"
+          className="w-full rounded-card border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-primary"
         />
       </div>
       <div className="space-y-1.5">
-        <label className="text-sm font-medium text-slate-700">Key Findings (one per line)</label>
+        <label className="text-sm font-medium text-ink">Key Findings (one per line)</label>
         <textarea
           value={findings}
           onChange={(e) => setFindings(e.target.value)}
           rows={4}
           placeholder={"73% of respondents prefer X\nPrice sensitivity highest in Nairobi"}
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#238D9D] font-mono"
+          className="w-full rounded-card border border-border bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-primary font-mono"
         />
       </div>
       <div className="flex items-center gap-3">
