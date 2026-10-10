@@ -1,14 +1,16 @@
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { redirect, notFound } from "next/navigation";
-import Link from "next/link";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
+import { DetailHeader } from "@/components/shell/DetailHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { MetricCard } from "@/components/ui/metric-card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { KeywordDrilldown } from "@/components/polls/KeywordDrilldown";
 import type { PollStatus } from "@/types";
-import { ArrowLeft, Download, ShieldCheck } from "lucide-react";
+import { Download, ShieldCheck } from "lucide-react";
 
 type PollRow = {
   id: string;
@@ -282,17 +284,17 @@ function OptionBreakdown({ question, totalResponses }: { question: QuestionAnaly
         <div key={row.label} className="grid grid-cols-[1fr_72px] items-center gap-3">
           <div>
             <div className="mb-1 flex items-center justify-between gap-3">
-              <span className="text-sm font-medium text-slate-700">{row.label}</span>
-              <span className="text-xs text-slate-400">{row.count} selections</span>
+              <span className="text-sm font-medium text-ink">{row.label}</span>
+              <span className="text-xs text-ink-muted">{row.count} selections</span>
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-              <div className="h-full rounded-full bg-[#238D9D]" style={{ width: `${row.pct}%` }} />
+            <div className="h-2 overflow-hidden rounded-full bg-surface-subtle">
+              <div className="h-full rounded-full bg-primary" style={{ width: `${row.pct}%` }} />
             </div>
           </div>
-          <span className="text-right text-sm font-semibold text-slate-900">{row.pct}%</span>
+          <span className="text-right text-sm font-semibold text-ink">{row.pct}%</span>
         </div>
       ))}
-      {rows.length === 0 && <p className="text-sm text-slate-400">No options configured for this question.</p>}
+      {rows.length === 0 && <p className="text-sm text-ink-muted">No options configured for this question.</p>}
     </div>
   );
 }
@@ -302,23 +304,23 @@ function TextAnswers({ question }: { question: QuestionAnalysis }) {
   return (
     <div className="space-y-5">
       <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-lg bg-slate-50 px-3 py-2">
-          <p className="text-lg font-semibold text-slate-950">{formatNumber(analysis.answers.length)}</p>
-          <p className="text-xs text-slate-500">Text answers</p>
+        <div className="rounded-card bg-surface-subtle px-3 py-2">
+          <p className="text-lg font-semibold text-ink">{formatNumber(analysis.answers.length)}</p>
+          <p className="text-xs text-ink-muted">Text answers</p>
         </div>
-        <div className="rounded-lg bg-slate-50 px-3 py-2">
-          <p className="text-lg font-semibold text-slate-950">{formatNumber(analysis.uniqueCount)}</p>
-          <p className="text-xs text-slate-500">Unique normalized answers</p>
+        <div className="rounded-card bg-surface-subtle px-3 py-2">
+          <p className="text-lg font-semibold text-ink">{formatNumber(analysis.uniqueCount)}</p>
+          <p className="text-xs text-ink-muted">Unique normalized answers</p>
         </div>
-        <div className="rounded-lg bg-slate-50 px-3 py-2">
-          <p className="text-lg font-semibold text-slate-950">{analysis.averageWords}</p>
-          <p className="text-xs text-slate-500">Avg. words</p>
+        <div className="rounded-card bg-surface-subtle px-3 py-2">
+          <p className="text-lg font-semibold text-ink">{analysis.averageWords}</p>
+          <p className="text-xs text-ink-muted">Avg. words</p>
         </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Detected Themes</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">Detected Themes</p>
           <div className="space-y-2">
             {analysis.themes.map(([theme, count]) => {
               const pct = analysis.answers.length > 0 ? Math.round((count / analysis.answers.length) * 100) : 0;
@@ -326,46 +328,46 @@ function TextAnswers({ question }: { question: QuestionAnalysis }) {
                 <div key={theme} className="grid grid-cols-[1fr_56px] items-center gap-3">
                   <div>
                     <div className="mb-1 flex items-center justify-between gap-3">
-                      <span className="text-sm font-medium text-slate-700">{theme}</span>
-                      <span className="text-xs text-slate-400">{count}</span>
+                      <span className="text-sm font-medium text-ink">{theme}</span>
+                      <span className="text-xs text-ink-muted">{count}</span>
                     </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                      <div className="h-full rounded-full bg-[#238D9D]" style={{ width: `${pct}%` }} />
+                    <div className="h-2 overflow-hidden rounded-full bg-surface-subtle">
+                      <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
                     </div>
                   </div>
-                  <span className="text-right text-sm font-semibold text-slate-900">{pct}%</span>
+                  <span className="text-right text-sm font-semibold text-ink">{pct}%</span>
                 </div>
               );
             })}
-            {analysis.themes.length === 0 && <p className="text-sm text-slate-400">No strong themes detected.</p>}
+            {analysis.themes.length === 0 && <p className="text-sm text-ink-muted">No strong themes detected.</p>}
           </div>
         </div>
 
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Repeated Phrases</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">Repeated Phrases</p>
           <div className="space-y-2">
             {analysis.repeatedPhrases.map((phrase) => (
-              <div key={phrase.display} className="flex items-start justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
-                <span className="text-sm text-slate-700">{phrase.display}</span>
-                <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-xs font-medium text-slate-600 ring-1 ring-slate-200">
+              <div key={phrase.display} className="flex items-start justify-between gap-3 rounded-card bg-surface-subtle px-3 py-2">
+                <span className="text-sm text-ink">{phrase.display}</span>
+                <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-xs font-medium text-ink-muted ring-1 ring-border">
                   {phrase.count}
                 </span>
               </div>
             ))}
-            {analysis.repeatedPhrases.length === 0 && <p className="text-sm text-slate-400">No repeated phrases yet.</p>}
+            {analysis.repeatedPhrases.length === 0 && <p className="text-sm text-ink-muted">No repeated phrases yet.</p>}
           </div>
         </div>
       </div>
 
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Representative Longer Answers</p>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">Representative Longer Answers</p>
         <div className="max-h-72 overflow-y-auto space-y-2">
           {analysis.representative.map((answer) => (
-            <p key={answer} className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            <p key={answer} className="rounded-card bg-surface-subtle px-3 py-2 text-sm text-ink">
               {answer}
             </p>
           ))}
-          {analysis.representative.length === 0 && <p className="text-sm text-slate-400">No text responses.</p>}
+          {analysis.representative.length === 0 && <p className="text-sm text-ink-muted">No text responses.</p>}
         </div>
       </div>
     </div>
@@ -392,48 +394,46 @@ export default async function PollDetailPage({ params }: { params: { id: string 
 
   return (
     <div>
-      <TopBar
-        title={poll.title}
-        subtitle={`Poll analysis · ${poll.status}`}
-        actions={
-          <a
-            href={`/api/admin/polls/${params.id}/export`}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Export CSV
-          </a>
-        }
-      />
+      <PageHeader title={poll.title} subtitle={`Poll analysis · ${poll.status}`} />
 
-      <div className="p-6 space-y-6">
-        <Link href="/insights/polls" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900">
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Back to polls
-        </Link>
+      <div className="p-4 sm:p-6 space-y-6">
+        <DetailHeader
+          backHref="/insights/polls"
+          backLabel="Back to polls"
+          title={poll.title}
+          badges={<Badge variant={STATUS_VARIANT[poll.status]}>{poll.status}</Badge>}
+          actions={
+            <a
+              href={`/api/admin/polls/${params.id}/export`}
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-card border border-border bg-surface px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface-subtle transition-colors"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export CSV
+            </a>
+          }
+        />
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Status</CardTitle></CardHeader><CardContent><Badge variant={STATUS_VARIANT[poll.status]}>{poll.status}</Badge></CardContent></Card>
-          <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Responses</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{formatNumber(total)}</p></CardContent></Card>
-          <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Terms Accepted</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{formatNumber(acceptedTerms)}</p></CardContent></Card>
-          <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Rewards Queued</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{formatNumber(rewardQueued)}</p></CardContent></Card>
-          <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Miles Awarded</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{formatNumber(totalRewardPoints)}</p></CardContent></Card>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard label="Responses" value={formatNumber(total)} />
+          <MetricCard label="Terms Accepted" value={formatNumber(acceptedTerms)} />
+          <MetricCard label="Rewards Queued" value={formatNumber(rewardQueued)} />
+          <MetricCard label="Miles Awarded" value={formatNumber(totalRewardPoints)} />
         </div>
 
         {verified_insight && (
-          <Card className="border-[#238D9D]/20 bg-[#238D9D]/5">
+          <Card className="border-primary/20 bg-primary/5">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm text-slate-900">
-                <ShieldCheck className="h-4 w-4 text-[#238D9D]" />
+              <CardTitle className="flex items-center gap-2 text-sm text-ink">
+                <ShieldCheck className="h-4 w-4 text-primary" />
                 Saved Verified Summary
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <p className="text-sm text-slate-700">{verified_insight.summary}</p>
+              <p className="text-sm text-ink">{verified_insight.summary}</p>
               {Array.isArray(verified_insight.key_findings) && verified_insight.key_findings.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {verified_insight.key_findings.map((finding: string) => (
-                    <span key={finding} className="rounded-full bg-white px-3 py-1 text-xs text-slate-700 ring-1 ring-[#238D9D]/10">{finding}</span>
+                    <span key={finding} className="rounded-full bg-white px-3 py-1 text-xs text-ink ring-1 ring-primary/10">{finding}</span>
                   ))}
                 </div>
               )}
@@ -447,11 +447,11 @@ export default async function PollDetailPage({ params }: { params: { id: string 
             <CardContent className="space-y-2">
               {countryBreakdown.map(([label, count]) => (
                 <div key={label} className="flex items-center justify-between text-sm">
-                  <span className="text-slate-600">{label}</span>
-                  <span className="font-medium text-slate-900">{count}</span>
+                  <span className="text-ink-muted">{label}</span>
+                  <span className="font-medium text-ink">{count}</span>
                 </div>
               ))}
-              {countryBreakdown.length === 0 && <p className="text-sm text-slate-400">No country question found.</p>}
+              {countryBreakdown.length === 0 && <p className="text-sm text-ink-muted">No country question found.</p>}
             </CardContent>
           </Card>
           <Card>
@@ -459,24 +459,24 @@ export default async function PollDetailPage({ params }: { params: { id: string 
             <CardContent className="space-y-2">
               {ageBreakdown.map(([label, count]) => (
                 <div key={label} className="flex items-center justify-between text-sm">
-                  <span className="text-slate-600">{label}</span>
-                  <span className="font-medium text-slate-900">{count}</span>
+                  <span className="text-ink-muted">{label}</span>
+                  <span className="font-medium text-ink">{count}</span>
                 </div>
               ))}
-              {ageBreakdown.length === 0 && <p className="text-sm text-slate-400">No age question found.</p>}
+              {ageBreakdown.length === 0 && <p className="text-sm text-ink-muted">No age question found.</p>}
             </CardContent>
           </Card>
           <Card>
             <CardHeader><CardTitle>Verification</CardTitle></CardHeader>
             <CardContent className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-600">verified traits</span>
-                <span className="font-medium text-slate-900">{verifiedTraits}</span>
+                <span className="text-ink-muted">verified traits</span>
+                <span className="font-medium text-ink">{verifiedTraits}</span>
               </div>
               {qualityBreakdown.map(([label, count]) => (
                 <div key={label} className="flex items-center justify-between text-sm">
-                  <span className="text-slate-600">{label}</span>
-                  <span className="font-medium text-slate-900">{count}</span>
+                  <span className="text-ink-muted">{label}</span>
+                  <span className="font-medium text-ink">{count}</span>
                 </div>
               ))}
             </CardContent>
@@ -484,16 +484,16 @@ export default async function PollDetailPage({ params }: { params: { id: string 
         </div>
 
         <div className="space-y-4">
-          <h2 className="text-sm font-semibold text-slate-900">Question Analysis</h2>
+          <h2 className="text-sm font-semibold text-ink">Question Analysis</h2>
           {questions.map((question) => (
             <Card key={question.id}>
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-4">
                   <CardTitle className="text-sm">
                     Q{question.position}: {question.question}
-                    <span className="ml-2 text-xs font-normal text-slate-400">{question.kind}</span>
+                    <span className="ml-2 text-xs font-normal text-ink-muted">{question.kind}</span>
                   </CardTitle>
-                  <span className="shrink-0 text-xs text-slate-400">{formatNumber(question.answers.length)} answers</span>
+                  <span className="shrink-0 text-xs text-ink-muted">{formatNumber(question.answers.length)} answers</span>
                 </div>
               </CardHeader>
               <CardContent>
@@ -519,33 +519,53 @@ export default async function PollDetailPage({ params }: { params: { id: string 
         <Card>
           <CardHeader><CardTitle>Raw Response Index</CardTitle></CardHeader>
           <CardContent>
-            <div className="max-h-96 overflow-auto rounded-lg border border-slate-100">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-slate-50 text-xs uppercase tracking-wider text-slate-400">
-                  <tr>
-                    <th className="px-3 py-2 text-left">Wallet</th>
-                    <th className="px-3 py-2 text-left">Reward</th>
-                    <th className="px-3 py-2 text-left">Verification</th>
-                    <th className="px-3 py-2 text-left">Terms</th>
-                    <th className="px-3 py-2 text-left">Submitted</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
+            {responses.length === 0 ? (
+              <EmptyState message="No responses yet." isHealthy={false} />
+            ) : (
+              <>
+                {/* Mobile: cards */}
+                <div className="max-h-96 space-y-2 overflow-y-auto lg:hidden">
                   {responses.map((response) => (
-                    <tr key={response.id}>
-                      <td className="px-3 py-2 font-mono text-xs text-slate-600">{response.wallet_address}</td>
-                      <td className="px-3 py-2 text-slate-600">{response.reward_queued ? "queued" : "not queued"} · {response.reward_points_awarded ?? 0} Miles</td>
-                      <td className="px-3 py-2 text-slate-600">{response.trait_verification_status ?? "—"}</td>
-                      <td className="px-3 py-2">{response.accepted_terms ? <Badge variant="success">accepted</Badge> : <Badge variant="warning">missing</Badge>}</td>
-                      <td className="px-3 py-2 text-slate-500">{formatDate(response.submitted_at)}</td>
-                    </tr>
+                    <div key={response.id} className="rounded-card border border-border p-3">
+                      <p className="font-mono text-xs text-ink-muted">{response.wallet_address}</p>
+                      <p className="mt-1 text-sm text-ink">
+                        {response.reward_queued ? "queued" : "not queued"} · {response.reward_points_awarded ?? 0} Miles
+                      </p>
+                      <div className="mt-1 flex items-center justify-between">
+                        <span className="text-xs text-ink-muted">{response.trait_verification_status ?? "—"} · {formatDate(response.submitted_at)}</span>
+                        {response.accepted_terms ? <Badge variant="success">accepted</Badge> : <Badge variant="warning">missing</Badge>}
+                      </div>
+                    </div>
                   ))}
-                  {responses.length === 0 && (
-                    <tr><td colSpan={5} className="px-3 py-8 text-center text-slate-400">No responses yet.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                </div>
+
+                {/* Desktop: table */}
+                <div className="hidden max-h-96 overflow-auto rounded-card border border-border lg:block">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-surface-subtle text-xs uppercase tracking-wider text-ink-muted">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Wallet</th>
+                        <th className="px-3 py-2 text-left">Reward</th>
+                        <th className="px-3 py-2 text-left">Verification</th>
+                        <th className="px-3 py-2 text-left">Terms</th>
+                        <th className="px-3 py-2 text-left">Submitted</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {responses.map((response) => (
+                        <tr key={response.id}>
+                          <td className="px-3 py-2 font-mono text-xs text-ink-muted">{response.wallet_address}</td>
+                          <td className="px-3 py-2 text-ink-muted">{response.reward_queued ? "queued" : "not queued"} · {response.reward_points_awarded ?? 0} Miles</td>
+                          <td className="px-3 py-2 text-ink-muted">{response.trait_verification_status ?? "—"}</td>
+                          <td className="px-3 py-2">{response.accepted_terms ? <Badge variant="success">accepted</Badge> : <Badge variant="warning">missing</Badge>}</td>
+                          <td className="px-3 py-2 text-ink-muted">{formatDate(response.submitted_at)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -33,26 +33,26 @@ export function KeywordDrilldown({ keywords }: KeywordDrilldownProps) {
             className={cn(
               "rounded-full px-3 py-1 text-sm transition-colors",
               selected?.word === keyword.word
-                ? "bg-[#238D9D] text-white"
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                ? "bg-primary text-white"
+                : "bg-slate-100 text-ink hover:bg-slate-200",
             )}
           >
-            {keyword.word} <span className={selected?.word === keyword.word ? "text-white/75" : "text-slate-400"}>({keyword.count})</span>
+            {keyword.word} <span className={selected?.word === keyword.word ? "text-white/75" : "text-ink-muted"}>({keyword.count})</span>
           </button>
         ))}
       </div>
 
       {selected && (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <div className="rounded-xl border border-border bg-slate-50 p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-slate-900">Responses mentioning “{selected.word}”</p>
-            <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
+            <p className="text-sm font-semibold text-ink">Responses mentioning “{selected.word}”</p>
+            <span className="rounded-full bg-surface px-2.5 py-1 text-xs font-medium text-ink-muted ring-1 ring-slate-200">
               {selected.answers.length} text{selected.answers.length === 1 ? "" : "s"}
             </span>
           </div>
           <div className="max-h-80 space-y-2 overflow-y-auto">
             {selected.answers.map((answer, index) => (
-              <p key={`${selected.word}-${index}`} className="rounded-lg bg-white px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-100">
+              <p key={`${selected.word}-${index}`} className="rounded-card bg-surface px-3 py-2 text-sm text-ink ring-1 ring-slate-100">
                 {answer}
               </p>
             ))}

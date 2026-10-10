@@ -4,7 +4,7 @@ import { requireAdminSession } from "@/lib/auth";
 import { hasPermission } from "@/types";
 import { supabase } from "@/lib/supabase";
 import { minorToKes } from "@/lib/voucherFunds";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -69,7 +69,7 @@ export default async function VoucherFundsPage() {
 
   return (
     <div>
-      <TopBar
+      <PageHeader
         title="Voucher Funds"
         subtitle="Akiba-funded voucher initiatives and their merchant allocations"
         actions={
@@ -80,13 +80,13 @@ export default async function VoucherFundsPage() {
           ) : undefined
         }
       />
-      <div className="space-y-6 p-6">
+      <div className="space-y-6 p-4 sm:p-6">
         {funds.length === 0 ? (
           <Card>
             <CardHeader>
               <CardTitle>No voucher funds yet</CardTitle>
             </CardHeader>
-            <CardContent className="text-sm text-slate-500">
+            <CardContent className="text-sm text-ink-muted">
               Create a fund to start allocating Akiba-funded vouchers to merchants.
             </CardContent>
           </Card>
@@ -100,16 +100,16 @@ export default async function VoucherFundsPage() {
                 <Link
                   key={program.id}
                   href={`/vouchers/funds/${program.id}`}
-                  className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-100 px-3 py-3 text-sm hover:border-slate-200 hover:bg-slate-50"
+                  className="flex flex-wrap items-center gap-3 rounded-card border border-border px-3 py-3 text-sm hover:border-primary/30 hover:bg-surface-subtle"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-slate-900">{program.name}</p>
-                    <p className="text-xs text-slate-400">
+                    <p className="font-medium text-ink">{program.name}</p>
+                    <p className="text-xs text-ink-muted">
                       {program.country_code} · {program.sponsorship_label ?? "Funded by Akiba"} ·{" "}
                       {formatDate(program.starts_at)} – {formatDate(program.ends_at)}
                     </p>
                   </div>
-                  <div className="text-right text-xs text-slate-500">
+                  <div className="text-right text-xs text-ink-muted">
                     <p>Authorized: {formatMoney(minorToKes(program.authorized_budget_minor), program.currency)}</p>
                     {budget && (
                       <p>Available: {formatMoney(minorToKes(budget.available_budget_minor), program.currency)}</p>

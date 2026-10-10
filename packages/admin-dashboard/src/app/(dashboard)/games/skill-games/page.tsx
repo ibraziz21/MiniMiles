@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import type { ElementType } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -12,9 +11,11 @@ import {
 } from "lucide-react";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MetricCard } from "@/components/ui/metric-card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { cn, formatDateTime, formatNumber } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -331,52 +332,12 @@ async function getSkillGameSessions(): Promise<{ rows: SkillGameSessionRow[]; er
   };
 }
 
-function StatCard({
-  title,
-  value,
-  icon: Icon,
-  sub,
-  tone = "default",
-}: {
-  title: string;
-  value: string | number;
-  icon: ElementType;
-  sub?: string;
-  tone?: "default" | "success" | "warning" | "danger";
-}) {
-  const toneClasses = {
-    default: "bg-[#238D9D]/10 text-[#238D9D]",
-    success: "bg-emerald-100 text-emerald-700",
-    warning: "bg-amber-100 text-amber-700",
-    danger: "bg-red-100 text-red-700",
-  };
-
-  return (
-    <Card className={cn(tone === "warning" && "border-amber-200 bg-amber-50/40", tone === "danger" && "border-red-200 bg-red-50/40")}>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between gap-3">
-          <CardTitle className="text-sm font-medium text-slate-500">{title}</CardTitle>
-          <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", toneClasses[tone])}>
-            <Icon className="h-4 w-4" />
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <p className="text-2xl font-bold text-slate-900">
-          {typeof value === "number" ? formatNumber(value) : value}
-        </p>
-        {sub && <p className="mt-1 text-xs text-slate-500">{sub}</p>}
-      </CardContent>
-    </Card>
-  );
-}
-
 function CompactMetric({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
-    <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
-      <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-slate-900">{typeof value === "number" ? formatNumber(value) : value}</p>
-      {sub && <p className="mt-0.5 text-xs text-slate-500">{sub}</p>}
+    <div className="rounded-card border border-border bg-surface-subtle px-3 py-2">
+      <p className="text-[11px] font-medium uppercase tracking-wider text-ink-muted">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-ink">{typeof value === "number" ? formatNumber(value) : value}</p>
+      {sub && <p className="mt-0.5 text-xs text-ink-muted">{sub}</p>}
     </div>
   );
 }
@@ -384,8 +345,8 @@ function CompactMetric({ label, value, sub }: { label: string; value: string | n
 function ProgressLine({ value, total, className }: { value: number; total: number; className?: string }) {
   const width = total > 0 ? Math.min(100, Math.max(0, (value / total) * 100)) : 0;
   return (
-    <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-      <div className={cn("h-full rounded-full bg-[#238D9D]", className)} style={{ width: `${width}%` }} />
+    <div className="h-2 overflow-hidden rounded-full bg-surface-subtle">
+      <div className={cn("h-full rounded-full bg-primary", className)} style={{ width: `${width}%` }} />
     </div>
   );
 }
@@ -417,54 +378,63 @@ export default async function SkillGamesOpsPage() {
 
   return (
     <div>
-      <TopBar title="Skill Games" subtitle={`All time · skill_game_sessions (daily trend: last ${TREND_DAYS} days)`} />
+      <PageHeader title="Skill Games" subtitle={`All time · skill_game_sessions (daily trend: last ${TREND_DAYS} days)`} />
 
-      <div className="space-y-6 p-6">
+      <div className="space-y-6 p-4 sm:p-6">
         {error && (
-          <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <div className="flex items-start gap-3 rounded-card border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
               <p className="font-semibold">Could not read skill game sessions.</p>
-              <p className="mt-0.5 text-red-700">{error}</p>
+              <p className="mt-0.5 text-danger">{error}</p>
             </div>
           </div>
         )}
 
         <section>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Reward Settlement</h2>
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Reward Settlement</h2>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard title="Started Sessions" value={stats.starts} icon={Gamepad2} sub={`${stats.uniquePlayers} unique wallets`} />
-            <StatCard
-              title="Accepted Results"
-              value={stats.accepted}
+            <MetricCard label="Started Sessions" value={formatNumber(stats.starts)} icon={Gamepad2} sub={`${stats.uniquePlayers} unique wallets`} />
+            <MetricCard
+              label="Accepted Results"
+              value={formatNumber(stats.accepted)}
               icon={CheckCircle2}
               sub={`${formatPercent(stats.accepted, stats.starts)} acceptance rate`}
               tone="success"
             />
-            <StatCard
-              title="Pending Rewards"
-              value={stats.pending}
+            <MetricCard
+              label="Pending Rewards"
+              value={formatNumber(stats.pending)}
               icon={Clock3}
               sub={oldestPending ? `Oldest pending ${ageFromNow(oldestPending.created_at)}` : "No pending accepted rewards"}
-              tone={stats.pending > 0 ? "warning" : "default"}
+              tone={stats.pending > 0 ? "warning" : "neutral"}
+              tintCard={stats.pending > 0}
             />
-            <StatCard
-              title="Review Queue"
-              value={stats.reviewQueue}
+            <MetricCard
+              label="Review Queue"
+              value={formatNumber(stats.reviewQueue)}
               icon={AlertTriangle}
               sub={`${stats.expiredPending} expired settlement payloads`}
-              tone={stats.reviewQueue > 0 ? "danger" : "default"}
+              tone={stats.reviewQueue > 0 ? "danger" : "neutral"}
+              tintCard={stats.reviewQueue > 0}
             />
           </div>
         </section>
 
         <section>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Payout Exposure</h2>
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Payout Exposure</h2>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard title="Miles Awarded" value={stats.rewardMiles} icon={Coins} sub="Accepted and rejected rows included as stored" />
-            <StatCard title="Stable Awards" value={formatStable(stats.rewardStable)} icon={Coins} sub="Stable reward liability in session rows" />
-            <StatCard title="Avg Settlement Time" value={formatMinutes(stats.avgSettlementMinutes)} icon={Activity} sub={`${stats.settled} settled results`} />
-            <StatCard title="Flagged Sessions" value={stats.flagged} icon={ShieldAlert} sub={`${formatPercent(stats.flagged, stats.starts)} of starts`} tone={stats.flagged > 0 ? "warning" : "default"} />
+            <MetricCard label="Miles Awarded" value={formatNumber(stats.rewardMiles)} icon={Coins} sub="Accepted and rejected rows included as stored" />
+            <MetricCard label="Stable Awards" value={formatStable(stats.rewardStable)} icon={Coins} sub="Stable reward liability in session rows" />
+            <MetricCard label="Avg Settlement Time" value={formatMinutes(stats.avgSettlementMinutes)} icon={Activity} sub={`${stats.settled} settled results`} />
+            <MetricCard
+              label="Flagged Sessions"
+              value={formatNumber(stats.flagged)}
+              icon={ShieldAlert}
+              sub={`${formatPercent(stats.flagged, stats.starts)} of starts`}
+              tone={stats.flagged > 0 ? "warning" : "neutral"}
+              tintCard={stats.flagged > 0}
+            />
           </div>
         </section>
 
@@ -475,11 +445,11 @@ export default async function SkillGamesOpsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {gameStats.map(({ gameType, stats: game }) => (
-                <div key={gameType} className="rounded-lg border border-slate-100 p-4">
+                <div key={gameType} className="rounded-card border border-border p-4">
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold text-slate-900">{gameLabel(gameType)}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">
+                      <p className="font-semibold text-ink">{gameLabel(gameType)}</p>
+                      <p className="mt-0.5 text-xs text-ink-muted">
                         {formatPercent(game.accepted, game.starts)} accepted, {formatPercent(game.settled, game.accepted)} settled
                       </p>
                     </div>
@@ -491,7 +461,7 @@ export default async function SkillGamesOpsPage() {
                     <CompactMetric label="Avg score" value={game.avgScore.toFixed(1)} sub={`Top ${formatNumber(game.topScore)}`} />
                     <CompactMetric label="Rewards" value={formatNumber(game.rewardMiles)} sub={formatStable(game.rewardStable)} />
                   </div>
-                  <div className="grid gap-3 text-xs text-slate-500 sm:grid-cols-3">
+                  <div className="grid gap-3 text-xs text-ink-muted sm:grid-cols-3">
                     <div>
                       <div className="mb-1 flex justify-between">
                         <span>Accepted</span>
@@ -504,14 +474,14 @@ export default async function SkillGamesOpsPage() {
                         <span>Settled</span>
                         <span>{game.settled}/{game.accepted}</span>
                       </div>
-                      <ProgressLine value={game.settled} total={game.accepted} className="bg-emerald-500" />
+                      <ProgressLine value={game.settled} total={game.accepted} className="bg-success" />
                     </div>
                     <div>
                       <div className="mb-1 flex justify-between">
                         <span>Flagged</span>
                         <span>{game.flagged}/{game.starts}</span>
                       </div>
-                      <ProgressLine value={game.flagged} total={game.starts} className="bg-amber-500" />
+                      <ProgressLine value={game.flagged} total={game.starts} className="bg-warning" />
                     </div>
                   </div>
                 </div>
@@ -542,18 +512,18 @@ export default async function SkillGamesOpsPage() {
               <CardTitle>Anti-Abuse Flags</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-hidden rounded-lg border border-slate-200">
+              <div className="overflow-hidden rounded-card border border-border">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50 text-xs font-medium uppercase tracking-wider text-slate-400">
+                    <tr className="border-b border-border bg-surface-subtle text-xs font-medium uppercase tracking-wider text-ink-muted">
                       <th className="px-4 py-3 text-left">Flag</th>
                       <th className="px-4 py-3 text-right">Count</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-border">
                     {flagCounts.length === 0 && (
                       <tr>
-                        <td colSpan={2} className="px-4 py-8 text-center text-slate-400">
+                        <td colSpan={2} className="px-4 py-8 text-center text-ink-muted">
                           No anti-abuse flags in this window.
                         </td>
                       </tr>
@@ -563,7 +533,7 @@ export default async function SkillGamesOpsPage() {
                         <td className="px-4 py-3">
                           <Badge variant="warning">{flag.flag}</Badge>
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-slate-700">{formatNumber(flag.count)}</td>
+                        <td className="px-4 py-3 text-right font-mono text-ink">{formatNumber(flag.count)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -579,16 +549,16 @@ export default async function SkillGamesOpsPage() {
             <CardContent className="space-y-3">
               {dailyTrend.map((day) => (
                 <div key={day.day} className="grid grid-cols-[88px_minmax(0,1fr)_110px] items-center gap-3 text-sm">
-                  <span className="font-mono text-xs text-slate-500">{day.day.slice(5)}</span>
+                  <span className="font-mono text-xs text-ink-muted">{day.day.slice(5)}</span>
                   <div>
                     <ProgressLine value={day.starts} total={maxDailyStarts} />
-                    <div className="mt-1 flex gap-3 text-[11px] text-slate-500">
+                    <div className="mt-1 flex gap-3 text-[11px] text-ink-muted">
                       <span>{day.accepted} accepted</span>
                       <span>{day.settled} settled</span>
                       <span>{day.flagged} flagged</span>
                     </div>
                   </div>
-                  <span className="text-right font-mono text-xs text-slate-700">{day.starts} starts</span>
+                  <span className="text-right font-mono text-xs text-ink">{day.starts} starts</span>
                 </div>
               ))}
             </CardContent>
@@ -601,29 +571,29 @@ export default async function SkillGamesOpsPage() {
               <CardTitle>Top Players by Rewards</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-hidden rounded-lg border border-slate-200">
+              <div className="overflow-hidden rounded-card border border-border">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50 text-xs font-medium uppercase tracking-wider text-slate-400">
+                    <tr className="border-b border-border bg-surface-subtle text-xs font-medium uppercase tracking-wider text-ink-muted">
                       <th className="px-4 py-3 text-left">Wallet</th>
                       <th className="px-4 py-3 text-left">Games</th>
                       <th className="px-4 py-3 text-right">Sessions</th>
                       <th className="px-4 py-3 text-right">Rewards</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-border">
                     {topPlayers.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
+                        <td colSpan={4} className="px-4 py-8 text-center text-ink-muted">
                           No players found.
                         </td>
                       </tr>
                     )}
                     {topPlayers.map((player) => (
-                      <tr key={player.wallet} className="hover:bg-slate-50">
+                      <tr key={player.wallet} className="hover:bg-surface-subtle">
                         <td className="px-4 py-3">
-                          <p className="font-mono text-xs text-slate-800">{shortWallet(player.wallet)}</p>
-                          <p className="text-xs text-slate-400">Best score {formatNumber(player.bestScore)}</p>
+                          <p className="font-mono text-xs text-ink">{shortWallet(player.wallet)}</p>
+                          <p className="text-xs text-ink-muted">Best score {formatNumber(player.bestScore)}</p>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap gap-1">
@@ -632,13 +602,13 @@ export default async function SkillGamesOpsPage() {
                             ))}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-slate-700">
+                        <td className="px-4 py-3 text-right font-mono text-ink">
                           {formatNumber(player.starts)}
-                          <p className="text-xs text-slate-400">{player.pending} pending</p>
+                          <p className="text-xs text-ink-muted">{player.pending} pending</p>
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-slate-700">
+                        <td className="px-4 py-3 text-right font-mono text-ink">
                           {formatNumber(player.rewardMiles)} mi
-                          <p className="text-xs text-slate-400">{formatStable(player.rewardStable)}</p>
+                          <p className="text-xs text-ink-muted">{formatStable(player.rewardStable)}</p>
                         </td>
                       </tr>
                     ))}
@@ -653,28 +623,28 @@ export default async function SkillGamesOpsPage() {
               <CardTitle>Recent Flagged Sessions</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-hidden rounded-lg border border-slate-200">
+              <div className="overflow-hidden rounded-card border border-border">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50 text-xs font-medium uppercase tracking-wider text-slate-400">
+                    <tr className="border-b border-border bg-surface-subtle text-xs font-medium uppercase tracking-wider text-ink-muted">
                       <th className="px-4 py-3 text-left">Session</th>
                       <th className="px-4 py-3 text-left">Flags</th>
                       <th className="px-4 py-3 text-right">Score</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-border">
                     {recentFlagged.length === 0 && (
                       <tr>
-                        <td colSpan={3} className="px-4 py-8 text-center text-slate-400">
+                        <td colSpan={3} className="px-4 py-8 text-center text-ink-muted">
                           No flagged sessions found.
                         </td>
                       </tr>
                     )}
                     {recentFlagged.map((row) => (
-                      <tr key={row.session_id} className="hover:bg-slate-50">
+                      <tr key={row.session_id} className="hover:bg-surface-subtle">
                         <td className="px-4 py-3">
-                          <p className="font-mono text-xs text-slate-800">{row.session_id.slice(0, 12)}</p>
-                          <p className="text-xs text-slate-400">{shortWallet(row.wallet_address)} - {gameLabel(row.game_type)}</p>
+                          <p className="font-mono text-xs text-ink">{row.session_id.slice(0, 12)}</p>
+                          <p className="text-xs text-ink-muted">{shortWallet(row.wallet_address)} - {gameLabel(row.game_type)}</p>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap gap-1">
@@ -683,7 +653,7 @@ export default async function SkillGamesOpsPage() {
                             ))}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-slate-700">{formatNumber(numeric(row.score))}</td>
+                        <td className="px-4 py-3 text-right font-mono text-ink">{formatNumber(numeric(row.score))}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -694,62 +664,87 @@ export default async function SkillGamesOpsPage() {
         </div>
 
         <section>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Recent Sessions</h2>
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50 text-xs font-medium uppercase tracking-wider text-slate-400">
-                    <th className="px-4 py-3 text-left">Session</th>
-                    <th className="px-4 py-3 text-left">Wallet</th>
-                    <th className="px-4 py-3 text-left">Game</th>
-                    <th className="px-4 py-3 text-right">Score</th>
-                    <th className="px-4 py-3 text-right">Reward</th>
-                    <th className="px-4 py-3 text-left">Settlement</th>
-                    <th className="px-4 py-3 text-left">Created</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {recentSessions.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
-                        No skill game sessions found in the last {LOOKBACK_DAYS} days.
-                      </td>
-                    </tr>
-                  )}
-                  {recentSessions.map((row) => {
-                    const badge = settlementBadge(row, nowSeconds);
-                    return (
-                      <tr key={row.session_id} className="hover:bg-slate-50">
-                        <td className="px-4 py-3">
-                          <p className="font-mono text-xs text-slate-800">{row.session_id.slice(0, 12)}</p>
-                          {getFlags(row).length > 0 && (
-                            <p className="mt-1 text-xs text-amber-700">{getFlags(row).length} flag(s)</p>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 font-mono text-xs text-slate-700">{shortWallet(row.wallet_address)}</td>
-                        <td className="px-4 py-3 text-slate-700">{gameLabel(row.game_type)}</td>
-                        <td className="px-4 py-3 text-right font-mono text-slate-700">{formatNumber(numeric(row.score))}</td>
-                        <td className="px-4 py-3 text-right font-mono text-slate-700">
-                          {formatNumber(numeric(row.reward_miles))} mi
-                          <p className="text-xs text-slate-400">{formatStable(numeric(row.reward_stable))}</p>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge variant={badge.variant}>{badge.label}</Badge>
-                          <p className="mt-1 text-xs text-slate-400">{row.settle_attempts ?? 0} attempts</p>
-                        </td>
-                        <td className="px-4 py-3 text-slate-500">{formatDateTime(row.created_at)}</td>
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Recent Sessions</h2>
+          {recentSessions.length === 0 ? (
+            <EmptyState message={`No skill game sessions found in the last ${LOOKBACK_DAYS} days.`} isHealthy={false} />
+          ) : (
+            <>
+              {/* Mobile: cards */}
+              <div className="space-y-3 lg:hidden">
+                {recentSessions.map((row) => {
+                  const badge = settlementBadge(row, nowSeconds);
+                  return (
+                    <div key={row.session_id} className="rounded-card border border-border bg-surface p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-mono text-xs text-ink">{row.session_id.slice(0, 12)}</p>
+                          <p className="text-xs text-ink-muted">{shortWallet(row.wallet_address)} · {gameLabel(row.game_type)}</p>
+                        </div>
+                        <Badge variant={badge.variant}>{badge.label}</Badge>
+                      </div>
+                      <p className="mt-2 text-sm text-ink">
+                        Score {formatNumber(numeric(row.score))} · {formatNumber(numeric(row.reward_miles))} mi ({formatStable(numeric(row.reward_stable))})
+                      </p>
+                      <p className="mt-1 text-xs text-ink-muted">
+                        {row.settle_attempts ?? 0} attempts · {formatDateTime(row.created_at)}
+                        {getFlags(row).length > 0 && <span className="text-warning"> · {getFlags(row).length} flag(s)</span>}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop: table */}
+              <div className="hidden overflow-hidden rounded-card border border-border bg-surface lg:block">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-surface-subtle text-xs font-medium uppercase tracking-wider text-ink-muted">
+                        <th className="px-4 py-3 text-left">Session</th>
+                        <th className="px-4 py-3 text-left">Wallet</th>
+                        <th className="px-4 py-3 text-left">Game</th>
+                        <th className="px-4 py-3 text-right">Score</th>
+                        <th className="px-4 py-3 text-right">Reward</th>
+                        <th className="px-4 py-3 text-left">Settlement</th>
+                        <th className="px-4 py-3 text-left">Created</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {recentSessions.map((row) => {
+                        const badge = settlementBadge(row, nowSeconds);
+                        return (
+                          <tr key={row.session_id} className="hover:bg-surface-subtle">
+                            <td className="px-4 py-3">
+                              <p className="font-mono text-xs text-ink">{row.session_id.slice(0, 12)}</p>
+                              {getFlags(row).length > 0 && (
+                                <p className="mt-1 text-xs text-warning">{getFlags(row).length} flag(s)</p>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 font-mono text-xs text-ink">{shortWallet(row.wallet_address)}</td>
+                            <td className="px-4 py-3 text-ink">{gameLabel(row.game_type)}</td>
+                            <td className="px-4 py-3 text-right font-mono text-ink">{formatNumber(numeric(row.score))}</td>
+                            <td className="px-4 py-3 text-right font-mono text-ink">
+                              {formatNumber(numeric(row.reward_miles))} mi
+                              <p className="text-xs text-ink-muted">{formatStable(numeric(row.reward_stable))}</p>
+                            </td>
+                            <td className="px-4 py-3">
+                              <Badge variant={badge.variant}>{badge.label}</Badge>
+                              <p className="mt-1 text-xs text-ink-muted">{row.settle_attempts ?? 0} attempts</p>
+                            </td>
+                            <td className="px-4 py-3 text-ink-muted">{formatDateTime(row.created_at)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
         </section>
 
-        <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          <Trophy className="mt-0.5 h-4 w-4 shrink-0 text-[#238D9D]" />
+        <div className="flex items-start gap-3 rounded-card border border-border bg-surface-subtle px-4 py-3 text-sm text-ink-muted">
+          <Trophy className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
           <p>
             This page is Supabase-backed. Revenue, paid ticket bundles, repeat purchases, and ARPPU need the
             SkillGamesV2 contract events indexed through Dune or an on-chain sync table.

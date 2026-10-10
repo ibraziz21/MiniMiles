@@ -2,8 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate } from "@/lib/utils";
 
 async function getVerifiedInsights() {
@@ -30,27 +31,25 @@ export default async function VerifiedReportsPage() {
 
   return (
     <div>
-      <TopBar title="Verified Reports" subtitle="Final insight summaries reviewed by AkibaMiles" />
-      <div className="grid gap-4 p-6">
-        {insights.length === 0 && (
-          <Card><CardContent className="py-8 text-center text-sm text-slate-400">No verified reports yet.</CardContent></Card>
-        )}
+      <PageHeader title="Verified Reports" subtitle="Final insight summaries reviewed by AkibaMiles" />
+      <div className="grid gap-4 p-4 sm:p-6">
+        {insights.length === 0 && <EmptyState message="No verified reports yet." isHealthy={false} />}
         {insights.map((insight) => (
           <Card key={insight.id}>
             <CardHeader>
               <CardTitle className="text-base">
-                <Link href={`/insights/polls/${insight.poll_id}`} className="hover:text-[#238D9D]">
+                <Link href={`/insights/polls/${insight.poll_id}`} className="hover:text-primary">
                   {insight.polls?.title ?? "Untitled poll"}
                 </Link>
               </CardTitle>
-              <p className="text-xs text-slate-400">Updated {formatDate(insight.verified_at ?? insight.created_at)}</p>
+              <p className="text-xs text-ink-muted">Updated {formatDate(insight.verified_at ?? insight.created_at)}</p>
             </CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-sm text-slate-700">{insight.summary}</p>
+              <p className="text-sm text-ink-muted">{insight.summary}</p>
               {Array.isArray(insight.key_findings) && insight.key_findings.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {insight.key_findings.map((finding: string) => (
-                    <span key={finding} className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">{finding}</span>
+                    <span key={finding} className="rounded-full bg-surface-subtle px-3 py-1 text-xs text-ink-muted">{finding}</span>
                   ))}
                 </div>
               )}

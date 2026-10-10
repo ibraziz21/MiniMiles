@@ -120,7 +120,7 @@ export function FundForm({ initial }: { initial?: FundFormInitial }) {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
-              className="flex w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#238D9D]"
+              className="flex w-full rounded-card border border-border bg-surface px-3 py-2 text-sm text-ink shadow-sm placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </Field>
         </CardContent>
@@ -135,7 +135,7 @@ export function FundForm({ initial }: { initial?: FundFormInitial }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block space-y-1">
-      <span className="text-xs font-medium text-slate-600">{label}</span>
+      <span className="text-xs font-medium text-ink-muted">{label}</span>
       {children}
     </label>
   );

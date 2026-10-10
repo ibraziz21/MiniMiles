@@ -58,7 +58,7 @@ export function LeadStatusSelect({
         value={status}
         disabled={saving}
         onChange={(event) => updateStatus(event.target.value as LeadStatus)}
-        className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-medium capitalize text-slate-700 outline-none transition focus:border-[#238D9D] focus:ring-2 focus:ring-[#238D9D]/20 disabled:cursor-not-allowed disabled:opacity-60"
+        className="h-8 rounded-md border border-border bg-surface px-2 text-xs font-medium capitalize text-ink outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
         aria-label="Lead status"
       >
         {statuses.map((option) => (

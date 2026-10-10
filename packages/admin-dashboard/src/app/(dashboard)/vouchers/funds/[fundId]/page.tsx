@@ -4,7 +4,8 @@ import { requireAdminSession } from "@/lib/auth";
 import { hasPermission } from "@/types";
 import { supabase } from "@/lib/supabase";
 import { minorToKes } from "@/lib/voucherFunds";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
+import { DetailHeader } from "@/components/shell/DetailHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -127,12 +128,15 @@ export default async function VoucherFundDetailPage({ params }: { params: Promis
 
   return (
     <div>
-      <TopBar
-        title={fund.name}
-        subtitle={`${fund.country_code} · ${fund.currency} · ${fund.sponsorship_label ?? "Funded by Akiba"}`}
-        actions={<Badge variant={STATE_VARIANT[fund.state] ?? "secondary"}>{fund.state.replaceAll("_", " ")}</Badge>}
-      />
-      <div className="space-y-6 p-6">
+      <PageHeader title={fund.name} subtitle={`${fund.country_code} · ${fund.currency} · ${fund.sponsorship_label ?? "Funded by Akiba"}`} />
+      <div className="space-y-6 p-4 sm:p-6">
+        <DetailHeader
+          backHref="/vouchers/funds"
+          backLabel="Back to funds"
+          title={fund.name}
+          badges={<Badge variant={STATE_VARIANT[fund.state] ?? "secondary"}>{fund.state.replaceAll("_", " ")}</Badge>}
+        />
+
         <Card>
           <CardHeader>
             <CardTitle>Summary</CardTitle>
@@ -190,7 +194,7 @@ export default async function VoucherFundDetailPage({ params }: { params: Promis
           </CardHeader>
           <CardContent className="space-y-2">
             {(!allocations || allocations.length === 0) && (
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-ink-muted">
                 {["approved", "scheduled", "active", "paused"].includes(fund.state)
                   ? "No merchant allocations yet."
                   : "Fund must be approved before allocations can be added."}
@@ -202,16 +206,16 @@ export default async function VoucherFundDetailPage({ params }: { params: Promis
                 <Link
                   key={allocation.id}
                   href={`/vouchers/funds/${fund.id}/allocations/${allocation.id}`}
-                  className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-100 px-3 py-3 text-sm hover:border-slate-200 hover:bg-slate-50"
+                  className="flex flex-wrap items-center gap-3 rounded-lg border border-border px-3 py-3 text-sm hover:border-primary/30 hover:bg-surface-subtle"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-slate-900">{allocation.partners?.name ?? "Unknown merchant"}</p>
-                    <p className="text-xs text-slate-400">
+                    <p className="font-medium text-ink">{allocation.partners?.name ?? "Unknown merchant"}</p>
+                    <p className="text-xs text-ink-muted">
                       {allocation.spend_voucher_templates?.title} · KES {allocation.spend_voucher_templates?.discount_kes} off
                       · min KES {allocation.spend_voucher_templates?.minimum_spend_kes}
                     </p>
                   </div>
-                  <div className="text-right text-xs text-slate-500">
+                  <div className="text-right text-xs text-ink-muted">
                     <p>
                       {formatNumber(avail?.quantity_claimed_total ?? 0)}/{formatNumber(allocation.quantity_cap)} issued
                     </p>
@@ -232,14 +236,14 @@ export default async function VoucherFundDetailPage({ params }: { params: Promis
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             {(!ruleSets || ruleSets.length === 0) && (
-              <p className="text-slate-400">No eligibility rule sets yet — create one when adding an allocation.</p>
+              <p className="text-ink-muted">No eligibility rule sets yet — create one when adding an allocation.</p>
             )}
             {ruleSets?.map((rs) => (
-              <div key={rs.id} className="rounded-lg border border-slate-100 px-3 py-2">
+              <div key={rs.id} className="rounded-lg border border-border px-3 py-2">
                 <p className="font-medium">
                   v{rs.version} · match {rs.mode}
                 </p>
-                <p className="text-xs text-slate-400">{rs.customer_copy ?? "No customer-facing copy set."}</p>
+                <p className="text-xs text-ink-muted">{rs.customer_copy ?? "No customer-facing copy set."}</p>
               </div>
             ))}
           </CardContent>
@@ -261,8 +265,8 @@ export default async function VoucherFundDetailPage({ params }: { params: Promis
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs text-slate-400">{label}</p>
-      <p className="text-sm font-medium text-slate-900">{value}</p>
+      <p className="text-xs text-ink-muted">{label}</p>
+      <p className="text-sm font-medium text-ink">{value}</p>
     </div>
   );
 }

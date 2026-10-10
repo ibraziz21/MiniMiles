@@ -41,7 +41,6 @@ function isDeprecatedMerchantCommercePath(pathname: string): boolean {
     "/settlement",
     "/finance/settlements",
   ];
-  if (pathname === "/finance") return true;
   if (deprecatedPages.some((path) => pathname === path || pathname.startsWith(`${path}/`))) {
     return true;
   }

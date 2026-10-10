@@ -9,6 +9,7 @@
 // already use.
 import { createHash } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveOwnedVoucherStatus } from "@/lib/vouchers/ownedVoucherStatus";
 
 export class InvalidOwnedVoucherCursorError extends Error {
   constructor() {
@@ -147,8 +148,17 @@ export async function listOwnedVouchers(params: {
       ? query.or(`hub_user_id.eq.${userId},user_address.in.(${walletAddresses.join(",")})`)
       : query.eq("hub_user_id", userId);
 
-  if (status) {
-    query = query.in("status", STATUS_DB_VALUES[status]);
+  const nowIso = new Date().toISOString();
+  if (status === "active") {
+    query = query
+      .in("status", STATUS_DB_VALUES.active)
+      .or(`expires_at.is.null,expires_at.gt.${nowIso}`);
+  } else if (status === "redeemed") {
+    query = query.in("status", STATUS_DB_VALUES.redeemed);
+  } else if (status === "expired") {
+    query = query.or(
+      `status.in.(expired,void),and(status.in.(issued,pending,claiming),expires_at.lte.${nowIso})`,
+    );
   }
 
   // Keyset pagination — "strictly before the last row of the previous page"
@@ -175,7 +185,7 @@ export async function listOwnedVouchers(params: {
     const program = one(row.voucher_programs);
     return {
       id: row.id,
-      status: row.status,
+      status: resolveOwnedVoucherStatus(row.status, row.expires_at),
       title: tpl?.title ?? "Voucher",
       voucherType: tpl?.voucher_type ?? "free",
       milesCost: tpl?.miles_cost ?? 0,

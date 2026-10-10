@@ -3,7 +3,8 @@ import { requireAdminSession } from "@/lib/auth";
 import { hasPermission } from "@/types";
 import { supabase } from "@/lib/supabase";
 import { minorToKes } from "@/lib/voucherFunds";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
+import { DetailHeader } from "@/components/shell/DetailHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AllocationActions } from "@/components/vouchers/AllocationActions";
@@ -102,12 +103,16 @@ export default async function VoucherAllocationDetailPage({
 
   return (
     <div>
-      <TopBar
-        title={merchant?.name ?? "Merchant allocation"}
-        subtitle={template?.title ?? ""}
-        actions={<Badge variant={STATE_VARIANT[allocation.state] ?? "secondary"}>{allocation.state.replaceAll("_", " ")}</Badge>}
-      />
-      <div className="space-y-6 p-6">
+      <PageHeader title={merchant?.name ?? "Merchant allocation"} subtitle={template?.title ?? ""} />
+      <div className="space-y-6 p-4 sm:p-6">
+        <DetailHeader
+          backHref={`/vouchers/funds/${fundId}`}
+          backLabel="Back to fund"
+          title={merchant?.name ?? "Merchant allocation"}
+          subtitle={template?.title ?? undefined}
+          badges={<Badge variant={STATE_VARIANT[allocation.state] ?? "secondary"}>{allocation.state.replaceAll("_", " ")}</Badge>}
+        />
+
         <Card>
           <CardHeader>
             <CardTitle>Summary</CardTitle>
@@ -145,9 +150,9 @@ export default async function VoucherAllocationDetailPage({
             <CardHeader>
               <CardTitle>Customer copy</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-1 text-sm text-slate-600">
+            <CardContent className="space-y-1 text-sm text-ink-muted">
               <p>{template.description}</p>
-              {template.terms_text && <p className="text-xs text-slate-400">{template.terms_text}</p>}
+              {template.terms_text && <p className="text-xs text-ink-muted">{template.terms_text}</p>}
             </CardContent>
           </Card>
         )}
@@ -168,8 +173,8 @@ export default async function VoucherAllocationDetailPage({
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs text-slate-400">{label}</p>
-      <p className="text-sm font-medium text-slate-900">{value}</p>
+      <p className="text-xs text-ink-muted">{label}</p>
+      <p className="text-sm font-medium text-ink">{value}</p>
     </div>
   );
 }

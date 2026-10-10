@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AssignSponsorForm, type AllocationOption } from "./assign-form";
@@ -64,21 +64,21 @@ export default async function WeeklyChallengeSponsorPage() {
 
   return (
     <div>
-      <TopBar
+      <PageHeader
         title="Weekly Leaderboard Challenge"
         subtitle="Assign which merchant allocation sponsors this week's top-3 skill-game prizes"
       />
-      <div className="space-y-6 p-6">
+      <div className="space-y-6 p-4 sm:p-6">
         <Card>
           <CardHeader><CardTitle>Current week&apos;s sponsor</CardTitle></CardHeader>
           <CardContent>
             {currentCampaign ? (
-              <div className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm">
+              <div className="flex items-center justify-between rounded-card border border-border px-3 py-2 text-sm">
                 <div>
-                  <p className="font-medium text-slate-900">
+                  <p className="font-medium text-ink">
                     {currentCampaign.program_id ? "Merchant allocation" : "Hand-configured campaign"}
                   </p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-ink-muted">
                     {currentCampaign.week_from} → {currentCampaign.week_to} ·{" "}
                     {(currentCampaign.game_types as string[]).join(", ")}
                   </p>
@@ -88,7 +88,7 @@ export default async function WeeklyChallengeSponsorPage() {
                 </Badge>
               </div>
             ) : (
-              <p className="text-sm text-slate-400">No active campaign covers today.</p>
+              <p className="text-sm text-ink-muted">No active campaign covers today.</p>
             )}
           </CardContent>
         </Card>
@@ -97,7 +97,7 @@ export default async function WeeklyChallengeSponsorPage() {
           <CardHeader><CardTitle>Assign this week&apos;s sponsor</CardTitle></CardHeader>
           <CardContent>
             <AssignSponsorForm allocations={allocations} />
-            <p className="mt-3 text-xs text-slate-400">
+            <p className="mt-3 text-xs text-ink-muted">
               All 3 leaderboard ranks (per game) win the same voucher from the assigned
               allocation — size its remaining capacity accordingly (≥3 for one game,
               ≥6 for both).

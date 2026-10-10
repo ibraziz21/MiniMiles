@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { formatDateTime } from "@/lib/utils";
 
 async function getAuditLog() {
@@ -29,31 +30,51 @@ export default async function AuditLogPage() {
 
   return (
     <div>
-      <TopBar title="Audit Log" subtitle="Sensitive admin actions and authentication events" />
-      <div className="p-6">
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50 text-xs font-medium uppercase tracking-wider text-slate-400">
-                <th className="px-4 py-3 text-left">Action</th>
-                <th className="px-4 py-3 text-left">Admin</th>
-                <th className="px-4 py-3 text-left">Target</th>
-                <th className="px-4 py-3 text-left">Time</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {entries.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400">No audit entries yet.</td></tr>}
+      <PageHeader title="Audit Log" subtitle="Sensitive admin actions and authentication events" />
+      <div className="p-4 sm:p-6">
+        {entries.length === 0 ? (
+          <EmptyState message="No audit entries yet." isHealthy />
+        ) : (
+          <>
+            {/* Mobile: cards */}
+            <div className="space-y-3 lg:hidden">
               {entries.map((entry) => (
-                <tr key={entry.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3"><Badge>{entry.action}</Badge></td>
-                  <td className="px-4 py-3 text-slate-700">{entry.admin_users?.name ?? entry.admin_users?.email ?? "System"}</td>
-                  <td className="px-4 py-3 text-slate-500">{entry.target_type ? `${entry.target_type}: ${entry.target_id ?? "—"}` : "—"}</td>
-                  <td className="px-4 py-3 text-slate-500">{formatDateTime(entry.created_at)}</td>
-                </tr>
+                <div key={entry.id} className="rounded-card border border-border bg-surface p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <Badge>{entry.action}</Badge>
+                    <p className="text-xs text-ink-muted">{formatDateTime(entry.created_at)}</p>
+                  </div>
+                  <p className="mt-2 text-sm text-ink">{entry.admin_users?.name ?? entry.admin_users?.email ?? "System"}</p>
+                  <p className="text-xs text-ink-muted">{entry.target_type ? `${entry.target_type}: ${entry.target_id ?? "—"}` : "—"}</p>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </div>
+
+            {/* Desktop: table */}
+            <div className="hidden overflow-hidden rounded-card border border-border bg-surface lg:block">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-surface-subtle text-xs font-medium uppercase tracking-wider text-ink-muted">
+                    <th className="px-4 py-3 text-left">Action</th>
+                    <th className="px-4 py-3 text-left">Admin</th>
+                    <th className="px-4 py-3 text-left">Target</th>
+                    <th className="px-4 py-3 text-left">Time</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {entries.map((entry) => (
+                    <tr key={entry.id} className="hover:bg-surface-subtle">
+                      <td className="px-4 py-3"><Badge>{entry.action}</Badge></td>
+                      <td className="px-4 py-3 text-ink-muted">{entry.admin_users?.name ?? entry.admin_users?.email ?? "System"}</td>
+                      <td className="px-4 py-3 text-ink-muted">{entry.target_type ? `${entry.target_type}: ${entry.target_id ?? "—"}` : "—"}</td>
+                      <td className="px-4 py-3 text-ink-muted">{formatDateTime(entry.created_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

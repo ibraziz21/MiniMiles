@@ -50,17 +50,17 @@ export function GrantTrialControl({ merchantId, canManage, subscriptionStatus }:
   return (
     <div className="mt-4 border-t border-slate-100 pt-4">
       <div className="flex items-start gap-2">
-        <Gift className="mt-0.5 h-4 w-4 shrink-0 text-[#238D9D]" aria-hidden="true" />
+        <Gift className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
         <div>
           <p className="text-sm font-medium text-slate-800">Onboarding trial</p>
-          <p className="mt-0.5 text-xs leading-5 text-slate-500">
+          <p className="mt-0.5 text-xs leading-5 text-ink-muted">
             Give this merchant temporary access while they get set up.
           </p>
         </div>
       </div>
 
       <div className="mt-3 flex max-w-sm items-end gap-2">
-        <label className="min-w-0 flex-1 text-xs font-medium text-slate-600">
+        <label className="min-w-0 flex-1 text-xs font-medium text-ink-muted">
           Days
           <Input
             className="mt-1"
@@ -82,8 +82,8 @@ export function GrantTrialControl({ merchantId, canManage, subscriptionStatus }:
         </Button>
       </div>
 
-      {isPaid ? <p className="mt-2 text-xs text-slate-400">Paid subscriptions do not need a trial.</p> : null}
-      {!canManage ? <p className="mt-2 text-xs text-slate-400">You have read-only access.</p> : null}
+      {isPaid ? <p className="mt-2 text-xs text-ink-muted">Paid subscriptions do not need a trial.</p> : null}
+      {!canManage ? <p className="mt-2 text-xs text-ink-muted">You have read-only access.</p> : null}
       {message ? (
         <p
           className={`mt-2 text-xs ${message.kind === "error" ? "text-red-600" : "text-emerald-700"}`}

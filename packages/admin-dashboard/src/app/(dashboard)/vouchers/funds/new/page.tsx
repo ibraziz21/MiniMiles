@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { FundForm } from "@/components/vouchers/FundForm";
 
 export default async function NewVoucherFundPage() {
@@ -9,7 +9,7 @@ export default async function NewVoucherFundPage() {
 
   return (
     <div>
-      <TopBar title="New Voucher Fund" subtitle="Step 1 of the fund creation workflow — fund details" />
+      <PageHeader title="New Voucher Fund" subtitle="Step 1 of the fund creation workflow — fund details" />
       <FundForm />
     </div>
   );

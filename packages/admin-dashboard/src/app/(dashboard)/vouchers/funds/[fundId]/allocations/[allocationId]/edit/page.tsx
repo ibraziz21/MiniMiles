@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { minorToKes } from "@/lib/voucherFunds";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { AllocationForm } from "@/components/vouchers/AllocationForm";
 
 export default async function EditVoucherAllocationPage({
@@ -37,7 +37,7 @@ export default async function EditVoucherAllocationPage({
 
   return (
     <div>
-      <TopBar title={`Edit allocation — ${merchant?.name ?? ""}`} subtitle="Only draft allocations can be edited" />
+      <PageHeader title={`Edit allocation — ${merchant?.name ?? ""}`} subtitle="Only draft allocations can be edited" />
       <AllocationForm
         fundId={fundId}
         fundCountryCode={fund?.country_code ?? "KE"}

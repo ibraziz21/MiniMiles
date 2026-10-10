@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { minorToKes } from "@/lib/voucherFunds";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { FundForm } from "@/components/vouchers/FundForm";
 
 export default async function EditVoucherFundPage({ params }: { params: Promise<{ fundId: string }> }) {
@@ -23,7 +23,7 @@ export default async function EditVoucherFundPage({ params }: { params: Promise<
 
   return (
     <div>
-      <TopBar title={`Edit ${fund.name}`} subtitle="Only draft funds can be edited" />
+      <PageHeader title={`Edit ${fund.name}`} subtitle="Only draft funds can be edited" />
       <FundForm
         initial={{
           id: fund.id,

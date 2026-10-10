@@ -136,6 +136,17 @@ describe("GET /api/v1/me/vouchers/[id]", () => {
     expect(body.data.merchantSlug).toBe("acme");
   });
 
+  it("returns expired when an issued voucher has passed its expiry", async () => {
+    state.ownsByUser.set("user-a", true);
+    state.voucherRow = baseVoucher({ expires_at: "2000-01-01T00:00:00Z" });
+    state.actor = { userId: "user-a", email: "a@example.com", authMode: "bearer" };
+
+    const { req: r, params } = req("v1");
+    const res = await GET(r, { params });
+    const body = await res.json();
+    expect(body.data.status).toBe("expired");
+  });
+
   it("never includes raw ownership or snapshot fields in the response", async () => {
     state.ownsByUser.set("user-a", true);
     state.actor = { userId: "user-a", email: "a@example.com", authMode: "bearer" };

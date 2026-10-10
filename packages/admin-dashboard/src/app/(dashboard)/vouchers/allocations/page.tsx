@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { minorToKes } from "@/lib/voucherFunds";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatMoney, formatNumber } from "@/lib/utils";
@@ -59,29 +59,29 @@ export default async function VoucherAllocationsPage() {
 
   return (
     <div>
-      <TopBar title="Merchant Allocations" subtitle="Per-merchant voucher quantity, benefit, and exposure across all funds" />
-      <div className="space-y-6 p-6">
+      <PageHeader title="Merchant Allocations" subtitle="Per-merchant voucher quantity, benefit, and exposure across all funds" />
+      <div className="space-y-6 p-4 sm:p-6">
         <Card>
           <CardHeader>
             <CardTitle>Allocations</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {rows.length === 0 && <p className="text-sm text-slate-400">No merchant allocations yet.</p>}
+            {rows.length === 0 && <p className="text-sm text-ink-muted">No merchant allocations yet.</p>}
             {rows.map((row) => {
               const avail = availabilityByAllocation.get(row.id);
               return (
                 <Link
                   key={row.id}
                   href={`/vouchers/funds/${row.program_id}/allocations/${row.id}`}
-                  className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-100 px-3 py-3 text-sm hover:border-slate-200 hover:bg-slate-50"
+                  className="flex flex-wrap items-center gap-3 rounded-card border border-border px-3 py-3 text-sm hover:border-primary/30 hover:bg-surface-subtle"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-slate-900">{row.partners?.name ?? "Unknown merchant"}</p>
-                    <p className="text-xs text-slate-400">
+                    <p className="font-medium text-ink">{row.partners?.name ?? "Unknown merchant"}</p>
+                    <p className="text-xs text-ink-muted">
                       {row.voucher_funding_programs?.name} · {row.spend_voucher_templates?.title}
                     </p>
                   </div>
-                  <div className="text-right text-xs text-slate-500">
+                  <div className="text-right text-xs text-ink-muted">
                     <p>
                       {formatNumber(avail?.quantity_claimed_total ?? 0)}/{formatNumber(row.quantity_cap)} issued
                     </p>

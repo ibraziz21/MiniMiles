@@ -2,8 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { formatDateTime } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -77,65 +78,96 @@ export default async function SubscriptionCollectionsPage() {
 
   return (
     <div>
-      <TopBar
+      <PageHeader
         title="Subscription Collections"
         subtitle="Renewal and overage invoices that may need direct merchant follow-up"
       />
-      <div className="space-y-6 p-6">
+      <div className="space-y-6 p-4 sm:p-6">
         <div className="flex flex-wrap gap-2">
-          <Link href="/finance/subscriptions" className="rounded-md bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-600">
+          <Link href="/finance/subscriptions" className="rounded-control bg-surface-subtle px-3 py-1.5 text-sm font-medium text-ink-muted">
             Payment reviews
           </Link>
-          <span className="rounded-md bg-[#238D9D] px-3 py-1.5 text-sm font-medium text-white">Collections</span>
+          <span className="rounded-control bg-primary px-3 py-1.5 text-sm font-medium text-white">Collections</span>
         </div>
 
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="rounded-card border border-warning/30 bg-warning/5 px-4 py-3 text-sm text-warning">
           Contact merchants directly when an invoice approaches or passes its due date. The platform remains responsible for automated reminders and the seven-day grace transition.
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-          <table className="w-full min-w-[980px] text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-              <tr>
-                <th className="px-3 py-2">Stage</th>
-                <th className="px-3 py-2">Merchant</th>
-                <th className="px-3 py-2">Invoice</th>
-                <th className="px-3 py-2">Plan / term</th>
-                <th className="px-3 py-2 text-right">Balance</th>
-                <th className="px-3 py-2">Due</th>
-                <th className="px-3 py-2">Grace ends</th>
-                <th className="px-3 py-2">Payment reference</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.length === 0 && (
-                <tr><td colSpan={8} className="px-3 py-10 text-center text-slate-400">No open renewal or overage invoices.</td></tr>
-              )}
+        {invoices.length === 0 ? (
+          <EmptyState message="No open renewal or overage invoices." isHealthy />
+        ) : (
+          <>
+            {/* Mobile: cards */}
+            <div className="space-y-3 lg:hidden">
               {invoices.map((invoice) => {
                 const stage = collectionStage(invoice);
                 return (
-                  <tr key={invoice.id} className="border-t border-slate-100 align-top">
-                    <td className="px-3 py-3"><Badge variant={stage.variant}>{stage.label}</Badge></td>
-                    <td className="px-3 py-3">
-                      <Link href={`/merchants/${invoice.partner_id}`} className="font-medium text-[#176B78] hover:underline">
+                  <div key={invoice.id} className="rounded-card border border-border bg-surface p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <Link href={`/merchants/${invoice.partner_id}`} className="font-medium text-primary hover:underline">
                         {merchantNames[invoice.partner_id] ?? invoice.partner_id}
                       </Link>
-                    </td>
-                    <td className="px-3 py-3">
-                      <div>{invoice.invoice_number ?? invoice.id.slice(0, 8)}</div>
-                      <div className="text-xs capitalize text-slate-400">{invoice.type.replaceAll("_", " ")} · {invoice.status.replaceAll("_", " ")}</div>
-                    </td>
-                    <td className="px-3 py-3 capitalize">{invoice.plan_snapshot ?? "—"} · {invoice.billing_period_snapshot ?? "—"}</td>
-                    <td className="px-3 py-3 text-right font-mono">{kes(invoice.balance_kes)}</td>
-                    <td className="px-3 py-3">{formatDateTime(invoice.due_at)}</td>
-                    <td className="px-3 py-3">{formatDateTime(invoice.grace_until)}</td>
-                    <td className="px-3 py-3 font-mono text-xs">{invoice.payment_reference ?? "—"}</td>
-                  </tr>
+                      <Badge variant={stage.variant}>{stage.label}</Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-ink-muted">
+                      {invoice.invoice_number ?? invoice.id.slice(0, 8)} · {invoice.type.replaceAll("_", " ")} · {invoice.status.replaceAll("_", " ")}
+                    </p>
+                    <p className="mt-2 text-sm text-ink">{kes(invoice.balance_kes)}</p>
+                    <p className="mt-1 text-xs text-ink-muted">
+                      Due {formatDateTime(invoice.due_at)} · Grace ends {formatDateTime(invoice.grace_until)}
+                    </p>
+                    {invoice.payment_reference && (
+                      <p className="mt-1 font-mono text-xs text-ink-muted">{invoice.payment_reference}</p>
+                    )}
+                  </div>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+            </div>
+
+            {/* Desktop: table */}
+            <div className="hidden overflow-x-auto rounded-card border border-border bg-surface lg:block">
+              <table className="w-full min-w-[980px] text-left text-sm">
+                <thead className="bg-surface-subtle text-xs uppercase text-ink-muted">
+                  <tr>
+                    <th className="px-3 py-2">Stage</th>
+                    <th className="px-3 py-2">Merchant</th>
+                    <th className="px-3 py-2">Invoice</th>
+                    <th className="px-3 py-2">Plan / term</th>
+                    <th className="px-3 py-2 text-right">Balance</th>
+                    <th className="px-3 py-2">Due</th>
+                    <th className="px-3 py-2">Grace ends</th>
+                    <th className="px-3 py-2">Payment reference</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.map((invoice) => {
+                    const stage = collectionStage(invoice);
+                    return (
+                      <tr key={invoice.id} className="border-t border-border align-top">
+                        <td className="px-3 py-3"><Badge variant={stage.variant}>{stage.label}</Badge></td>
+                        <td className="px-3 py-3">
+                          <Link href={`/merchants/${invoice.partner_id}`} className="font-medium text-primary hover:underline">
+                            {merchantNames[invoice.partner_id] ?? invoice.partner_id}
+                          </Link>
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="text-ink">{invoice.invoice_number ?? invoice.id.slice(0, 8)}</div>
+                          <div className="text-xs capitalize text-ink-muted">{invoice.type.replaceAll("_", " ")} · {invoice.status.replaceAll("_", " ")}</div>
+                        </td>
+                        <td className="px-3 py-3 capitalize text-ink">{invoice.plan_snapshot ?? "—"} · {invoice.billing_period_snapshot ?? "—"}</td>
+                        <td className="px-3 py-3 text-right font-mono text-ink">{kes(invoice.balance_kes)}</td>
+                        <td className="px-3 py-3 text-ink-muted">{formatDateTime(invoice.due_at)}</td>
+                        <td className="px-3 py-3 text-ink-muted">{formatDateTime(invoice.grace_until)}</td>
+                        <td className="px-3 py-3 font-mono text-xs text-ink-muted">{invoice.payment_reference ?? "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

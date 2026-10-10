@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { VoucherPricingManager, type VoucherPricingBand } from "@/components/vouchers/VoucherPricingManager";
 
@@ -31,8 +31,8 @@ export default async function VoucherPricingPage() {
 
   return (
     <div>
-      <TopBar title="Voucher Pricing" subtitle="Akiba-controlled Miles prices for approved voucher benefits" />
-      <div className="space-y-5 p-6">
+      <PageHeader title="Voucher Pricing" subtitle="Akiba-controlled Miles prices for approved voucher benefits" />
+      <div className="space-y-5 p-4 sm:p-6">
         <Card>
           <CardHeader>
             <CardTitle>Approved benefit bands</CardTitle>
@@ -42,10 +42,10 @@ export default async function VoucherPricingPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {error && <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+            {error && <p className="mb-4 rounded-card bg-danger/10 p-3 text-sm text-danger">
               Pricing could not be loaded. Confirm the Akiba voucher migration has been applied.
             </p>}
-            {!canEdit && <p className="mb-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+            {!canEdit && <p className="mb-4 rounded-card bg-surface-subtle p-3 text-sm text-ink-muted">
               Pricing is read-only. An authenticated super admin must approve changes.
             </p>}
             <VoucherPricingManager initialBands={bands} canEdit={canEdit} />

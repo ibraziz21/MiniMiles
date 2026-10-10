@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate } from "@/lib/utils";
 
 async function getUsers() {
@@ -30,40 +31,67 @@ export default async function UsersPage() {
 
   return (
     <div>
-      <TopBar title="Members" subtitle="Member identity and active risk flags" />
-      <div className="p-6">
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50 text-xs font-medium uppercase tracking-wider text-slate-400">
-                <th className="px-4 py-3 text-left">Member</th>
-                <th className="px-4 py-3 text-left">Contact</th>
-                <th className="px-4 py-3 text-left">Legacy identifier</th>
-                <th className="px-4 py-3 text-left">Flags</th>
-                <th className="px-4 py-3 text-left">Joined</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {users.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">No members found.</td></tr>}
+      <PageHeader title="Members" subtitle="Member identity and active risk flags" />
+      <div className="p-4 sm:p-6">
+        {users.length === 0 ? (
+          <EmptyState message="No members found." isHealthy={false} />
+        ) : (
+          <>
+            {/* Mobile: cards */}
+            <div className="space-y-3 lg:hidden">
               {users.map((user) => (
-                <tr key={user.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-slate-900">{user.username ?? "Member"}</p>
-                    <p className="font-mono text-xs text-slate-400">{user.id}</p>
-                  </td>
-                  <td className="px-4 py-3 text-slate-700">{user.phone ?? "—"}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-500">{user.address ?? "—"}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {user.flags.length === 0 ? <span className="text-slate-400">—</span> : user.flags.map((flag) => <Badge key={flag} variant="warning">{flag}</Badge>)}
+                <div key={user.id} className="rounded-card border border-border bg-surface p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium text-ink">{user.username ?? "Member"}</p>
+                      <p className="text-xs text-ink-muted">{user.phone ?? "—"}</p>
                     </div>
-                  </td>
-                  <td className="px-4 py-3 text-slate-500">{formatDate(user.created_at)}</td>
-                </tr>
+                    <p className="text-xs text-ink-muted">{formatDate(user.created_at)}</p>
+                  </div>
+                  <p className="mt-1 font-mono text-xs text-ink-muted">{user.address ?? "—"}</p>
+                  {user.flags.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {user.flags.map((flag) => <Badge key={flag} variant="warning">{flag}</Badge>)}
+                    </div>
+                  )}
+                </div>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </div>
+
+            {/* Desktop: table */}
+            <div className="hidden overflow-hidden rounded-card border border-border bg-surface lg:block">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-surface-subtle text-xs font-medium uppercase tracking-wider text-ink-muted">
+                    <th className="px-4 py-3 text-left">Member</th>
+                    <th className="px-4 py-3 text-left">Contact</th>
+                    <th className="px-4 py-3 text-left">Legacy identifier</th>
+                    <th className="px-4 py-3 text-left">Flags</th>
+                    <th className="px-4 py-3 text-left">Joined</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {users.map((user) => (
+                    <tr key={user.id} className="hover:bg-surface-subtle">
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-ink">{user.username ?? "Member"}</p>
+                        <p className="font-mono text-xs text-ink-muted">{user.id}</p>
+                      </td>
+                      <td className="px-4 py-3 text-ink-muted">{user.phone ?? "—"}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-ink-muted">{user.address ?? "—"}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap gap-1">
+                          {user.flags.length === 0 ? <span className="text-ink-muted">—</span> : user.flags.map((flag) => <Badge key={flag} variant="warning">{flag}</Badge>)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-ink-muted">{formatDate(user.created_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

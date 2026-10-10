@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { AlertCircle } from "lucide-react";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { DiscoveryPhotoActions, DiscoveryPhotoPreview, DiscoverySuppressionActions } from "@/components/discovery/DiscoveryPhotoActions";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
@@ -74,10 +75,10 @@ export default async function DiscoveryPhotosPage() {
 
   return (
     <div>
-      <TopBar title="Discovery Photos" subtitle="First-party visit photos awaiting moderation" />
-      <div className="space-y-6 p-6">
+      <PageHeader title="Discovery Photos" subtitle="First-party visit photos awaiting moderation" />
+      <div className="space-y-6 p-4 sm:p-6">
         {error && (
-          <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="flex items-center gap-3 rounded-card border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
             <AlertCircle className="h-4 w-4 shrink-0" />
             {error}
           </div>
@@ -89,23 +90,20 @@ export default async function DiscoveryPhotosPage() {
           </CardHeader>
           <CardContent>
             {rows.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-slate-200 px-4 py-10 text-center">
-                <p className="text-sm font-medium text-slate-900">Queue is clear</p>
-                <p className="mt-1 text-sm text-slate-500">Newly processed photos will appear here.</p>
-              </div>
+              <EmptyState message="Queue is clear. Newly processed photos will appear here." isHealthy />
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {rows.map((row) => (
-                  <div key={row.id} className="flex flex-col gap-3 rounded-lg border border-slate-100 p-4">
+                  <div key={row.id} className="flex flex-col gap-3 rounded-card border border-border p-4">
                     <DiscoveryPhotoPreview photoId={row.id} />
                     <div>
-                      <p className="text-sm font-medium text-slate-900">{row.partners?.name ?? "Unknown merchant"}</p>
-                      <p className="text-xs text-slate-400">Submitted {formatDateTime(row.submitted_at)}</p>
+                      <p className="text-sm font-medium text-ink">{row.partners?.name ?? "Unknown merchant"}</p>
+                      <p className="text-xs text-ink-muted">Submitted {formatDateTime(row.submitted_at)}</p>
                     </div>
                     {canWrite ? (
                       <DiscoveryPhotoActions photoId={row.id} />
                     ) : (
-                      <p className="text-xs text-slate-400">Read-only access</p>
+                      <p className="text-xs text-ink-muted">Read-only access</p>
                     )}
                   </div>
                 ))}
@@ -120,33 +118,31 @@ export default async function DiscoveryPhotosPage() {
           </CardHeader>
           <CardContent>
             {approvedError && (
-              <div className="mb-4 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="mb-4 flex items-center gap-3 rounded-card border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 {approvedError}
               </div>
             )}
             {approvedRows.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-slate-200 px-4 py-10 text-center">
-                <p className="text-sm font-medium text-slate-900">Nothing approved yet</p>
-              </div>
+              <EmptyState message="Nothing approved yet." isHealthy={false} />
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {approvedRows.map((row) => {
                   const suppressed = row.suppressed_at !== null;
                   return (
-                    <div key={row.id} className="flex flex-col gap-3 rounded-lg border border-slate-100 p-4">
+                    <div key={row.id} className="flex flex-col gap-3 rounded-card border border-border p-4">
                       <DiscoveryPhotoPreview photoId={row.id} />
                       <div>
-                        <p className="text-sm font-medium text-slate-900">{row.partners?.name ?? "Unknown merchant"}</p>
-                        <p className="text-xs text-slate-400">
+                        <p className="text-sm font-medium text-ink">{row.partners?.name ?? "Unknown merchant"}</p>
+                        <p className="text-xs text-ink-muted">
                           Approved {row.approved_at ? formatDateTime(row.approved_at) : "—"}
-                          {suppressed && <span className="ml-1 font-semibold text-red-600">· Suppressed</span>}
+                          {suppressed && <span className="ml-1 font-semibold text-danger">· Suppressed</span>}
                         </p>
                       </div>
                       {canWrite ? (
                         <DiscoverySuppressionActions photoId={row.id} suppressed={suppressed} />
                       ) : (
-                        <p className="text-xs text-slate-400">Read-only access</p>
+                        <p className="text-xs text-ink-muted">Read-only access</p>
                       )}
                     </div>
                   );

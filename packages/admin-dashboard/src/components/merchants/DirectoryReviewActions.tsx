@@ -42,7 +42,7 @@ export function DirectoryReviewActions({
 
   if (actions.length === 0) {
     return (
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-ink-muted">
         No reviewer action is available while this profile is {status.replaceAll("_", " ")}.
       </p>
     );
@@ -100,25 +100,25 @@ export function DirectoryReviewActions({
       {(actions.includes("request_changes") || actions.includes("suspend")) && (
         <>
           <fieldset>
-            <legend className="text-sm font-medium text-slate-900">Affected sections</legend>
-            <p className="mt-1 text-xs text-slate-500">
+            <legend className="text-sm font-medium text-ink">Affected sections</legend>
+            <p className="mt-1 text-xs text-ink-muted">
               Select the areas the merchant should revisit. These are visible in their dashboard.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {DIRECTORY_SECTIONS.map((section) => (
                 <label
                   key={section.key}
-                  className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+                  className={`inline-flex cursor-pointer items-center gap-2 rounded-card border px-3 py-2 text-sm ${
                     affectedSections.includes(section.key)
-                      ? "border-[#238D9D] bg-[#238D9D]/5 text-[#176B78]"
-                      : "border-slate-200 text-slate-600"
+                      ? "border-primary bg-primary/5 text-primary-strong"
+                      : "border-border text-ink-muted"
                   }`}
                 >
                   <input
                     type="checkbox"
                     checked={affectedSections.includes(section.key)}
                     onChange={() => toggleSection(section.key)}
-                    className="accent-[#238D9D]"
+                    className="accent-primary"
                   />
                   {section.label}
                 </label>
@@ -127,17 +127,17 @@ export function DirectoryReviewActions({
           </fieldset>
 
           <label className="block">
-            <span className="text-sm font-medium text-slate-900">Message to merchant</span>
-            <span className="ml-1 text-xs text-slate-500">(required for changes or suspension)</span>
+            <span className="text-sm font-medium text-ink">Message to merchant</span>
+            <span className="ml-1 text-xs text-ink-muted">(required for changes or suspension)</span>
             <textarea
               value={merchantSafeMessage}
               onChange={(event) => setMerchantSafeMessage(event.target.value)}
               maxLength={1000}
               rows={4}
               placeholder="Explain clearly what needs attention. Do not include internal risk or investigation details."
-              className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#238D9D]"
+              className="mt-2 w-full rounded-card border border-border bg-surface px-3 py-2 text-sm text-ink shadow-sm placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-primary"
             />
-            <span className="mt-1 block text-right text-xs text-slate-400">
+            <span className="mt-1 block text-right text-xs text-ink-muted">
               {merchantSafeMessage.length}/1000
             </span>
           </label>
@@ -145,15 +145,15 @@ export function DirectoryReviewActions({
       )}
 
       <label className="block">
-        <span className="text-sm font-medium text-slate-900">Internal review note</span>
-        <span className="ml-1 text-xs text-slate-500">(never shown to the merchant)</span>
+        <span className="text-sm font-medium text-ink">Internal review note</span>
+        <span className="ml-1 text-xs text-ink-muted">(never shown to the merchant)</span>
         <textarea
           value={internalNote}
           onChange={(event) => setInternalNote(event.target.value)}
           maxLength={2000}
           rows={3}
           placeholder="Record verification context or the reason for your decision."
-          className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#238D9D]"
+          className="mt-2 w-full rounded-card border border-border bg-surface px-3 py-2 text-sm text-ink shadow-sm placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-primary"
         />
       </label>
 

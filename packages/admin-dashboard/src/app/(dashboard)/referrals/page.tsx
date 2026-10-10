@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -75,10 +75,10 @@ function budgetAlertTier(remainingPct: number): { label: string; variant: "destr
 function FunnelStep({ label, count, ofPrevious }: { label: string; count: number; ofPrevious: number | null }) {
   const pct = ofPrevious && ofPrevious > 0 ? Math.round((count / ofPrevious) * 100) : null;
   return (
-    <div className="flex-1 rounded-lg border border-slate-200 p-3 text-center">
-      <p className="text-xl font-semibold text-slate-900">{formatNumber(count)}</p>
-      <p className="text-xs text-slate-500">{label}</p>
-      {pct !== null && <p className="mt-0.5 text-xs text-slate-400">{pct}% of prior step</p>}
+    <div className="flex-1 rounded-card border border-border p-3 text-center">
+      <p className="text-xl font-semibold text-ink">{formatNumber(count)}</p>
+      <p className="text-xs text-ink-muted">{label}</p>
+      {pct !== null && <p className="mt-0.5 text-xs text-ink-muted">{pct}% of prior step</p>}
     </div>
   );
 }
@@ -101,7 +101,7 @@ export default async function ReferralsOverviewPage() {
 
   return (
     <div>
-      <TopBar
+      <PageHeader
         title="Referrals"
         subtitle={active ? `Program v${active.version} active` : "No active program version"}
         actions={
@@ -110,9 +110,9 @@ export default async function ReferralsOverviewPage() {
           </Button>
         }
       />
-      <div className="space-y-6 p-6">
+      <div className="space-y-6 p-4 sm:p-6">
         {active && alertTier && (
-          <div className={`rounded-lg border p-3 text-sm ${alertTier.variant === "destructive" ? "border-red-200 bg-red-50 text-red-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
+          <div className={`rounded-card border p-3 text-sm ${alertTier.variant === "destructive" ? "border-danger/30 bg-danger/5 text-danger" : "border-warning/30 bg-warning/5 text-warning"}`}>
             {alertTier.label} — {formatNumber(remaining)} Miles remaining of {formatNumber(active.total_budget_miles)} on v{active.version}.{" "}
             <Link href="/referrals/program" className="underline underline-offset-2">Publish more budget</Link>.
           </div>
@@ -128,10 +128,10 @@ export default async function ReferralsOverviewPage() {
             </CardHeader>
             <CardContent>
               {!active ? (
-                <div className="text-sm text-slate-500">
+                <div className="text-sm text-ink-muted">
                   No program version is active — referral clicks and bindings are effectively disabled
                   regardless of the kill switches below.{" "}
-                  <Link href="/referrals/program" className="text-[#238D9D] underline underline-offset-2">
+                  <Link href="/referrals/program" className="text-primary underline underline-offset-2">
                     Publish a draft version
                   </Link>
                   .
@@ -140,41 +140,41 @@ export default async function ReferralsOverviewPage() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                     <div>
-                      <p className="text-xs uppercase tracking-wide text-slate-400">Signup</p>
-                      <p className="font-mono text-lg text-slate-900">{active.signup_reward_miles} mi</p>
+                      <p className="text-xs uppercase tracking-wide text-ink-muted">Signup</p>
+                      <p className="font-mono text-lg text-ink">{active.signup_reward_miles} mi</p>
                     </div>
                     <div>
-                      <p className="text-xs uppercase tracking-wide text-slate-400">Activation</p>
-                      <p className="font-mono text-lg text-slate-900">{active.activation_reward_miles} mi</p>
+                      <p className="text-xs uppercase tracking-wide text-ink-muted">Activation</p>
+                      <p className="font-mono text-lg text-ink">{active.activation_reward_miles} mi</p>
                     </div>
                     <div>
-                      <p className="text-xs uppercase tracking-wide text-slate-400">Min purchase</p>
-                      <p className="font-mono text-lg text-slate-900">{formatNumber(active.min_purchase_kes)} KES</p>
+                      <p className="text-xs uppercase tracking-wide text-ink-muted">Min purchase</p>
+                      <p className="font-mono text-lg text-ink">{formatNumber(active.min_purchase_kes)} KES</p>
                     </div>
                     <div>
-                      <p className="text-xs uppercase tracking-wide text-slate-400">Activation window</p>
-                      <p className="font-mono text-lg text-slate-900">{active.activation_window_days}d</p>
+                      <p className="text-xs uppercase tracking-wide text-ink-muted">Activation window</p>
+                      <p className="font-mono text-lg text-ink">{active.activation_window_days}d</p>
                     </div>
                   </div>
 
                   <div>
-                    <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
+                    <div className="mb-1 flex items-center justify-between text-xs text-ink-muted">
                       <span>Budget liability</span>
                       <span>{formatNumber(active.total_budget_miles)} mi total</span>
                     </div>
-                    <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-surface-subtle">
                       <div
                         className="h-full bg-amber-400"
                         style={{ width: `${active.total_budget_miles ? (active.reserved_budget_miles / active.total_budget_miles) * 100 : 0}%` }}
                       />
                       <div
-                        className="h-full bg-[#238D9D]"
+                        className="h-full bg-primary"
                         style={{ width: `${active.total_budget_miles ? (active.released_budget_miles / active.total_budget_miles) * 100 : 0}%` }}
                       />
                     </div>
-                    <div className="mt-1.5 flex gap-4 text-xs text-slate-500">
+                    <div className="mt-1.5 flex gap-4 text-xs text-ink-muted">
                       <span><span className="inline-block h-2 w-2 rounded-full bg-amber-400" /> reserved: {formatNumber(active.reserved_budget_miles)}</span>
-                      <span><span className="inline-block h-2 w-2 rounded-full bg-[#238D9D]" /> released: {formatNumber(active.released_budget_miles)}</span>
+                      <span><span className="inline-block h-2 w-2 rounded-full bg-primary" /> released: {formatNumber(active.released_budget_miles)}</span>
                       <span>remaining: {formatNumber(remaining)}</span>
                     </div>
                   </div>
@@ -187,7 +187,7 @@ export default async function ReferralsOverviewPage() {
             <CardHeader>
               <CardTitle>Kill switches</CardTitle>
             </CardHeader>
-            <CardContent className="divide-y divide-slate-100">
+            <CardContent className="divide-y divide-border">
               {KILL_SWITCHES.map((sw) => (
                 <KillSwitchToggle
                   key={sw.key}
@@ -218,8 +218,8 @@ export default async function ReferralsOverviewPage() {
           {REFERRAL_STATUSES.map((status) => (
             <Card key={status}>
               <CardContent className="p-4">
-                <p className="text-2xl font-semibold text-slate-900">{formatNumber(statusCounts[status])}</p>
-                <p className="text-xs capitalize text-slate-500">{status.replace(/_/g, " ")}</p>
+                <p className="text-2xl font-semibold text-ink">{formatNumber(statusCounts[status])}</p>
+                <p className="text-xs capitalize text-ink-muted">{status.replace(/_/g, " ")}</p>
               </CardContent>
             </Card>
           ))}

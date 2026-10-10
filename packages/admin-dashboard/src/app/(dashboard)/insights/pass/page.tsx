@@ -11,10 +11,12 @@ import {
   type PassAnalytics,
   type PassAnalyticsRange,
 } from "@/lib/passAnalytics";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MetricCard } from "@/components/ui/metric-card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { formatDateTime, formatNumber } from "@/lib/utils";
 
 type RecentPass = {
@@ -67,37 +69,6 @@ async function getPassAnalytics(range: PassAnalyticsRange) {
   };
 }
 
-function MetricCard({
-  title,
-  value,
-  sub,
-  icon: Icon,
-}: {
-  title: string;
-  value: number | string;
-  sub: string;
-  icon: React.ElementType;
-}) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between gap-3">
-          <CardTitle className="text-sm font-medium text-slate-500">{title}</CardTitle>
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#238D9D]/10">
-            <Icon className="h-4 w-4 text-[#238D9D]" />
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <p className="text-2xl font-bold text-slate-900">
-          {typeof value === "number" ? formatNumber(value) : value}
-        </p>
-        <p className="mt-1 text-xs text-slate-500">{sub}</p>
-      </CardContent>
-    </Card>
-  );
-}
-
 function SignupTrend({ data }: { data: PassAnalytics["daily"] }) {
   const maximum = Math.max(1, ...data.map((point) => point.signups));
   const showEvery = data.length <= 31 ? 1 : data.length <= 100 ? 7 : 30;
@@ -110,7 +81,7 @@ function SignupTrend({ data }: { data: PassAnalytics["daily"] }) {
       <CardContent>
         <div className="overflow-x-auto pb-2">
           <div
-            className="flex h-52 items-end gap-1 border-b border-slate-200 px-1"
+            className="flex h-52 items-end gap-1 border-b border-border px-1"
             style={{ minWidth: `${Math.max(640, data.length * 16)}px` }}
           >
             {data.map((point, index) => {
@@ -122,13 +93,13 @@ function SignupTrend({ data }: { data: PassAnalytics["daily"] }) {
                   title={`${point.date}: ${point.signups} signup${point.signups === 1 ? "" : "s"}`}
                 >
                   {point.signups > 0 && data.length <= 31 ? (
-                    <span className="mb-1 text-[10px] font-medium text-slate-500">{point.signups}</span>
+                    <span className="mb-1 text-[10px] font-medium text-ink-muted">{point.signups}</span>
                   ) : null}
                   <div
-                    className="w-full min-w-[7px] max-w-8 rounded-t bg-[#238D9D]"
+                    className="w-full min-w-[7px] max-w-8 rounded-t bg-primary"
                     style={{ height: `${height}px` }}
                   />
-                  <span className="h-7 pt-1 text-[9px] text-slate-400">
+                  <span className="h-7 pt-1 text-[9px] text-ink-muted">
                     {index % showEvery === 0 || index === data.length - 1 ? point.date.slice(5) : ""}
                   </span>
                 </div>
@@ -136,7 +107,7 @@ function SignupTrend({ data }: { data: PassAnalytics["daily"] }) {
             })}
           </div>
         </div>
-        <p className="mt-2 text-xs text-slate-400">Dates use Africa/Nairobi calendar days.</p>
+        <p className="mt-2 text-xs text-ink-muted">Dates use Africa/Nairobi calendar days.</p>
       </CardContent>
     </Card>
   );
@@ -164,26 +135,26 @@ export default async function PassAnalyticsPage({ searchParams }: { searchParams
 
   return (
     <div>
-      <TopBar title="Pass Analytics" subtitle="Signup and onboarding performance for the Akiba Pass" />
-      <div className="space-y-6 p-6">
-        <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
+      <PageHeader title="Pass Analytics" subtitle="Signup and onboarding performance for the Akiba Pass" />
+      <div className="space-y-6 p-4 sm:p-6">
+        <div className="flex flex-wrap items-end justify-between gap-3 rounded-card border border-border bg-surface p-4">
           <form className="flex flex-wrap items-end gap-3" action="/insights/pass">
-            <label className="text-xs font-medium text-slate-600">
+            <label className="text-xs font-medium text-ink-muted">
               <span className="mb-1 block">From</span>
               <input
                 type="date"
                 name="from"
                 defaultValue={range.from}
-                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900"
+                className="h-9 rounded-control border border-border bg-surface px-3 text-sm text-ink"
               />
             </label>
-            <label className="text-xs font-medium text-slate-600">
+            <label className="text-xs font-medium text-ink-muted">
               <span className="mb-1 block">To</span>
               <input
                 type="date"
                 name="to"
                 defaultValue={range.to}
-                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900"
+                className="h-9 rounded-control border border-border bg-surface px-3 text-sm text-ink"
               />
             </label>
             <Button type="submit">Apply</Button>
@@ -192,7 +163,7 @@ export default async function PassAnalyticsPage({ searchParams }: { searchParams
                 <Link
                   key={preset.days}
                   href={preset.href}
-                  className="inline-flex h-9 items-center rounded-lg px-3 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                  className="inline-flex h-9 items-center rounded-control px-3 text-xs font-medium text-ink-muted hover:bg-surface-subtle"
                 >
                   {preset.days}d
                 </Link>
@@ -207,36 +178,36 @@ export default async function PassAnalyticsPage({ searchParams }: { searchParams
         </div>
 
         {rangeError ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <div className="rounded-card border border-warning/30 bg-warning/5 px-4 py-3 text-sm text-warning">
             {rangeError} Showing the latest 30 days instead.
           </div>
         ) : null}
 
         {error || !analytics ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="rounded-card border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
             Pass analytics could not be loaded. Apply migration 072_admin_pass_analytics.sql, then refresh.
             {error ? <p className="mt-1 font-mono text-xs">{error}</p> : null}
           </div>
         ) : (
           <>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              <MetricCard title="Total Passes" value={analytics.total_passes} sub="All time" icon={Users} />
+              <MetricCard label="Total Passes" value={formatNumber(analytics.total_passes)} sub="All time" icon={Users} />
               <MetricCard
-                title="Signups today"
-                value={analytics.signups_today}
+                label="Signups today"
+                value={formatNumber(analytics.signups_today)}
                 sub={`${analytics.signups_yesterday} yesterday`}
                 icon={UserPlus}
               />
-              <MetricCard title="Last 7 days" value={analytics.signups_7_days} sub="Including today" icon={CalendarDays} />
-              <MetricCard title="Last 30 days" value={analytics.signups_30_days} sub="Including today" icon={BarChart2} />
+              <MetricCard label="Last 7 days" value={formatNumber(analytics.signups_7_days)} sub="Including today" icon={CalendarDays} />
+              <MetricCard label="Last 30 days" value={formatNumber(analytics.signups_30_days)} sub="Including today" icon={BarChart2} />
               <MetricCard
-                title="Selected period"
-                value={analytics.period_signups}
+                label="Selected period"
+                value={formatNumber(analytics.period_signups)}
                 sub={`${range.from} to ${range.to}`}
                 icon={CalendarDays}
               />
               <MetricCard
-                title="Onboarding reached"
+                label="Onboarding reached"
                 value={percent(analytics.period_onboarding_seen, analytics.period_signups)}
                 sub={`${formatNumber(analytics.period_onboarding_seen)} of ${formatNumber(analytics.period_signups)} selected signups`}
                 icon={Eye}
@@ -251,38 +222,57 @@ export default async function PassAnalyticsPage({ searchParams }: { searchParams
                   <CardTitle>Recent signups in selected period</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-y border-slate-100 bg-slate-50 text-xs font-medium uppercase tracking-wider text-slate-400">
-                          <th className="px-4 py-3 text-left">Member</th>
-                          <th className="px-4 py-3 text-left">Source</th>
-                          <th className="px-4 py-3 text-left">Onboarding</th>
-                          <th className="px-4 py-3 text-left">Joined</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {recent.length === 0 ? (
-                          <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400">No Pass signups in this period.</td></tr>
-                        ) : null}
+                  {recent.length === 0 ? (
+                    <EmptyState message="No Pass signups in this period." isHealthy={false} className="border-0" />
+                  ) : (
+                    <>
+                      {/* Mobile: cards */}
+                      <div className="space-y-2 p-4 lg:hidden">
                         {recent.map((pass) => (
-                          <tr key={pass.id} className="hover:bg-slate-50">
-                            <td className="px-4 py-3">
-                              <p className="font-medium text-slate-900">{pass.email}</p>
-                              <p className="font-mono text-xs text-slate-400">{pass.user_id}</p>
-                            </td>
-                            <td className="px-4 py-3 text-slate-600">{sourceLabel(pass.signup_src)}</td>
-                            <td className="px-4 py-3">
+                          <div key={pass.id} className="rounded-card border border-border p-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="font-medium text-ink">{pass.email}</p>
                               <Badge variant={pass.onboarding_seen_at ? "success" : "secondary"}>
                                 {pass.onboarding_seen_at ? "reached" : "not reached"}
                               </Badge>
-                            </td>
-                            <td className="whitespace-nowrap px-4 py-3 text-slate-500">{formatDateTime(pass.created_at)}</td>
-                          </tr>
+                            </div>
+                            <p className="mt-1 text-xs text-ink-muted">{sourceLabel(pass.signup_src)} · {formatDateTime(pass.created_at)}</p>
+                          </div>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      </div>
+
+                      {/* Desktop: table */}
+                      <div className="hidden overflow-x-auto lg:block">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-y border-border bg-surface-subtle text-xs font-medium uppercase tracking-wider text-ink-muted">
+                              <th className="px-4 py-3 text-left">Member</th>
+                              <th className="px-4 py-3 text-left">Source</th>
+                              <th className="px-4 py-3 text-left">Onboarding</th>
+                              <th className="px-4 py-3 text-left">Joined</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border">
+                            {recent.map((pass) => (
+                              <tr key={pass.id} className="hover:bg-surface-subtle">
+                                <td className="px-4 py-3">
+                                  <p className="font-medium text-ink">{pass.email}</p>
+                                  <p className="font-mono text-xs text-ink-muted">{pass.user_id}</p>
+                                </td>
+                                <td className="px-4 py-3 text-ink-muted">{sourceLabel(pass.signup_src)}</td>
+                                <td className="px-4 py-3">
+                                  <Badge variant={pass.onboarding_seen_at ? "success" : "secondary"}>
+                                    {pass.onboarding_seen_at ? "reached" : "not reached"}
+                                  </Badge>
+                                </td>
+                                <td className="whitespace-nowrap px-4 py-3 text-ink-muted">{formatDateTime(pass.created_at)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
@@ -293,20 +283,20 @@ export default async function PassAnalyticsPage({ searchParams }: { searchParams
                 <CardContent>
                   <div className="space-y-4">
                     {analytics.sources.length === 0 ? (
-                      <p className="py-8 text-center text-sm text-slate-400">No source data in this period.</p>
+                      <p className="py-8 text-center text-sm text-ink-muted">No source data in this period.</p>
                     ) : null}
                     {analytics.sources.map((source) => {
                       const width = percent(source.signups, analytics.period_signups);
                       return (
                         <div key={source.source}>
                           <div className="mb-1 flex items-center justify-between gap-3 text-sm">
-                            <span className="truncate font-medium text-slate-700">{source.source}</span>
-                            <span className="whitespace-nowrap text-slate-500">
+                            <span className="truncate font-medium text-ink-muted">{source.source}</span>
+                            <span className="whitespace-nowrap text-ink-muted">
                               {formatNumber(source.signups)} · {width}
                             </span>
                           </div>
-                          <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                            <div className="h-full rounded-full bg-[#238D9D]" style={{ width }} />
+                          <div className="h-2 overflow-hidden rounded-full bg-surface-subtle">
+                            <div className="h-full rounded-full bg-primary" style={{ width }} />
                           </div>
                         </div>
                       );

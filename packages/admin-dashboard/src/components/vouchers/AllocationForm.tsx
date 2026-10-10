@@ -236,7 +236,8 @@ export function AllocationForm({
               required
               value={merchantId}
               onChange={(e) => setMerchantId(e.target.value)}
-              className="flex h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#238D9D]"
+              aria-label="Merchant"
+              className="flex h-9 w-full rounded-card border border-border bg-surface px-3 text-sm text-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
             >
               <option value="">Select a merchant…</option>
               {filteredMerchants.map((m) => (
@@ -249,8 +250,8 @@ export function AllocationForm({
         </Card>
       )}
       {isEdit && (
-        <p className="text-sm text-slate-500">
-          Merchant: <span className="font-medium text-slate-900">{initial!.merchantName}</span> (fixed after creation)
+        <p className="text-sm text-ink-muted">
+          Merchant: <span className="font-medium text-ink">{initial!.merchantName}</span> (fixed after creation)
         </p>
       )}
 
@@ -267,7 +268,7 @@ export function AllocationForm({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
-              className="flex w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#238D9D]"
+              className="flex w-full rounded-card border border-border bg-surface px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </Field>
           <div className="grid grid-cols-3 gap-4">
@@ -296,7 +297,7 @@ export function AllocationForm({
               value={termsText}
               onChange={(e) => setTermsText(e.target.value)}
               rows={2}
-              className="flex w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#238D9D]"
+              className="flex w-full rounded-card border border-border bg-surface px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </Field>
         </CardContent>
@@ -308,10 +309,10 @@ export function AllocationForm({
             <CardTitle>Eligibility</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="rounded-lg border border-teal-100 bg-teal-50 px-3 py-2 text-sm text-teal-900">
+            <div className="rounded-card border border-teal-100 bg-teal-50 px-3 py-2 text-sm text-teal-900">
               Members must match <strong>all</strong> selected rules. Country is locked to the fund ({fundCountryCode}).
             </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            <div className="rounded-card border border-border bg-slate-50 px-3 py-2 text-sm text-ink">
               <strong>Required:</strong> Member profile country must be {fundCountryCode}. This is a system
               invariant enforced by the database on every claim — it cannot be removed or overridden here.
             </div>
@@ -350,7 +351,8 @@ export function AllocationForm({
                   <select
                     value={verifiedActivityKey}
                     onChange={(e) => setVerifiedActivityKey(e.target.value)}
-                    className="mt-2 rounded border border-slate-200 px-2 py-1 text-sm"
+                    aria-label="Verified activity type"
+                    className="mt-2 rounded border border-border px-2 py-1 text-sm"
                   >
                     {VERIFIED_ACTIVITY_TEMPLATE_KEYS.map((key) => (
                       <option key={key} value={key}>
@@ -412,7 +414,7 @@ export function AllocationForm({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
-              className="flex w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#238D9D]"
+              className="flex w-full rounded-card border border-border bg-surface px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </Field>
         </CardContent>
@@ -428,7 +430,7 @@ export function AllocationForm({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block space-y-1">
-      <span className="text-xs font-medium text-slate-600">{label}</span>
+      <span className="text-xs font-medium text-ink-muted">{label}</span>
       {children}
     </label>
   );
@@ -449,7 +451,7 @@ function RuleRow({
 }) {
   const warning = ELIGIBILITY_RULE_WARNINGS[type];
   return (
-    <div className="rounded-lg border border-slate-100 px-3 py-2">
+    <div className="rounded-card border border-slate-100 px-3 py-2">
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={checked} onChange={onToggle} disabled={disabled} />
         {ELIGIBILITY_RULE_LABELS[type]}

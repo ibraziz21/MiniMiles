@@ -10,10 +10,11 @@ import {
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { formatDateTime } from "@/lib/utils";
-import { TopBar } from "@/components/layout/TopBar";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MetricCard } from "@/components/ui/metric-card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { LeadStatusSelect } from "@/components/leads/LeadStatusSelect";
 
 type LeadKind = "partner" | "merchant";
@@ -84,44 +85,24 @@ export default async function LeadsPage() {
 
   return (
     <div>
-      <TopBar
+      <PageHeader
         title="Lead Inbox"
         subtitle={`${totalOpen} open lead${totalOpen !== 1 ? "s" : ""} from website forms`}
       />
 
-      <div className="space-y-6 p-6">
+      <div className="space-y-6 p-4 sm:p-6">
         {errors.length > 0 ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <div className="rounded-card border border-warning/30 bg-warning/5 px-4 py-3 text-sm text-warning">
             Apply the website lead SQL migrations, then refresh this page.
             <div className="mt-1 font-mono text-xs">{errors.join(" | ")}</div>
           </div>
         ) : null}
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <LeadStat
-            label="Total leads"
-            value={totalLeads}
-            sub="Latest 100 from each table"
-            icon={MessageSquare}
-          />
-          <LeadStat
-            label="Open leads"
-            value={totalOpen}
-            sub="Not closed"
-            icon={Mail}
-          />
-          <LeadStat
-            label="Partner new"
-            value={countNew(partnerResult.leads)}
-            sub="Campaign inquiries"
-            icon={Megaphone}
-          />
-          <LeadStat
-            label="Merchant new"
-            value={countNew(merchantResult.leads)}
-            sub="Merchant inquiries"
-            icon={Store}
-          />
+          <MetricCard label="Total leads" value={String(totalLeads)} sub="Latest 100 from each table" icon={MessageSquare} />
+          <MetricCard label="Open leads" value={String(totalOpen)} sub="Not closed" icon={Mail} />
+          <MetricCard label="Partner new" value={String(countNew(partnerResult.leads))} sub="Campaign inquiries" icon={Megaphone} />
+          <MetricCard label="Merchant new" value={String(countNew(merchantResult.leads))} sub="Merchant inquiries" icon={Store} />
         </div>
 
         <LeadTable
@@ -142,35 +123,6 @@ export default async function LeadsPage() {
   );
 }
 
-function LeadStat({
-  label,
-  value,
-  sub,
-  icon: Icon,
-}: {
-  label: string;
-  value: number;
-  sub: string;
-  icon: React.ElementType;
-}) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium text-slate-500">{label}</CardTitle>
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#238D9D]/10">
-            <Icon className="h-4 w-4 text-[#238D9D]" />
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <p className="text-2xl font-bold text-slate-900">{value}</p>
-        <p className="mt-1 text-xs text-slate-500">{sub}</p>
-      </CardContent>
-    </Card>
-  );
-}
-
 function LeadTable({
   kind,
   title,
@@ -185,99 +137,140 @@ function LeadTable({
   const Icon = kind === "partner" ? Megaphone : Store;
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+    <section className="rounded-card border border-border bg-surface">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100">
-            <Icon className="h-5 w-5 text-slate-500" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-control bg-surface-subtle">
+            <Icon className="h-5 w-5 text-ink-muted" />
           </div>
           <div>
-            <h2 className="font-semibold text-slate-950">{title}</h2>
-            <p className="mt-1 text-sm text-slate-500">{description}</p>
+            <h2 className="font-semibold text-ink">{title}</h2>
+            <p className="mt-1 text-sm text-ink-muted">{description}</p>
           </div>
         </div>
         <Badge variant="secondary">{leads.length} total</Badge>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-100 bg-slate-50 text-xs font-medium uppercase tracking-wider text-slate-400">
-              <th className="w-[28%] px-4 py-3 text-left">Lead</th>
-              <th className="w-[28%] px-4 py-3 text-left">Message</th>
-              <th className="px-4 py-3 text-left">Submitted</th>
-              <th className="px-4 py-3 text-left">Status</th>
-              <th className="px-4 py-3 text-right">Action</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {leads.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
-                  No {kind} leads yet.
-                </td>
-              </tr>
-            ) : null}
-
+      {leads.length === 0 ? (
+        <EmptyState message={`No ${kind} leads yet.`} isHealthy className="border-0" />
+      ) : (
+        <>
+          {/* Mobile: cards */}
+          <div className="space-y-3 p-4 lg:hidden">
             {leads.map((lead) => (
-              <tr key={lead.id} className="align-top transition-colors hover:bg-slate-50">
-                <td className="px-4 py-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#238D9D]/10">
-                      <Building2 className="h-4 w-4 text-[#238D9D]" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-medium text-slate-950">{lead.company}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        {lead.name}
-                        {lead.role ? `, ${lead.role}` : ""}
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-400">{lead.country}</p>
-                      {lead.website ? (
-                        <a
-                          href={normalizeUrl(lead.website)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-[#238D9D] hover:underline"
-                        >
-                          Website <ExternalLink className="h-3 w-3" />
-                        </a>
-                      ) : null}
-                    </div>
+              <div key={lead.id} className="rounded-card border border-border p-3">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-primary/10">
+                    <Building2 className="h-4 w-4 text-primary" />
                   </div>
-                </td>
-                <td className="px-4 py-4">
-                  <p className="max-w-xl whitespace-pre-wrap text-sm leading-6 text-slate-600">
-                    {lead.message}
-                  </p>
-                  <p className="mt-2 text-xs text-slate-400">{lead.source}</p>
-                </td>
-                <td className="px-4 py-4 text-sm text-slate-500">
-                  {formatDateTime(lead.created_at)}
-                </td>
-                <td className="px-4 py-4">
-                  <div className="space-y-2">
-                    <StatusBadge status={lead.status} />
-                    <LeadStatusSelect
-                      kind={kind}
-                      leadId={lead.id}
-                      initialStatus={lead.status}
-                    />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-ink">{lead.company}</p>
+                    <p className="mt-0.5 text-xs text-ink-muted">
+                      {lead.name}
+                      {lead.role ? `, ${lead.role}` : ""} · {lead.country}
+                    </p>
                   </div>
-                </td>
-                <td className="px-4 py-4 text-right">
+                  <StatusBadge status={lead.status} />
+                </div>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink-muted">{lead.message}</p>
+                <p className="mt-1 text-xs text-ink-muted">{lead.source} · {formatDateTime(lead.created_at)}</p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <LeadStatusSelect kind={kind} leadId={lead.id} initialStatus={lead.status} />
                   <Button asChild size="sm">
                     <a href={mailtoHref(kind, lead)}>
                       <Mail className="h-3.5 w-3.5" />
                       Email
                     </a>
                   </Button>
-                </td>
-              </tr>
+                  {lead.website && (
+                    <a
+                      href={normalizeUrl(lead.website)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                    >
+                      Website <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+              </div>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </div>
+
+          {/* Desktop: table */}
+          <div className="hidden overflow-x-auto lg:block">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-surface-subtle text-xs font-medium uppercase tracking-wider text-ink-muted">
+                  <th className="w-[28%] px-4 py-3 text-left">Lead</th>
+                  <th className="w-[28%] px-4 py-3 text-left">Message</th>
+                  <th className="px-4 py-3 text-left">Submitted</th>
+                  <th className="px-4 py-3 text-left">Status</th>
+                  <th className="px-4 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {leads.map((lead) => (
+                  <tr key={lead.id} className="align-top transition-colors hover:bg-surface-subtle">
+                    <td className="px-4 py-4">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-primary/10">
+                          <Building2 className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium text-ink">{lead.company}</p>
+                          <p className="mt-0.5 text-xs text-ink-muted">
+                            {lead.name}
+                            {lead.role ? `, ${lead.role}` : ""}
+                          </p>
+                          <p className="mt-0.5 text-xs text-ink-muted">{lead.country}</p>
+                          {lead.website ? (
+                            <a
+                              href={normalizeUrl(lead.website)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                            >
+                              Website <ExternalLink className="h-3 w-3" />
+                            </a>
+                          ) : null}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <p className="max-w-xl whitespace-pre-wrap text-sm leading-6 text-ink-muted">
+                        {lead.message}
+                      </p>
+                      <p className="mt-2 text-xs text-ink-muted">{lead.source}</p>
+                    </td>
+                    <td className="px-4 py-4 text-sm text-ink-muted">
+                      {formatDateTime(lead.created_at)}
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="space-y-2">
+                        <StatusBadge status={lead.status} />
+                        <LeadStatusSelect
+                          kind={kind}
+                          leadId={lead.id}
+                          initialStatus={lead.status}
+                        />
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      <Button asChild size="sm">
+                        <a href={mailtoHref(kind, lead)}>
+                          <Mail className="h-3.5 w-3.5" />
+                          Email
+                        </a>
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </section>
   );
 }
