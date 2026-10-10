@@ -6,7 +6,7 @@
 import { optionalActor } from "@/lib/auth/requestActor";
 import { apiSuccess } from "@/lib/api/v1/response";
 import { resolveNativeFeatureFlags } from "@/lib/capabilities/resolveCapabilities";
-import { getVersionGate, getLegalLinks } from "@/lib/mobile/appConfig.server";
+import { getVersionGate, getLegalLinks, getStoreLinks } from "@/lib/mobile/appConfig.server";
 import { getServerEnv } from "@/lib/env.server";
 
 export async function GET(request: Request) {
@@ -17,6 +17,7 @@ export async function GET(request: Request) {
     ...getVersionGate(),
     features: resolveNativeFeatureFlags(actor),
     legal: getLegalLinks(env.siteUrl),
+    storeUrl: getStoreLinks(),
   };
 
   const response = apiSuccess(request, body);

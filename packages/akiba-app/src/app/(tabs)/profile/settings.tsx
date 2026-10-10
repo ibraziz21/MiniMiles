@@ -9,16 +9,24 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { createApiClient, ApiRequestError } from '@/api';
 import { supabase, useAuth } from '@/auth';
+import { useAppConfig } from '@/config';
 import type { MobileSettings } from '@/contracts';
 import { ActivityIndicator, Icon, ListGroup, ListRow, ScrollView, colors, fontFamily } from '@/design-system';
 
 type ScreenState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; data: MobileSettings };
 type Editor = 'username' | 'phone' | 'location' | 'security' | null;
-const HELP_LINKS = [
-  { icon: 'external-link' as const, label: 'Contact support', description: 'hello@akibamiles.com', url: 'mailto:hello@akibamiles.com' },
-  { icon: 'shield' as const, label: 'Privacy policy', url: 'https://app.akibamiles.com/privacy-policy' },
-  { icon: 'shield' as const, label: 'Terms of use', url: 'https://app.akibamiles.com/terms-of-use' },
-];
+
+// Privacy/Terms come from GET /api/v1/config rather than being hardcoded
+// (AKIBA-MOB-001 §1 "Use legal URLs returned by config") so legal can move
+// the pages without shipping an app release.
+function useHelpLinks() {
+  const { legal } = useAppConfig();
+  return [
+    { icon: 'external-link' as const, label: 'Contact support', description: 'hello@akibamiles.com', url: 'mailto:hello@akibamiles.com' },
+    { icon: 'shield' as const, label: 'Privacy policy', url: legal.privacyUrl },
+    { icon: 'shield' as const, label: 'Terms of use', url: legal.termsUrl },
+  ];
+}
 
 export default function SettingsScreen() {
   const { accessToken, signOut } = useAuth();
@@ -47,6 +55,7 @@ export default function SettingsScreen() {
 function SettingsContent({ accessToken, initial, onSignOut }: { accessToken: string | null; initial: MobileSettings; onSignOut: () => void }) {
   const [data, setData] = useState(initial);
   const [editor, setEditor] = useState<Editor>(null);
+  const helpLinks = useHelpLinks();
   const profile = data.profile;
   const identity = profile.username ? `@${profile.username}` : profile.displayName;
   const initials = (profile.username ?? profile.displayName).replace(/^@/, '').split(/[\s._-]+/).filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase() || 'AK';
@@ -57,8 +66,24 @@ function SettingsContent({ accessToken, initial, onSignOut }: { accessToken: str
     <SettingsSection title="Profile details"><ListRow icon="at-sign" label="Username" description={profile.username ? `@${profile.username}` : 'Choose a username'} onPress={() => setEditor('username')} /><ListRow icon="phone" label="Phone number" description={profile.phone ?? 'Add a phone number'} onPress={() => setEditor('phone')} /><ListRow icon="map-pin" label="Location" description={location} onPress={() => setEditor('location')} /></SettingsSection>
     <SettingsSection title="Notifications"><ListRow icon="bell" label="Notifications" description="Reward and account updates" onPress={() => Linking.openSettings()} /></SettingsSection>
     <SettingsSection title="Account & security"><ListRow icon="mail" label="Email" description={profile.email ?? 'No email on this account'} showChevron={false} /><ListRow icon="lock" label="Security" description="Password & sign-in" onPress={() => setEditor('security')} /></SettingsSection>
-    <SettingsSection title="Help & legal">{HELP_LINKS.map((link) => <ListRow key={link.label} icon={link.icon} label={link.label} description={link.description} onPress={() => Linking.openURL(link.url)} />)}</SettingsSection>
+    <SettingsSection title="Help & legal">{helpLinks.map((link) => <ListRow key={link.label} icon={link.icon} label={link.label} description={link.description} onPress={() => Linking.openURL(link.url)} />)}</SettingsSection>
     <ListGroup><ListRow icon="log-out" label="Sign out" variant="danger" showChevron={false} onPress={onSignOut} /></ListGroup>
+
+    {/* Danger zone sits below sign out and in its own section (AKIBA-MOB-002
+        §5.1) so an irreversible action is never adjacent to routine profile
+        settings. The row navigates — it never submits anything itself. */}
+    <SettingsSection title="Danger zone">
+      <ListRow
+        accessibilityHint="Opens the account deletion screen. Nothing is deleted yet."
+        accessibilityLabel="Delete account. Permanently delete your Akiba account and personal data."
+        allowWrap
+        description="Permanently delete your Akiba account and personal data"
+        icon="trash-2"
+        label="Delete account"
+        onPress={() => router.push('/profile/delete-account')}
+        variant="danger"
+      />
+    </SettingsSection>
     <EditSheet editor={editor} profile={profile} accessToken={accessToken} onClose={() => setEditor(null)} onSaved={(patch) => setData((current) => ({ profile: { ...current.profile, ...patch } }))} />
   </View>;
 }

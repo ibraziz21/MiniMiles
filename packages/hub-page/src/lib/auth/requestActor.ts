@@ -6,6 +6,10 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createClient as createCookieClient } from "@/lib/supabase/server";
 import { getServerEnv } from "@/lib/env.server";
+import {
+  DeletionLookupUnavailableError,
+  findOpenDeletionRequest,
+} from "@/lib/akiba/accountDeletionGuard";
 
 export type RequestActor = {
   userId: string;
@@ -38,6 +42,21 @@ export class AuthServiceUnavailableError extends UnauthorizedError {
   constructor() {
     super("Authentication service temporarily unavailable", 503, "AUTH_SERVICE_UNAVAILABLE");
     this.name = "AuthServiceUnavailableError";
+  }
+}
+
+/**
+ * The actor has an account-deletion request in progress or already completed
+ * (AKIBA-MOB-002 §7.4). Extends UnauthorizedError so every existing v1
+ * route's `catch (error instanceof UnauthorizedError)` path returns the
+ * intended 410 instead of turning it into a 500 — the spec calls this out
+ * explicitly because a 500 here would read as an outage, and the app would
+ * retry forever instead of signing the stale session out.
+ */
+export class AccountDeletionPendingError extends UnauthorizedError {
+  constructor() {
+    super("This account has a deletion request in progress", 410, "ACCOUNT_DELETION_PENDING");
+    this.name = "AccountDeletionPendingError";
   }
 }
 
@@ -83,21 +102,66 @@ async function actorFromCookie(): Promise<RequestActor | null> {
   return { userId: user.id, email: user.email ?? null, authMode: "cookie", accessToken: session.access_token };
 }
 
-/**
- * Resolves the caller from a Bearer token (native) or the SSR cookie session
- * (web). Never throws — returns `null` when neither resolves a user. A
- * Bearer token is authentication only; every resource query must still be
- * scoped to `actor.userId`/`actor.email`.
- */
-export async function optionalActor(request: Request): Promise<RequestActor | null> {
+async function resolveActor(request: Request): Promise<RequestActor | null> {
   const token = parseBearerToken(request);
   if (token) return actorFromBearer(token);
   return actorFromCookie();
 }
 
+/**
+ * Resolves the caller from a Bearer token (native) or the SSR cookie session
+ * (web). Never throws — returns `null` when neither resolves a user. A
+ * Bearer token is authentication only; every resource query must still be
+ * scoped to `actor.userId`/`actor.email`.
+ *
+ * An actor with a deletion request in progress resolves as **anonymous**
+ * rather than throwing. Auth-optional routes (`/config`, `/home`) must keep
+ * working — the app still needs to boot far enough to show the maintenance
+ * or deletion-pending state — and degrading to anonymous means no
+ * member-scoped data is served to a pending account either way. Protected
+ * routes get the 410 from {@link requireActor}.
+ */
+export async function optionalActor(request: Request): Promise<RequestActor | null> {
+  const actor = await resolveActor(request);
+  if (!actor) return null;
+  return (await hasOpenDeletionRequest(actor.userId)) ? null : actor;
+}
+
 /** Same resolution as {@link optionalActor}, throwing `UnauthorizedError` instead of returning `null`. */
 export async function requireActor(request: Request): Promise<RequestActor> {
-  const actor = await optionalActor(request);
+  const actor = await resolveActor(request);
+  if (!actor) throw new UnauthorizedError();
+  if (await hasOpenDeletionRequest(actor.userId)) throw new AccountDeletionPendingError();
+  return actor;
+}
+
+/**
+ * Authentication without the pending-deletion rejection, for the deletion
+ * endpoints themselves (§7.4). A member whose final response was dropped has
+ * to be able to retry and read their receipt back — which is impossible if
+ * their own request locks them out of the route that returns it.
+ */
+export async function requireActorAllowingDeletionPending(
+  request: Request,
+): Promise<RequestActor> {
+  const actor = await resolveActor(request);
   if (!actor) throw new UnauthorizedError();
   return actor;
+}
+
+/**
+ * Fails closed: a lookup that cannot be completed is treated as "blocked"
+ * via AuthServiceUnavailableError rather than letting a possibly-pending
+ * account through. 503 (retryable) is the honest answer for an infrastructure
+ * failure, and is distinct from the 410 a real pending request produces.
+ */
+async function hasOpenDeletionRequest(userId: string): Promise<boolean> {
+  try {
+    return (await findOpenDeletionRequest(userId)) !== null;
+  } catch (error) {
+    if (error instanceof DeletionLookupUnavailableError) {
+      throw new AuthServiceUnavailableError();
+    }
+    throw error;
+  }
 }

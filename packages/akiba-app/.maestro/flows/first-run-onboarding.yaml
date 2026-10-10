@@ -1,0 +1,48 @@
+# AKIBA-MOB-001 — a new member from cold start to the Explore tab.
+# Covers the launch gate, OTP entry, all three onboarding steps, and the
+# server-side completion that makes onboarding not reappear.
+appId: com.akiba.pass
+env:
+  EMAIL: ${AKIBA_E2E_EMAIL}
+  OTP: ${AKIBA_E2E_OTP}
+---
+- clearState
+- launchApp
+
+# Config gate resolved: the sign-in screen means neither maintenance nor
+# force-upgrade blocked the launch.
+- assertVisible: "Sign in"
+- assertVisible: "Email address"
+
+# Legal links must be reachable before an account can be created (§2).
+- assertVisible: "Terms of Use"
+- assertVisible: "Privacy Policy"
+
+- tapOn:
+    id: "Email address"
+- inputText: ${EMAIL}
+- tapOn: "Send code"
+
+- assertVisible: "Enter your code"
+- assertVisible: "Verification code"
+- inputText: ${OTP}
+
+# Onboarding step 1
+- assertVisible: "Welcome to Akiba"
+- assertVisible: "Step 1 of 3"
+- tapOn: "Get started"
+
+# Onboarding step 2 — username required, country fixed, city optional
+- assertVisible: "Set up your profile"
+- assertVisible: "Kenya"
+- tapOn:
+    id: "Username"
+- inputText: "e2e_member"
+- tapOn: "Continue"
+
+# Onboarding step 3
+- assertVisible: "Your Akiba Pass"
+- assertVisible: "Step 3 of 3"
+- tapOn: "Explore Akiba"
+
+- assertVisible: "Explore"

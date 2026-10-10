@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Redirect } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { ProfileButton } from '@/components/profile-button';
+import { useFeatureFlags } from '@/config';
 import { Icon, colors, fontFamily, shadows } from '@/design-system';
 
 const STEPS = [
@@ -14,6 +16,7 @@ const STEPS = [
 const SLIDE_COUNT = 2;
 
 export default function GiftsScreen() {
+  const { gifts } = useFeatureFlags();
   const { width } = useWindowDimensions();
   const [slideIndex, setSlideIndex] = useState(0);
   const heroRailRef = useRef<ScrollView>(null);
@@ -22,6 +25,10 @@ export default function GiftsScreen() {
   const slideGap = 12;
   const slideStep = slideWidth + slideGap;
   const slideMinHeight = wide ? 400 : 440;
+
+  // The tab bar already hides Gifts when the flag is off; this closes the
+  // other way in — a deep link or a restored navigation state.
+  if (!gifts) return <Redirect href="/" />;
 
   function goToSlide(index: number) {
     const next = Math.max(0, Math.min(SLIDE_COUNT - 1, index));

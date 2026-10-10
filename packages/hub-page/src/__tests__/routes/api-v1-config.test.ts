@@ -20,6 +20,7 @@ vi.mock("@/lib/auth/requestActor", () => {
 });
 
 const { GET } = await import("@/app/api/v1/config/route");
+const { DELETION_POLICY_VERSION } = await import("@/lib/akiba/accountDeletionPolicy");
 
 function configReq() {
   return new Request("http://localhost/api/v1/config");
@@ -42,7 +43,9 @@ describe("GET /api/v1/config", () => {
         privacyUrl: expect.stringContaining("/privacy-policy"),
         termsUrl: expect.stringContaining("/terms-of-use"),
         accountDeletionUrl: expect.any(String),
+        deletionPolicyVersion: expect.any(String),
       },
+      storeUrl: { ios: null, android: null },
     });
     expect(body.meta.apiVersion).toBe("v1");
   });
@@ -55,6 +58,37 @@ describe("GET /api/v1/config", () => {
       discoveryContributions: false,
       milesEarnedNotifications: false,
     });
+  });
+
+  it("keeps the Gifts destination hidden unless MOBILE_GIFTS_ENABLED is set", async () => {
+    const res = await GET(configReq());
+    const body = await res.json();
+    expect(body.data.features.gifts).toBe(false);
+
+    process.env.MOBILE_GIFTS_ENABLED = "true";
+    try {
+      const enabled = await (await GET(configReq())).json();
+      expect(enabled.data.features.gifts).toBe(true);
+    } finally {
+      delete process.env.MOBILE_GIFTS_ENABLED;
+    }
+  });
+
+  it("publishes configured store URLs for the Update Akiba Pass action", async () => {
+    process.env.MOBILE_STORE_URL_IOS = "https://apps.apple.com/app/id123";
+    process.env.MOBILE_STORE_URL_ANDROID = "  ";
+    try {
+      const body = await (await GET(configReq())).json();
+      expect(body.data.storeUrl).toEqual({
+        ios: "https://apps.apple.com/app/id123",
+        // Blank env values must resolve to null, not an empty string the
+        // app would treat as a openable URL.
+        android: null,
+      });
+    } finally {
+      delete process.env.MOBILE_STORE_URL_IOS;
+      delete process.env.MOBILE_STORE_URL_ANDROID;
+    }
   });
 
   it("caches the anonymous response publicly, and the authenticated response privately", async () => {
@@ -73,5 +107,13 @@ describe("GET /api/v1/config", () => {
     const res = await GET(req);
     const body = await res.json();
     expect(body.meta.requestId).toBe("req-123");
+  });
+
+  it("publishes the account-deletion page and the active deletion policy version", async () => {
+    // §6/§7: the app reads this URL rather than hardcoding one, and echoes
+    // the policy version back when submitting a deletion request.
+    const body = await (await GET(configReq())).json();
+    expect(body.data.legal.accountDeletionUrl).toContain("/account-deletion");
+    expect(body.data.legal.deletionPolicyVersion).toBe(DELETION_POLICY_VERSION);
   });
 });

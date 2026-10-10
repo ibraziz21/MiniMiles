@@ -22,7 +22,6 @@
     "akiba-app:start": "pnpm --filter @akiba/akiba-app start",
     "akiba-app:ios": "pnpm --filter @akiba/akiba-app ios",
     "akiba-app:android": "pnpm --filter @akiba/akiba-app android",
-    "akiba-app:web": "pnpm --filter @akiba/akiba-app web",
     "hub:dev": "pnpm --filter @akibamiles/hub-page dev",
     "hub:build": "pnpm --filter @akibamiles/hub-page build",
     "hub:start": "pnpm --filter @akibamiles/hub-page start"

@@ -1,0 +1,42 @@
+# AKIBA-MOB-002 §5.1/§5.2/§17 — Delete account is two taps from Settings,
+# states every consequence before confirmation, and both the "Keep my
+# account" and Back paths leave the account untouched.
+appId: com.akiba.pass
+---
+- launchApp
+- assertVisible: "Explore"
+
+- tapOn:
+    id: "Open profile"
+- tapOn:
+    id: "Open settings"
+
+# Two taps from Settings: Danger zone row, then the screen.
+- assertVisible: "Danger zone"
+- tapOn: "Delete account. Permanently delete your Akiba account and personal data."
+
+# §5.2 — all five disclosures, in order, before anything destructive.
+- assertVisible: "What will be deleted"
+- assertVisible: "What happens to your rewards"
+- assertVisible: "What may remain"
+- assertVisible: "What Akiba cannot erase"
+- assertVisible: "How long it takes"
+- assertVisible: "AkibaMiles balance"
+- assertVisible: "Active vouchers"
+
+# The safe exit must be present and must not delete anything.
+- tapOn: "Keep my account"
+- assertVisible: "Danger zone"
+
+# Re-enter, advance one step, and back out again.
+- tapOn: "Delete account. Permanently delete your Akiba account and personal data."
+- tapOn: "Continue"
+- assertVisible: "Account deletion code"
+- tapOn: "Back"
+- assertVisible: "What will be deleted"
+- tapOn: "Back to settings"
+- assertVisible: "Danger zone"
+
+# Still signed in — nothing was submitted.
+- back
+- assertVisible: "Explore"

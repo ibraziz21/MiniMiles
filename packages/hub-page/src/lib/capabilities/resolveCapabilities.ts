@@ -12,6 +12,7 @@ import {
   offlinePassFlag,
   hubQuestClaimsFlag,
   akibaFundedVouchersHubFlag,
+  nativeGiftsFlag,
 } from "@/lib/featureFlags.server";
 import { isHubQuestsEnabledFor } from "@/lib/akiba/hubQuestRollout";
 import { isDiscoveryContributionsEnabledFor } from "@/lib/akiba/discoveryContributionsRollout";
@@ -25,6 +26,8 @@ export type NativeFeatureFlags = {
   quests: boolean;
   discoveryContributions: boolean;
   milesEarnedNotifications: boolean;
+  /** Gifts tab visibility — see nativeGiftsFlag. Native-only; web has no Gifts surface. */
+  gifts: boolean;
 };
 
 /**
@@ -43,5 +46,6 @@ export function resolveNativeFeatureFlags(actor: RequestActor | null): NativeFea
     quests: identifier ? isHubQuestsEnabledFor(identifier) : false,
     discoveryContributions: actor ? isDiscoveryContributionsEnabledFor(actor.userId) : false,
     milesEarnedNotifications: identifier ? isMilesEarnedNotificationsEnabledForMember(identifier) : false,
+    gifts: nativeGiftsFlag().enabled,
   };
 }

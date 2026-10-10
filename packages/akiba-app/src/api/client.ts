@@ -24,6 +24,10 @@ import {
   fundedEligibilitySchema,
   fundedClaimResultSchema,
   loyaltyClaimResultSchema,
+  onboardingCompletionSchema,
+  accountDeletionSummarySchema,
+  accountDeletionChallengeSchema,
+  accountDeletionReceiptSchema,
   type MobileBootstrap,
   type MobileConfig,
   type MobileHome,
@@ -46,22 +50,17 @@ import {
   type FundedClaimResult,
   type LoyaltyClaimResult,
   type VoucherUsePlan,
+  type OnboardingCompletion,
+  type AccountDeletionSummary,
+  type AccountDeletionChallenge,
+  type AccountDeletionReceipt,
 } from '@/contracts';
+
+import { ApiRequestError } from './errors';
 
 type ApiClientOptions = {
   accessToken?: string | null;
 };
-
-export class ApiRequestError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    readonly body: unknown,
-  ) {
-    super(message);
-    this.name = 'ApiRequestError';
-  }
-}
 
 function getApiBaseUrl() {
   const value = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
@@ -104,7 +103,7 @@ function getBuildNumber() {
 }
 
 export function createApiClient({ accessToken }: ApiClientOptions = {}) {
-  async function get<T>(path: string, schema: z.ZodType<T>): Promise<T> {
+  async function get<T>(path: string, schema: z.ZodType<T, z.ZodTypeDef, unknown>): Promise<T> {
     const headers: Record<string, string> = {
       Accept: 'application/json',
       'X-Akiba-Platform': getNativePlatform(),
@@ -148,7 +147,7 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
   async function mutate<T>(
     method: 'POST' | 'DELETE' | 'PATCH',
     path: string,
-    schema: z.ZodType<T>,
+    schema: z.ZodType<T, z.ZodTypeDef, unknown>,
     requestBody?: unknown,
   ): Promise<T> {
     if (!accessToken) {
@@ -191,6 +190,37 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
         return Promise.reject(new Error('getBootstrap requires an authenticated access token'));
       }
       return get('/api/v1/me/bootstrap', mobileBootstrapSchema);
+    },
+    // Idempotent on the server: a repeat call returns the first
+    // completion's timestamp rather than recording a new one, so a retry
+    // after a dropped response is always safe.
+    completeOnboarding(): Promise<OnboardingCompletion> {
+      return mutate('POST', '/api/v1/me/onboarding/complete', onboardingCompletionSchema);
+    },
+    // ── Account deletion (AKIBA-MOB-002 §7) ──────────────────────────
+    getAccountDeletionSummary(): Promise<AccountDeletionSummary> {
+      if (!accessToken) {
+        return Promise.reject(new Error('getAccountDeletionSummary requires an authenticated access token'));
+      }
+      return get('/api/v1/me/account-deletion-summary', accountDeletionSummarySchema);
+    },
+    requestAccountDeletionChallenge(): Promise<AccountDeletionChallenge> {
+      return mutate('POST', '/api/v1/me/account-deletion/challenge', accountDeletionChallengeSchema, {});
+    },
+    // Idempotent and first-request-wins on the server: a retry after a
+    // dropped response returns the original receipt rather than creating a
+    // second request or needing a second code.
+    submitAccountDeletionRequest(input: {
+      challengeId: string;
+      otp: string;
+      policyVersion: string;
+    }): Promise<AccountDeletionReceipt> {
+      return mutate('POST', '/api/v1/me/account-deletion-request', accountDeletionReceiptSchema, {
+        challengeId: input.challengeId,
+        otp: input.otp,
+        acknowledgement: true,
+        policyVersion: input.policyVersion,
+      });
     },
     getHome(params: { lat?: number; lng?: number; intent?: string } = {}): Promise<MobileHome> {
       return get(`/api/v1/home${toQueryString(params)}`, mobileHomeSchema);

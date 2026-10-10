@@ -32,16 +32,31 @@ async function resolveUsername(userId: string, email: string | null): Promise<st
   }
 }
 
-// Plain read of the same column POST /api/me/onboarding writes — not
-// getOrCreatePass's RPC, which has quest-emission side effects not
+// Plain read of the same column POST /api/v1/me/onboarding/complete writes
+// — not getOrCreatePass's RPC, which has quest-emission side effects not
 // appropriate for a GET.
+//
+// Throws rather than defaulting to false on error. "false" means "show this
+// member onboarding again", so swallowing a transient database failure would
+// walk an established member back through the first-run flow — and, because
+// the flow writes a profile, would ask them for details they already set.
+// A retryable 503 and the app's connection-error screen are the honest
+// answer.
+class BootstrapUnavailableError extends Error {}
+
 async function resolveOnboardingComplete(userId: string): Promise<boolean> {
   const admin = createAdminClient();
-  const { data } = await admin
+  const { data, error } = await admin
     .from("hub_user_passes")
     .select("onboarding_seen_at")
     .eq("user_id", userId)
     .maybeSingle();
+  if (error) {
+    console.error(
+      `[api/v1/me/bootstrap] onboarding read failed sqlstate=${error.code ?? "unknown"}`,
+    );
+    throw new BootstrapUnavailableError();
+  }
   return !!data?.onboarding_seen_at;
 }
 
@@ -56,11 +71,23 @@ export async function GET(request: Request) {
     throw error;
   }
 
-  const [profile, username, onboardingComplete] = await Promise.all([
-    resolveHubProfile({ userId: actor.userId, email: actor.email }),
-    resolveUsername(actor.userId, actor.email),
-    resolveOnboardingComplete(actor.userId),
-  ]);
+  let profile;
+  let username;
+  let onboardingComplete;
+  try {
+    [profile, username, onboardingComplete] = await Promise.all([
+      resolveHubProfile({ userId: actor.userId, email: actor.email }),
+      resolveUsername(actor.userId, actor.email),
+      resolveOnboardingComplete(actor.userId),
+    ]);
+  } catch (error) {
+    if (error instanceof BootstrapUnavailableError) {
+      return apiError(request, "BOOTSTRAP_UNAVAILABLE", "Could not load your account", 503, {
+        retryable: true,
+      });
+    }
+    throw error;
+  }
 
   const capabilities = resolveNativeFeatureFlags(actor);
 
