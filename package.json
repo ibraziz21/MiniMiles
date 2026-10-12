@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "Custom Celo Composer project.",
   "private": true,
+  "packageManager": "pnpm@10.26.2",
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "author": "minimiles",
   "license": "MIT",
   "scripts": {

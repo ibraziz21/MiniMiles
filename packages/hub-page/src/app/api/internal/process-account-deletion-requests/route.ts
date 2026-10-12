@@ -17,6 +17,7 @@ import { NextResponse } from "next/server";
 import { isInternalWorkerRequest } from "@/lib/internalWorkerAuth";
 import { InventoryNotApprovedError, reviewInventory } from "@/lib/akiba/accountDeletionPolicy";
 import { isProcessingEnabled } from "@/lib/akiba/accountDeletionAvailability";
+import { completionEmailProviderName } from "@/lib/akiba/accountDeletionEmail";
 import {
   processAccountDeletionRequests,
   StepOrderMismatchError,
@@ -38,7 +39,13 @@ async function handle(request: Request, allowCron: boolean) {
 
   try {
     const summary = await processAccountDeletionRequests(BATCH_SIZE);
-    return NextResponse.json({ ok: true, ...summary });
+    return NextResponse.json({
+      ok: true,
+      ...summary,
+      // Null here explains a growing completion_email_pending_count without
+      // anyone having to read the worker.
+      completionEmailProvider: completionEmailProviderName(),
+    });
   } catch (error) {
     if (error instanceof StepOrderMismatchError) {
       // A data class exists in the inventory with no place in the

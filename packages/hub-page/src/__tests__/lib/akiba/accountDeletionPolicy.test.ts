@@ -1,3 +1,6 @@
+import { readFileSync } from "fs";
+import path from "path";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -110,6 +113,20 @@ describe("retention inventory", () => {
         pending.map((row) => row.id),
       );
     }
+  });
+
+  it("keeps the release checklist's stated count in step with the inventory", () => {
+    // This drifted once already: the checklist said 13 after `skill_game_prizes`
+    // was added, making it 14. The number is what legal plans around, so it
+    // is asserted rather than maintained by hand.
+    const checklist = readFileSync(
+      path.resolve(process.cwd(), "../akiba-app/docs/store-release/checklist.md"),
+      "utf8",
+    );
+    const stated = /\*\*(\d+) of (\d+)\*\* rows unapproved/.exec(checklist);
+    expect(stated, "checklist must state the unapproved/total counts").not.toBeNull();
+    expect(Number(stated![1])).toBe(unapprovedInventoryRows().length);
+    expect(Number(stated![2])).toBe(DELETION_INVENTORY.length);
   });
 
   it("gives every unapproved row a note saying what decision is missing", () => {

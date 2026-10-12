@@ -14,6 +14,9 @@ packages/*/.env.*
 # package-local dependencies and build output
 packages/*/node_modules
 packages/*/.next
+# Scratch output for verification builds (NEXT_DIST_DIR), so a release check
+# never has to clobber a running dev server's .next.
+packages/*/.next-*
 packages/*/out
 packages/*/build
 packages/*/.vercel

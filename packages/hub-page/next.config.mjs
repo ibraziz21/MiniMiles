@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Overridable so a verification build (CI, or a release check on a machine
+  // with `next dev` running) can write somewhere other than `.next` instead
+  // of clobbering the dev server's output.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   reactStrictMode: true,
   poweredByHeader: false,
   transpilePackages: ["@akiba/skill-games"],

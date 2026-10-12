@@ -10,6 +10,7 @@ Status key: `done` · `blocked` · `todo`
 
 | Item | Status | Owner | Date | Note |
 |---|---|---|---|---|
+| **Canonical production host** | **blocked** | Product / Operations | | Three hosts are in play: `pass.akibamiles.com` (`MPESA_CALLBACK_URL`), `hub.akibamiles.com` (sitemap and merchant-page fallbacks), `app.akibamiles.com` (privacy/terms copy) — and `NEXT_PUBLIC_SITE_URL` currently points at `mini-miles-hub-page.vercel.app`. This blocks the store listing, the Play data-deletion URL, and the M-Pesa host-match check, because `/api/v1/config` derives privacy/terms/deletion URLs from `NEXT_PUBLIC_SITE_URL` — a vercel.app domain cannot be submitted |
 | Final iOS bundle identifier | **blocked** | Product | | `app.json` still carries `com.akiba.pass`; immutable after publication |
 | Final Android package name | **blocked** | Product | | Same |
 | `extra.configurationNotes.bundleIdentifiersArePlaceholders` removed | blocked | Product | | Remove only when the two rows above are decided |
@@ -50,7 +51,8 @@ Status key: `done` · `blocked` · `todo`
 
 | Item | Status | Owner | Date | Note |
 |---|---|---|---|---|
-| Retention inventory approved (no `TBD` row) | **blocked** | Legal / Data protection | | **13 of 21** rows unapproved — `src/lib/akiba/accountDeletionPolicy.ts` in hub-page. Three are schema conflicts, not missing periods: `published_photos` (append-only `discovery_moderation_audit_events.photo_id`), `unpublished_contributions` (chained behind it), `pass_credentials` (`hub_referrals.referred_pass_id`). `skill_game_prizes` was found by the static FK check, not by hand |
+| Retention decision sheet prepared for legal | done | Engineering | 2026-10-10 | `packages/hub-page/docs/akiba-account-deletion-retention-decisions.md` — schema facts and options per row; §A's three rows must be decided before §B's eleven |
+| Retention inventory approved (no `TBD` row) | **blocked** | Legal / Data protection | | **14 of 21** rows unapproved — `src/lib/akiba/accountDeletionPolicy.ts` in hub-page. Three are schema conflicts rather than missing periods, and should be decided first because they determine whether an executor is possible at all: `published_photos` (append-only `discovery_moderation_audit_events.photo_id`), `unpublished_contributions` (chained behind it), `pass_credentials` (`hub_referrals.referred_pass_id`). The other eleven are purpose/period questions legal can batch. `skill_game_prizes` was found by the static FK check, not by hand |
 | Deletion submission enabled (`ACCOUNT_DELETION_SUBMISSION_ENABLED`) | **blocked** | Legal / Operations | | Off by default, and gated on the inventory. Until it is on, the app and the public page show the support fallback instead of a Continue button — requests are *refused*, not accepted-and-stranded |
 | Deletion processing enabled (`ACCOUNT_DELETION_PROCESSING_ENABLED`) | **blocked** | Operations | | Off by default. Acceptance is gated on the same conditions, so the two cannot disagree |
 | Completion-email transport | **blocked** | Engineering / Operations | | No email provider exists in hub-page. `isCompletionEmailConfigured()` returns false, so the delivery pass is skipped rather than burning retries; `account_deletion_reconciliation.completion_email_pending_count` surfaces the backlog |
@@ -76,9 +78,35 @@ Status key: `done` · `blocked` · `todo`
 | Export compliance, content rights, advertising, financial declarations | blocked | Legal | | |
 | No mention of Gifts, Games, raffles, or push anywhere in the listing | todo | Product | | Gifts is hidden by `features.gifts` in the production config |
 
+### Hub production build
+
+Passes as of 2026-10-12. Two fixes were needed, both real:
+
+- `GET /api/v1/vouchers` read nothing request-specific, so Next prerendered
+  it during `next build`, which ran `getServerEnv()` at build time and failed
+  the build on production secret validation. Now `force-dynamic` — the route's
+  `s-maxage` header was always the intended caching mechanism, not a
+  build-time snapshot of the catalogue.
+- `MPESA_CALLBACK_URL`'s default was hardcoded to `hub.akibamiles.com`, so
+  the default contradicted the host-match check whenever the site ran
+  anywhere else. It now derives from `siteUrl`.
+
+What remains is environment, not code: the production environment must supply
+real secrets (`SUPABASE_SERVICE_KEY`, `GAMES_SERVICE_ASSERTION_SECRET` and
+`INTERNAL_WEBHOOK_SECRET` all have minimum lengths) and `MPESA_CALLBACK_URL`
+must share a host with `NEXT_PUBLIC_SITE_URL`. Run a verification build
+without disturbing a dev server:
+
+```bash
+NEXT_DIST_DIR=.next-verify pnpm --filter @akibamiles/hub-page build
+```
+
 ## Verification (§15.4)
 
-Run from a clean checkout:
+CI runs the first three blocks on every push and pull request
+(`.github/workflows/ci.yml`, Node 22.13.0 pinned in `.nvmrc` and the root
+`engines`), including the real-PostgreSQL integration suite. Run from a clean
+checkout locally:
 
 ```bash
 pnpm --filter @akiba/akiba-app lint

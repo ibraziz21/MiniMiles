@@ -1,0 +1,145 @@
+# Verification pipeline for the Akiba Pass mobile work (AKIBA-MOB-002 §15.4).
+#
+# Before this existed, "lint, typecheck and the tests pass" was a claim about
+# whoever last ran them, on whatever Node they happened to have — and the
+# repo declares `node >=22.13.0` while development was happening on 20.19.1.
+# Every gate downstream of here ("run X from a clean commit and inspect the
+# result") needs somewhere trustworthy to run.
+#
+# Deliberately not in this workflow: EAS builds, `expo export`, Maestro, and
+# the Hub production build. Those need store credentials, a non-production
+# OTP harness, devices, or a configured production environment — adding them
+# as jobs that cannot pass would make a red pipeline the normal state.
+name: CI
+
+on:
+  push:
+    branches: [main, "FT-*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Treat the declared engine as a hard floor, not a suggestion.
+  NODE_VERSION: "22.13.0"
+
+jobs:
+  hub-page:
+    name: hub-page (lint, typecheck, unit, integration)
+    runs-on: ubuntu-latest
+
+    # The integration suite is the only place the deletion workflow's real
+    # guarantees are checked — RLS, the first-request-wins index, lease
+    # claiming, constrained transitions. It found an ambiguous `status`
+    # reference in a plpgsql function that the mocked tests could not see, so
+    # it runs on every push rather than on demand.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm --filter @akibamiles/hub-page lint
+
+      - name: Typecheck
+        run: pnpm --filter @akibamiles/hub-page typecheck
+
+      - name: Unit tests
+        run: pnpm --filter @akibamiles/hub-page test
+
+      - name: Integration tests (real PostgreSQL)
+        # The tests create and drop their own disposable databases, so they
+        # need the admin connection rather than a pre-made one.
+        env:
+          PG_HOST: localhost
+          PG_PORT: "5432"
+          PG_USER: postgres
+          PG_PASSWORD: postgres
+        run: pnpm --filter @akibamiles/hub-page test:integration
+
+  akiba-app:
+    name: akiba-app (lint, typecheck, unit, expo-doctor)
+    runs-on: ubuntu-latest
+
+    # Placeholder public config. Every EXPO_PUBLIC_ value is public
+    # information by definition (§11.3), and nothing in lint, typecheck or
+    # the unit suite executes the Supabase client — these exist only so
+    # `expo lint` finds the variables it expects.
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: https://ci-placeholder.invalid
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+      EXPO_PUBLIC_API_BASE_URL: https://ci-placeholder.invalid
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm --filter @akiba/akiba-app lint
+
+      - name: Typecheck
+        run: pnpm --filter @akiba/akiba-app typecheck
+
+      - name: Unit tests
+        run: pnpm --filter @akiba/akiba-app test
+
+      - name: Expo Doctor
+        # Catches SDK package drift, which is how the five one-patch-behind
+        # packages got in. Advisory: it also reports on things outside this
+        # repo's control, so it must not gate a merge.
+        continue-on-error: true
+        run: pnpm --filter @akiba/akiba-app exec npx expo-doctor@latest
+
+  website:
+    name: website (lint, typecheck)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm --filter @akibamiles/website lint
+
+      - name: Typecheck
+        run: pnpm --filter @akibamiles/website typecheck

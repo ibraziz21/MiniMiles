@@ -17,6 +17,14 @@
  * below, so this file does not have to replay the whole migration history.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+
+import {
+  assertNoResidue,
+  collectResidue,
+  formatResidueReport,
+  inventoryTableTargets,
+  ResidueError,
+} from "@/lib/akiba/accountDeletionVerification";
 import pg from "pg";
 import { readFileSync } from "fs";
 import { resolve } from "path";
@@ -597,5 +605,100 @@ describe("reconciliation view", () => {
     // Nothing that could re-identify a member may appear in an operator view.
     expect(columns).not.toContain("hub_user_id");
     expect(columns).not.toContain("completion_contact_ciphertext");
+  });
+});
+
+describe("residue verification harness (§18 before/after inventory)", () => {
+  // This is the harness the executors will be graded against. It is tested
+  // here, against real Postgres, so that when the retention decisions land
+  // and the executors are written, the thing measuring them is already known
+  // to work — rather than being written at the same time as the code it is
+  // supposed to catch.
+
+  it("covers every table the inventory names, and only tables", () => {
+    const targets = inventoryTableTargets();
+    expect(targets.length).toBeGreaterThan(15);
+    for (const target of targets) {
+      expect(target.table).not.toMatch(/^(storage|processor|chain):/);
+    }
+    // Each table is claimed by exactly one inventory row.
+    const tables = targets.map((target) => target.table);
+    expect(new Set(tables).size).toBe(tables.length);
+  });
+
+  it("reports a table that is missing from this database rather than passing it", async () => {
+    // Only account_deletion_challenges exists here; everything else the
+    // inventory names is absent. An executor aimed at a table that is not
+    // there must not look like a clean result.
+    const userId = await seedUser();
+    const report = await collectResidue(pool, userId);
+
+    const challenges = report.tables.find((entry) => entry.table === "account_deletion_challenges");
+    expect(challenges).toMatchObject({ kind: "direct", rows: 0, column: "hub_user_id" });
+
+    const absent = report.tables.filter((entry) => entry.kind === "absent");
+    expect(absent.length).toBeGreaterThan(10);
+    expect(report.unverified).toEqual(expect.arrayContaining(absent));
+  });
+
+  it("counts real residue for the member, and only for that member", async () => {
+    const mine = await seedUser("mine@example.com");
+    const theirs = await seedUser("theirs@example.com");
+    await issueChallenge(mine);
+    await issueChallenge(theirs);
+
+    const before = await collectResidue(pool, mine);
+    const challenges = before.tables.find((entry) => entry.table === "account_deletion_challenges");
+    expect(challenges?.rows).toBe(1);
+
+    // The other member's row is untouched by a count scoped to `mine`.
+    await pool.query("DELETE FROM account_deletion_challenges WHERE hub_user_id = $1", [mine]);
+    const after = await collectResidue(pool, mine);
+    expect(after.tables.find((entry) => entry.table === "account_deletion_challenges")?.rows).toBe(0);
+    const stillTheirs = await collectResidue(pool, theirs);
+    expect(
+      stillTheirs.tables.find((entry) => entry.table === "account_deletion_challenges")?.rows,
+    ).toBe(1);
+  });
+
+  it("fails an approved delete that left rows behind", async () => {
+    const userId = await seedUser();
+    await issueChallenge(userId);
+
+    // account_deletion_challenges belongs to the `deletion_challenges` row,
+    // which is an approved delete — so a surviving row is a violation.
+    const report = await collectResidue(pool, userId);
+    expect(report.violations.map((entry) => entry.table)).toContain("account_deletion_challenges");
+    expect(() => assertNoResidue(report)).toThrow(ResidueError);
+    expect(() => assertNoResidue(report)).toThrow(/account_deletion_challenges=1/);
+  });
+
+  it("does not treat a pseudonymise or unapproved row as a violation", async () => {
+    // account_deletion_requests is claimed by `deletion_record`
+    // (pseudonymise, unapproved), so a surviving row there is expected —
+    // flagging it would train people to ignore the report.
+    const userId = await seedUser();
+    await createRequest(userId, await issueChallenge(userId));
+
+    const report = await collectResidue(pool, userId);
+    const requests = report.tables.find((entry) => entry.table === "account_deletion_requests");
+    expect(requests).toMatchObject({ kind: "direct", rows: 1, approved: false });
+    expect(report.violations.map((entry) => entry.table)).not.toContain(
+      "account_deletion_requests",
+    );
+  });
+
+  it("renders a diffable before/after report for the release ticket", async () => {
+    const userId = await seedUser();
+    const before = formatResidueReport(await collectResidue(pool, userId));
+    await issueChallenge(userId);
+    const after = formatResidueReport(await collectResidue(pool, userId));
+
+    expect(before).toContain("account-deletion residue for");
+    expect(before).not.toBe(after);
+    // Sorted and fixed-width, so the diff between the two runs is readable.
+    const tables = [...before.matchAll(/^([a-z_]+)\s/gm)].map((match) => match[1]);
+    expect(tables).toEqual([...tables].sort());
+    expect(after).toMatch(/violations: 1/);
   });
 });

@@ -105,6 +105,20 @@ describe("legal surface parity", () => {
     expect(stripHeader(hub)).toBe(stripHeader(website));
   });
 
+  it("names one and only one Akiba host across the legal copy", () => {
+    // The repo currently has three candidate production hosts in play —
+    // pass.akibamiles.com (MPESA_CALLBACK_URL), hub.akibamiles.com (the
+    // sitemap and merchant-page fallbacks), and app.akibamiles.com (this
+    // copy) — and NEXT_PUBLIC_SITE_URL points at a vercel.app domain. The
+    // canonical host is an open decision; until it lands, this at least
+    // fails if the legal copy starts naming more than one.
+    const legal = readFileSync(path.join(process.cwd(), "src/content/legal.ts"), "utf8");
+    const hosts = new Set(
+      [...legal.matchAll(/https:\/\/([a-z.-]*akibamiles\.com)/g)].map((match) => match[1]),
+    );
+    expect([...hosts]).toHaveLength(1);
+  });
+
   it("serves the same deletion URL in the config contract that the page is mounted at", () => {
     // §15.1 "public page/config URL parity": the URL the app and the store
     // listings read must be the route that actually exists.

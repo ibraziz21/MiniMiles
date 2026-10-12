@@ -5,6 +5,7 @@ type Row = {
   hub_user_id: string;
   status: string;
   attempts: number;
+  completed_at: string | null;
   completion_contact_ciphertext: string | null;
   completion_contact_key_version: string | null;
 };
@@ -27,6 +28,10 @@ const state = vi.hoisted(() => ({
   pushSubscriptions: [{ id: "sub-1" }, { id: "sub-2" }] as { id: string }[],
   emailClaimable: [] as Row[],
   emailConfigured: false,
+  emailSends: [] as string[],
+  emailResult: { delivered: true } as
+    | { delivered: true }
+    | { delivered: false; failureCode: string; retryable: boolean },
 }));
 
 // An approved inventory, so the worker's processing path is exercised. The
@@ -55,6 +60,14 @@ vi.mock("@/lib/akiba/canonicalPartnerQuests", () => ({
 vi.mock("@/lib/akiba/accountDeletionContact", () => ({
   decryptCompletionContact: (ciphertext: string | null) =>
     ciphertext ? "member@example.com" : null,
+}));
+
+vi.mock("@/lib/akiba/accountDeletionEmail", () => ({
+  isCompletionEmailConfigured: () => state.emailConfigured,
+  sendCompletionEmail: async (message: { to: string }) => {
+    state.emailSends.push(message.to);
+    return state.emailResult;
+  },
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -164,6 +177,7 @@ function requestRow(overrides: Partial<Row> = {}): Row {
     hub_user_id: "u1",
     status: "processing",
     attempts: 1,
+    completed_at: "2026-10-12T09:30:00.000Z",
     completion_contact_ciphertext: "\\xdeadbeef",
     completion_contact_key_version: "v1",
     ...overrides,
@@ -185,6 +199,8 @@ describe("account deletion worker", () => {
     state.pushSubscriptions = [{ id: "sub-1" }, { id: "sub-2" }];
     state.emailClaimable = [];
     state.emailConfigured = false;
+    state.emailSends = [];
+    state.emailResult = { delivered: true };
     state.photos = [
       { private_source_key: "u1/src.jpg", thumbnail_key: "u1/thumb.jpg", display_key: "u1/disp.jpg" },
     ];
@@ -331,6 +347,56 @@ describe("account deletion worker", () => {
       false,
     );
     expect(state.rpcCalls.some((c) => c.name === "purge_account_deletion_contact")).toBe(false);
+  });
+
+  it("delivers the completion email and purges the contact once a provider is configured", async () => {
+    state.emailConfigured = true;
+    state.emailClaimable = [requestRow()];
+
+    const summary = await processAccountDeletionRequests();
+    expect(summary.completionEmails).toMatchObject({ claimed: 1, delivered: 1, failed: 0 });
+    expect(state.emailSends).toEqual(["member@example.com"]);
+    const purge = state.rpcCalls.find((c) => c.name === "purge_account_deletion_contact");
+    expect(purge?.args).toMatchObject({ p_delivered: true });
+  });
+
+  it("retries a transient delivery failure on the normal backoff", async () => {
+    state.emailConfigured = true;
+    state.emailClaimable = [requestRow()];
+    state.emailResult = { delivered: false, failureCode: "provider_http_503", retryable: true };
+
+    const summary = await processAccountDeletionRequests();
+    expect(summary.completionEmails).toMatchObject({ delivered: 0, failed: 1 });
+    const failure = state.rpcCalls.find(
+      (c) => c.name === "record_account_deletion_completion_email_failure",
+    );
+    expect(failure?.args).toMatchObject({ p_failure_code: "provider_http_503", p_max_attempts: 10 });
+    expect(state.rpcCalls.some((c) => c.name === "purge_account_deletion_contact")).toBe(false);
+  });
+
+  it("gives up immediately on a permanent delivery failure instead of retrying ten times", async () => {
+    // A bad key or an unverified sending domain fails identically every
+    // time; ten identical events an hour apart tell the operator nothing new.
+    state.emailConfigured = true;
+    state.emailClaimable = [requestRow()];
+    state.emailResult = { delivered: false, failureCode: "provider_http_401", retryable: false };
+
+    await processAccountDeletionRequests();
+    const failure = state.rpcCalls.find(
+      (c) => c.name === "record_account_deletion_completion_email_failure",
+    );
+    expect(failure?.args).toMatchObject({ p_failure_code: "provider_http_401", p_max_attempts: 1 });
+  });
+
+  it("purges an unreadable contact rather than retrying a delivery it cannot address", async () => {
+    state.emailConfigured = true;
+    state.emailClaimable = [requestRow({ completion_contact_ciphertext: null })];
+
+    await processAccountDeletionRequests();
+    expect(state.emailSends).toEqual([]);
+    const purge = state.rpcCalls.find((c) => c.name === "purge_account_deletion_contact");
+    expect(purge?.args).toMatchObject({ p_delivered: false });
+    expect(state.events.some((e) => e.event_type === "completion_email_skipped")).toBe(true);
   });
 
   it("never claims a completed request for processing again", async () => {

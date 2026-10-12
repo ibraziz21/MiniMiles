@@ -33,6 +33,10 @@ import {
   executableInventoryRows,
 } from "@/lib/akiba/accountDeletionPolicy";
 import { decryptCompletionContact } from "@/lib/akiba/accountDeletionContact";
+import {
+  isCompletionEmailConfigured,
+  sendCompletionEmail,
+} from "@/lib/akiba/accountDeletionEmail";
 
 const PHOTO_SOURCE_BUCKET = "discovery-visit-photos";
 const PHOTO_DERIVED_BUCKET = "discovery-visit-photos-derived";
@@ -47,6 +51,7 @@ export type DeletionRequestRow = {
   hub_user_id: string;
   status: string;
   attempts: number;
+  completed_at: string | null;
   completion_contact_ciphertext: string | null;
   completion_contact_key_version: string | null;
 };
@@ -321,31 +326,6 @@ async function appendEvent(
   }
 }
 
-/**
- * Completion-email transport.
- *
- * No email provider is configured in this package — hub-page has never sent
- * transactional email, only web push — so this reports "not configured"
- * rather than pretending to deliver. `isCompletionEmailConfigured` lets the
- * worker skip the delivery pass entirely instead of burning retries against
- * a transport that cannot exist, and the pending count stays visible in
- * `account_deletion_reconciliation`.
- *
- * Wiring a provider means implementing these two functions and nothing else:
- * the claim, lease, backoff, give-up and contact-purge paths are already in
- * place and already retry independently of request processing.
- */
-export function isCompletionEmailConfigured(): boolean {
-  return false;
-}
-
-export async function sendCompletionEmail(
-  contact: string,
-): Promise<{ delivered: boolean; failureCode?: string }> {
-  void contact;
-  return { delivered: false, failureCode: "email_transport_not_configured" };
-}
-
 async function processRequest(admin: Admin, row: DeletionRequestRow): Promise<ProcessOutcome> {
   const context: StepContext = { admin, userId: row.hub_user_id, requestId: row.id };
   const alreadyDone = await completedSteps(admin, row.id);
@@ -414,15 +394,26 @@ async function deliverOneCompletionEmail(admin: Admin, row: DeletionRequestRow):
     return false;
   }
 
-  const delivery = await sendCompletionEmail(contact);
+  const delivery = await sendCompletionEmail({
+    to: contact,
+    requestReference: row.id,
+    completedAt: row.completed_at ?? new Date().toISOString(),
+  });
+
   if (delivery.delivered) {
     await admin.rpc("purge_account_deletion_contact", { p_request_id: row.id, p_delivered: true });
     return true;
   }
 
+  // A permanent failure (bad key, unverified sending domain, address the
+  // provider refuses) is not worth ten retries an hour apart — it will fail
+  // identically every time. Collapsing straight to the give-up path purges
+  // the contact and leaves one clear event for the operator instead of a
+  // week of identical ones.
   await admin.rpc("record_account_deletion_completion_email_failure", {
     p_request_id: row.id,
-    p_failure_code: delivery.failureCode ?? "unknown",
+    p_failure_code: delivery.failureCode,
+    p_max_attempts: delivery.retryable ? 10 : 1,
   });
   return false;
 }
