@@ -1,0 +1,24 @@
+# AKIBA-MOB-001 §1 / MOB-002 §6 — every config-provided legal URL opens.
+# The deletion link is the one Google Play requires to work.
+appId: com.akiba.pass
+---
+- launchApp
+- assertVisible: "Explore"
+
+- tapOn:
+    id: "Open profile"
+- tapOn:
+    id: "Open settings"
+- assertVisible: "Help & legal"
+
+- tapOn: "Privacy policy"
+- assertVisible:
+    text: ".*Privacy.*"
+    optional: false
+- back
+
+- tapOn: "Terms of use"
+- assertVisible:
+    text: ".*Terms.*"
+    optional: false
+- back

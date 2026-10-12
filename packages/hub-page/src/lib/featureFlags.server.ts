@@ -84,11 +84,25 @@ export function akibaFundedVouchersHubFlag(env: FlagEnvironment = process.env): 
   );
 }
 
+/**
+ * Native-only destination switch for the Gifts tab
+ * (AKIBA-MOB-001 §1 "Hide unfinished destinations such as Gifts through
+ * feature flags"). Unlike the flags above this gates a *surface*, not a
+ * flow, so it has no required production config to check — the tab is
+ * nothing but a coming-soon placeholder until the gifting vertical ships,
+ * and must stay off by default so a build can't accidentally expose it.
+ */
+export function nativeGiftsFlag(env: FlagEnvironment = process.env): FeatureFlagResult {
+  if (!isTruthy(env.MOBILE_GIFTS_ENABLED)) return { enabled: false, reason: "disabled by feature flag" };
+  return { enabled: true, reason: null };
+}
+
 export function getAllFeatureFlags(env: FlagEnvironment = process.env) {
   return {
     walletLinking: walletLinkingFlag(env),
     offlinePass: offlinePassFlag(env),
     hubQuestClaims: hubQuestClaimsFlag(env),
     akibaFundedVouchersHub: akibaFundedVouchersHubFlag(env),
+    nativeGifts: nativeGiftsFlag(env),
   };
 }

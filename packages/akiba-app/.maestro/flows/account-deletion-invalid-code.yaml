@@ -1,0 +1,35 @@
+# AKIBA-MOB-002 §5.6 — a wrong code keeps the member in the flow with their
+# context intact and a mapped (never raw) error, and the account survives.
+appId: com.akiba.pass
+---
+- launchApp
+- tapOn:
+    id: "Open profile"
+- tapOn:
+    id: "Open settings"
+- tapOn: "Delete account. Permanently delete your Akiba account and personal data."
+- tapOn: "Continue"
+
+- assertVisible: "Account deletion code"
+- inputText: "000000"
+- tapOn: "Continue"
+
+# Acknowledgement is required before the destructive button does anything.
+- assertVisible: "I understand that I will lose access to my Akiba Pass, active vouchers, and account-based rewards."
+- tapOn: "Delete my Akiba account"
+- assertVisible: "I understand that I will lose access to my Akiba Pass, active vouchers, and account-based rewards."
+
+- tapOn: "I understand that I will lose access to my Akiba Pass, active vouchers, and account-based rewards."
+- tapOn: "Delete my Akiba account"
+
+# Back at the code step with a mapped message — no Supabase text, no stack.
+- assertVisible: "Account deletion code"
+- assertVisible:
+    text: ".*code.*"
+- assertNotVisible: "AuthApiError"
+- assertNotVisible: "Token has expired or is invalid"
+
+- tapOn: "Back"
+- tapOn: "Back to settings"
+- back
+- assertVisible: "Explore"

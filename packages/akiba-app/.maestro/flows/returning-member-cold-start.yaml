@@ -1,0 +1,20 @@
+# AKIBA-MOB-001 — a member who already onboarded must resume at Explore,
+# never see onboarding again, and survive a background/foreground cycle.
+# Run after first-run-onboarding.yaml, without clearState.
+appId: com.akiba.pass
+---
+- launchApp
+
+- assertVisible: "Explore"
+- assertNotVisible: "Welcome to Akiba"
+- assertNotVisible: "Sign in"
+
+# Backgrounding and returning must not restart the session or the flow.
+- pressKey: Home
+- launchApp
+- assertVisible: "Explore"
+
+# Killing and reopening likewise.
+- stopApp
+- launchApp
+- assertVisible: "Explore"

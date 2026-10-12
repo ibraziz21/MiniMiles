@@ -1,5 +1,15 @@
 export { mobileBootstrapSchema, type MobileBootstrap } from './bootstrap';
-export { mobileConfigSchema, type MobileConfig } from './config';
+export { mobileConfigSchema, type MobileConfig, type MobileFeatureFlags } from './config';
+export { onboardingCompletionSchema, type OnboardingCompletion } from './onboarding';
+export {
+  accountDeletionSummarySchema,
+  type AccountDeletionSummary,
+  accountDeletionChallengeSchema,
+  type AccountDeletionChallenge,
+  accountDeletionReceiptSchema,
+  type AccountDeletionReceipt,
+  deletionRequestStatusSchema,
+} from './account-deletion';
 export { mobileHomeSchema, type MobileHome } from './home';
 export { mobilePassSchema, type MobilePass } from './pass';
 export { mobileSettingsSchema, type MobileSettings, settingsUpdateSchema, type SettingsUpdate } from './settings';

@@ -1,0 +1,61 @@
+# AKIBA-MOB-002 §5.6/§7.3 — a member whose final response was dropped must be
+# able to retry and get the ORIGINAL receipt, not a second request.
+#
+# Two halves, because Maestro can only see the screen:
+#
+#   1. This flow drives the UI retry and asserts the receipt reference the app
+#      shows matches AKIBA_E2E_EXPECTED_REFERENCE.
+#   2. The wrapper script (.maestro/scripts/lost-response-retry.sh) sets that
+#      variable up and verifies server-side that only ONE request row exists
+#      afterwards — the part that actually proves idempotency.
+#
+# Wrapper setup before this flow runs:
+#   - seed a disposable account and sign it in on the device
+#   - POST /api/v1/me/account-deletion-request for it via the API, capturing
+#     requestId as AKIBA_E2E_EXPECTED_REFERENCE (this simulates the request
+#     that succeeded while its response was lost)
+#   - issue a fresh challenge + OTP for the retry as AKIBA_E2E_OTP
+appId: com.akiba.pass
+env:
+  OTP: ${AKIBA_E2E_OTP}
+  EXPECTED_REFERENCE: ${AKIBA_E2E_EXPECTED_REFERENCE}
+---
+- launchApp
+
+# The pending-account guard rejects the session that predates the accepted
+# request, and the app must say so neutrally rather than looking like a
+# random logout (§5.5).
+- assertVisible: "Sign in"
+- assertVisible: "This account’s deletion request is being processed, so you’ve been signed out."
+
+# Sign back in — the deletion endpoints still authenticate a pending actor
+# (requireActorAllowingDeletionPending) precisely so this retry is possible.
+- tapOn:
+    id: "Email address"
+- inputText: ${AKIBA_E2E_DELETE_EMAIL}
+- tapOn: "Send code"
+- assertVisible: "Verification code"
+- inputText: ${OTP}
+
+# Retry the submission from the UI.
+- tapOn:
+    id: "Open profile"
+- tapOn:
+    id: "Open settings"
+- tapOn: "Delete account. Permanently delete your Akiba account and personal data."
+- tapOn: "Continue"
+- assertVisible: "Account deletion code"
+- inputText: ${OTP}
+- tapOn: "Continue"
+- tapOn: "I understand that I will lose access to my Akiba Pass, active vouchers, and account-based rewards."
+- tapOn: "Delete my Akiba account"
+
+# The receipt must be the ORIGINAL one: same reference, and the copy says the
+# request was already in progress rather than newly received.
+- assertVisible: "Your request is already in progress"
+- assertVisible: "Your reference"
+- assertVisible: ${EXPECTED_REFERENCE}
+- assertNotVisible: "Deletion request received"
+
+- tapOn: "Done"
+- assertVisible: "Sign in"

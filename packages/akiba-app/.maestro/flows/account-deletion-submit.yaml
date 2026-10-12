@@ -1,0 +1,39 @@
+# AKIBA-MOB-002 §5.4/§5.5 — the real submission. DESTRUCTIVE: the account in
+# AKIBA_E2E_DELETE_EMAIL is gone afterwards, so this flow needs a freshly
+# seeded disposable account every run and must never target production.
+#
+# Asserting the receipt exists server-side (§15.3) is the wrapper script's
+# job; Maestro can only see the screen.
+appId: com.akiba.pass
+env:
+  OTP: ${AKIBA_E2E_OTP}
+---
+- launchApp
+- tapOn:
+    id: "Open profile"
+- tapOn:
+    id: "Open settings"
+- tapOn: "Delete account. Permanently delete your Akiba account and personal data."
+- tapOn: "Continue"
+
+- assertVisible: "Account deletion code"
+- inputText: ${OTP}
+- tapOn: "Continue"
+
+- assertVisible: "Last step"
+- tapOn: "I understand that I will lose access to my Akiba Pass, active vouchers, and account-based rewards."
+- tapOn: "Delete my Akiba account"
+
+# §5.5 — a receipt with an opaque reference and the processing target, then
+# a cleared session on this device.
+- assertVisible: "Deletion request received"
+- assertVisible: "Your reference"
+- assertVisible: "You have been signed out on this device."
+- tapOn: "Done"
+- assertVisible: "Sign in"
+
+# §7.4 — the cleared session must not get back into the app.
+- stopApp
+- launchApp
+- assertVisible: "Sign in"
+- assertNotVisible: "Explore"

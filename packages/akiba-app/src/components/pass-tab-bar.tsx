@@ -41,11 +41,17 @@ function NavigationItem({ item, active }: { item: TabItem; active: boolean }) {
   );
 }
 
-export function PassTabBar() {
+/**
+ * `showGifts` comes from the resolved `features.gifts` flag: the Gifts tab
+ * is a coming-soon placeholder, so the destination is hidden entirely
+ * rather than shipped as a dead end (AKIBA-MOB-001 §1).
+ */
+export function PassTabBar({ showGifts = false }: { showGifts?: boolean }) {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const active = resolveActive(pathname);
   const passActive = pathname.startsWith('/pass');
+  const rightTabs = showGifts ? RIGHT_TABS : RIGHT_TABS.filter((item) => item.key !== 'gifts');
 
   return (
     <View style={[styles.shell, { paddingBottom: insets.bottom }]}>
@@ -70,7 +76,7 @@ export function PassTabBar() {
           <Text style={[styles.passLabel, passActive && styles.labelActive]}>Pass</Text>
         </View>
 
-        {RIGHT_TABS.map((item) => (
+        {rightTabs.map((item) => (
           <NavigationItem key={item.key} item={item} active={active === item.key} />
         ))}
       </View>

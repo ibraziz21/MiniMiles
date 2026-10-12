@@ -19,9 +19,9 @@ export type LegalPage = {
 
 export const privacyPolicy: LegalPage = {
   title: "Privacy Policy",
-  lastUpdated: "Sep 8, 2026",
+  lastUpdated: "Oct 10, 2026",
   intro:
-    "This Privacy Policy explains how Akiba Ecosystems Ltd (\"Akiba\", \"we\") collects, uses, and protects information when you use the Akiba services — including the Akiba Pass, Scan & Award at participating merchants, the Akiba Hub, the Akiba Mini-App on MiniPay, and this website. By using our services or submitting information through this site, you agree to this policy.",
+    "This Privacy Policy explains how Akiba Ecosystems Ltd (\"Akiba\", \"we\") collects, uses, and protects information when you use the Akiba services — including the Akiba Pass mobile app for iOS and Android, the Akiba Pass web experience, Scan & Award at participating merchants, the Akiba Hub, the Akiba Mini-App on MiniPay, and this website. By using our services or submitting information through this site, you agree to this policy.",
   sections: [
     {
       title: "1. What We Collect",
@@ -33,7 +33,8 @@ export const privacyPolicy: LegalPage = {
         "Wallet addresses you link, to assign Miles and track balances.",
         "Purchase reward data when you earn Miles at a participating merchant: the merchant, purchase amount, product category, payment reference, and time of purchase.",
         "Voucher activity in the Akiba Hub and Pass, including Miles spent, vouchers obtained, and voucher redemptions at participating merchants.",
-        "Interaction data from the Mini-App and Hub, such as point-earning actions, quest completions, referrals, raffle entries, and voucher redemptions.",
+        "Interaction data from the Mini-App, Hub, and mobile app, such as point-earning actions, quest completions, referrals, raffle entries, and voucher redemptions.",
+        "Your approximate location, only while you are using the app and only if you choose \"Near me\" to find nearby merchants. Coordinates are sent with that single search request and are not stored against your profile; the app never collects location in the background, and denying the permission leaves the rest of the app fully usable.",
         "Optional profile and social information if you provide it for quests, physical rewards, winner contact, or profile completion.",
         "Business contact details when you submit a merchant or partner inquiry, such as name, email, company, country, website, role, and message.",
       ],
@@ -83,23 +84,36 @@ export const privacyPolicy: LegalPage = {
     {
       title: "8. Your Rights",
       paragraphs: [
-        "You may request to view, update, or delete your data by contacting hello@akibamiles.com. Note that on-chain records (see Section 4) are outside our control and cannot be deleted; deletion requests apply to the data we hold in our own systems.",
+        "You may request to view or update your data by contacting hello@akibamiles.com. To delete your whole account, you do not need to email us — see Section 9.",
+        "Under the Kenya Data Protection Act you may ask us to erase personal data we are no longer authorised or required to keep. Some records are instead kept in a pseudonymised, access-restricted form where a legal, accounting, settlement, fraud-prevention, or audit purpose requires it; that is retention with restricted processing, not continued ordinary use of your data. On-chain records (see Section 4) are outside our control and cannot be deleted by anyone.",
       ],
     },
     {
-      title: "9. Children's Privacy",
+      title: "9. Deleting Your Account",
+      paragraphs: [
+        "You can delete your entire Akiba account and the personal data connected to it. In the Akiba Pass app, open Settings, then the Danger zone section, then Delete account. Without the app, use https://app.akibamiles.com/account-deletion. Both paths use the same verification and the same process. We verify the request with a one-time code sent to your account email before accepting it, because otherwise anyone with your unlocked phone could delete your account.",
+        "We delete your sign-in account and email address, your profile and contact details, your Akiba Pass and its credentials, your saved places, your notification and device registrations, our record of any wallet address you linked, and the photos and contributions you submitted.",
+        "Deleting your account ends your access to Miles earned on it. Your Akiba Pass stops working and vouchers you have not yet redeemed become unusable. We cannot transfer Miles or vouchers to another account and cannot restore them afterwards. We will not refuse your deletion request because you still hold a balance or an active voucher.",
+        "Some records survive deletion in pseudonymised form — with your name, email, and other direct identifiers removed — where an approved purpose requires it. That covers transaction and voucher-redemption records, merchant settlement and payment evidence, and fraud, security, and audit records. Access to those records is restricted, each is held only for its approved retention period, and we keep a record that you asked for deletion and that we carried it out.",
+        "Transactions already written to the Celo blockchain, and the public wallet addresses in them, are permanent and public. Neither you nor Akiba can delete or change them. Deleting your Akiba account removes our own off-chain association with your wallet where our retention plan allows it; it does not and cannot remove anything from the blockchain itself.",
+        "We aim to complete deletion within 14 calendar days of a verified request, unless we are legally required to hold data for longer, and we email your account address when processing finishes. You cannot cancel the request yourself once you confirm it. The version of this deletion notice shown when you confirm is 2026-10-10.1.",
+        "If you have lost access to your account email and cannot receive the verification code, contact hello@akibamiles.com and we will verify you another way.",
+      ],
+    },
+    {
+      title: "10. Children's Privacy",
       paragraphs: [
         "Akiba is not intended for use by anyone under the age of 18. We do not knowingly collect data from children.",
       ],
     },
     {
-      title: "10. Changes to This Policy",
+      title: "11. Changes to This Policy",
       paragraphs: [
         "We may update this Privacy Policy. Continued use of Akiba after updates constitutes acceptance of the new policy.",
       ],
     },
     {
-      title: "11. Contact",
+      title: "12. Contact",
       paragraphs: ["For questions or concerns, contact hello@akibamiles.com."],
     },
   ],
@@ -107,7 +121,7 @@ export const privacyPolicy: LegalPage = {
 
 export const termsOfUse: LegalPage = {
   title: "Terms of Service",
-  lastUpdated: "Sep 8, 2026",
+  lastUpdated: "Oct 10, 2026",
   intro:
     "By accessing or using the Akiba applications or website, operated by Akiba Ecosystems Ltd (\"Akiba\", \"we\"), you agree to be bound by the following terms and conditions. If you do not agree, do not use the service.",
   sections: [
@@ -137,6 +151,7 @@ export const termsOfUse: LegalPage = {
         "Miles are loyalty points funded by merchants and campaigns. They can be redeemed for vouchers, discounts, and other rewards within the Akiba network, but they are not legal tender, cannot be redeemed for cash from Akiba, and have no guaranteed exchange value outside the network.",
         "Miles earned on purchases depend on the merchant's active campaign at the time of purchase. If a merchant has no active campaign or a campaign's reward budget is exhausted, a purchase may not earn Miles.",
         "Miles are recorded on a public blockchain ledger. Miles may be revoked at our discretion in cases of abuse, fraud, payment reversal, or misuse of the system.",
+        "Miles are tied to your Akiba account. If you delete your account, you lose access to the Miles earned on it; they cannot be transferred to another account, redeemed for cash, or restored.",
       ],
     },
     {
@@ -152,6 +167,7 @@ export const termsOfUse: LegalPage = {
       paragraphs: [
         "Vouchers are redeemed against purchases and may be limited to a specific merchant, product, or category. Vouchers may carry an expiry date, after which they are no longer usable. A voucher can be used once and cannot be transferred, resold, or exchanged for cash.",
         "We may cancel or claw back a voucher where it was obtained or used through fraud, abuse, or a purchase that was reversed or found to be invalid.",
+        "Vouchers are issued to your Akiba account. If you delete your account, your Akiba Pass stops working and any voucher you have not yet redeemed becomes unusable. Having an unredeemed voucher does not prevent you from deleting your account, and we cannot refund or transfer one.",
       ],
     },
     {
@@ -183,9 +199,10 @@ export const termsOfUse: LegalPage = {
       ],
     },
     {
-      title: "11. Privacy",
+      title: "11. Privacy and Account Deletion",
       paragraphs: [
         "Akiba respects your privacy. We collect data to operate the service, support rewards, and respond to relevant inquiries as described in our Privacy Policy.",
+        "You can delete your Akiba account at any time from Settings in the Akiba Pass app, or at https://app.akibamiles.com/account-deletion without the app. Section 9 of the Privacy Policy explains what is deleted, what is kept in pseudonymised form for legal and fraud-prevention purposes, what cannot be removed from the Celo blockchain, and how long processing takes.",
       ],
     },
     {

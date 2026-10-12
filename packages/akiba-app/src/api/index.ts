@@ -1,1 +1,2 @@
-export { ApiRequestError, createApiClient } from './client';
+export { createApiClient } from './client';
+export { ApiRequestError, readApiErrorEnvelope, type ApiErrorEnvelope } from './errors';

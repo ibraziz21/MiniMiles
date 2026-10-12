@@ -1,71 +1,148 @@
-// Mirrors hub-page's src/app/(auth)/login/page.tsx OTP step: plain 6-digit
-// email code, no magic link, shouldCreateUser: true (self-serve signup on
-// first request — same account-creation semantics as web).
-import { useState } from 'react';
+// Step 1 of the OTP flow (AKIBA-MOB-001 §2). Same account semantics as
+// hub-page's web src/app/(auth)/login/page.tsx — a plain 6-digit email
+// code, no magic link, shouldCreateUser: true so a first request is also
+// the signup — with the spec's labelling, validation, error mapping and
+// legal links added on top.
+import { useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
+import { KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Button, Card, ScrollView, StyleSheet, Text, TextInput, View, colors, spacing, typography } from '@/design-system';
-import { supabase } from '@/auth';
-
-type ScreenState = { status: 'idle' | 'sending' } | { status: 'error'; message: string };
+import { track } from '@/analytics';
+import { consumeSessionNotice, emailFieldError, mapAuthError, normalizeEmail, supabase } from '@/auth';
+import { LegalLinksNotice } from '@/components/legal-links';
+import {
+  Card,
+  FormField,
+  PrimaryButton,
+  ScrollView,
+  Text,
+  View,
+  colors,
+  fontFamily,
+  spacing,
+  typography,
+} from '@/design-system';
 
 export default function SignInScreen() {
   const [email, setEmail] = useState('');
-  const [sent, setSent] = useState(false);
-  const [state, setState] = useState<ScreenState>({ status: 'idle' });
+  const [fieldError, setFieldError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  // Why the member is back here, when they were signed out rather than
+  // arriving fresh. Read once on mount so it can't reappear later.
+  const [notice] = useState(() => consumeSessionNotice());
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    track('sign_in_started');
+  }, []);
 
   async function sendCode() {
-    setState({ status: 'sending' });
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { shouldCreateUser: true },
-    });
-    if (error) {
-      setState({ status: 'error', message: error.message });
+    const invalid = emailFieldError(email);
+    if (invalid) {
+      // Validate before submitting so a typo costs nothing — Supabase's
+      // email sends are rate-limited per address.
+      setFieldError(invalid);
       return;
     }
-    setSent(true);
-    setState({ status: 'idle' });
-    router.push({ pathname: '/verify', params: { email: email.trim() } });
+
+    setFieldError(null);
+    setFormError(null);
+    setSending(true);
+
+    const address = normalizeEmail(email);
+    const { error } = await supabase.auth.signInWithOtp({
+      email: address,
+      options: { shouldCreateUser: true },
+    });
+    setSending(false);
+
+    if (error) {
+      setFormError(mapAuthError(error, 'send'));
+      return;
+    }
+
+    track('otp_sent');
+    router.push({ pathname: '/verify', params: { email: address, sentAt: String(Date.now()) } });
   }
 
-  const canSubmit = email.trim().length > 3 && state.status !== 'sending';
-
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.scrollContent}
-      style={styles.screen}>
-      <View style={styles.content}>
-        <Text style={styles.eyebrow}>AKIBA PASS</Text>
-        <Card style={styles.card}>
-          <Text style={styles.title}>Sign in</Text>
-          <Text style={styles.body}>Enter your email and we&apos;ll send you a 6-digit code.</Text>
+    <SafeAreaView edges={['top', 'bottom']} style={styles.shell}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.shell}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          style={styles.scroll}>
+          <View style={styles.content}>
+            <Text accessibilityRole="header" style={styles.eyebrow}>
+              AKIBA PASS
+            </Text>
 
-          <TextInput
-            value={email}
-            onChangeText={setEmail}
-            placeholder="you@example.com"
-            placeholderTextColor={colors.muted}
-            autoCapitalize="none"
-            autoComplete="email"
-            keyboardType="email-address"
-            style={styles.input}
-          />
+            <Card style={styles.card}>
+              <Text accessibilityRole="header" style={styles.title}>
+                Sign in
+              </Text>
+              <Text style={styles.body}>
+                Enter your email and we’ll send you a 6-digit code. No password needed.
+              </Text>
 
-          {state.status === 'error' ? <Text style={styles.error}>{state.message}</Text> : null}
+              {notice ? (
+                <Text accessibilityLiveRegion="polite" style={styles.notice}>
+                  {notice}
+                </Text>
+              ) : null}
 
-          <Button onPress={sendCode} disabled={!canSubmit} style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}>
-            <Text style={styles.submitLabel}>{state.status === 'sending' ? 'Sending…' : sent ? 'Resend code' : 'Send code'}</Text>
-          </Button>
-        </Card>
-      </View>
-    </ScrollView>
+              <FormField
+                autoCapitalize="none"
+                autoComplete="email"
+                autoCorrect={false}
+                error={fieldError}
+                inputMode="email"
+                keyboardType="email-address"
+                label="Email address"
+                onChangeText={(value) => {
+                  setEmail(value);
+                  if (fieldError) setFieldError(null);
+                  if (formError) setFormError(null);
+                }}
+                onSubmitEditing={() => void sendCode()}
+                placeholder="you@example.com"
+                returnKeyType="send"
+                textContentType="emailAddress"
+                value={email}
+              />
+
+              {formError ? (
+                <Text accessibilityLiveRegion="polite" accessibilityRole="alert" style={styles.formError}>
+                  {formError}
+                </Text>
+              ) : null}
+
+              <PrimaryButton
+                busy={sending}
+                busyLabel="Sending code…"
+                label="Send code"
+                onPress={() => void sendCode()}
+              />
+
+              <LegalLinksNotice intro="By continuing, you agree to the Akiba Terms of Use and Privacy Policy. We’ll create your account the first time you sign in." />
+            </Card>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
+  shell: {
+    backgroundColor: colors.paper,
+    flex: 1,
+  },
+  scroll: {
     backgroundColor: colors.paper,
   },
   scrollContent: {
@@ -80,49 +157,39 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   eyebrow: {
-    color: colors.teal,
+    color: colors.tealDark,
+    fontFamily: fontFamily.sansBold,
     fontSize: typography.caption,
-    fontWeight: '700',
     letterSpacing: 1.5,
   },
   card: {
-    gap: spacing.md,
+    gap: spacing.lg,
   },
   title: {
     color: colors.ink,
+    fontFamily: fontFamily.sterlingSemiBold,
     fontSize: typography.title,
-    fontWeight: '700',
   },
   body: {
     color: colors.muted,
+    fontFamily: fontFamily.sans,
     fontSize: typography.body,
+    lineHeight: 24,
+    marginTop: -spacing.sm,
   },
-  input: {
-    borderColor: colors.line,
+  notice: {
+    backgroundColor: colors.tint,
     borderCurve: 'continuous',
     borderRadius: 12,
-    borderWidth: 1,
     color: colors.ink,
-    fontSize: typography.body,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    fontFamily: fontFamily.sansMedium,
+    fontSize: typography.small,
+    lineHeight: 21,
+    padding: spacing.md,
   },
-  error: {
-    color: '#C0392B',
-    fontSize: typography.caption,
-  },
-  submitButton: {
-    alignItems: 'center',
-    backgroundColor: colors.teal,
-    borderRadius: 999,
-    paddingVertical: spacing.sm,
-  },
-  submitButtonDisabled: {
-    opacity: 0.5,
-  },
-  submitLabel: {
-    color: colors.white,
-    fontSize: typography.body,
-    fontWeight: '700',
+  formError: {
+    color: colors.danger,
+    fontFamily: fontFamily.sansMedium,
+    fontSize: typography.small,
   },
 });

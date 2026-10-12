@@ -1,6 +1,8 @@
 // Static/env-resolved values for GET /api/v1/config (version gate + legal
 // links). Same env-injectable pattern as featureFlags.server.ts so tests can
 // override process.env per call instead of relying on a cached snapshot.
+import { DELETION_POLICY_VERSION } from "@/lib/akiba/accountDeletionPolicy";
+
 type ConfigEnvironment = { [key: string]: string | undefined };
 
 export type VersionGate = {
@@ -9,15 +11,34 @@ export type VersionGate = {
   maintenance: boolean;
 };
 
+/**
+ * Where "Update Akiba Pass" sends a member whose build is below
+ * `minimumSupportedVersion`. Env-driven and nullable because the store
+ * listings don't exist yet (app.json's bundle identifiers are still
+ * flagged as placeholders) — the native upgrade screen renders
+ * store-neutral instructions rather than a dead button when a platform's
+ * URL is absent, so publishing the field early can't ship a broken CTA.
+ */
+export type StoreLinks = {
+  ios: string | null;
+  android: string | null;
+};
+
 export type LegalLinks = {
   privacyUrl: string;
   termsUrl: string;
   /**
-   * The account-deletion request page is a store-policy requirement but
-   * doesn't exist yet (hub-mobile-app-migration-plan.md §"Decisions still
-   * required from the team" #6 — retention policy is undecided). This URL
-   * is published so the contract shape is final, but it 404s until that
-   * page ships; building it is explicitly out of scope for this round.
+   * Version of the account-deletion copy and retention map the member is
+   * shown (AKIBA-MOB-002 §7). The app echoes it back as `policyVersion` when
+   * submitting a request, and the request API accepts only the currently
+   * active value — so an older binary showing superseded copy is rejected
+   * rather than silently recording consent to terms the member never read.
+   */
+  deletionPolicyVersion: string;
+  /**
+   * The public account-deletion page (AKIBA-MOB-002 §6). Google Play requires
+   * this URL to resolve to a working, unauthenticated resource, and it is
+   * also usable as Apple's optional User Privacy Choices URL.
    */
   accountDeletionUrl: string;
 };
@@ -45,5 +66,13 @@ export function getLegalLinks(siteUrl: string, env: ConfigEnvironment = process.
     privacyUrl: `${siteUrl}/privacy-policy`,
     termsUrl: `${siteUrl}/terms-of-use`,
     accountDeletionUrl: env.MOBILE_ACCOUNT_DELETION_URL?.trim() || `${siteUrl}/account-deletion`,
+    deletionPolicyVersion: DELETION_POLICY_VERSION,
+  };
+}
+
+export function getStoreLinks(env: ConfigEnvironment = process.env): StoreLinks {
+  return {
+    ios: env.MOBILE_STORE_URL_IOS?.trim() || null,
+    android: env.MOBILE_STORE_URL_ANDROID?.trim() || null,
   };
 }

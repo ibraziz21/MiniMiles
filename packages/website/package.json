@@ -6,7 +6,8 @@
     "dev": "node ../../scripts/with-available-port.mjs --prefer 3000 -- next dev",
     "build": "next build",
     "start": "node ../../scripts/with-available-port.mjs --prefer 3000 -- next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",

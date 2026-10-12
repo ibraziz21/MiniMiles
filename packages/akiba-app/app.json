@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "akibapass",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "ios": {
       "bundleIdentifier": "com.akiba.pass",
       "buildNumber": "1"
@@ -19,10 +19,6 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false
-    },
-    "web": {
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
       "expo-router",
@@ -50,8 +46,16 @@
     "extra": {
       "configurationNotes": {
         "bundleIdentifiersArePlaceholders": true,
-        "replacementPhase": "Phase 0 store registration"
+        "blockedOn": "AKIBA-MOB-002 \u00a720 \u2014 final iOS bundle id and Android package name",
+        "easProjectIdPending": "Set expo.owner and extra.eas.projectId once the organization account exists"
       }
+    },
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "updates": {
+      "enabled": false
     }
   }
 }

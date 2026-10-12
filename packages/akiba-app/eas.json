@@ -1,0 +1,29 @@
+{
+  "cli": {
+    "version": ">= 14.0.0",
+    "appVersionSource": "remote",
+    "requireCommit": true
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "environment": "development",
+      "ios": { "simulator": false },
+      "android": { "buildType": "apk" }
+    },
+    "preview": {
+      "distribution": "internal",
+      "environment": "preview",
+      "android": { "buildType": "apk" }
+    },
+    "production": {
+      "distribution": "store",
+      "environment": "production",
+      "autoIncrement": true
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

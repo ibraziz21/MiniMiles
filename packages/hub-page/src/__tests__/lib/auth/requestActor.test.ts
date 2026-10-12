@@ -5,7 +5,29 @@ const state = vi.hoisted(() => ({
   cookieAccessToken: null as string | null,
   // token -> resolved user, or "error" to simulate an invalid/expired/wrong-project token
   bearerUsers: new Map<string, { id: string; email: string | null } | "error" | "unavailable">(),
+  // user id -> open deletion request, or "unavailable" to simulate a failed lookup
+  openDeletion: new Map<string, { id: string; status: string } | "unavailable">(),
 }));
+
+// The pending-deletion guard (AKIBA-MOB-002 §7.4) is part of the actor
+// boundary now, so these tests drive it directly rather than reaching the
+// real admin client.
+vi.mock("@/lib/akiba/accountDeletionGuard", () => {
+  class MockDeletionLookupUnavailableError extends Error {
+    constructor() {
+      super("lookup failed");
+      this.name = "DeletionLookupUnavailableError";
+    }
+  }
+  return {
+    DeletionLookupUnavailableError: MockDeletionLookupUnavailableError,
+    findOpenDeletionRequest: async (userId: string) => {
+      const row = state.openDeletion.get(userId);
+      if (row === "unavailable") throw new MockDeletionLookupUnavailableError();
+      return row ?? null;
+    },
+  };
+});
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
@@ -47,7 +69,14 @@ vi.mock("@supabase/supabase-js", () => ({
   }),
 }));
 
-const { requireActor, optionalActor, UnauthorizedError, AuthServiceUnavailableError } = await import("@/lib/auth/requestActor");
+const {
+  requireActor,
+  optionalActor,
+  requireActorAllowingDeletionPending,
+  UnauthorizedError,
+  AuthServiceUnavailableError,
+  AccountDeletionPendingError,
+} = await import("@/lib/auth/requestActor");
 
 function reqWithBearer(token: string) {
   return new Request("http://localhost/api/v1/me/bootstrap", {
@@ -64,6 +93,7 @@ describe("optionalActor / requireActor", () => {
     state.cookieUser = null;
     state.cookieAccessToken = null;
     state.bearerUsers.clear();
+    state.openDeletion.clear();
   });
 
   it("resolves a bearer actor from a valid token, authMode 'bearer'", async () => {
@@ -128,5 +158,82 @@ describe("optionalActor / requireActor", () => {
     state.cookieAccessToken = "session-access-token";
     const actor = await optionalActor(reqWithoutAuth());
     expect(actor?.accessToken).toBe("session-access-token");
+  });
+});
+
+describe("pending-deletion boundary (AKIBA-MOB-002 §7.4)", () => {
+  beforeEach(() => {
+    state.cookieUser = null;
+    state.cookieAccessToken = null;
+    state.bearerUsers.clear();
+    state.openDeletion.clear();
+  });
+
+  it("rejects a protected request from an actor with a deletion in progress, as 410", async () => {
+    state.bearerUsers.set("tok", { id: "deleting-user", email: "d@example.com" });
+    state.openDeletion.set("deleting-user", { id: "req-1", status: "requested" });
+
+    await expect(requireActor(reqWithBearer("tok"))).rejects.toBeInstanceOf(AccountDeletionPendingError);
+    await expect(requireActor(reqWithBearer("tok"))).rejects.toMatchObject({
+      status: 410,
+      code: "ACCOUNT_DELETION_PENDING",
+    });
+  });
+
+  it("keeps that rejection compatible with every route's existing UnauthorizedError catch", async () => {
+    // The routes all catch UnauthorizedError; if this were a bare Error the
+    // 410 would surface as an unhandled 500 instead.
+    state.bearerUsers.set("tok", { id: "deleting-user", email: "d@example.com" });
+    state.openDeletion.set("deleting-user", { id: "req-1", status: "processing" });
+
+    await expect(requireActor(reqWithBearer("tok"))).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+
+  it("rejects a completed deletion too, since the token outlives the account", async () => {
+    state.bearerUsers.set("tok", { id: "gone-user", email: "g@example.com" });
+    state.openDeletion.set("gone-user", { id: "req-2", status: "completed" });
+
+    await expect(requireActor(reqWithBearer("tok"))).rejects.toBeInstanceOf(AccountDeletionPendingError);
+  });
+
+  it("degrades a pending actor to anonymous on auth-optional routes instead of failing them", async () => {
+    // /config and /home must keep working so the app can boot far enough to
+    // show the deletion-pending state.
+    state.bearerUsers.set("tok", { id: "deleting-user", email: "d@example.com" });
+    state.openDeletion.set("deleting-user", { id: "req-1", status: "requested" });
+
+    await expect(optionalActor(reqWithBearer("tok"))).resolves.toBeNull();
+  });
+
+  it("still resolves an actor with no deletion request", async () => {
+    state.bearerUsers.set("tok", { id: "ordinary-user", email: "o@example.com" });
+
+    const actor = await requireActor(reqWithBearer("tok"));
+    expect(actor.userId).toBe("ordinary-user");
+    expect(await optionalActor(reqWithBearer("tok"))).toMatchObject({ userId: "ordinary-user" });
+  });
+
+  it("lets the deletion endpoints authenticate a pending actor so a retry can read its receipt", async () => {
+    state.bearerUsers.set("tok", { id: "deleting-user", email: "d@example.com" });
+    state.openDeletion.set("deleting-user", { id: "req-1", status: "requested" });
+
+    const actor = await requireActorAllowingDeletionPending(reqWithBearer("tok"));
+    expect(actor.userId).toBe("deleting-user");
+  });
+
+  it("still requires authentication on the deletion-pending-allowed path", async () => {
+    await expect(requireActorAllowingDeletionPending(reqWithoutAuth())).rejects.toBeInstanceOf(
+      UnauthorizedError,
+    );
+  });
+
+  it("fails closed with a retryable 503 when the deletion lookup itself fails", async () => {
+    // Failing open would let a pending account keep using protected routes,
+    // which is the one outcome this guard exists to prevent.
+    state.bearerUsers.set("tok", { id: "unknown-state", email: "u@example.com" });
+    state.openDeletion.set("unknown-state", "unavailable");
+
+    await expect(requireActor(reqWithBearer("tok"))).rejects.toBeInstanceOf(AuthServiceUnavailableError);
+    await expect(requireActor(reqWithBearer("tok"))).rejects.toMatchObject({ status: 503 });
   });
 });

@@ -251,9 +251,12 @@ export function getServerEnv(env: NodeJS.ProcessEnv = process.env): ServerEnv {
     problems.push("MPESA_ENV must be \"production\" when M-Pesa credentials are set in production");
   }
 
+  // Derived from siteUrl rather than hardcoded. The previous default named
+  // hub.akibamiles.com, which fails the host-match check below whenever the
+  // site runs on a different host and MPESA_CALLBACK_URL is left unset — a
+  // production build would reject its own default.
   const mpesaCallbackUrl =
-    trimmedOrNull(env.MPESA_CALLBACK_URL) ??
-    "https://hub.akibamiles.com/api/payments/mpesa/callback";
+    trimmedOrNull(env.MPESA_CALLBACK_URL) ?? `${siteUrl}/api/payments/mpesa/callback`;
   if (!isValidUrl(mpesaCallbackUrl)) {
     problems.push("MPESA_CALLBACK_URL must be a valid URL");
   }

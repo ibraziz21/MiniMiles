@@ -9,6 +9,15 @@
 import { apiSuccess } from "@/lib/api/v1/response";
 import { getAllTemplates, getFundedOffers } from "@/lib/vouchers/catalogue.server";
 
+// This handler reads nothing request-specific — no headers, cookies, or query
+// — so Next treats it as statically prerenderable and executes it during
+// `next build`. That ran getServerEnv() at build time and failed the
+// production build on secret validation, which is not what "public and
+// CDN-cacheable" was meant to mean: the intent is the s-maxage header below,
+// served per request and cached at the edge, not a build-time snapshot of the
+// voucher catalogue that would go stale the moment a template changed.
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   const [templates, fundedOffers] = await Promise.all([getAllTemplates(null), getFundedOffers()]);
 
