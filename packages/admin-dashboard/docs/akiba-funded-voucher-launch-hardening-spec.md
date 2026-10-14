@@ -110,9 +110,9 @@ Add server-side flags with production defaults of `false`:
 
 | Flag | Effect |
 |---|---|
-| `AKIBA_FUNDED_VOUCHERS_ADMIN_ENABLED` | Shows fund/allocation/grant navigation and enables mutations |
+| Admin reimbursable vouchers | Always available to roles with `voucher_funds.*`; no deployment feature flag |
 | `AKIBA_FUNDED_VOUCHERS_HUB_ENABLED` | Shows funded offers and permits Hub claim proxy calls |
-| `AKIBA_FUNDED_VOUCHERS_FINANCE_ENABLED` | Enables batching, submission, payment, reversal, and incident actions |
+| Admin voucher reimbursements | Always available to roles with `voucher_settlements.*`; no deployment feature flag |
 
 Read-only detail pages may remain accessible to authorized operators when a
 mutation flag is off. Mutation APIs must enforce flags server-side; hiding a

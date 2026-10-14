@@ -6,7 +6,6 @@
 import { NextResponse } from "next/server";
 import type { AdminSessionData } from "@/types";
 import { adminIdForWrite } from "@/lib/auth";
-import { akibaFundedVouchersAdminFlag } from "@/lib/featureFlags";
 import { OPEN_ACCESS_ACTOR_ID } from "@/lib/voucherFunds";
 
 /**
@@ -15,12 +14,6 @@ import { OPEN_ACCESS_ACTOR_ID } from "@/lib/voucherFunds";
  * requireAdminSession's own permission check, before any RPC call.
  */
 export function fundedVoucherAdminGuard(session: AdminSessionData): NextResponse | null {
-  if (!akibaFundedVouchersAdminFlag()) {
-    return NextResponse.json(
-      { error: "Akiba-funded voucher admin tools are not enabled." },
-      { status: 503 },
-    );
-  }
   // Production must reject funded economic mutations under open access, and
   // never accept the zero-UUID/"open-access" actor as the real one
   // (launch-hardening-spec.md §3) — adminIdForWrite already returns null for

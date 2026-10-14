@@ -76,10 +76,10 @@ describe("GET /api/v1/merchants/[slug]", () => {
     expect(body.data.vouchers).toEqual([]);
   });
 
-  it("is publicly cacheable", async () => {
+  it("does not cache short-lived signed customer-photo URLs", async () => {
     state.merchant = { id: "m1", slug: "acme", vouchers: [] };
     const { req: r, params } = req("acme");
     const res = await GET(r, { params });
-    expect(res.headers.get("cache-control")).toContain("public");
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
   });
 });

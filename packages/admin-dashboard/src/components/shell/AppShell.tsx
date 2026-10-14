@@ -18,8 +18,6 @@ interface AppShellProps {
   children: React.ReactNode;
   adminName: string | null;
   adminRole: AdminRole;
-  fundedVouchersEnabled: boolean;
-  fundedFinanceEnabled: boolean;
 }
 
 function moduleContainsPath(node: NavNode, pathname: string): boolean {
@@ -28,9 +26,9 @@ function moduleContainsPath(node: NavNode, pathname: string): boolean {
   return node.children?.some((child) => moduleContainsPath(child, pathname)) ?? false;
 }
 
-export function AppShell({ children, adminName, adminRole, fundedVouchersEnabled, fundedFinanceEnabled }: AppShellProps) {
+export function AppShell({ children, adminName, adminRole }: AppShellProps) {
   const pathname = usePathname();
-  const nav = useMemo(() => buildNav(adminRole, fundedVouchersEnabled, fundedFinanceEnabled), [adminRole, fundedVouchersEnabled, fundedFinanceEnabled]);
+  const nav = useMemo(() => buildNav(adminRole), [adminRole]);
 
   const [moreOpen, setMoreOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);

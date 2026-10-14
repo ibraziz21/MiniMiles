@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { Pressable, ScrollView as HorizontalScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { createApiClient } from '@/api';
@@ -11,6 +11,7 @@ import { DiscoveryToolbar } from '@/components/discovery-toolbar';
 import { MerchantValueCard } from '@/components/merchant-card';
 import type { MobileHome } from '@/contracts';
 import { ActivityIndicator, Icon, ScrollView, colors, fontFamily } from '@/design-system';
+import { merchantOfferAvailability } from '@/lib/merchant-offer-availability';
 
 type ScreenState =
   | { status: 'loading' }
@@ -20,6 +21,7 @@ type ScreenState =
 type Intent = MobileHome['feed']['intents'][number];
 type Highlight = MobileHome['feed']['verifiedHighlights'][number];
 type FeedSection = MobileHome['feed']['sections'][number];
+type BusinessOffer = MobileHome['feed']['businessOffers'][number];
 
 const INTENT_ICONS: Record<string, 'wifi' | 'shopping-cart' | 'smartphone' | 'coffee' | 'gift' | 'tag' | 'battery-charging'> = {
   wifi: 'wifi',
@@ -75,11 +77,12 @@ function HomeContent({ data }: { data: MobileHome }) {
   return (
     <View>
       <IntentShortcuts intents={data.feed.intents} />
+      <BusinessOffers offers={data.feed.businessOffers} />
       <VerifiedDiscovery highlights={data.feed.verifiedHighlights} />
 
       {sections.map((section) => <MerchantRail key={section.id} section={section} />)}
 
-      {sections.length === 0 && data.feed.verifiedHighlights.length === 0 ? (
+      {sections.length === 0 && data.feed.verifiedHighlights.length === 0 && data.feed.businessOffers.length === 0 ? (
         <View style={styles.emptyState}>
           <Icon name="shopping-bag" size={34} color={colors.line} />
           <Text style={styles.emptyTitle}>No places to show yet</Text>
@@ -87,6 +90,63 @@ function HomeContent({ data }: { data: MobileHome }) {
         </View>
       ) : null}
     </View>
+  );
+}
+
+function BusinessOffers({ offers }: { offers: BusinessOffer[] }) {
+  const { width } = useWindowDimensions();
+  if (offers.length === 0) return null;
+  const single = offers.length === 1;
+  const cardWidth = single ? Math.max(width - 32, 280) : Math.min(Math.max(width - 64, 280), 330);
+
+  return (
+    <View style={styles.section}>
+      <SectionHeading
+        title="Business offers"
+        action={single ? undefined : 'See all'}
+        onPress={single ? undefined : () => router.push('/offers' as Href)}
+      />
+      <HorizontalScrollView
+        horizontal
+        scrollEnabled={!single}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.businessOfferRow}
+        snapToInterval={single ? undefined : cardWidth + 12}
+        decelerationRate="fast">
+        {offers.map((offer) => <BusinessOfferCard key={offer.id} offer={offer} width={cardWidth} />)}
+      </HorizontalScrollView>
+    </View>
+  );
+}
+
+function BusinessOfferCard({ offer, width }: { offer: BusinessOffer; width: number }) {
+  const availability = merchantOfferAvailability(offer);
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={() => router.push(`/merchants/${offer.partner.slug}`)}
+      style={({ pressed }) => [styles.businessOfferCard, { width }, pressed && styles.cardPressed]}>
+      <View style={styles.businessOfferImageWrap}>
+        {offer.thumbnailUrl ? (
+          <Image accessibilityLabel="" source={{ uri: offer.thumbnailUrl }} style={StyleSheet.absoluteFill} contentFit="cover" transition={160} />
+        ) : (
+          <View style={styles.businessOfferFallback}>
+            {offer.partner.logoUrl ? (
+              <Image accessibilityLabel="" source={{ uri: offer.partner.logoUrl }} style={styles.businessOfferLogo} contentFit="contain" />
+            ) : (
+              <Icon name="shopping-bag" size={30} color={colors.teal} />
+            )}
+          </View>
+        )}
+        <View style={styles.businessOfferStatus}><Text style={styles.businessOfferStatusText}>{availability.label}</Text></View>
+      </View>
+      <View style={styles.businessOfferBody}>
+        <Text numberOfLines={1} style={styles.businessOfferMerchant}>{offer.partner.name}</Text>
+        <Text numberOfLines={2} style={styles.businessOfferTitle}>{offer.title}</Text>
+        <Text style={styles.businessOfferMiles}>No AkibaMiles required</Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -201,14 +261,16 @@ function MerchantRail({ section }: { section: FeedSection }) {
   );
 }
 
-function SectionHeading({ title, action, onPress }: { title: string; action: string; onPress: () => void }) {
+function SectionHeading({ title, action, onPress }: { title: string; action?: string; onPress?: () => void }) {
   return (
     <View style={styles.sectionHeadingRow}>
       <Text style={styles.sectionHeading}>{title}</Text>
-      <Pressable onPress={onPress} style={({ pressed }) => [styles.sectionAction, pressed && styles.chipPressed]}>
-        <Text style={styles.sectionActionText}>{action}</Text>
-        <Icon name="arrow-right" size={14} color={colors.teal} />
-      </Pressable>
+      {action && onPress ? (
+        <Pressable onPress={onPress} style={({ pressed }) => [styles.sectionAction, pressed && styles.chipPressed]}>
+          <Text style={styles.sectionActionText}>{action}</Text>
+          <Icon name="arrow-right" size={14} color={colors.teal} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -243,6 +305,17 @@ const styles = StyleSheet.create({
   sectionAction: { alignItems: 'center', borderRadius: 8, flexDirection: 'row', gap: 4, minHeight: 44, paddingHorizontal: 8 },
   sectionActionText: { color: colors.teal, fontFamily: fontFamily.sansSemiBold, fontSize: 12 },
   spotlightRow: { gap: 12, paddingHorizontal: 16 },
+  businessOfferRow: { gap: 12, paddingHorizontal: 16 },
+  businessOfferCard: { backgroundColor: colors.white, borderColor: colors.line, borderCurve: 'continuous', borderRadius: 22, borderWidth: 1, overflow: 'hidden' },
+  businessOfferImageWrap: { backgroundColor: colors.tint, height: 150, position: 'relative' },
+  businessOfferFallback: { alignItems: 'center', flex: 1, justifyContent: 'center' },
+  businessOfferLogo: { backgroundColor: colors.white, borderRadius: 16, height: 62, padding: 6, width: 62 },
+  businessOfferStatus: { backgroundColor: 'rgba(255,255,255,0.94)', borderRadius: 999, left: 12, paddingHorizontal: 10, paddingVertical: 6, position: 'absolute', top: 12 },
+  businessOfferStatusText: { color: colors.ink, fontFamily: fontFamily.sansBold, fontSize: 10 },
+  businessOfferBody: { minHeight: 118, padding: 15 },
+  businessOfferMerchant: { color: colors.muted, fontFamily: fontFamily.sansMedium, fontSize: 12 },
+  businessOfferTitle: { color: colors.ink, fontFamily: fontFamily.sterlingSemiBold, fontSize: 20, lineHeight: 24, marginTop: 4 },
+  businessOfferMiles: { color: colors.teal, fontFamily: fontFamily.sansSemiBold, fontSize: 11, marginTop: 11 },
   spotlightCard: { backgroundColor: colors.ink, borderCurve: 'continuous', borderRadius: 24, height: 304, overflow: 'hidden', position: 'relative' },
   cardPressed: { opacity: 0.92, transform: [{ scale: 0.995 }] },
   spotlightTop: { flexDirection: 'row', gap: 8, justifyContent: 'space-between', left: 14, position: 'absolute', right: 14, top: 14 },

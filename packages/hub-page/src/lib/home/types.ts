@@ -113,6 +113,7 @@ export type HomeFeedResponse = {
   generatedAt: string;
   intents: DiscoveryIntent[];
   sections: HomeFeedSection[];
+  businessOffers: import("@/lib/merchants/types").PublicMerchantOfferFeedItem[];
   verifiedHighlights: VerifiedDiscoveryHighlight[];
   rewards: null | {
     milesBalance: number;

@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
+import { hasPermission } from "@/types";
 import { supabase } from "@/lib/supabase";
 import { minorToKes } from "@/lib/voucherFunds";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatMoney, formatNumber } from "@/lib/utils";
 
 const STATE_VARIANT: Record<string, "secondary" | "success" | "warning" | "destructive" | "outline"> = {
@@ -41,6 +43,7 @@ interface AvailabilityRow {
 export default async function VoucherAllocationsPage() {
   const session = await requireAdminSession("voucher_funds.read");
   if (!session) redirect("/login");
+  const canCreate = hasPermission(session.role, "voucher_funds.write");
 
   const [{ data: allocations }, { data: availability }] = await Promise.all([
     supabase
@@ -59,29 +62,38 @@ export default async function VoucherAllocationsPage() {
 
   return (
     <div>
-      <PageHeader title="Merchant Allocations" subtitle="Per-merchant voucher quantity, benefit, and exposure across all funds" />
+      <PageHeader
+        title="Allocations"
+        subtitle="Per-merchant voucher quantity, benefit, and exposure across all funds"
+        actions={canCreate ? <Button asChild><Link href="/vouchers/funds"><span className="sm:hidden">Allocate</span><span className="hidden sm:inline">Allocate from a fund</span></Link></Button> : undefined}
+      />
       <div className="space-y-6 p-4 sm:p-6">
         <Card>
           <CardHeader>
-            <CardTitle>Allocations</CardTitle>
+            <CardTitle>Allocation register</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {rows.length === 0 && <p className="text-sm text-ink-muted">No merchant allocations yet.</p>}
+            {rows.length === 0 && (
+              <div className="flex flex-col items-start gap-3 py-3">
+                <p className="text-sm text-ink-muted">No merchant allocations yet. Choose an approved fund to add its first merchant allocation.</p>
+                {canCreate && <Button asChild size="sm"><Link href="/vouchers/funds">Choose a fund</Link></Button>}
+              </div>
+            )}
             {rows.map((row) => {
               const avail = availabilityByAllocation.get(row.id);
               return (
                 <Link
                   key={row.id}
                   href={`/vouchers/funds/${row.program_id}/allocations/${row.id}`}
-                  className="flex flex-wrap items-center gap-3 rounded-card border border-border px-3 py-3 text-sm hover:border-primary/30 hover:bg-surface-subtle"
+                  className="flex flex-col items-start gap-3 rounded-card border border-border px-3 py-3 text-sm transition-colors hover:border-primary/30 hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:flex-row sm:items-center"
                 >
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 w-full flex-1 sm:w-auto">
                     <p className="font-medium text-ink">{row.partners?.name ?? "Unknown merchant"}</p>
-                    <p className="text-xs text-ink-muted">
+                    <p className="mt-1 text-xs leading-5 text-ink-muted">
                       {row.voucher_funding_programs?.name} · {row.spend_voucher_templates?.title}
                     </p>
                   </div>
-                  <div className="text-right text-xs text-ink-muted">
+                  <div className="text-left text-xs leading-5 text-ink-muted sm:text-right">
                     <p>
                       {formatNumber(avail?.quantity_claimed_total ?? 0)}/{formatNumber(row.quantity_cap)} issued
                     </p>

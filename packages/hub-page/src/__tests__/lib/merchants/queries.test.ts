@@ -5,12 +5,15 @@ const state = vi.hoisted(() => ({
   summaryError: null as { message: string } | null,
   detailJson: null as unknown,
   detailError: null as { message: string } | null,
+  previewJson: null as unknown,
+  previewError: null as { message: string } | null,
   templates: [] as unknown[],
   availableIds: [] as string[],
   restrictions: [] as Array<{ template_id: string; location_id: string }>,
   approvedPhotos: [] as Array<{ photo_id: string; contribution_id: string; thumbnail_key: string; display_key: string }>,
   approvedPhotosError: null as { message: string } | null,
   verifiedVisits: [] as unknown[],
+  previewOffers: [] as unknown[],
 }));
 
 const mockRpc = vi.fn();
@@ -28,6 +31,9 @@ function setupAdmin() {
     }
     if (name === "get_public_merchant") {
       return Promise.resolve({ data: state.detailError ? null : state.detailJson, error: state.detailError });
+    }
+    if (name === "preview_merchant_directory") {
+      return Promise.resolve({ data: state.previewError ? null : state.previewJson, error: state.previewError });
     }
     if (name === "list_available_voucher_template_ids_hub") {
       return Promise.resolve({ data: state.availableIds.map((id) => ({ template_id: id })), error: null });
@@ -71,6 +77,14 @@ function setupAdmin() {
       return {
         select: async () => ({ data: state.restrictions, error: null }),
       };
+    }
+    if (table === "merchant_default_offers") {
+      const builder: Record<string, unknown> = {};
+      builder.select = vi.fn(() => builder);
+      builder.eq = vi.fn(() => builder);
+      builder.is = vi.fn(() => builder);
+      builder.order = vi.fn(async () => ({ data: state.previewOffers, error: null }));
+      return builder;
     }
     throw new Error(`Unexpected table ${table}`);
   });
@@ -147,7 +161,34 @@ describe("listPublicMerchants — public-data safety and pagination", () => {
     vi.clearAllMocks();
     state.summaryRows = [];
     state.summaryError = null;
+    state.previewJson = null;
+    state.previewError = null;
+    state.previewOffers = [];
     setupAdmin();
+  });
+
+  it("adds the paused Akiba Store preview to the first local-development page only", async () => {
+    state.summaryRows = [baseSummaryRow()];
+    state.previewJson = baseDetailJson({
+      id: "4e229b5d-4676-4f73-8399-6ed86e0205d9",
+      slug: "akiba-store",
+      name: "Akiba Store",
+      shortDescription: "Official Store For Akiba",
+      operatingModel: "hybrid",
+      locations: [],
+    });
+
+    vi.stubEnv("NODE_ENV", "development");
+    try {
+      const result = await listPublicMerchants({ limit: 20 });
+
+      expect(result.merchants.map((merchant) => merchant.slug)).toEqual(["akiba-store", "acme"]);
+      expect(mockRpc).toHaveBeenCalledWith("preview_merchant_directory", {
+        p_partner_id: "4e229b5d-4676-4f73-8399-6ed86e0205d9",
+      });
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("never surfaces forbidden fields, even if the RPC row carries them", async () => {
@@ -250,6 +291,9 @@ describe("getPublicMerchant — voucher branch-restriction correctness", () => {
     vi.clearAllMocks();
     state.detailJson = null;
     state.detailError = null;
+    state.previewJson = null;
+    state.previewError = null;
+    state.previewOffers = [];
     state.templates = [];
     state.availableIds = [];
     state.restrictions = [];
@@ -349,6 +393,88 @@ describe("getPublicMerchant — voucher branch-restriction correctness", () => {
     expect(merchant).toBeNull();
   });
 
+  it("loads only the allowlisted Akiba Store through the directory preview in local development", async () => {
+    state.detailJson = null;
+    state.previewJson = baseDetailJson({
+      id: "4e229b5d-4676-4f73-8399-6ed86e0205d9",
+      slug: "akiba-store",
+      name: "Akiba Store",
+      shortDescription: "Official Store For Akiba",
+      operatingModel: "hybrid",
+      locations: [],
+    });
+
+    vi.stubEnv("NODE_ENV", "development");
+    try {
+      const merchant = await getPublicMerchant("akiba-store", null);
+
+      expect(merchant?.slug).toBe("akiba-store");
+      expect(merchant?.name).toBe("Akiba Store");
+      expect(mockRpc).toHaveBeenCalledWith("preview_merchant_directory", {
+        p_partner_id: "4e229b5d-4676-4f73-8399-6ed86e0205d9",
+      });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("adds live merchant-owned offers to the local Akiba Store preview", async () => {
+    state.detailJson = null;
+    state.previewJson = baseDetailJson({
+      id: "4e229b5d-4676-4f73-8399-6ed86e0205d9",
+      slug: "akiba-store",
+      name: "Akiba Store",
+      merchantMedia: [{
+        id: "media-1",
+        kind: "business",
+        imageUrl: "https://images.example.com/saturday.jpg",
+        thumbnailUrl: "https://images.example.com/saturday-thumb.jpg",
+        altText: "Akiba Saturdays",
+        title: "Akiba Saturdays",
+      }],
+    });
+    state.previewOffers = [{
+      id: "offer-1",
+      title: "Akiba Saturdays",
+      description: "Join Akiba on Saturdays.",
+      terms: "RSVP required.",
+      schedule: "weekly",
+      days_of_week: [6],
+      start_time: "15:30:00",
+      end_time: "17:00:00",
+      starts_on: "2026-10-17",
+      ends_on: "2026-10-17",
+      timezone: "Africa/Nairobi",
+      reminders_enabled: true,
+      image_media_id: "media-1",
+    }];
+
+    vi.stubEnv("NODE_ENV", "development");
+    try {
+      const merchant = await getPublicMerchant("akiba-store", null);
+
+      expect(merchant?.offers).toEqual([{
+        id: "offer-1",
+        title: "Akiba Saturdays",
+        description: "Join Akiba on Saturdays.",
+        terms: "RSVP required.",
+        schedule: "weekly",
+        daysOfWeek: [6],
+        startTime: "15:30",
+        endTime: "17:00",
+        startsOn: "2026-10-17",
+        endsOn: "2026-10-17",
+        timezone: "Africa/Nairobi",
+        remindersEnabled: true,
+        reminderSet: false,
+        imageUrl: "https://images.example.com/saturday.jpg",
+        requiresAkibaMiles: false,
+      }]);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("keeps merchant-authored media separate from qualified customer photos", async () => {
     state.detailJson = baseDetailJson({
       bannerUrl: "https://images.example.com/banner.jpg",
@@ -360,6 +486,25 @@ describe("getPublicMerchant — voucher branch-restriction correctness", () => {
           thumbnailUrl: "https://images.example.com/interior-thumb.jpg",
           altText: "Acme dining room",
           title: "Inside Acme",
+        },
+      ],
+      defaultOffers: [
+        {
+          id: "offer-1",
+          title: "Wildin Wednesdays",
+          description: "A midweek offer from Acme.",
+          terms: "Valid while stocks last.",
+          schedule: "weekly",
+          daysOfWeek: [3],
+          startTime: "17:00",
+          endTime: "21:00",
+          startsOn: null,
+          endsOn: null,
+          timezone: "Africa/Nairobi",
+          remindersEnabled: true,
+          reminderSet: true,
+          imageUrl: "https://images.example.com/wednesday.jpg",
+          requiresAkibaMiles: false,
         },
       ],
       products: [
@@ -415,6 +560,25 @@ describe("getPublicMerchant — voucher branch-restriction correctness", () => {
         itemLabel: "House coffee",
       },
     ]);
+    expect(merchant!.offers).toEqual([
+      {
+        id: "offer-1",
+        title: "Wildin Wednesdays",
+        description: "A midweek offer from Acme.",
+        terms: "Valid while stocks last.",
+        schedule: "weekly",
+        daysOfWeek: [3],
+        startTime: "17:00",
+        endTime: "21:00",
+        startsOn: null,
+        endsOn: null,
+        timezone: "Africa/Nairobi",
+        remindersEnabled: true,
+        reminderSet: true,
+        imageUrl: "https://images.example.com/wednesday.jpg",
+        requiresAkibaMiles: false,
+      },
+    ]);
     expect(JSON.stringify(merchant)).not.toContain("must-not-leak");
     expect(JSON.stringify(merchant)).not.toContain("price_cusd");
   });
@@ -427,12 +591,14 @@ describe("getPublicMerchant — voucher branch-restriction correctness", () => {
       ],
       approvedCustomerPhotos: [{ id: "bad", thumbnailUrl: "https://cdn.example.com/thumb.webp" }],
       products: [{ id: "inactive", active: false, image_url: "https://images.example.com/inactive.jpg" }],
+      defaultOffers: [{ id: "unsafe", title: "Missing required fields", imageUrl: "javascript:alert(1)" }],
     });
 
     const merchant = await getPublicMerchant("acme", null);
 
     expect(merchant!.merchantMedia).toEqual([]);
     expect(merchant!.approvedCustomerPhotos).toEqual([]);
+    expect(merchant!.offers).toEqual([]);
   });
 
   it("drops a voucher whose branch restriction resolves to zero valid branches", async () => {

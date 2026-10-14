@@ -14,6 +14,7 @@ import { TrackedAnchor } from "@/components/TrackedAnchor";
 import { MerchantViewTracker } from "@/components/merchants/MerchantViewTracker";
 import { MerchantPhotoTabs } from "@/components/merchants/MerchantPhotoTabs";
 import { MerchantFundedVoucherCard } from "@/components/merchants/MerchantFundedVoucherCard";
+import { MerchantOffersPanel } from "@/components/merchants/MerchantOffersPanel";
 import { MerchantProfileDisclosure } from "@/components/merchants/MerchantProfileDisclosure";
 import { getSignedInBalance } from "@/lib/merchants/enrich";
 import { getMemberVerifiedVisitSummary, hasOpenMerchantContributionRequest } from "@/lib/merchants/memberVisits";
@@ -142,6 +143,7 @@ export default async function MerchantPage({ params }: { params: { slug: string 
   );
   const rankedFundedOffers = rankMerchantFundedOffers(fundedOffers, claimedFundedAllocationIds);
   const totalVoucherCount = fundedOffers.length + rankedMilesVouchers.length;
+  const totalOfferCount = merchant.offers.length + totalVoucherCount;
   const affordableVoucherCount =
     balance != null ? rankedMilesVouchers.filter((v) => balance >= v.milesCost).length : null;
   const [initialSaved, memberVerifiedVisit, canAddVerifiedVisit] = userId
@@ -319,35 +321,44 @@ export default async function MerchantPage({ params }: { params: { slug: string 
         merchantMedia={merchant.merchantMedia}
         memberVerifiedVisit={memberVerifiedVisit}
         contributionHref={canAddVerifiedVisit ? `/visit/merchant/${merchant.slug}` : null}
-        voucherCount={totalVoucherCount}
-        vouchersContent={totalVoucherCount > 0 ? (
-          <>
-            {affordableVoucherCount != null && rankedMilesVouchers.length > 0 && (
-              <p className="mb-3 text-xs font-semibold text-akiba-teal">
-                Your balance covers {affordableVoucherCount} of {rankedMilesVouchers.length} Miles voucher
-                {rankedMilesVouchers.length === 1 ? "" : "s"} here.
-              </p>
+        offerCount={totalOfferCount}
+        offersContent={totalOfferCount > 0 ? (
+          <MerchantOffersPanel
+            businessOffers={merchant.offers}
+            isSignedIn={isSignedIn}
+            merchantName={merchant.name}
+            merchantSlug={merchant.slug}
+            rewardCount={totalVoucherCount}
+            rewardContent={(
+              <>
+                {affordableVoucherCount != null && rankedMilesVouchers.length > 0 && (
+                  <p className="mb-3 text-xs font-semibold text-akiba-teal">
+                    Your balance covers {affordableVoucherCount} of {rankedMilesVouchers.length} Miles voucher
+                    {rankedMilesVouchers.length === 1 ? "" : "s"} here.
+                  </p>
+                )}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {rankedFundedOffers.map((offer) => (
+                    <MerchantFundedVoucherCard
+                      key={offer.allocationId}
+                      offer={offer}
+                      isSignedIn={isSignedIn}
+                      alreadyClaimed={claimedFundedAllocationIds.has(offer.allocationId)}
+                    />
+                  ))}
+                  {rankedMilesVouchers.map((voucher) => (
+                    <VoucherCard
+                      key={voucher.id}
+                      voucher={voucher}
+                      locations={merchant.locations}
+                      isSignedIn={isSignedIn}
+                      balance={balance}
+                    />
+                  ))}
+                </div>
+              </>
             )}
-            <div className="grid gap-3 sm:grid-cols-2">
-              {rankedFundedOffers.map((offer) => (
-                <MerchantFundedVoucherCard
-                  key={offer.allocationId}
-                  offer={offer}
-                  isSignedIn={isSignedIn}
-                  alreadyClaimed={claimedFundedAllocationIds.has(offer.allocationId)}
-                />
-              ))}
-              {rankedMilesVouchers.map((voucher) => (
-                <VoucherCard
-                  key={voucher.id}
-                  voucher={voucher}
-                  locations={merchant.locations}
-                  isSignedIn={isSignedIn}
-                  balance={balance}
-                />
-              ))}
-            </div>
-          </>
+          />
         ) : undefined}
         locationCount={merchant.locations.length}
         locationsContent={merchant.locations.length > 0 ? (

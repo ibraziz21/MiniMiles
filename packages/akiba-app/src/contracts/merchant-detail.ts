@@ -90,6 +90,32 @@ const merchantMediaSchema = z.object({
   title: z.string().nullable(),
 });
 
+export const merchantOfferSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string(),
+  terms: z.string().nullable(),
+  schedule: z.enum(['always', 'weekly']),
+  daysOfWeek: z.array(z.number().int().min(0).max(6)),
+  startTime: z.string().nullable(),
+  endTime: z.string().nullable(),
+  startsOn: z.string().nullable(),
+  endsOn: z.string().nullable(),
+  timezone: z.string(),
+  remindersEnabled: z.boolean(),
+  reminderSet: z.boolean(),
+  imageUrl: z.string().nullable(),
+  requiresAkibaMiles: z.literal(false),
+});
+
+export type MerchantOffer = z.infer<typeof merchantOfferSchema>;
+
+export const offerReminderStateSchema = z.object({
+  reminder: z.object({ leadMinutes: z.union([z.literal(30), z.literal(60), z.literal(1440)]) }).nullable(),
+});
+
+export type OfferReminderState = z.infer<typeof offerReminderStateSchema>;
+
 export const merchantDetailSchema = z.object({
   merchant: z.object({
     id: z.string(),
@@ -122,6 +148,7 @@ export const merchantDetailSchema = z.object({
     locations: z.array(locationSchema),
     coreOfferings: z.array(z.object({ id: z.string(), name: z.string(), description: z.string().nullable() })),
     merchantMedia: z.array(merchantMediaSchema),
+    offers: z.array(merchantOfferSchema),
     verifiedVisits: z.array(verifiedVisitSchema),
     approvedCustomerPhotos: z.array(customerPhotoSchema),
   }),
@@ -150,6 +177,7 @@ export const merchantStateDetailSchema = z.object({
   claimedFundedAllocationIds: z.array(z.string()),
   verifiedVisit: memberVerifiedVisitSchema.nullable(),
   openContributionRequest: z.boolean(),
+  offerReminderIds: z.array(z.string()),
 });
 
 export type MerchantStateDetail = z.infer<typeof merchantStateDetailSchema>;

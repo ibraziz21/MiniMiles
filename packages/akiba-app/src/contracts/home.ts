@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { merchantValueSummarySchema } from './merchants';
+import { merchantOfferSchema } from './merchant-detail';
 
 // Source: hub-page's GET /api/v1/home (src/app/api/v1/home/route.ts) —
 // `feed` passes through hub-page's HomeFeedResponse unchanged, `cities` and
@@ -43,11 +44,22 @@ const verifiedDiscoveryHighlightSchema = z.object({
   }),
 });
 
+const homeBusinessOfferSchema = merchantOfferSchema.extend({
+  partner: z.object({
+    id: z.string(),
+    name: z.string(),
+    slug: z.string(),
+    logoUrl: z.string().nullable(),
+  }),
+  thumbnailUrl: z.string().nullable(),
+});
+
 const homeFeedSchema = z.object({
   rankingVersion: z.string(),
   generatedAt: z.string(),
   intents: z.array(discoveryIntentSchema),
   sections: z.array(homeFeedSectionSchema),
+  businessOffers: z.array(homeBusinessOfferSchema),
   verifiedHighlights: z.array(verifiedDiscoveryHighlightSchema),
   rewards: z
     .object({

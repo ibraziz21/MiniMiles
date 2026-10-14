@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-process.env.AKIBA_FUNDED_VOUCHERS_ADMIN_ENABLED = "true";
-
 const state = vi.hoisted(() => ({
   session: null as Record<string, unknown> | null,
   rpc: vi.fn(),

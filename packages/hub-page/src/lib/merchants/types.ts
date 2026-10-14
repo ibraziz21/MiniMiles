@@ -73,6 +73,40 @@ export type PublicMerchantMedia = {
   title: string | null;
 };
 
+/**
+ * A promotion run directly by the merchant. It is informational rather than
+ * a voucher: there is no Miles spend, claim, or redemption step.
+ */
+export type PublicMerchantOffer = {
+  id: string;
+  title: string;
+  description: string;
+  terms: string | null;
+  schedule: "always" | "weekly";
+  daysOfWeek: number[];
+  startTime: string | null;
+  endTime: string | null;
+  startsOn: string | null;
+  endsOn: string | null;
+  timezone: string;
+  remindersEnabled: boolean;
+  reminderSet: boolean;
+  imageUrl: string | null;
+  requiresAkibaMiles: false;
+};
+
+/** A merchant-owned offer with the minimal merchant context needed by Explore. */
+export type PublicMerchantOfferFeedItem = PublicMerchantOffer & {
+  partner: {
+    id: string;
+    name: string;
+    slug: string;
+    logoUrl: string | null;
+  };
+  /** Prefer this smaller derivative on rails; `imageUrl` remains the display asset. */
+  thumbnailUrl: string | null;
+};
+
 /** Approved derivatives from verified post-purchase visits. */
 export type PublicCustomerPhoto = {
   id: string;
@@ -133,6 +167,7 @@ export type PublicMerchantDetail = PublicMerchantSummary & {
   locations: PublicMerchantLocation[];
   coreOfferings: Array<{ id: string; name: string; description: string | null }>;
   merchantMedia: PublicMerchantMedia[];
+  offers: PublicMerchantOffer[];
   verifiedVisits: PublicVerifiedVisit[];
   approvedCustomerPhotos: PublicCustomerPhoto[];
   vouchers: PublicVoucherSummary[];

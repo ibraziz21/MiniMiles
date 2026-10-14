@@ -13,6 +13,9 @@ const state = vi.hoisted(() => ({
   newPartnerSettings: [] as unknown[],
   newMerchantsShouldError: false,
   verifiedHighlights: [] as unknown[],
+  businessOffers: [] as unknown[],
+  offerMedia: [] as unknown[],
+  businessOffersShouldError: false,
 }));
 
 const mockListPublicMerchants = vi.fn();
@@ -23,7 +26,15 @@ vi.mock("@/lib/merchants/queries", () => ({
 const mockRpc = vi.fn();
 const mockFrom = vi.fn();
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({ from: mockFrom, rpc: mockRpc }),
+  createAdminClient: () => ({
+    from: mockFrom,
+    rpc: mockRpc,
+    storage: {
+      from: () => ({
+        getPublicUrl: (key: string) => ({ data: { publicUrl: `https://storage.example/${key}` } }),
+      }),
+    },
+  }),
 }));
 
 vi.mock("@/lib/home/verifiedDiscovery", () => ({
@@ -94,6 +105,15 @@ function setupAdmin() {
       }
       return chainable({ data: state.newPartnerSettings, error: null });
     }
+    if (table === "merchant_default_offers") {
+      if (state.businessOffersShouldError) {
+        return chainable({ data: null, error: { message: "connection refused" } });
+      }
+      return chainable({ data: state.businessOffers, error: null });
+    }
+    if (table === "merchant_profile_media") {
+      return chainable({ data: state.offerMedia, error: null });
+    }
     throw new Error(`Unexpected table ${table}`);
   });
 }
@@ -114,6 +134,9 @@ describe("getHomeFeed", () => {
     state.newPartnerSettings = [];
     state.newMerchantsShouldError = false;
     state.verifiedHighlights = [];
+    state.businessOffers = [];
+    state.offerMedia = [];
+    state.businessOffersShouldError = false;
     setupAdmin();
 
     mockListPublicMerchants.mockImplementation((params: { lat?: number; lng?: number }) => {
@@ -136,6 +159,91 @@ describe("getHomeFeed", () => {
     expect(feed.rewards).toBeNull();
     expect(mockGetUserBalance).not.toHaveBeenCalled();
     expect(mockGetSoonestExpiringVoucher).not.toHaveBeenCalled();
+  });
+
+  it("includes live merchant-owned offers with compact Explore media", async () => {
+    state.businessOffers = [{
+      id: "offer-1",
+      title: "Saturday special",
+      description: "A direct offer from the business.",
+      terms: null,
+      schedule: "always",
+      days_of_week: [],
+      start_time: null,
+      end_time: null,
+      starts_on: null,
+      ends_on: null,
+      timezone: "Africa/Nairobi",
+      reminders_enabled: true,
+      image_media_id: "media-1",
+      partners: {
+        id: "merchant-1",
+        name: "Akiba Coffee",
+        slug: "akiba-coffee",
+        image_url: "https://example.com/logo.png",
+        type: "merchant",
+        status: "active",
+        partner_settings: { directory_status: "published" },
+      },
+    }];
+    state.offerMedia = [{
+      id: "media-1",
+      status: "published",
+      display_key: "offers/display.webp",
+      thumbnail_key: "offers/thumb.webp",
+    }];
+
+    const feed = await getHomeFeed({ userId: null });
+
+    expect(feed.businessOffers).toEqual([expect.objectContaining({
+      id: "offer-1",
+      title: "Saturday special",
+      imageUrl: "https://storage.example/offers/display.webp",
+      thumbnailUrl: "https://storage.example/offers/thumb.webp",
+      requiresAkibaMiles: false,
+      partner: expect.objectContaining({ slug: "akiba-coffee" }),
+    })]);
+  });
+
+  it("omits ended merchant-owned offers without taking down Explore", async () => {
+    state.businessOffers = [{
+      id: "offer-ended",
+      title: "Past offer",
+      description: "This has ended.",
+      terms: null,
+      schedule: "always",
+      days_of_week: [],
+      start_time: null,
+      end_time: null,
+      starts_on: null,
+      ends_on: "2020-01-01",
+      timezone: "Africa/Nairobi",
+      reminders_enabled: false,
+      image_media_id: null,
+      partners: {
+        id: "merchant-1",
+        name: "Akiba Coffee",
+        slug: "akiba-coffee",
+        image_url: null,
+        type: "merchant",
+        status: "active",
+        partner_settings: { directory_status: "published" },
+      },
+    }];
+
+    const feed = await getHomeFeed({ userId: null });
+
+    expect(feed.businessOffers).toEqual([]);
+  });
+
+  it("silently omits the business-offers rail when its query fails", async () => {
+    state.merchants = [merchant()];
+    state.businessOffersShouldError = true;
+
+    const feed = await getHomeFeed({ userId: null });
+
+    expect(feed.businessOffers).toEqual([]);
+    expect(feed.sections.find((section) => section.id === "for_you")).toBeDefined();
   });
 
   it("carries the ranked verified-discovery slots independently of merchant rails", async () => {

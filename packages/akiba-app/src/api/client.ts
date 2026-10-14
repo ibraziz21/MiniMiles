@@ -17,6 +17,7 @@ import {
   saveMerchantResponseSchema,
   merchantDetailSchema,
   merchantStateDetailSchema,
+  offerReminderStateSchema,
   ownedVouchersListSchema,
   voucherDetailSchema,
   voucherQuoteSchema,
@@ -42,6 +43,7 @@ import {
   type SaveMerchantResponse,
   type MerchantDetail,
   type MerchantStateDetail,
+  type OfferReminderState,
   type OwnedVouchersList,
   type VoucherDetail,
   type VoucherQuote,
@@ -145,7 +147,7 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
   // is sent regardless of whether a body is present (the mutation guard's
   // contract on the hub-page side requires it either way).
   async function mutate<T>(
-    method: 'POST' | 'DELETE' | 'PATCH',
+    method: 'POST' | 'PUT' | 'DELETE' | 'PATCH',
     path: string,
     schema: z.ZodType<T, z.ZodTypeDef, unknown>,
     requestBody?: unknown,
@@ -280,14 +282,31 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
     unsaveMerchant(slug: string): Promise<SaveMerchantResponse> {
       return mutate('DELETE', `/api/v1/merchants/${slug}/save`, saveMerchantResponseSchema);
     },
-    getMerchantDetail(slug: string): Promise<MerchantDetail> {
-      return get(`/api/v1/merchants/${slug}`, merchantDetailSchema);
+    getMerchantDetail(slug: string, options: { freshPhotos?: boolean } = {}): Promise<MerchantDetail> {
+      // Customer photos use short-lived signed storage URLs. A unique query
+      // key bypasses any browser/CDN response that can outlive those URLs.
+      return get(
+        `/api/v1/merchants/${slug}${toQueryString({ photo_refresh: options.freshPhotos ? Date.now() : undefined })}`,
+        merchantDetailSchema,
+      );
     },
     getMerchantStateDetail(slug: string): Promise<MerchantStateDetail> {
       if (!accessToken) {
         return Promise.reject(new Error('getMerchantStateDetail requires an authenticated access token'));
       }
       return get(`/api/v1/me/merchant-state/${slug}`, merchantStateDetailSchema);
+    },
+    getOfferReminder(offerId: string): Promise<OfferReminderState> {
+      if (!accessToken) {
+        return Promise.reject(new Error('getOfferReminder requires an authenticated access token'));
+      }
+      return get(`/api/v1/merchant-offers/${offerId}/reminder`, offerReminderStateSchema);
+    },
+    setOfferReminder(offerId: string, leadMinutes: 30 | 60 | 1440): Promise<OfferReminderState> {
+      return mutate('PUT', `/api/v1/merchant-offers/${offerId}/reminder`, offerReminderStateSchema, { leadMinutes });
+    },
+    removeOfferReminder(offerId: string): Promise<OfferReminderState> {
+      return mutate('DELETE', `/api/v1/merchant-offers/${offerId}/reminder`, offerReminderStateSchema);
     },
     getOwnedVouchers(
       params: { status?: 'active' | 'redeemed' | 'expired'; cursor?: string; limit?: number } = {},

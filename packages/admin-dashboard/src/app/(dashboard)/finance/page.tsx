@@ -6,7 +6,6 @@ import { PageHeader } from "@/components/shell/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatMoney } from "@/lib/utils";
-import { akibaFundedVouchersFinanceFlag } from "@/lib/featureFlags";
 import { hasPermission } from "@/types";
 import { ArrowRight, CircleAlert, FileCheck2, HandCoins, Landmark, ReceiptText, WalletCards } from "lucide-react";
 
@@ -28,7 +27,7 @@ export default async function FinancePage() {
   const session = await requireAdminSession("finance.read");
   if (!session) redirect("/login");
   const snapshot = await getFinanceSnapshot();
-  const reimbursementsEnabled = akibaFundedVouchersFinanceFlag() && hasPermission(session.role, "voucher_settlements.read");
+  const canReadReimbursements = hasPermission(session.role, "voucher_settlements.read");
 
   return (
     <div>
@@ -46,7 +45,7 @@ export default async function FinancePage() {
         <div className="grid gap-4 md:grid-cols-3">
           <FinanceDestination href="/finance/subscriptions" icon={FileCheck2} title="Subscription payments" description="Review submitted evidence and confirm or reject merchant payments." value={`${snapshot.paymentCount} awaiting review`} urgent={snapshot.paymentCount > 0} />
           <FinanceDestination href="/finance/subscriptions/collections" icon={ReceiptText} title="Collections" description="Follow up on renewal and overage invoices before grace periods expire." value={`${snapshot.collectionsCount} open · ${formatMoney(snapshot.collectionsTotal, "KES")}`} urgent={snapshot.collectionsCount > 0} />
-          <FinanceDestination href="/finance/voucher-reimbursements" icon={HandCoins} title="Voucher reimbursements" description="Batch reimbursable voucher payables and record merchant payment evidence." value={reimbursementsEnabled ? "Open reimbursement console" : "Operations paused"} disabled={!reimbursementsEnabled} />
+          <FinanceDestination href="/finance/voucher-reimbursements" icon={HandCoins} title="Voucher reimbursements" description="Batch reimbursable voucher payables and record merchant payment evidence." value={canReadReimbursements ? "Open reimbursement console" : "Permission required"} disabled={!canReadReimbursements} />
         </div>
 
         <Card className="overflow-hidden border-border shadow-[0_16px_45px_-32px_rgba(15,23,42,0.45)]">

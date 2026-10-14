@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { PageHeader } from "@/components/shell/PageHeader";
-import { akibaFundedVouchersAdminFlag } from "@/lib/featureFlags";
 import { IssueVoucherFlow, type GrantAllocationOption } from "@/components/vouchers/IssueVoucherFlow";
 
 async function getGrantableAllocations(): Promise<GrantAllocationOption[]> {
@@ -46,14 +45,13 @@ export default async function VoucherGrantsPage() {
   const session = await requireAdminSession("voucher_funds.grant");
   if (!session) redirect("/login");
 
-  const enabled = akibaFundedVouchersAdminFlag();
-  const allocations = enabled ? await getGrantableAllocations() : [];
+  const allocations = await getGrantableAllocations();
 
   return (
     <div>
       <PageHeader title="Issue voucher" subtitle="Issue one reimbursable voucher to an eligible member" />
       <div className="p-4 sm:p-6">
-        <IssueVoucherFlow allocations={allocations} enabled={enabled} />
+        <IssueVoucherFlow allocations={allocations} />
       </div>
     </div>
   );

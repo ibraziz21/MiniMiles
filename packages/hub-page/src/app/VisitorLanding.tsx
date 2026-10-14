@@ -5,6 +5,7 @@ import { MerchantRail } from "@/components/home/MerchantRail";
 import { LocationOptIn } from "@/components/home/LocationOptIn";
 import { VoucherRail } from "@/components/home/VoucherRail";
 import { VerifiedDiscoverySpotlight } from "@/components/home/VerifiedDiscoverySpotlight";
+import { BusinessOfferRail } from "@/components/home/BusinessOfferRail";
 import { getHomeFeed } from "@/lib/home/feed";
 import { listDirectoryCities } from "@/lib/merchants/queries";
 
@@ -33,6 +34,8 @@ export async function VisitorLanding() {
       <DiscoveryMasthead />
 
       <IntentShortcuts intents={feed.intents} title="What are you looking for?" />
+
+      <BusinessOfferRail offers={feed.businessOffers} />
 
       <VerifiedDiscoverySpotlight highlights={feed.verifiedHighlights} />
 

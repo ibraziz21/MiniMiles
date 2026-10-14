@@ -60,6 +60,10 @@ export {
   type MerchantStateDetail,
   type MerchantLocation,
   type MerchantMedia,
+  merchantOfferSchema,
+  type MerchantOffer,
+  offerReminderStateSchema,
+  type OfferReminderState,
   type CustomerPhoto,
   type VerifiedVisit,
 } from './merchant-detail';
