@@ -10,7 +10,6 @@ import { MetricCard } from "@/components/ui/metric-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatMoney, formatNumber } from "@/lib/utils";
 import { minorToKes } from "@/lib/voucherFunds";
-import { akibaFundedVouchersAdminFlag } from "@/lib/featureFlags";
 import { hasPermission } from "@/types";
 import {
   ArrowRight,
@@ -46,14 +45,14 @@ interface AllocationRow {
   voucher_funding_programs: { name: string } | null;
 }
 
-async function getRewardsDashboard(fundedEnabled: boolean) {
+async function getRewardsDashboard(canReadFunds: boolean) {
   const issuedPromise = supabase
     .from("issued_vouchers")
     .select("id, status, funding_mode, created_at")
     .order("created_at", { ascending: false })
     .limit(500);
 
-  if (!fundedEnabled) {
+  if (!canReadFunds) {
     const { data: issued } = await issuedPromise;
     return { issued: issued ?? [], funds: [] as FundRow[], budgets: [] as BudgetRow[], allocations: [] as AllocationRow[] };
   }
@@ -100,10 +99,9 @@ export default async function VouchersPage() {
   const canReadFunds = hasPermission(session.role, "voucher_funds.read");
   if (!canReadVouchers && !canReadFunds) redirect("/overview");
 
-  const fundedEnabled = akibaFundedVouchersAdminFlag() && canReadFunds;
-  const canAllocate = fundedEnabled && hasPermission(session.role, "voucher_funds.write");
-  const canIssue = fundedEnabled && hasPermission(session.role, "voucher_funds.grant");
-  const { issued, funds, budgets, allocations } = await getRewardsDashboard(fundedEnabled);
+  const canAllocate = hasPermission(session.role, "voucher_funds.write");
+  const canIssue = hasPermission(session.role, "voucher_funds.grant");
+  const { issued, funds, budgets, allocations } = await getRewardsDashboard(canReadFunds);
   const fundedIssued = issued.filter((voucher) => voucher.funding_mode === "akiba_reimbursement" || voucher.funding_mode === "sponsor_reimbursement");
   const redeemed = fundedIssued.filter((voucher) => voucher.status === "redeemed").length;
   const live = fundedIssued.filter((voucher) => voucher.status === "issued").length;
@@ -118,7 +116,7 @@ export default async function VouchersPage() {
       />
 
       <div className="space-y-5 p-4 sm:p-6 lg:space-y-6">
-        {fundedEnabled ? (
+        {canReadFunds ? (
           <section className="overflow-hidden rounded-[18px] border border-primary/15 bg-primary/[0.045] p-5 shadow-[0_22px_55px_-40px_rgba(15,118,110,0.7)] sm:p-6">
             <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
               <div>
@@ -134,11 +132,7 @@ export default async function VouchersPage() {
               </div>
             </div>
           </section>
-        ) : (
-          <Card className="border-warning/25 bg-warning/[0.04] p-4 text-sm text-ink shadow-none">
-            Reimbursable voucher controls are currently disabled by the operations feature flag. Standard voucher reporting remains available.
-          </Card>
-        )}
+        ) : null}
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <MetricCard label="Available to members" value={formatNumber(live)} icon={TicketCheck} />
@@ -146,7 +140,7 @@ export default async function VouchersPage() {
           <MetricCard label="Expired or revoked" value={formatNumber(expiredOrRevoked)} icon={Clock3} className="col-span-2 sm:col-span-1" />
         </div>
 
-        {fundedEnabled && (
+        {canReadFunds && (
           <div className="grid gap-5 xl:grid-cols-2">
             <Card className="overflow-hidden border-border shadow-[0_16px_45px_-32px_rgba(15,23,42,0.45)]">
               <div className="flex items-center justify-between border-b border-border px-4 py-4 sm:px-5">

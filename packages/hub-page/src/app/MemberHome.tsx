@@ -6,6 +6,7 @@ import { MerchantRail } from "@/components/home/MerchantRail";
 import { LocationOptIn } from "@/components/home/LocationOptIn";
 import { VoucherRail } from "@/components/home/VoucherRail";
 import { VerifiedDiscoverySpotlight } from "@/components/home/VerifiedDiscoverySpotlight";
+import { BusinessOfferRail } from "@/components/home/BusinessOfferRail";
 import { resolveHubProfile } from "@/lib/akiba/hubProfile";
 import { getHomeFeed } from "@/lib/home/feed";
 import { listDirectoryCities } from "@/lib/merchants/queries";
@@ -89,6 +90,8 @@ export async function MemberHome({ user }: { user: User }) {
           <span className="shrink-0 font-semibold text-akiba-teal">Add visit →</span>
         </TrackedLink>
       )}
+
+      <BusinessOfferRail offers={feed.businessOffers} />
 
       <VerifiedDiscoverySpotlight highlights={feed.verifiedHighlights} />
 

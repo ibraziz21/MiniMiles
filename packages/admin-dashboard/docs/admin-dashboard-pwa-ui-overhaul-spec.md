@@ -376,7 +376,7 @@ Each item shows a count, oldest-item age, severity, and a deep link to the relev
 
 #### Quick actions
 
-`Allocate voucher fund` is visible with `voucher_funds.write` when funded vouchers are enabled. It first asks the operator to select an eligible fund, then opens `/vouchers/funds/[fundId]/allocations/new`.
+`Allocate voucher fund` is visible with `voucher_funds.write`. It first asks the operator to select an eligible fund, then opens `/vouchers/funds/[fundId]/allocations/new`. The Admin surface is permission-gated and has no separate funded-voucher deployment flag.
 
 `Issue voucher` opens `/vouchers/grants` and is visible only with `voucher_funds.grant`. The button label stays “Issue voucher” throughout the flow; “grant” remains an internal permission and API term.
 

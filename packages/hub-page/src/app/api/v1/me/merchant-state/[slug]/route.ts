@@ -25,10 +25,9 @@ export async function GET(request: Request, { params }: { params: { slug: string
     throw error;
   }
 
-  let merchantId: string | null;
+  let merchant: Awaited<ReturnType<typeof getPublicMerchant>>;
   try {
-    const merchant = await getPublicMerchant(params.slug, actor.userId);
-    merchantId = merchant?.id ?? null;
+    merchant = await getPublicMerchant(params.slug, actor.userId);
   } catch (error) {
     if (error instanceof DirectoryUnavailableError) {
       return apiError(request, "DIRECTORY_UNAVAILABLE", "This merchant profile is temporarily unavailable", 503, {
@@ -38,9 +37,14 @@ export async function GET(request: Request, { params }: { params: { slug: string
     throw error;
   }
 
-  if (!merchantId) {
+  if (!merchant) {
     return apiError(request, "MERCHANT_NOT_FOUND", "Merchant not found", 404);
   }
+
+  const merchantId = merchant.id;
+  const offerReminderIds = (merchant.offers ?? [])
+    .filter((offer) => offer.reminderSet)
+    .map((offer) => offer.id);
 
   const fundedOffers = await getMerchantFundedOffers(merchantId);
 
@@ -62,6 +66,7 @@ export async function GET(request: Request, { params }: { params: { slug: string
     claimedFundedAllocationIds: Array.from(claimedFundedAllocationIds),
     verifiedVisit,
     openContributionRequest,
+    offerReminderIds,
   });
   response.headers.set("Cache-Control", "private, no-store");
   return response;

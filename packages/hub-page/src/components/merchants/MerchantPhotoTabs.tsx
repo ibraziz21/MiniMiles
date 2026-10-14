@@ -20,7 +20,7 @@ import type {
   PublicVerifiedVisit,
 } from "@/lib/merchants/types";
 
-type ProfileTab = "verified" | "merchant" | "vouchers" | "locations";
+type ProfileTab = "verified" | "merchant" | "offers" | "locations";
 type GalleryPhoto = {
   id: string;
   thumbnailUrl: string;
@@ -66,8 +66,8 @@ export function MerchantPhotoTabs({
   merchantMedia,
   memberVerifiedVisit,
   contributionHref,
-  voucherCount,
-  vouchersContent,
+  offerCount,
+  offersContent,
   locationCount,
   locationsContent,
 }: {
@@ -78,8 +78,8 @@ export function MerchantPhotoTabs({
   merchantMedia: PublicMerchantMedia[];
   memberVerifiedVisit: MemberVerifiedVisitSummary | null;
   contributionHref: string | null;
-  voucherCount: number;
-  vouchersContent?: ReactNode;
+  offerCount: number;
+  offersContent?: ReactNode;
   locationCount: number;
   locationsContent?: ReactNode;
 }) {
@@ -91,11 +91,11 @@ export function MerchantPhotoTabs({
   const availableTabs: ProfileTab[] = [
     "verified",
     "merchant",
-    "vouchers",
+    "offers",
     ...(locationCount > 0 ? (["locations"] as const) : []),
   ];
   const [activeTab, setActiveTab] = useState<ProfileTab>(() => {
-    if (voucherCount > 0) return "vouchers";
+    if (offerCount > 0) return "offers";
     if (memberVerifiedVisit) return "verified";
     if (verifiedVisits.length > 0) return "verified";
     if (customerPhotos.length > 0) return "verified";
@@ -109,8 +109,8 @@ export function MerchantPhotoTabs({
   const visiblePhotos = showAll ? photos : photos.slice(0, INITIAL_PHOTO_COUNT);
   const viewerPhoto = viewerIndex == null ? null : photos[viewerIndex] ?? null;
   useEffect(() => {
-    if (activeTab === "vouchers") {
-      track("merchant_vouchers_tab_view", { merchantId, voucherCount });
+    if (activeTab === "offers") {
+      track("merchant_offers_tab_view", { merchantId, offerCount });
       return;
     }
     if (activeTab === "locations") {
@@ -118,7 +118,7 @@ export function MerchantPhotoTabs({
       return;
     }
     track("merchant_photo_source_view", { merchantId, source: activeTab });
-  }, [activeTab, locationCount, merchantId, voucherCount]);
+  }, [activeTab, locationCount, merchantId, offerCount]);
 
   function selectTab(tab: ProfileTab) {
     setActiveTab(tab);
@@ -202,23 +202,23 @@ export function MerchantPhotoTabs({
   const verifiedPanelId = `${tabsId}-verified-panel`;
   const merchantTabId = `${tabsId}-merchant-tab`;
   const merchantPanelId = `${tabsId}-merchant-panel`;
-  const vouchersTabId = `${tabsId}-vouchers-tab`;
-  const vouchersPanelId = `${tabsId}-vouchers-panel`;
+  const offersTabId = `${tabsId}-offers-tab`;
+  const offersPanelId = `${tabsId}-offers-panel`;
   const locationsTabId = `${tabsId}-locations-tab`;
   const locationsPanelId = `${tabsId}-locations-panel`;
   const activePanelId = activeTab === "verified"
     ? verifiedPanelId
     : activeTab === "merchant"
       ? merchantPanelId
-      : activeTab === "vouchers"
-        ? vouchersPanelId
+      : activeTab === "offers"
+        ? offersPanelId
         : locationsPanelId;
   const activeTabId = activeTab === "verified"
     ? verifiedTabId
     : activeTab === "merchant"
       ? merchantTabId
-      : activeTab === "vouchers"
-        ? vouchersTabId
+      : activeTab === "offers"
+        ? offersTabId
         : locationsTabId;
 
   return (
@@ -240,22 +240,22 @@ export function MerchantPhotoTabs({
             ? verifiedTabId
             : tab === "merchant"
               ? merchantTabId
-              : tab === "vouchers"
-                ? vouchersTabId
+              : tab === "offers"
+                ? offersTabId
                 : locationsTabId;
           const panelId = tab === "verified"
             ? verifiedPanelId
             : tab === "merchant"
               ? merchantPanelId
-              : tab === "vouchers"
-                ? vouchersPanelId
+              : tab === "offers"
+                ? offersPanelId
                 : locationsPanelId;
           const label = tab === "verified"
             ? "Verified visits"
             : tab === "merchant"
               ? "From the business"
-              : tab === "vouchers"
-                ? "Vouchers"
+              : tab === "offers"
+                ? "Offers"
                 : "Locations";
           return (
             <button
@@ -278,7 +278,7 @@ export function MerchantPhotoTabs({
             >
               {tab === "verified" && <Camera className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden="true" />}
               {tab === "merchant" && <Store className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden="true" />}
-              {tab === "vouchers" && <Ticket className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden="true" />}
+              {tab === "offers" && <Ticket className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden="true" />}
               {tab === "locations" && <MapPin className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden="true" />}
               {tab === "merchant" ? (
                 <><span className="sm:hidden">Business</span><span className="hidden sm:inline">From the business</span></>
@@ -296,8 +296,8 @@ export function MerchantPhotoTabs({
       {activeTab !== "merchant" && (
         <div id={merchantPanelId} role="tabpanel" aria-labelledby={merchantTabId} hidden />
       )}
-      {activeTab !== "vouchers" && (
-        <div id={vouchersPanelId} role="tabpanel" aria-labelledby={vouchersTabId} hidden />
+      {activeTab !== "offers" && (
+        <div id={offersPanelId} role="tabpanel" aria-labelledby={offersTabId} hidden />
       )}
       {locationCount > 0 && activeTab !== "locations" && (
         <div id={locationsPanelId} role="tabpanel" aria-labelledby={locationsTabId} hidden>
@@ -311,39 +311,26 @@ export function MerchantPhotoTabs({
         tabIndex={0}
         className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-akiba-teal"
       >
-        {activeTab === "vouchers" ? (
-          <div id="vouchers" className="px-4 py-5 sm:px-0 sm:py-6">
-            <div className="mb-4 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
-              <div className="min-w-0">
-                <h3 className="font-sterling text-lg font-semibold text-akiba-ink">Offers at {merchantName}</h3>
-                <p className="mt-0.5 text-sm leading-5 text-akiba-muted">
-                  {voucherCount > 0
-                    ? "Akiba-funded offers first, then vouchers available with Miles."
-                    : "Vouchers for this merchant will appear here."}
-                </p>
-              </div>
-              <p className="shrink-0 text-xs font-semibold tabular-nums text-akiba-ink sm:pb-0.5 sm:text-sm">
-                {voucherCount} {voucherCount === 1 ? "offer" : "offers"}
-              </p>
-            </div>
-            {vouchersContent ?? (
-              <div className="rounded-2xl border border-akiba-line bg-white px-5 py-10 text-center sm:py-12">
-                <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-akiba-card text-akiba-muted">
-                  <Ticket className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
-                </span>
-                <p className="mt-3 font-sterling text-lg font-semibold text-akiba-ink">No vouchers right now</p>
-                <p className="mx-auto mt-1 max-w-md text-sm leading-5 text-akiba-muted">
-                  Check back later, or browse offers available from other Akiba merchants.
-                </p>
-                <TrackedLink
-                  href="/vouchers"
-                  event="merchant_vouchers_empty_browse_tap"
-                  eventProps={{ merchant_id: merchantId }}
-                  className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full border border-akiba-line px-4 py-2 text-sm font-semibold text-akiba-ink transition-colors hover:border-akiba-teal/40 hover:text-akiba-teal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal motion-reduce:transition-none"
-                >
-                  Browse all vouchers
-                </TrackedLink>
-              </div>
+        {activeTab === "offers" ? (
+          <div id="offers" className="px-4 py-5 sm:px-0 sm:py-6">
+            {offersContent ?? (
+              <>
+                <div className="mb-3 flex min-w-0 items-center justify-between gap-4">
+                  <h3 className="font-sterling text-lg font-semibold text-akiba-ink">Offers</h3>
+                  <p className="text-xs font-semibold tabular-nums text-akiba-muted">0</p>
+                </div>
+                <div className="rounded-2xl border border-akiba-line bg-white px-5 py-8 text-center">
+                  <p className="font-sterling text-lg font-semibold text-akiba-ink">No offers right now</p>
+                  <TrackedLink
+                    href="/vouchers"
+                    event="merchant_offers_empty_browse_tap"
+                    eventProps={{ merchant_id: merchantId }}
+                    className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full border border-akiba-line px-4 py-2 text-sm font-semibold text-akiba-ink transition-colors hover:border-akiba-teal/40 hover:text-akiba-teal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal motion-reduce:transition-none"
+                  >
+                    Browse offers
+                  </TrackedLink>
+                </div>
+              </>
             )}
           </div>
         ) : activeTab === "locations" ? (

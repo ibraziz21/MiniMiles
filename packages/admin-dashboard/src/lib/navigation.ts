@@ -36,6 +36,7 @@ import {
   Image as ImageIcon,
   Activity,
   Ticket,
+  TicketCheck,
   HandCoins,
   WalletCards,
 } from "lucide-react";
@@ -50,8 +51,6 @@ export interface NavNode {
   exact?: boolean;
   /** Omitted = always visible to any authenticated session (matches a page that calls requireAdminSession() with no argument). */
   permission?: string;
-  /** Feature gate applied in addition to the permission check. */
-  featureGate?: "funded-admin" | "funded-finance";
   children?: NavNode[];
 }
 
@@ -122,9 +121,10 @@ const DESKTOP_PRIMARY_MODULES: NavNode[] = [
         icon: HandCoins,
         targetRoute: "/vouchers/funds",
         children: [
-          { id: "rewards-funds", label: "Voucher funds", icon: Landmark, targetRoute: "/vouchers/funds", permission: "voucher_funds.read", featureGate: "funded-admin" },
-          { id: "rewards-allocations", label: "Merchant allocations", icon: Store, targetRoute: "/vouchers/allocations", permission: "voucher_funds.read", featureGate: "funded-admin" },
-          { id: "rewards-issue", label: "Issue voucher", icon: WalletCards, targetRoute: "/vouchers/grants", permission: "voucher_funds.grant", featureGate: "funded-admin" },
+          { id: "rewards-funds", label: "Voucher funds", icon: Landmark, targetRoute: "/vouchers/funds", permission: "voucher_funds.read" },
+          { id: "rewards-allocations", label: "Merchant allocations", icon: Store, targetRoute: "/vouchers/allocations", permission: "voucher_funds.read" },
+          { id: "rewards-issued", label: "Issued vouchers", icon: TicketCheck, targetRoute: "/vouchers/issued", permission: "voucher_funds.read" },
+          { id: "rewards-issue", label: "Issue voucher", icon: WalletCards, targetRoute: "/vouchers/grants", permission: "voucher_funds.grant" },
         ],
       },
       { id: "rewards-pricing", label: "Pricing", icon: Tag, targetRoute: "/vouchers/pricing", permission: "vouchers.read" },
@@ -151,7 +151,7 @@ const DESKTOP_PRIMARY_MODULES: NavNode[] = [
       { id: "finance-overview", label: "Overview", icon: LayoutDashboard, targetRoute: "/finance", exact: true, permission: "finance.read" },
       { id: "finance-subscriptions", label: "Subscription payments", icon: Inbox, targetRoute: "/finance/subscriptions", permission: "finance.read" },
       { id: "finance-collections", label: "Collections", icon: ClipboardCheck, targetRoute: "/finance/subscriptions/collections", permission: "finance.read" },
-      { id: "finance-reimbursements", label: "Voucher reimbursements", icon: HandCoins, targetRoute: "/finance/voucher-reimbursements", permission: "voucher_settlements.read", featureGate: "funded-finance" },
+      { id: "finance-reimbursements", label: "Voucher reimbursements", icon: HandCoins, targetRoute: "/finance/voucher-reimbursements", permission: "voucher_settlements.read" },
     ],
   },
   {
@@ -215,14 +215,12 @@ const MOBILE_MORE_DESTINATIONS: NavNode[] = [
   { id: "more-settings", label: "Settings", icon: Settings, targetRoute: "/settings" },
 ];
 
-function filterNode(node: NavNode, role: AdminRole, fundedVouchersEnabled: boolean, fundedFinanceEnabled: boolean): NavNode | null {
+function filterNode(node: NavNode, role: AdminRole): NavNode | null {
   if (BLOCKED_NAV_ROUTES.includes(node.targetRoute)) return null;
-  if (node.featureGate === "funded-admin" && !fundedVouchersEnabled) return null;
-  if (node.featureGate === "funded-finance" && !fundedFinanceEnabled) return null;
 
   if (node.children && node.children.length > 0) {
     const children = node.children
-      .map((child) => filterNode(child, role, fundedVouchersEnabled, fundedFinanceEnabled))
+      .map((child) => filterNode(child, role))
       .filter((child): child is NavNode => child !== null);
     if (children.length === 0) return null;
     // A branch's own targetRoute is never permission-checked directly (it's
@@ -236,13 +234,13 @@ function filterNode(node: NavNode, role: AdminRole, fundedVouchersEnabled: boole
   return node;
 }
 
-export function buildNav(role: AdminRole, fundedVouchersEnabled: boolean, fundedFinanceEnabled = fundedVouchersEnabled): AdminNav {
+export function buildNav(role: AdminRole): AdminNav {
   const desktopPrimary = DESKTOP_PRIMARY_MODULES.map((node) =>
-    filterNode(node, role, fundedVouchersEnabled, fundedFinanceEnabled),
+    filterNode(node, role),
   ).filter((node): node is NavNode => node !== null);
 
   const mobileMore = MOBILE_MORE_DESTINATIONS.map((node) =>
-    filterNode(node, role, fundedVouchersEnabled, fundedFinanceEnabled),
+    filterNode(node, role),
   ).filter((node): node is NavNode => node !== null);
 
   const moduleById = new Map(desktopPrimary.map((node) => [node.id, node]));

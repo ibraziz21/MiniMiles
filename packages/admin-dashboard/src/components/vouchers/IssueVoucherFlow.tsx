@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, ArrowRight, Check, ChevronRight, Landmark, Loader2, Search, Send, ShieldCheck, Store, UserRound } from "lucide-react";
+import { AlertCircle, Check, CheckCircle2, ChevronRight, Landmark, Loader2, Search, Send, ShieldCheck, UserRound } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn, formatMoney, minorToMajor } from "@/lib/utils";
 
@@ -36,9 +35,21 @@ interface PreviewResult {
   code?: string;
 }
 
+interface IssuedVoucherResult {
+  id: string;
+  status: string;
+  expiresAt: string;
+  idempotent: boolean;
+  recipient: string;
+  merchantName: string;
+  fundName: string;
+  fundId: string | null;
+  auditReference: string;
+}
+
 const STEPS = ["Member", "Voucher", "Review"] as const;
 
-export function IssueVoucherFlow({ allocations, enabled }: { allocations: GrantAllocationOption[]; enabled: boolean }) {
+export function IssueVoucherFlow({ allocations }: { allocations: GrantAllocationOption[] }) {
   const [query, setQuery] = useState("");
   const [members, setMembers] = useState<MemberResult[]>([]);
   const [member, setMember] = useState<MemberResult | null>(null);
@@ -46,7 +57,10 @@ export function IssueVoucherFlow({ allocations, enabled }: { allocations: GrantA
   const [reason, setReason] = useState("");
   const [searching, setSearching] = useState(false);
   const [previewing, setPreviewing] = useState(false);
+  const [issuing, setIssuing] = useState(false);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
+  const [confirmationId, setConfirmationId] = useState<string | null>(null);
+  const [issued, setIssued] = useState<IssuedVoucherResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const allocation = useMemo(() => allocations.find((item) => item.id === allocationId) ?? null, [allocationId, allocations]);
@@ -84,15 +98,42 @@ export function IssueVoucherFlow({ allocations, enabled }: { allocations: GrantA
       const response = await fetch("/api/admin/voucher-grants/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ member_id: member.id, allocation_id: allocation.id }),
+        body: JSON.stringify({ member_username: member.username, allocation_id: allocation.id }),
       });
       const body = await response.json();
       if (!response.ok && !body.preview) throw new Error(body.error ?? "Eligibility preview failed.");
-      setPreview(body.preview ?? body);
+      const nextPreview = body.preview ?? body;
+      setPreview(nextPreview);
+      setConfirmationId(nextPreview.eligible ? crypto.randomUUID() : null);
     } catch (previewError) {
       setError((previewError as Error).message);
     } finally {
       setPreviewing(false);
+    }
+  }
+
+  async function issueVoucher() {
+    if (!member || !allocation || !preview?.eligible || !confirmationId || reason.trim().length < 4) return;
+    setIssuing(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/vouchers/grant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          member_username: member.username,
+          allocation_id: allocation.id,
+          operator_reason: reason.trim(),
+          confirmation_id: confirmationId,
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.voucher) throw new Error(body.error ?? "Voucher issuance failed.");
+      setIssued(body.voucher);
+    } catch (issueError) {
+      setError((issueError as Error).message);
+    } finally {
+      setIssuing(false);
     }
   }
 
@@ -101,13 +142,28 @@ export function IssueVoucherFlow({ allocations, enabled }: { allocations: GrantA
     setQuery("");
     setAllocationId("");
     setPreview(null);
+    setConfirmationId(null);
+    setIssued(null);
     setReason("");
   }
 
-  if (!enabled) {
+  if (issued) {
     return (
-      <Card className="mx-auto max-w-3xl border-warning/25 bg-warning/[0.04] p-5 shadow-none sm:p-6">
-        <div className="flex gap-3"><AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-warning" aria-hidden="true" /><div><h2 className="font-semibold text-ink">Issuance is currently paused</h2><p className="mt-1 text-sm leading-6 text-ink-muted">Enable the funded-voucher admin feature only after the Platform grant and eligibility controls are ready.</p></div></div>
+      <Card className="mx-auto max-w-3xl border-success/25 bg-success/[0.04] p-5 shadow-none sm:p-6" role="status">
+        <div className="flex gap-3">
+          <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-success" aria-hidden="true" />
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg font-semibold text-ink">Voucher issued to @{issued.recipient}</h2>
+            <p className="mt-1 text-sm leading-6 text-ink-muted">{issued.merchantName} · expires {new Date(issued.expiresAt).toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" })}</p>
+            {issued.idempotent && <p className="mt-2 text-sm text-ink-muted">This was a safe replay of the original confirmed issuance.</p>}
+            <dl className="mt-4 grid gap-3 rounded-card border border-success/20 bg-surface/70 p-4 text-sm sm:grid-cols-2">
+              <div><dt className="text-xs text-ink-muted">Voucher ID</dt><dd className="mt-1 break-all font-mono text-xs text-ink">{issued.id}</dd></div>
+              <div><dt className="text-xs text-ink-muted">Fund</dt><dd className="mt-1 font-medium text-ink">{issued.fundName}</dd></div>
+              <div className="sm:col-span-2"><dt className="text-xs text-ink-muted">Audit reference</dt><dd className="mt-1 break-all font-mono text-xs text-ink">{issued.auditReference}</dd></div>
+            </dl>
+            <Button type="button" className="mt-5 min-h-11" onClick={resetMember}>Issue another voucher</Button>
+          </div>
+        </div>
       </Card>
     );
   }
@@ -132,7 +188,7 @@ export function IssueVoucherFlow({ allocations, enabled }: { allocations: GrantA
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]">
         <Card className="overflow-hidden border-border shadow-[0_18px_48px_-34px_rgba(15,23,42,0.5)]">
-          <div className="border-b border-border px-4 py-4 sm:px-5"><h2 className="font-semibold text-ink">1. Select a member</h2><p className="mt-1 text-sm text-ink-muted">Search by username, phone, wallet address, or member ID.</p></div>
+          <div className="border-b border-border px-4 py-4 sm:px-5"><h2 className="font-semibold text-ink">1. Select a member</h2><p className="mt-1 text-sm text-ink-muted">Search by the member’s active Akiba username.</p></div>
           <div className="p-4 sm:p-5">
             {member ? (
               <div className="flex items-center gap-3 rounded-card border border-success/25 bg-success/[0.04] p-3">
@@ -145,9 +201,10 @@ export function IssueVoucherFlow({ allocations, enabled }: { allocations: GrantA
                 <label htmlFor="member-search" className="text-sm font-medium text-ink">Member search</label>
                 <div className="relative mt-2">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" aria-hidden="true" />
-                  <input id="member-search" name="member-search" type="search" autoComplete="off" spellCheck={false} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="e.g. awino, +254…, 0x…" className="min-h-11 w-full rounded-control border border-border bg-surface pl-9 pr-10 text-base text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm" />
+                  <input id="member-search" name="member-search" type="search" autoComplete="off" spellCheck={false} aria-busy={searching} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="e.g. awino…" className="min-h-11 w-full rounded-control border border-border bg-surface pl-9 pr-10 text-base text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm" />
                   {searching && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-primary" aria-label="Searching" />}
                 </div>
+                <p className="sr-only" aria-live="polite">{searching ? "Searching for members…" : query.trim().length >= 2 ? `${members.length} matching member${members.length === 1 ? "" : "s"}` : ""}</p>
                 {query.trim().length > 0 && query.trim().length < 2 && <p className="mt-2 text-xs text-ink-muted">Enter at least two characters.</p>}
                 {members.length > 0 && (
                   <ul className="mt-2 overflow-hidden rounded-card border border-border">
@@ -165,7 +222,7 @@ export function IssueVoucherFlow({ allocations, enabled }: { allocations: GrantA
             <h2 className="font-semibold text-ink">2. Select a reimbursable voucher</h2>
             <p className="mt-1 text-sm text-ink-muted">Only live allocations configured for direct issue appear.</p>
             <label htmlFor="allocation" className="sr-only">Voucher allocation</label>
-            <select id="allocation" name="allocation" autoComplete="off" value={allocationId} onChange={(event) => { setAllocationId(event.target.value); setPreview(null); }} disabled={!member} className="mt-3 min-h-11 w-full rounded-control border border-border bg-surface px-3 text-base text-ink focus:outline-none focus:ring-2 focus:ring-primary disabled:cursor-not-allowed sm:text-sm">
+            <select id="allocation" name="allocation" autoComplete="off" value={allocationId} onChange={(event) => { setAllocationId(event.target.value); setPreview(null); setConfirmationId(null); }} disabled={!member} className="mt-3 min-h-11 w-full rounded-control border border-border bg-surface px-3 text-base text-ink focus:outline-none focus:ring-2 focus:ring-primary disabled:cursor-not-allowed sm:text-sm">
               <option value="">Choose an allocation</option>
               {allocations.map((option) => <option key={option.id} value={option.id}>{option.title} · {option.merchantName} · {option.quantityRemaining} left</option>)}
             </select>
@@ -186,7 +243,10 @@ export function IssueVoucherFlow({ allocations, enabled }: { allocations: GrantA
               </div>
               <label htmlFor="issue-reason" className="mt-4 block text-sm font-medium text-ink">Operator reason</label>
               <textarea id="issue-reason" name="issue-reason" autoComplete="off" value={reason} onChange={(event) => setReason(event.target.value)} rows={3} disabled={!preview.eligible} placeholder="e.g. Service recovery for delayed claim…" className="mt-2 w-full rounded-control border border-border bg-surface px-3 py-2 text-base text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:bg-surface-subtle sm:text-sm" />
-              <Button type="button" disabled={!preview.eligible || reason.trim().length < 4} className="mt-4 min-h-11 w-full sm:w-auto"><Send className="h-4 w-4" aria-hidden="true" />Issue voucher</Button>
+              <Button type="button" onClick={issueVoucher} disabled={!preview.eligible || reason.trim().length < 4 || issuing} className="mt-4 min-h-11 w-full sm:w-auto">
+                {issuing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="h-4 w-4" aria-hidden="true" />}
+                {issuing ? "Issuing voucher…" : "Issue voucher"}
+              </Button>
             </div>
           )}
 

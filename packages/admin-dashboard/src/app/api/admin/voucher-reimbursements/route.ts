@@ -3,7 +3,6 @@ import { requireAdminSession, adminIdForWrite } from "@/lib/auth";
 import { hasPermission } from "@/types";
 import { supabase } from "@/lib/supabase";
 import { getVoucherReimbursementDashboard } from "@/lib/voucherReimbursements";
-import { akibaFundedVouchersFinanceFlag } from "@/lib/featureFlags";
 import { OPEN_ACCESS_ACTOR_ID, messageForRpcError, parseRpcErrorCode } from "@/lib/voucherFunds";
 import { writeAdminAuditLog } from "@/lib/audit";
 import { isTrustedMutationRequest } from "@/lib/requestSecurity";
@@ -11,14 +10,9 @@ import { isTrustedMutationRequest } from "@/lib/requestSecurity";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ACTIONS = new Set(["create_batch", "submit_batch", "mark_paid", "cancel_batch", "reverse_redemption", "resolve_incident"]);
 
-function unavailable() {
-  return NextResponse.json({ error: "Funded-voucher reimbursement operations are not enabled." }, { status: 503 });
-}
-
 export async function GET() {
   const session = await requireAdminSession("voucher_settlements.read");
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!akibaFundedVouchersFinanceFlag()) return unavailable();
   try {
     return NextResponse.json(await getVoucherReimbursementDashboard(), { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
@@ -31,7 +25,6 @@ export async function POST(request: Request) {
   if (!isTrustedMutationRequest(request)) return NextResponse.json({ error: "Cross-site request rejected." }, { status: 403 });
   const session = await requireAdminSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!akibaFundedVouchersFinanceFlag()) return unavailable();
   if (process.env.NODE_ENV === "production" && !adminIdForWrite(session)) return NextResponse.json({ error: "A real admin identity is required." }, { status: 403 });
 
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;

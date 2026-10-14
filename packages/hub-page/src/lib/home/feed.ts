@@ -5,6 +5,7 @@ import { getUserBalance } from "@/lib/akiba/balance";
 import { resolveHubProfile } from "@/lib/akiba/hubProfile";
 import { getLinkedWalletAddresses, getSoonestExpiringVoucher } from "@/lib/akiba/myVouchers";
 import { listPublicMerchants } from "@/lib/merchants/queries";
+import { listPublicMerchantOffers } from "@/lib/merchants/publicOffers";
 import { getTopOffers, toMerchantValueSummary, getPurchaseAffinity, type TopOffer } from "@/lib/merchants/enrich";
 import { getActiveIntents, getIntentBySlug } from "./intents";
 import { getVerifiedDiscoveryHighlights } from "./verifiedDiscovery";
@@ -311,9 +312,10 @@ export async function getHomeFeed(params: HomeFeedParams): Promise<HomeFeedRespo
     buildLimitedTimeSection(params.userId, balance, limit),
     buildNewMerchantsSection(),
     getVerifiedDiscoveryHighlights(),
+    listPublicMerchantOffers(limit),
   ]);
 
-  const [forYou, nearby, limitedTime, newMerchants, verifiedHighlights] = results;
+  const [forYou, nearby, limitedTime, newMerchants, verifiedHighlights, businessOffers] = results;
   if (forYou.status === "fulfilled" && forYou.value.merchants.length > 0) sections.push(forYou.value);
   else if (forYou.status === "rejected") console.error("[home-feed] for_you section failed:", forYou.reason);
 
@@ -331,6 +333,7 @@ export async function getHomeFeed(params: HomeFeedParams): Promise<HomeFeedRespo
     generatedAt: new Date().toISOString(),
     intents: getActiveIntents(),
     sections,
+    businessOffers: businessOffers.status === "fulfilled" ? businessOffers.value : [],
     verifiedHighlights: verifiedHighlights.status === "fulfilled" ? verifiedHighlights.value : [],
     rewards,
     // Temporarily disabled on Discovery. Keeping the response key avoids a

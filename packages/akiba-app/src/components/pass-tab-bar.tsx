@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, MaterialIcon, colors, fontFamily } from '@/design-system';
 
-type TabKey = 'explore' | 'merchants' | 'rewards' | 'gifts';
+type TabKey = 'explore' | 'merchants' | 'rewards' | 'gifts' | 'profile';
 
 const LEFT_TABS = [
   { key: 'explore' as const, href: '/' as const, label: 'Explore', icon: 'compass' as const },
@@ -16,15 +16,23 @@ const RIGHT_TABS = [
   { key: 'gifts' as const, href: '/gifts' as const, label: 'Gifts', icon: 'gift' as const },
 ];
 
+const PROFILE_TAB = {
+  key: 'profile' as const,
+  href: '/profile' as const,
+  label: 'Profile',
+  icon: 'user' as const,
+};
+
 function resolveActive(pathname: string): TabKey | null {
   if (pathname === '/') return 'explore';
   if (pathname.startsWith('/merchants')) return 'merchants';
   if (pathname.startsWith('/vouchers')) return 'rewards';
   if (pathname.startsWith('/gifts')) return 'gifts';
+  if (pathname.startsWith('/profile')) return 'profile';
   return null;
 }
 
-type TabItem = (typeof LEFT_TABS | typeof RIGHT_TABS)[number];
+type TabItem = (typeof LEFT_TABS)[number] | (typeof RIGHT_TABS)[number] | typeof PROFILE_TAB;
 
 function NavigationItem({ item, active }: { item: TabItem; active: boolean }) {
   return (
@@ -44,14 +52,16 @@ function NavigationItem({ item, active }: { item: TabItem; active: boolean }) {
 /**
  * `showGifts` comes from the resolved `features.gifts` flag: the Gifts tab
  * is a coming-soon placeholder, so the destination is hidden entirely
- * rather than shipped as a dead end (AKIBA-MOB-001 §1).
+ * rather than shipped as a dead end (AKIBA-MOB-001 §1). Profile occupies
+ * its reserved slot while Gifts is unavailable, keeping the raised Pass
+ * control centered instead of leaving the tab bar visually unbalanced.
  */
 export function PassTabBar({ showGifts = false }: { showGifts?: boolean }) {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const active = resolveActive(pathname);
   const passActive = pathname.startsWith('/pass');
-  const rightTabs = showGifts ? RIGHT_TABS : RIGHT_TABS.filter((item) => item.key !== 'gifts');
+  const rightTabs: TabItem[] = showGifts ? RIGHT_TABS : [RIGHT_TABS[0], PROFILE_TAB];
 
   return (
     <View style={[styles.shell, { paddingBottom: insets.bottom }]}>

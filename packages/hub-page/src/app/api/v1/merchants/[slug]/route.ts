@@ -1,10 +1,12 @@
-// GET /api/v1/merchants/:slug — the public, CDN-cacheable half of the
+// GET /api/v1/merchants/:slug — the public half of the
 // merchant detail screen (hub-mobile-app-migration-plan.md "Merchant
 // detail `/merchants/[slug]`"). Always resolves with no actor identity
 // (`getPublicMerchant(slug, null)`, vouchers ranked with `balance: null`,
 // funded offers ranked with an empty claimed set) so the response never
 // varies by who's asking. Balance, saved state, claimed offers, and visit
 // state live in the self-only overlay, GET /api/v1/me/merchant-state/:slug.
+// The payload can include short-lived signed customer-photo URLs, so it must
+// never be cached even though it contains no actor-specific data.
 import { apiSuccess, apiError } from "@/lib/api/v1/response";
 import { getPublicMerchant, DirectoryUnavailableError } from "@/lib/merchants/queries";
 import { getMerchantFundedOffers } from "@/lib/vouchers/merchantFundedOffers.server";
@@ -35,6 +37,6 @@ export async function GET(request: Request, { params }: { params: { slug: string
     vouchers: rankMerchantVouchers(vouchers, null),
     fundedOffers: rankMerchantFundedOffers(fundedOffers, new Set()),
   });
-  response.headers.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
+  response.headers.set("Cache-Control", "private, no-store");
   return response;
 }

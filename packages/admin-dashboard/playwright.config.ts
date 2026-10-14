@@ -35,8 +35,6 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       ADMIN_OPEN_ACCESS: "true",
-      AKIBA_FUNDED_VOUCHERS_ADMIN_ENABLED: "true",
-      AKIBA_FUNDED_VOUCHERS_FINANCE_ENABLED: "true",
     },
   },
 });

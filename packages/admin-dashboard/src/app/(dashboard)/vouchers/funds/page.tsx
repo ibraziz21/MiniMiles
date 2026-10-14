@@ -70,12 +70,12 @@ export default async function VoucherFundsPage() {
   return (
     <div>
       <PageHeader
-        title="Voucher Funds"
+        title="Funds"
         subtitle="Akiba-funded voucher initiatives and their merchant allocations"
         actions={
           canCreate ? (
             <Button asChild>
-              <Link href="/vouchers/funds/new">New fund</Link>
+              <Link href="/vouchers/funds/new"><span className="sm:hidden">New</span><span className="hidden sm:inline">New fund</span></Link>
             </Button>
           ) : undefined
         }
@@ -93,23 +93,23 @@ export default async function VoucherFundsPage() {
         ) : (
           <Card>
             <CardHeader>
-              <CardTitle>Funds</CardTitle>
+              <CardTitle>Fund register</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               {funds.map(({ program, budget }) => (
                 <Link
                   key={program.id}
                   href={`/vouchers/funds/${program.id}`}
-                  className="flex flex-wrap items-center gap-3 rounded-card border border-border px-3 py-3 text-sm hover:border-primary/30 hover:bg-surface-subtle"
+                  className="flex flex-col items-start gap-3 rounded-card border border-border px-3 py-3 text-sm transition-colors hover:border-primary/30 hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:flex-row sm:items-center"
                 >
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 w-full flex-1 sm:w-auto">
                     <p className="font-medium text-ink">{program.name}</p>
-                    <p className="text-xs text-ink-muted">
+                    <p className="mt-1 text-xs leading-5 text-ink-muted">
                       {program.country_code} · {program.sponsorship_label ?? "Funded by Akiba"} ·{" "}
                       {formatDate(program.starts_at)} – {formatDate(program.ends_at)}
                     </p>
                   </div>
-                  <div className="text-right text-xs text-ink-muted">
+                  <div className="text-left text-xs leading-5 text-ink-muted sm:text-right">
                     <p>Authorized: {formatMoney(minorToKes(program.authorized_budget_minor), program.currency)}</p>
                     {budget && (
                       <p>Available: {formatMoney(minorToKes(budget.available_budget_minor), program.currency)}</p>

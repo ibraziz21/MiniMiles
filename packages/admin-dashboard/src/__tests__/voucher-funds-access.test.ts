@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdminSessionData } from "@/types";
 
-// akiba-funded-voucher-launch-hardening-spec.md §3: the Admin flag defaults
-// to disabled, and production must reject funded economic mutations under
+// Production must reject funded economic mutations under
 // open access or with no real admin_users.id — this is the one guard every
 // voucher-funds mutation route delegates to, so its own behavior is tested
 // directly rather than only incidentally through route tests.
@@ -33,18 +32,7 @@ describe("fundedVoucherAdminGuard / fundedVoucherActorId", () => {
     vi.unstubAllEnvs();
   });
 
-  it("refuses every mutation when the Admin flag is off, even with a real session", async () => {
-    vi.stubEnv("AKIBA_FUNDED_VOUCHERS_ADMIN_ENABLED", "false");
-    const { fundedVoucherAdminGuard } = await import("@/lib/voucherFundsAccess");
-
-    const result = fundedVoucherAdminGuard(REAL_SESSION);
-
-    expect(result).not.toBeNull();
-    expect(result?.status).toBe(503);
-  });
-
-  it("allows a real session through when the flag is on, outside production", async () => {
-    vi.stubEnv("AKIBA_FUNDED_VOUCHERS_ADMIN_ENABLED", "true");
+  it("allows a real session through outside production without a feature flag", async () => {
     vi.stubEnv("NODE_ENV", "test");
     const { fundedVoucherAdminGuard } = await import("@/lib/voucherFundsAccess");
 
@@ -52,15 +40,13 @@ describe("fundedVoucherAdminGuard / fundedVoucherActorId", () => {
   });
 
   it("allows open access through outside production (local dev convenience)", async () => {
-    vi.stubEnv("AKIBA_FUNDED_VOUCHERS_ADMIN_ENABLED", "true");
     vi.stubEnv("NODE_ENV", "test");
     const { fundedVoucherAdminGuard } = await import("@/lib/voucherFundsAccess");
 
     expect(fundedVoucherAdminGuard(OPEN_ACCESS_SESSION)).toBeNull();
   });
 
-  it("rejects open access in production even with the flag on", async () => {
-    vi.stubEnv("AKIBA_FUNDED_VOUCHERS_ADMIN_ENABLED", "true");
+  it("rejects open access in production", async () => {
     vi.stubEnv("NODE_ENV", "production");
     const { fundedVoucherAdminGuard } = await import("@/lib/voucherFundsAccess");
 
@@ -71,7 +57,6 @@ describe("fundedVoucherAdminGuard / fundedVoucherActorId", () => {
   });
 
   it("allows a real admin session through in production", async () => {
-    vi.stubEnv("AKIBA_FUNDED_VOUCHERS_ADMIN_ENABLED", "true");
     vi.stubEnv("NODE_ENV", "production");
     const { fundedVoucherAdminGuard } = await import("@/lib/voucherFundsAccess");
 

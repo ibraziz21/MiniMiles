@@ -13,7 +13,6 @@ import { formatDateTime, formatNumber } from "@/lib/utils";
 import { getQueueSourceSummaries } from "@/lib/queueSources";
 import { SLA_BREACH_MINUTES } from "@/lib/subscriptionPayments";
 import { hasPermission } from "@/types";
-import { akibaFundedVouchersAdminFlag } from "@/lib/featureFlags";
 import { Users, Store, Tag, ScrollText, AlertTriangle, ArrowRight, Landmark, Send, Sparkles } from "lucide-react";
 
 async function getHeadlineStats() {
@@ -90,9 +89,8 @@ export default async function OverviewPage() {
   const canSeeFinanceAlerts = hasPermission(session.role, "finance.read");
   const canSeeActivity = hasPermission(session.role, "audit.read");
   const canSeeMerchants = hasPermission(session.role, "merchants.read");
-  const fundedVouchersEnabled = akibaFundedVouchersAdminFlag();
-  const canAllocate = fundedVouchersEnabled && hasPermission(session.role, "voucher_funds.write");
-  const canIssue = fundedVouchersEnabled && hasPermission(session.role, "voucher_funds.grant");
+  const canAllocate = hasPermission(session.role, "voucher_funds.write");
+  const canIssue = hasPermission(session.role, "voucher_funds.grant");
 
   const [headline, queueSources, activity, recentMerchants] = await Promise.all([
     getHeadlineStats(),

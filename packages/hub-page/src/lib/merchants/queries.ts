@@ -11,6 +11,7 @@ import type {
   PublicCustomerPhoto,
   PublicMerchantDetail,
   PublicMerchantMedia,
+  PublicMerchantOffer,
   PublicMerchantSummary,
   PublicVerifiedVisit,
   PublicVoucherSummary,
@@ -34,6 +35,21 @@ export class InvalidMerchantCursorError extends Error {
     super("invalid_merchant_cursor");
     this.name = "InvalidMerchantCursorError";
   }
+}
+
+const LOCAL_AKIBA_STORE_PREVIEW = {
+  id: "4e229b5d-4676-4f73-8399-6ed86e0205d9",
+  slug: "akiba-store",
+} as const;
+
+/**
+ * Akiba Store is intentionally paused in the shared public directory. In a
+ * local Next.js development server only, use the same read-only preview that
+ * the admin directory review screen uses so Hub and the native app can test
+ * the merchant without changing shared/production publication state.
+ */
+function isLocalAkibaStorePreviewEnabled(): boolean {
+  return process.env.NODE_ENV === "development";
 }
 
 function isValidSummaryRow(row: unknown): row is RawSummaryRow {
@@ -214,7 +230,17 @@ export async function listPublicMerchants(
     throw new DirectoryUnavailableError("list_public_merchants_shape");
   }
 
-  const rows = data as RawSummaryRow[];
+  let rows = data as RawSummaryRow[];
+  if (isLocalAkibaStorePreviewEnabled() && !cursorToken) {
+    const previewRow = await getLocalAkibaStorePreviewSummary(admin, params);
+    if (previewRow && !rows.some((row) => row.id === previewRow.id)) {
+      // Akiba Store alphabetically belongs near the front of the directory,
+      // and prepending guarantees the local test merchant is visible even
+      // when the real RPC page is full. The cursor is still built from the
+      // last included public row, so the displaced row appears next page.
+      rows = [previewRow, ...rows];
+    }
+  }
   const hasMore = rows.length > limit;
   const page = hasMore ? rows.slice(0, limit) : rows;
 
@@ -259,10 +285,123 @@ type RawDetailJson = {
   locations: Array<Record<string, unknown>>;
   /** New provenance-separated contract. Optional during RPC rollout. */
   merchantMedia?: unknown;
+  defaultOffers?: unknown;
   approvedCustomerPhotos?: unknown;
   /** Legacy catalogue data is reduced to safe merchant-authored product media. */
   products?: unknown;
 };
+
+async function getLocalAkibaStorePreview(
+  admin: ReturnType<typeof createAdminClient>,
+): Promise<RawDetailJson | null> {
+  const { data, error } = await admin.rpc("preview_merchant_directory", {
+    p_partner_id: LOCAL_AKIBA_STORE_PREVIEW.id,
+  });
+
+  if (error) {
+    console.warn("[merchants] local Akiba Store preview unavailable:", error.message);
+    return null;
+  }
+  if (!isValidDetailJson(data)) {
+    console.warn("[merchants] local Akiba Store preview returned an unexpected shape");
+    return null;
+  }
+  if (data.id !== LOCAL_AKIBA_STORE_PREVIEW.id || data.slug !== LOCAL_AKIBA_STORE_PREVIEW.slug) {
+    console.warn("[merchants] local Akiba Store preview identity did not match the allowlist");
+    return null;
+  }
+
+  return data;
+}
+
+function getPreviewPrimaryLocation(raw: RawDetailJson): RawSummaryRow["primary_location"] {
+  const locations = raw.locations.map(asRecord).filter((row): row is Record<string, unknown> => row !== null);
+  const location = locations.find((row) => row.isPrimary === true) ?? locations[0];
+  if (!location || typeof location.id !== "string" || typeof location.city !== "string") return null;
+
+  return {
+    id: location.id,
+    locality: typeof location.locality === "string" ? location.locality : null,
+    city: location.city,
+    latitude: typeof location.latitude === "number" ? location.latitude : null,
+    longitude: typeof location.longitude === "number" ? location.longitude : null,
+  };
+}
+
+function localPreviewMatchesFilters(raw: RawDetailJson, params: ListMerchantsParams): boolean {
+  // A preview without coordinates cannot honestly participate in a nearby
+  // search. Keep it in the ordinary directory and text/category filters.
+  if (params.lat != null || params.lng != null) return false;
+
+  const locations = raw.locations.map(asRecord).filter((row): row is Record<string, unknown> => row !== null);
+  if (params.city) {
+    const requestedCity = params.city.trim().toLocaleLowerCase();
+    const hasCity = locations.some(
+      (location) => typeof location.city === "string" && location.city.toLocaleLowerCase() === requestedCity,
+    );
+    if (!hasCity) return false;
+  }
+
+  if (params.category) {
+    const categorySlugs = new Set([
+      raw.primaryCategory?.slug,
+      ...raw.categories.map((category) => category.slug),
+    ].filter((slug): slug is string => typeof slug === "string"));
+    if (!categorySlugs.has(params.category)) return false;
+  }
+
+  if (params.mode && params.mode !== "all") {
+    const supportsPhysical = raw.operatingModel === "physical" || raw.operatingModel === "hybrid";
+    const supportsOnline = raw.operatingModel === "online" || raw.operatingModel === "hybrid";
+    if (params.mode === "physical" && !supportsPhysical) return false;
+    if (params.mode === "online" && !supportsOnline) return false;
+  }
+
+  if (params.q) {
+    const needle = params.q.trim().toLocaleLowerCase();
+    const searchable = [
+      raw.name,
+      raw.slug,
+      raw.shortDescription,
+      raw.description,
+      raw.primaryCategory?.name,
+      ...raw.categories.flatMap((category) => [category.name, category.slug]),
+      ...raw.coreOfferings,
+    ]
+      .filter((value): value is string => typeof value === "string")
+      .join(" ")
+      .toLocaleLowerCase();
+    if (needle && !searchable.includes(needle)) return false;
+  }
+
+  return true;
+}
+
+async function getLocalAkibaStorePreviewSummary(
+  admin: ReturnType<typeof createAdminClient>,
+  params: ListMerchantsParams,
+): Promise<RawSummaryRow | null> {
+  const raw = await getLocalAkibaStorePreview(admin);
+  if (!raw || !localPreviewMatchesFilters(raw, params)) return null;
+
+  return {
+    id: raw.id,
+    slug: raw.slug,
+    name: raw.name,
+    short_description: raw.shortDescription,
+    logo_url: raw.logoUrl,
+    primary_category: raw.primaryCategory,
+    categories: raw.categories,
+    operating_model: raw.operatingModel,
+    primary_location: getPreviewPrimaryLocation(raw),
+    branch_count: raw.locations.length,
+    // The list/API enrichment layer replaces this with canonical voucher
+    // availability, just as it does for normal public-directory rows.
+    voucher_count: 0,
+    store_active: false,
+    distance_km: null,
+  };
+}
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? value as Record<string, unknown> : null;
@@ -332,6 +471,124 @@ function mapLegacyProductMedia(value: unknown, merchantName: string): PublicMerc
   });
 }
 
+function safeOptionalText(value: unknown, maxLength: number): string | null {
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  return text.length > 0 ? text.slice(0, maxLength) : null;
+}
+
+function safeDate(value: unknown): string | null {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+}
+
+function safeTime(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const match = value.match(/^((?:[01]\d|2[0-3]):[0-5]\d)(?::[0-5]\d)?$/);
+  return match?.[1] ?? null;
+}
+
+function mapMerchantOffers(value: unknown): PublicMerchantOffer[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.slice(0, 48).flatMap((entry) => {
+    const row = asRecord(entry);
+    if (!row || typeof row.id !== "string") return [];
+    const title = safeOptionalText(row.title, 160);
+    const description = safeOptionalText(row.description, 2_000);
+    const timezone = safeOptionalText(row.timezone, 100);
+    const schedule = row.schedule === "always" || row.schedule === "weekly" ? row.schedule : null;
+    if (!title || !description || !timezone || !schedule) return [];
+
+    const daysOfWeek = Array.isArray(row.daysOfWeek)
+      ? [...new Set(row.daysOfWeek.filter((day): day is number => Number.isInteger(day) && day >= 0 && day <= 6))]
+      : [];
+
+    return [{
+      id: row.id,
+      title,
+      description,
+      terms: safeOptionalText(row.terms, 4_000),
+      schedule,
+      daysOfWeek,
+      startTime: safeTime(row.startTime),
+      endTime: safeTime(row.endTime),
+      startsOn: safeDate(row.startsOn),
+      endsOn: safeDate(row.endsOn),
+      timezone,
+      remindersEnabled: row.remindersEnabled === true,
+      reminderSet: row.reminderSet === true,
+      imageUrl: safePublicImageUrl(row.imageUrl),
+      requiresAkibaMiles: false,
+    }];
+  });
+}
+
+type LocalPreviewOfferRow = {
+  id: string;
+  title: string;
+  description: string;
+  terms: string | null;
+  schedule: string;
+  days_of_week: unknown;
+  start_time: string | null;
+  end_time: string | null;
+  starts_on: string | null;
+  ends_on: string | null;
+  timezone: string;
+  reminders_enabled: boolean;
+  image_media_id: string | null;
+};
+
+/**
+ * The directory preview RPC predates merchant-owned offers. Keep this
+ * fallback local-only and allowlist-only so a paused Akiba Store can exercise
+ * the consumer UI without changing the shared public publication state.
+ */
+async function getLocalAkibaStoreOffers(
+  admin: ReturnType<typeof createAdminClient>,
+  merchantMedia: PublicMerchantMedia[],
+): Promise<PublicMerchantOffer[]> {
+  try {
+    const { data, error } = await admin
+      .from("merchant_default_offers")
+      .select("id, title, description, terms, schedule, days_of_week, start_time, end_time, starts_on, ends_on, timezone, reminders_enabled, image_media_id")
+      .eq("partner_id", LOCAL_AKIBA_STORE_PREVIEW.id)
+      .eq("status", "live")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.warn("[merchants] local Akiba Store offers unavailable:", error.message);
+      return [];
+    }
+
+    return ((data ?? []) as LocalPreviewOfferRow[]).flatMap((row) => {
+      const linkedMedia = row.image_media_id
+        ? merchantMedia.find((media) => media.id === `merchant-${row.image_media_id}`)
+        : null;
+      return mapMerchantOffers([{
+        id: row.id,
+        title: row.title,
+        description: row.description,
+        terms: row.terms,
+        schedule: row.schedule,
+        daysOfWeek: row.days_of_week,
+        startTime: row.start_time,
+        endTime: row.end_time,
+        startsOn: row.starts_on,
+        endsOn: row.ends_on,
+        timezone: row.timezone,
+        remindersEnabled: row.reminders_enabled,
+        reminderSet: false,
+        imageUrl: linkedMedia?.imageUrl ?? null,
+      }]);
+    });
+  } catch (error) {
+    console.warn("[merchants] local Akiba Store offer projection failed:", error instanceof Error ? error.message : error);
+    return [];
+  }
+}
+
 function mapApprovedCustomerPhotos(value: unknown, merchantName: string): PublicCustomerPhoto[] {
   if (!Array.isArray(value)) return [];
   return value.slice(0, 48).flatMap((entry, index) => {
@@ -358,7 +615,7 @@ function mapApprovedCustomerPhotos(value: unknown, merchantName: string): Public
 
 // §7.1: "Public customer-photo signed URLs have a maximum 15-minute
 // lifetime and private/no-store response caching."
-const APPROVED_PHOTO_URL_TTL_SECONDS = 5 * 60;
+const APPROVED_PHOTO_URL_TTL_SECONDS = 15 * 60;
 const APPROVED_PHOTO_LIMIT = 48;
 const DERIVED_VISIT_PHOTO_BUCKET = "discovery-visit-photos-derived";
 
@@ -545,13 +802,18 @@ export async function getPublicMerchant(
     console.error("[merchants] get_public_merchant RPC failed:", error.message);
     throw new DirectoryUnavailableError("get_public_merchant");
   }
-  if (!data) return null;
-  if (!isValidDetailJson(data)) {
+  const localPreview = !data && slug === LOCAL_AKIBA_STORE_PREVIEW.slug && isLocalAkibaStorePreviewEnabled()
+    ? await getLocalAkibaStorePreview(admin)
+    : null;
+  const resolvedData = data ?? localPreview;
+
+  if (!resolvedData) return null;
+  if (!isValidDetailJson(resolvedData)) {
     console.error("[merchants] get_public_merchant returned an unexpected shape");
     throw new DirectoryUnavailableError("get_public_merchant_shape");
   }
 
-  const raw = data;
+  const raw = resolvedData;
 
   const locations = (raw.locations ?? []).map(mapLocation);
   const branchCount = locations.length;
@@ -573,6 +835,13 @@ export async function getPublicMerchant(
     ...legacyProductMedia,
     ...bannerMedia,
   ]).slice(0, 48);
+  const projectedOffers = mapMerchantOffers(raw.defaultOffers);
+  const previewOffers = localPreview ? await getLocalAkibaStoreOffers(admin, merchantMedia) : [];
+  const projectedOfferIds = new Set(projectedOffers.map((offer) => offer.id));
+  const offers = [
+    ...projectedOffers,
+    ...previewOffers.filter((offer) => !projectedOfferIds.has(offer.id)),
+  ];
   // Keep accepting the RPC projection during rollout, but moderation—not a
   // multi-review threshold—is now the public gate for customer photos.
   const projectedCustomerPhotos = mapApprovedCustomerPhotos(raw.approvedCustomerPhotos, raw.name);
@@ -691,6 +960,7 @@ export async function getPublicMerchant(
     distanceKm: null,
     coreOfferings: raw.coreOfferings ?? [],
     merchantMedia,
+    offers,
     verifiedVisits: verifiedVisitsWithPhotos,
     approvedCustomerPhotos,
     vouchers,
