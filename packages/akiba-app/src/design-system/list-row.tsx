@@ -1,5 +1,5 @@
 import { Children, Fragment, isValidElement, type ComponentProps, type ReactNode } from 'react';
-import type { Feather } from '@expo/vector-icons';
+import type Feather from '@expo/vector-icons/Feather';
 import { StyleSheet, View } from 'react-native';
 
 import { Button } from './button';

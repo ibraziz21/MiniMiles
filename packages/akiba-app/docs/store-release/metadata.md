@@ -1,4 +1,4 @@
-# Akiba Pass — store listing metadata
+# Akiba — store listing metadata
 
 AKIBA-MOB-002 §12. Draft copy for review. Nothing here may describe a
 feature the production capability response hides (Gifts, Games, raffles,
@@ -10,7 +10,7 @@ Every field needs a named owner and a sign-off date before submission.
 
 | Field | Value | Owner | Signed off |
 |---|---|---|---|
-| App name | Akiba Pass | Product | |
+| App name | Akiba | Product | |
 | Developer / operator | Akiba Ecosystems Ltd | Legal | |
 | Bundle id / package | **BLOCKED** — §20 decision | Product | |
 | Category | Shopping (primary) · Lifestyle (secondary) | Product | |
@@ -31,7 +31,7 @@ Every field needs a named owner and a sign-off date before submission.
 
 ## Full description — draft
 
-> Akiba Pass turns everyday spending at local merchants into rewards you can
+> Akiba turns everyday spending at local merchants into rewards you can
 > actually use.
 >
 > **Discover trusted places.** Browse shops, cafés and services that Akiba
@@ -46,7 +46,7 @@ Every field needs a named owner and a sign-off date before submission.
 > to show when you pay.
 >
 > Signing in takes one email — we send a 6-digit code, and there is no
-> password to remember. Akiba Pass is available in Kenya.
+> password to remember. Akiba is available in Kenya.
 
 Claims to re-verify against the binary before submission: "verified visits",
 "Miles land straight away", "available in Kenya".
@@ -68,7 +68,7 @@ the same values that are entered in the consoles.
 
 ## Review notes — draft
 
-> **Signing in.** Akiba Pass uses email one-time codes; there is no password.
+> **Signing in.** Akiba uses email one-time codes; there is no password.
 > Enter an email, receive a 6-digit code, enter it. A review account and its
 > code-retrieval procedure are provided separately.
 >

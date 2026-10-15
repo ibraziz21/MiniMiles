@@ -15,7 +15,7 @@
 #     requestId as AKIBA_E2E_EXPECTED_REFERENCE (this simulates the request
 #     that succeeded while its response was lost)
 #   - issue a fresh challenge + OTP for the retry as AKIBA_E2E_OTP
-appId: com.akiba.pass
+appId: com.akibamiles.akiba
 env:
   OTP: ${AKIBA_E2E_OTP}
   EXPECTED_REFERENCE: ${AKIBA_E2E_EXPECTED_REFERENCE}

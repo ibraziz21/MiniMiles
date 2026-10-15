@@ -1,6 +1,6 @@
 # Maestro E2E harness
 
-AKIBA-MOB-002 §15.3. First device-driving tests for Akiba Pass: they cover
+AKIBA-MOB-002 §15.3. First device-driving tests for Akiba: they cover
 the MOB-001 launch/onboarding flow that shipped unverified by E2E, plus the
 MOB-002 account-control flow.
 

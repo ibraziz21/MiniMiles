@@ -18,6 +18,7 @@ import {
   merchantDetailSchema,
   merchantStateDetailSchema,
   offerReminderStateSchema,
+  merchantOfferFeedSchema,
   ownedVouchersListSchema,
   voucherDetailSchema,
   voucherQuoteSchema,
@@ -44,6 +45,7 @@ import {
   type MerchantDetail,
   type MerchantStateDetail,
   type OfferReminderState,
+  type MerchantOfferFeed,
   type OwnedVouchersList,
   type VoucherDetail,
   type VoucherQuote,
@@ -226,6 +228,9 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
     },
     getHome(params: { lat?: number; lng?: number; intent?: string } = {}): Promise<MobileHome> {
       return get(`/api/v1/home${toQueryString(params)}`, mobileHomeSchema);
+    },
+    getMerchantOffers(): Promise<MerchantOfferFeed> {
+      return get('/api/v1/merchant-offers', merchantOfferFeedSchema);
     },
     getMerchants(
       params: {

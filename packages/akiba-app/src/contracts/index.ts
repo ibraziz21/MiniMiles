@@ -11,6 +11,12 @@ export {
   deletionRequestStatusSchema,
 } from './account-deletion';
 export { mobileHomeSchema, type MobileHome } from './home';
+export {
+  merchantOfferFeedItemSchema,
+  type MerchantOfferFeedItem,
+  merchantOfferFeedSchema,
+  type MerchantOfferFeed,
+} from './merchant-offers';
 export { mobilePassSchema, type MobilePass } from './pass';
 export { mobileSettingsSchema, type MobileSettings, settingsUpdateSchema, type SettingsUpdate } from './settings';
 export {

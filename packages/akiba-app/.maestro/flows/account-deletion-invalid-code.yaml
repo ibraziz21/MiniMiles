@@ -1,6 +1,6 @@
 # AKIBA-MOB-002 §5.6 — a wrong code keeps the member in the flow with their
 # context intact and a mapped (never raw) error, and the account survives.
-appId: com.akiba.pass
+appId: com.akibamiles.akiba
 ---
 - launchApp
 - tapOn:

@@ -1,4 +1,4 @@
-# Privacy declaration worksheet — Akiba Pass
+# Privacy declaration worksheet — Akiba
 
 AKIBA-MOB-002 §10.2 and §10.3. Source-controlled so Apple's App Privacy
 answers and Google Play's Data safety form are reconciled against the same
@@ -59,10 +59,10 @@ account for (§10.3). From `package.json`:
 | `expo-constants`, `expo-device` | **TBD** | Confirm no identifier is transmitted |
 | `expo-image`, `expo-linear-gradient`, `expo-glass-effect`, `expo-symbols` | No | Rendering only |
 | `react-native-qrcode-svg`, `react-native-svg` | No | Local rendering |
-| `expo-dev-client` | n/a | Development builds only — must not be in a production artifact |
 
-Confirm the production artifact against this table, not the dependency list:
-`expo-dev-client` in particular must be absent from the store binary.
+Confirm the production artifact against this table, not only the dependency
+list. The Expo development client has been removed from the application
+dependencies entirely.
 
 ## Apple-specific
 

@@ -34,7 +34,7 @@ export default function OnboardingWelcomeScreen() {
 
   return (
     <OnboardingStepScreen
-      intro="Akiba Pass turns everyday spending at local merchants into rewards you can actually use."
+      intro="Akiba turns everyday spending at local merchants into rewards you can actually use."
       onPrimary={() => router.push(hasProfile ? ONBOARDING_ROUTES.pass : ONBOARDING_ROUTES.profile)}
       primaryLabel="Get started"
       step="welcome"

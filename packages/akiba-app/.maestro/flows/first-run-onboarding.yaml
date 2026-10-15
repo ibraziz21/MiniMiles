@@ -1,7 +1,7 @@
 # AKIBA-MOB-001 — a new member from cold start to the Explore tab.
 # Covers the launch gate, OTP entry, all three onboarding steps, and the
 # server-side completion that makes onboarding not reappear.
-appId: com.akiba.pass
+appId: com.akibamiles.akiba
 env:
   EMAIL: ${AKIBA_E2E_EMAIL}
   OTP: ${AKIBA_E2E_OTP}

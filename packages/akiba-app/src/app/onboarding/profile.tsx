@@ -4,7 +4,7 @@
 // saved during onboarding must not be requested again" holds because the
 // next entry into onboarding reads `username` back from bootstrap.
 //
-// Country is fixed to Kenya: that's the only market Akiba Pass is live in,
+// Country is fixed to Kenya: that's the only market Akiba is live in,
 // and it's sent as the display name "Kenya" because that's what the web
 // profile editor writes (hub-page's isSupportedCountryInput accepts either
 // form, but the stored values should match).
@@ -123,10 +123,10 @@ export default function OnboardingProfileScreen() {
 
         <View style={styles.field}>
           <Text style={styles.label}>Country</Text>
-          <View accessibilityLabel="Country: Kenya. Akiba Pass is only available in Kenya for now." accessible style={styles.fixed}>
+          <View accessibilityLabel="Country: Kenya. Akiba is only available in Kenya for now." accessible style={styles.fixed}>
             <Text style={styles.fixedValue}>{COUNTRY}</Text>
           </View>
-          <Text style={styles.hint}>Akiba Pass is live in Kenya for now.</Text>
+          <Text style={styles.hint}>Akiba is live in Kenya for now.</Text>
         </View>
 
         <FormField

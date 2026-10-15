@@ -1,7 +1,7 @@
 # AKIBA-MOB-002 §5.1/§5.2/§17 — Delete account is two taps from Settings,
 # states every consequence before confirmation, and both the "Keep my
 # account" and Back paths leave the account untouched.
-appId: com.akiba.pass
+appId: com.akibamiles.akiba
 ---
 - launchApp
 - assertVisible: "Explore"

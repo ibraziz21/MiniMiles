@@ -57,16 +57,15 @@ export const shadows = {
   },
 } as const;
 
-// These are the actual Akiba typefaces used by hub-page. Sterling's OTF
-// files are copied verbatim from react-app; DM Sans is loaded through the
-// matching Expo font package in the root layout.
+// DM Sans is the production-cleared Akiba typeface. The sterling aliases are
+// retained so existing screens do not need a noisy, all-at-once refactor.
 export const fontFamily = {
-  sterling: 'FTSterlingRegular',
-  sterlingMedium: 'FTSterlingMedium',
-  sterlingSemiBold: 'FTSterlingSemiBold',
-  sterlingBold: 'FTSterlingBold',
+  sterling: 'DMSans_400Regular',
+  sterlingMedium: 'DMSans_500Medium',
+  sterlingSemiBold: 'DMSans_600SemiBold',
+  sterlingBold: 'DMSans_700Bold',
   // Compatibility alias for existing screens while they are ported.
-  serif: 'FTSterlingRegular',
+  serif: 'DMSans_400Regular',
   sans: 'DMSans_400Regular',
   sansMedium: 'DMSans_500Medium',
   sansSemiBold: 'DMSans_600SemiBold',

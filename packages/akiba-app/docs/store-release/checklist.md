@@ -1,4 +1,4 @@
-# Akiba Pass — store release checklist
+# Akiba — store release checklist
 
 AKIBA-MOB-002 §12, §16, §17, §18. Every row needs a named owner and a date
 before submission. Rows marked **BLOCKED** cannot be completed by
@@ -11,14 +11,15 @@ Status key: `done` · `blocked` · `todo`
 | Item | Status | Owner | Date | Note |
 |---|---|---|---|---|
 | **Canonical production host** | **blocked** | Product / Operations | | Three hosts are in play: `pass.akibamiles.com` (`MPESA_CALLBACK_URL`), `hub.akibamiles.com` (sitemap and merchant-page fallbacks), `app.akibamiles.com` (privacy/terms copy) — and `NEXT_PUBLIC_SITE_URL` currently points at `mini-miles-hub-page.vercel.app`. This blocks the store listing, the Play data-deletion URL, and the M-Pesa host-match check, because `/api/v1/config` derives privacy/terms/deletion URLs from `NEXT_PUBLIC_SITE_URL` — a vercel.app domain cannot be submitted |
-| Final iOS bundle identifier | **blocked** | Product | | `app.json` still carries `com.akiba.pass`; immutable after publication |
-| Final Android package name | **blocked** | Product | | Same |
-| `extra.configurationNotes.bundleIdentifiersArePlaceholders` removed | blocked | Product | | Remove only when the two rows above are decided |
+| Final iOS bundle identifier | done | Product | 2026-10-15 | `com.akibamiles.akiba` |
+| Final Android package name | done | Product | 2026-10-15 | `com.akibamiles.akiba` |
+| Android/iOS placeholder markers cleared | done | Engineering | 2026-10-15 | Production preflight now enforces the approved identifiers |
 | Apple Developer account + team, credential owner | **blocked** | Operations | | Record in the private ops runbook, not in Git |
 | Google Play developer account, credential owner | **blocked** | Operations | | Same |
-| Expo organization account, `expo.owner`, `extra.eas.projectId` | **blocked** | Operations | | `eas init` writes these |
-| App Store Connect app record, display name "Akiba Pass" | blocked | Product | | |
-| Play Console app record, display name "Akiba Pass" | blocked | Product | | |
+| Expo project ID linked in `extra.eas.projectId` | done | Engineering | 2026-10-15 | Project `b0a8fd39-ca2d-4ec7-91f9-30537b945ef0` |
+| Expo owning account authenticated and `expo.owner` set | done | Operations | 2026-10-15 | Linked as `@akiba-holdings-llc/akiba` |
+| App Store Connect app record, display name "Akiba" | blocked | Product | | |
+| Play Console app record, display name "Akiba" | blocked | Product | | |
 
 ## Build configuration
 
@@ -30,20 +31,20 @@ Status key: `done` · `blocked` · `todo`
 | EAS Update disabled (`updates.enabled: false`, no channels) | done | Engineering | 2026-10-10 | §11.4 |
 | `userInterfaceStyle: "light"` | done | Engineering | 2026-10-10 | §4.10 — v1 has no dark token set |
 | `platforms: ["ios", "android"]`, web output removed | done | Engineering | 2026-10-10 | §4.9 |
-| `expo-dev-client` installed for the development profile | done | Engineering | 2026-10-10 | §11.2 |
+| Expo development launcher excluded from every app artifact | done | Engineering | 2026-10-15 | `expo-dev-client` removed; local development uses the normal native debug app and shared profiles are standalone APKs |
 | EAS environment variables for development / preview / production | **blocked** | Operations | | Needs the production Supabase and API hosts |
-| Production build fails closed on a non-production host | **todo** | Engineering | | Absent-value check exists; host assertion does not — see `docs/eas-configuration.md` |
-| Expo SDK package versions aligned (`expo install --fix`) | done | Engineering | 2026-10-10 | `expo-doctor` 21/21 |
-| Node version matches `engines` (`>=22.13.0`) | **todo** | Engineering | | Local runs are on Node 20.19.1, so lint/typecheck/tests have not been exercised on the declared runtime |
+| Production build fails closed on a non-production host | done | Engineering | 2026-10-15 | EAS post-install preflight requires HTTPS and an `akibamiles.com` API host; rejects local Supabase URLs |
+| Expo SDK package versions aligned (`expo install --fix`) | done | Engineering | 2026-10-15 | Updated to the current SDK 57 patches; `expo-doctor` 21/21 |
+| Node version matches `engines` (`>=22.13.0`) | done | Engineering | 2026-10-15 | All EAS profiles pin Node 22.13.0; local verification uses the bundled Node 24 runtime |
 
 ## Assets and fonts
 
 | Item | Status | Owner | Date | Note |
 |---|---|---|---|---|
-| 1024×1024 app icon source | **blocked** | Brand | | `assets/images/icon.png` is 512×512 |
-| Android adaptive foreground + monochrome layers | **blocked** | Brand | | Foreground is 512×512; no monochrome layer exists |
+| 1024×1024 app icon source | done (code) | Engineering / Brand | 2026-10-15 | Regenerated from the checked-in Akiba vector mark; final Brand visual approval remains |
+| Android adaptive foreground + monochrome layers | done (code) | Engineering / Brand | 2026-10-15 | Transparent 1024px foreground and monochrome layers configured over Akiba teal |
 | Splash validated from a preview/production build | todo | Engineering | | Not valid to check in Expo Go (§11.5) |
-| FT Sterling production licence evidence **or** replacement family | **blocked** | Brand / Legal | | `assets/fonts/FTSterlingTrial-*.otf` are trial files and cannot ship. Replacing the family means updating `fontFamily.sterling*` in `src/design-system/tokens.ts` — one file, every heading |
+| FT Sterling production licence evidence **or** replacement family | done | Engineering | 2026-10-15 | Trial files removed; compatibility aliases now map to the bundled DM Sans weights |
 | Store screenshots, small and large phone, both platforms | blocked | Product / Marketing | | Must match the reviewed binary |
 | Feature graphic and promotional copy | blocked | Marketing | | |
 
@@ -136,12 +137,19 @@ production call.
 migration SQL and checks the worker's step order against the actual foreign-key
 graph. It found three ordering defects and one entirely missing data class.
 
-Still **todo**, none of which can run without store credentials and real
-devices: `expo export` for both platforms, `next build` for hub-page against a
-fully configured production environment, EAS preview and production builds,
-signed-artifact inspection, Maestro execution (`.maestro/flows`, plus the
-`.maestro/scripts/` wrappers that assert server state), and the §15.5
-physical-device matrix.
+Android `expo export` passes on Node 24 and the regenerated release manifest
+has been inspected: target SDK 36, `MainActivity` is the launcher, only the
+`akiba` scheme is registered, updates are disabled, cleartext is absent,
+and storage/overlay permissions are removed. A local AAB build reached native
+compilation but Android Studio's bundled JDK 25 is incompatible with the
+installed CMake/NDK toolchain; EAS uses its pinned build image and remains the
+authoritative signed build path.
+
+Still **todo**, some of which require store credentials and real devices:
+iOS export, `next build` for hub-page against a fully configured production
+environment, EAS preview and production builds, signed-artifact inspection,
+Maestro execution (`.maestro/flows`, plus the `.maestro/scripts/` wrappers
+that assert server state), and the §15.5 physical-device matrix.
 
 ## Evidence to attach to the release ticket (§18)
 

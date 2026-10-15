@@ -1,4 +1,4 @@
-# Akiba Pass native app
+# Akiba native app
 
 `@akiba/akiba-app` is the Expo/React Native application described in the
 [Hub mobile migration plan](../hub-page/docs/hub-mobile-app-migration-plan.md).
@@ -50,9 +50,8 @@ Only client-public values belong in this package. Never add the Supabase
 service-role key, platform service keys, cron secrets, VAPID private keys, or
 wallet private keys.
 
-The iOS and Android identifiers in `app.json` are placeholders:
-`com.akiba.pass`. Replace them during Phase 0 store registration before any
-external build.
+The permanent iOS bundle identifier and Android package name are both
+`com.akibamiles.akiba`.
 
 ## Commands
 

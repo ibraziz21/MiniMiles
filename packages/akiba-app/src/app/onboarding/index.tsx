@@ -37,5 +37,5 @@ export default function OnboardingEntryScreen() {
     };
   }, [state]);
 
-  return <LaunchLoadingScreen message="Setting up Akiba Pass…" />;
+  return <LaunchLoadingScreen message="Setting up Akiba…" />;
 }

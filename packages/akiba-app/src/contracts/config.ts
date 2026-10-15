@@ -38,7 +38,7 @@ export const mobileConfigSchema = z.object({
     // version is rejected by the request API, which is the safe direction.
     deletionPolicyVersion: z.string().default(''),
   }),
-  // Where "Update Akiba Pass" sends a member on a build below
+  // Where "Update Akiba" sends a member on a build below
   // minimumSupportedVersion. Nullable per platform because the store
   // listings don't exist yet — the upgrade screen falls back to
   // store-neutral instructions rather than rendering a dead button.
