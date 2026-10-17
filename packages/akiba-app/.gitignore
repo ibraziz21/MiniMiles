@@ -41,3 +41,6 @@ example
 # generated native folders
 /ios
 /android
+
+# Local emulator captures (final store artwork is exported separately)
+/store-assets/android/raw/*.png

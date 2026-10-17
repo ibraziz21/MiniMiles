@@ -16,6 +16,10 @@ const appConfig = readJson('app.json');
 const easConfig = readJson('eas.json');
 const errors = [];
 
+if (process.env.EXPO_PUBLIC_SCREENSHOT_MODE === 'true') {
+  errors.push('EXPO_PUBLIC_SCREENSHOT_MODE cannot be enabled in a production build.');
+}
+
 const apiUrl = requiredEnvironmentUrl('EXPO_PUBLIC_API_BASE_URL');
 const supabaseUrl = requiredEnvironmentUrl('EXPO_PUBLIC_SUPABASE_URL');
 requireEnvironmentValue('EXPO_PUBLIC_SUPABASE_ANON_KEY');
@@ -78,6 +82,9 @@ if (packageManifest.dependencies?.['expo-dev-client']) {
 }
 
 const productionProfile = easConfig.build?.production;
+if (productionProfile?.env?.EXPO_PUBLIC_SCREENSHOT_MODE === 'true') {
+  errors.push('The production EAS profile cannot enable screenshot fixture mode.');
+}
 if (productionProfile?.developmentClient === true) {
   errors.push('The production EAS profile cannot be a development client.');
 }

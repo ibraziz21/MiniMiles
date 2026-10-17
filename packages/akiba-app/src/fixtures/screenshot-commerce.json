@@ -1,0 +1,279 @@
+{
+  "notes": "Screenshot-build fixtures only. These records are never written to the live Akiba API.",
+  "offers": [
+    {
+      "id": "screenshot-offer-coffee-pairing",
+      "partner": {
+        "id": "4e229b5d-4676-4f73-8399-6ed86e0205d9",
+        "name": "Akiba Store",
+        "slug": "akiba-store",
+        "logoUrl": null
+      },
+      "title": "Coffee and pastry pairing",
+      "description": "Choose any house coffee and pastry for one special price.",
+      "terms": "Available while the daily pastry selection lasts.",
+      "schedule": "always",
+      "daysOfWeek": [],
+      "startTime": null,
+      "endTime": null,
+      "startsOn": null,
+      "endsOn": null,
+      "timezone": "Africa/Nairobi",
+      "remindersEnabled": true,
+      "reminderSet": false,
+      "imageUrl": "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1200&q=82",
+      "thumbnailUrl": "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=600&q=76",
+      "requiresAkibaMiles": false
+    },
+    {
+      "id": "screenshot-offer-lunch-hour",
+      "partner": {
+        "id": "4e229b5d-4676-4f73-8399-6ed86e0205d9",
+        "name": "Akiba Store",
+        "slug": "akiba-store",
+        "logoUrl": null
+      },
+      "title": "Lunch hour special",
+      "description": "A rotating main dish and fresh juice at a weekday lunch price.",
+      "terms": "One offer per guest. Extras are charged separately.",
+      "schedule": "weekly",
+      "daysOfWeek": [1, 2, 3, 4, 5],
+      "startTime": "12:00",
+      "endTime": "15:00",
+      "startsOn": null,
+      "endsOn": null,
+      "timezone": "Africa/Nairobi",
+      "remindersEnabled": true,
+      "reminderSet": false,
+      "imageUrl": "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=1200&q=82",
+      "thumbnailUrl": "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=600&q=76",
+      "requiresAkibaMiles": false
+    },
+    {
+      "id": "screenshot-offer-wildin-wednesday",
+      "partner": {
+        "id": "4e229b5d-4676-4f73-8399-6ed86e0205d9",
+        "name": "Akiba Store",
+        "slug": "akiba-store",
+        "logoUrl": null
+      },
+      "title": "Wildin Wednesday",
+      "description": "Midweek prices on selected food, drinks and store favourites.",
+      "terms": "Selected items only. Cannot be combined with another promotion.",
+      "schedule": "weekly",
+      "daysOfWeek": [3],
+      "startTime": "16:00",
+      "endTime": "22:00",
+      "startsOn": null,
+      "endsOn": null,
+      "timezone": "Africa/Nairobi",
+      "remindersEnabled": true,
+      "reminderSet": false,
+      "imageUrl": "https://images.unsplash.com/photo-1516211697506-8360dbcfe9a4?auto=format&fit=crop&w=1200&q=82",
+      "thumbnailUrl": "https://images.unsplash.com/photo-1516211697506-8360dbcfe9a4?auto=format&fit=crop&w=600&q=76",
+      "requiresAkibaMiles": false
+    },
+    {
+      "id": "screenshot-offer-weekend-brunch",
+      "partner": {
+        "id": "4e229b5d-4676-4f73-8399-6ed86e0205d9",
+        "name": "Akiba Store",
+        "slug": "akiba-store",
+        "logoUrl": null
+      },
+      "title": "Weekend brunch",
+      "description": "A relaxed brunch menu every Saturday and Sunday morning.",
+      "terms": null,
+      "schedule": "weekly",
+      "daysOfWeek": [0, 6],
+      "startTime": "08:00",
+      "endTime": "13:00",
+      "startsOn": null,
+      "endsOn": null,
+      "timezone": "Africa/Nairobi",
+      "remindersEnabled": true,
+      "reminderSet": false,
+      "imageUrl": "https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=1200&q=82",
+      "thumbnailUrl": "https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=600&q=76",
+      "requiresAkibaMiles": false
+    },
+    {
+      "id": "screenshot-offer-late-night",
+      "partner": {
+        "id": "4e229b5d-4676-4f73-8399-6ed86e0205d9",
+        "name": "Akiba Store",
+        "slug": "akiba-store",
+        "logoUrl": null
+      },
+      "title": "Late-night bites",
+      "description": "A smaller late menu for evenings that carry on past midnight.",
+      "terms": "Kitchen availability may vary near closing time.",
+      "schedule": "weekly",
+      "daysOfWeek": [5, 6],
+      "startTime": "20:00",
+      "endTime": "02:00",
+      "startsOn": null,
+      "endsOn": null,
+      "timezone": "Africa/Nairobi",
+      "remindersEnabled": true,
+      "reminderSet": false,
+      "imageUrl": "https://images.unsplash.com/photo-1515003197210-e0cd71810b5f?auto=format&fit=crop&w=1200&q=82",
+      "thumbnailUrl": "https://images.unsplash.com/photo-1515003197210-e0cd71810b5f?auto=format&fit=crop&w=600&q=76",
+      "requiresAkibaMiles": false
+    }
+  ],
+  "catalogue": {
+    "templates": [
+      {
+        "id": "screenshot-template-fifteen-percent",
+        "title": "15% off your next visit",
+        "voucher_type": "percent_off",
+        "miles_cost": 900,
+        "discount_percent": 15,
+        "discount_cusd": null,
+        "applicable_category": "Food & drink",
+        "retail_value_cusd": null,
+        "partners": {
+          "id": "4e229b5d-4676-4f73-8399-6ed86e0205d9",
+          "slug": "akiba-store",
+          "name": "Akiba Store",
+          "image_url": null
+        }
+      },
+      {
+        "id": "screenshot-template-free-coffee",
+        "title": "Coffee on us",
+        "voucher_type": "free",
+        "miles_cost": 650,
+        "discount_percent": null,
+        "discount_cusd": null,
+        "applicable_category": "Coffee",
+        "retail_value_cusd": null,
+        "partners": {
+          "id": "4e229b5d-4676-4f73-8399-6ed86e0205d9",
+          "slug": "akiba-store",
+          "name": "Akiba Store",
+          "image_url": null
+        }
+      }
+    ],
+    "fundedOffers": [
+      {
+        "allocationId": "screenshot-funded-weekend",
+        "title": "Weekend treat",
+        "discountKes": 500,
+        "minimumSpendKes": 1500,
+        "terms": "One per member while allocations last.",
+        "eligibilitySummary": "Available to Akiba members",
+        "claimEndsAt": "2099-12-31T20:59:59.000Z",
+        "merchant": {
+          "name": "Akiba Store",
+          "slug": "akiba-store",
+          "imageUrl": null
+        }
+      }
+    ]
+  },
+  "voucherState": {
+    "balance": 2450,
+    "claimedFundedAllocationIds": [],
+    "loyaltyOffers": [
+      {
+        "templateId": "screenshot-loyalty-bogo",
+        "title": "Bring a friend",
+        "description": "Buy one house drink and your friend's is on us.",
+        "voucherType": "bogo",
+        "discountPercent": null,
+        "discountKes": null,
+        "retailValueKes": null,
+        "minimumSpendKes": null,
+        "maximumDiscountKes": null,
+        "merchant": {
+          "id": "4e229b5d-4676-4f73-8399-6ed86e0205d9",
+          "name": "Akiba Store",
+          "slug": "akiba-store",
+          "imageUrl": null
+        },
+        "accessPolicy": "loyalty_qualified",
+        "acquisitionMode": "free",
+        "milesCost": 0,
+        "qualificationMode": "all",
+        "customerCopy": "Visit twice to unlock this reward.",
+        "progress": [
+          {
+            "type": "merchant_purchase_count",
+            "minimum": 2,
+            "actual": 1,
+            "satisfied": false
+          }
+        ],
+        "eligible": false,
+        "alreadyClaimed": false,
+        "remaining": 1,
+        "endsAt": "2099-12-31T20:59:59.000Z"
+      }
+    ],
+    "claimFriction": {
+      "expiredUnusedCount": 0,
+      "activeUnusedCount": 2,
+      "redeemedCount": 1,
+      "requiresUsePlan": false
+    }
+  },
+  "ownedVouchers": {
+    "vouchers": [
+      {
+        "id": "screenshot-voucher-fifteen-percent",
+        "status": "issued",
+        "title": "15% off your next visit",
+        "voucherType": "percent_off",
+        "milesCost": 900,
+        "discountPercent": 15,
+        "discountCusd": null,
+        "retailValueCusd": null,
+        "merchantName": "Akiba Store",
+        "merchantSlug": "akiba-store",
+        "merchantLogoUrl": null,
+        "programName": "AkibaMiles reward",
+        "createdAt": "2026-10-15T09:00:00.000Z",
+        "expiresAt": "2099-12-31T20:59:59.000Z",
+        "redeemedAt": null
+      },
+      {
+        "id": "screenshot-voucher-free-coffee",
+        "status": "issued",
+        "title": "Coffee on us",
+        "voucherType": "free",
+        "milesCost": 650,
+        "discountPercent": null,
+        "discountCusd": null,
+        "retailValueCusd": null,
+        "merchantName": "Akiba Store",
+        "merchantSlug": "akiba-store",
+        "merchantLogoUrl": null,
+        "programName": "AkibaMiles reward",
+        "createdAt": "2026-10-16T11:30:00.000Z",
+        "expiresAt": "2099-12-31T20:59:59.000Z",
+        "redeemedAt": null
+      },
+      {
+        "id": "screenshot-voucher-used",
+        "status": "redeemed",
+        "title": "Free pastry",
+        "voucherType": "free",
+        "milesCost": 500,
+        "discountPercent": null,
+        "discountCusd": null,
+        "retailValueCusd": null,
+        "merchantName": "Akiba Store",
+        "merchantSlug": "akiba-store",
+        "merchantLogoUrl": null,
+        "programName": "AkibaMiles reward",
+        "createdAt": "2026-09-20T08:15:00.000Z",
+        "expiresAt": "2026-10-30T20:59:59.000Z",
+        "redeemedAt": "2026-10-03T10:20:00.000Z"
+      }
+    ],
+    "next_cursor": null
+  }
+}
