@@ -129,7 +129,11 @@ export const DELETION_INVENTORY: InventoryRow[] = [
   {
     id: "saved_merchants",
     dataClass: "Saved merchants and preferences",
-    targets: ["hub_user_saved_merchants", "hub_notification_preferences"],
+    targets: [
+      "hub_user_saved_merchants",
+      "merchant_verified_visit_helpful_reactions",
+      "hub_notification_preferences",
+    ],
     action: "delete",
     retention: NO_RETENTION_NEEDED,
     notes: "No retention purpose.",
@@ -253,7 +257,12 @@ export const DELETION_INVENTORY: InventoryRow[] = [
   {
     id: "fraud_risk",
     dataClass: "Fraud, abuse, risk and security audit",
-    targets: ["hub_user_risk_flags", "identity_merge_incidents", "hub_profile_country_audit"],
+    targets: [
+      "hub_user_risk_flags",
+      "identity_merge_incidents",
+      "hub_identity_reconciliation_failures",
+      "hub_profile_country_audit",
+    ],
     action: "pseudonymize",
     retention: null,
     notes: "TBD: period and restricted-access roles. Retaining this is the normal outcome, not an exception.",

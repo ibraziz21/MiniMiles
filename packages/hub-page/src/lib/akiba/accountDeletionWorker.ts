@@ -171,6 +171,7 @@ const STEP_EXECUTORS: Record<string, StepExecutor> = {
 
   saved_merchants: async ({ admin, userId }) => {
     await deleteWhere(admin, "hub_user_saved_merchants", "hub_user_id", userId);
+    await deleteWhere(admin, "merchant_verified_visit_helpful_reactions", "hub_user_id", userId);
     await deleteWhere(admin, "hub_notification_preferences", "hub_user_id", userId);
   },
 
@@ -235,10 +236,12 @@ const STEP_EXECUTORS: Record<string, StepExecutor> = {
  */
 export const STEP_ORDER: readonly string[] = [
   "member_photo_objects",
+  // Helpful reactions reference contributions, so remove this member-owned
+  // preference before any contribution row can be pseudonymized/deleted.
+  "saved_merchants",
   "published_photos",
   "unpublished_contributions",
   "profile_contact",
-  "saved_merchants",
   "push_registrations",
   "wallet_links",
   // Everything that references issued_vouchers resolves before the voucher

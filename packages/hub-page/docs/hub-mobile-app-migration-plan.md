@@ -5,7 +5,7 @@
 **Snapshot date:** 4 October 2026
 
 **Applies to:** `packages/hub-page`, a future Expo app, and their shared API contracts
-**Related architecture:** [`../../../akiba-hub-architecture.md`](../../../akiba-hub-architecture.md)
+**Related architecture:** [`../../../docs/akiba-hub-architecture.md`](../../../docs/akiba-hub-architecture.md)
 
 ## Executive decision
 

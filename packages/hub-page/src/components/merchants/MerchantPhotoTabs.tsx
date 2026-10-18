@@ -15,7 +15,6 @@ import { TrackedLink } from "@/components/akiba/TrackedLink";
 import { VerifiedVisitPosts } from "@/components/merchants/VerifiedVisitPosts";
 import type {
   MemberVerifiedVisitSummary,
-  PublicCustomerPhoto,
   PublicMerchantMedia,
   PublicVerifiedVisit,
 } from "@/lib/merchants/types";
@@ -61,11 +60,15 @@ function memberPhotoCopy(photoState: MemberVerifiedVisitSummary["photoState"]): 
 export function MerchantPhotoTabs({
   merchantName,
   merchantId,
+  merchantSlug,
   verifiedVisits,
-  customerPhotos,
+  communityFavoriteProduct,
   merchantMedia,
   memberVerifiedVisit,
   contributionHref,
+  initialHelpfulVisitIds,
+  initialSaved,
+  isSignedIn,
   offerCount,
   offersContent,
   locationCount,
@@ -73,11 +76,15 @@ export function MerchantPhotoTabs({
 }: {
   merchantName: string;
   merchantId: string;
+  merchantSlug: string;
   verifiedVisits: PublicVerifiedVisit[];
-  customerPhotos: PublicCustomerPhoto[];
+  communityFavoriteProduct: string | null;
   merchantMedia: PublicMerchantMedia[];
   memberVerifiedVisit: MemberVerifiedVisitSummary | null;
   contributionHref: string | null;
+  initialHelpfulVisitIds: string[];
+  initialSaved: boolean;
+  isSignedIn: boolean;
   offerCount: number;
   offersContent?: ReactNode;
   locationCount: number;
@@ -98,7 +105,6 @@ export function MerchantPhotoTabs({
     if (offerCount > 0) return "offers";
     if (memberVerifiedVisit) return "verified";
     if (verifiedVisits.length > 0) return "verified";
-    if (customerPhotos.length > 0) return "verified";
     if (merchantMedia.length > 0) return "merchant";
     return locationCount > 0 ? "locations" : "verified";
   });
@@ -401,10 +407,14 @@ export function MerchantPhotoTabs({
                 )}
 
                 <VerifiedVisitPosts
+                  communityFavoriteProduct={communityFavoriteProduct}
+                  initialHelpfulVisitIds={initialHelpfulVisitIds}
+                  initialSaved={initialSaved}
+                  isSignedIn={isSignedIn}
                   merchantId={merchantId}
                   merchantName={merchantName}
+                  merchantSlug={merchantSlug}
                   visits={verifiedVisits}
-                  customerPhotos={customerPhotos}
                 />
               </>
             )}

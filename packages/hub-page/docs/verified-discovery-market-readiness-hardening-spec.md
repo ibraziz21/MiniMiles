@@ -154,7 +154,9 @@ moderation decision, provided the photo remains approved and unsuppressed.
 One approved active photo may appear immediately. That rule does not unlock
 aggregate claims.
 
-- Individual visit cards may show that visit's template-owned public labels.
+- Individual visit cards may show that visit's template-owned public labels
+  and at most one accepted canonical favorite order whose item is already
+  independently qualified. They never show the member's raw item text.
 - Discovery-level `What people loved` labels require at least five unique
   eligible contributors and at least 20% of eligible tag respondents in the
   active window.

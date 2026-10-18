@@ -163,8 +163,8 @@ const { InventoryNotApprovedError } = await import("@/lib/akiba/accountDeletionP
  */
 const EXECUTABLE_ROWS = [
   { id: "member_photo_objects", action: "delete" },
-  { id: "profile_contact", action: "delete" },
   { id: "saved_merchants", action: "delete" },
+  { id: "profile_contact", action: "delete" },
   { id: "push_registrations", action: "delete" },
   { id: "wallet_links", action: "unlink" },
   { id: "deletion_challenges", action: "delete" },
@@ -269,6 +269,7 @@ describe("account deletion worker", () => {
     for (const table of [
       "hub_user_profiles",
       "hub_user_saved_merchants",
+      "merchant_verified_visit_helpful_reactions",
       "hub_notification_preferences",
       "web_push_deliveries",
       "web_push_jobs",

@@ -15,6 +15,8 @@ export const colors = {
   // (text-red-600 / bg-red-50).
   danger: '#DC2626',
   dangerTint: '#FEF2F2',
+  scrim: 'rgba(0,0,0,0.68)',
+  imageControl: 'rgba(0,0,0,0.55)',
 } as const;
 
 export const spacing = {

@@ -4,11 +4,12 @@ type Actor = { userId: string; email: string | null; authMode: "cookie" | "beare
 
 const state = vi.hoisted(() => ({
   actor: null as Actor,
-  merchant: null as { id: string } | null,
+  merchant: null as { id: string; verifiedVisits: Array<{ id: string }> } | null,
   shouldThrowUnavailable: false,
   fundedOffers: [{ allocationId: "alloc-1" }, { allocationId: "alloc-2" }] as Array<{ allocationId: string }>,
   claimedByUser: new Map<string, Set<string>>(),
   savedByUser: new Map<string, boolean>(),
+  helpfulByUser: new Map<string, string[]>(),
 }));
 
 vi.mock("@/lib/auth/requestActor", () => {
@@ -49,6 +50,11 @@ vi.mock("@/lib/merchants/memberVisits", () => ({
   hasOpenMerchantContributionRequest: (...args: unknown[]) => hasOpenMerchantContributionRequestMock(...args),
 }));
 
+const getHelpfulVerifiedVisitIdsMock = vi.fn();
+vi.mock("@/lib/merchants/verifiedVisitHelpful", () => ({
+  getHelpfulVerifiedVisitIds: (...args: unknown[]) => getHelpfulVerifiedVisitIdsMock(...args),
+}));
+
 const getMerchantFundedOffersMock = vi.fn();
 const getClaimedMerchantFundedAllocationIdsMock = vi.fn();
 vi.mock("@/lib/vouchers/merchantFundedOffers.server", () => ({
@@ -66,11 +72,12 @@ describe("GET /api/v1/me/merchant-state/[slug]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     state.actor = null;
-    state.merchant = { id: "m1" };
+    state.merchant = { id: "m1", verifiedVisits: [{ id: "visit-1" }, { id: "visit-2" }] };
     state.shouldThrowUnavailable = false;
     state.fundedOffers = [{ allocationId: "alloc-1" }, { allocationId: "alloc-2" }];
     state.claimedByUser = new Map();
     state.savedByUser = new Map();
+    state.helpfulByUser = new Map();
 
     getPublicMerchantMock.mockImplementation(async () => {
       if (state.shouldThrowUnavailable) throw new MockDirectoryUnavailableError("db down");
@@ -84,6 +91,10 @@ describe("GET /api/v1/me/merchant-state/[slug]", () => {
     isMerchantSavedMock.mockImplementation(async (userId: string) => state.savedByUser.get(userId) ?? false);
     getMemberVerifiedVisitSummaryMock.mockResolvedValue(null);
     hasOpenMerchantContributionRequestMock.mockResolvedValue(false);
+    getHelpfulVerifiedVisitIdsMock.mockImplementation(
+      async (userId: string, contributionIds: string[]) =>
+        (state.helpfulByUser.get(userId) ?? []).filter((id) => contributionIds.includes(id)),
+    );
   });
 
   it("returns 401 when unauthenticated", async () => {
@@ -115,6 +126,8 @@ describe("GET /api/v1/me/merchant-state/[slug]", () => {
     state.savedByUser.set("user-a", true);
     state.claimedByUser.set("user-b", new Set());
     state.savedByUser.set("user-b", false);
+    state.helpfulByUser.set("user-a", ["visit-1"]);
+    state.helpfulByUser.set("user-b", ["visit-2"]);
 
     state.actor = { userId: "user-a", email: "a@example.com", authMode: "bearer" };
     const userA = await (await GET(req("acme").req, { params: { slug: "acme" } })).json();
@@ -126,6 +139,8 @@ describe("GET /api/v1/me/merchant-state/[slug]", () => {
     expect(userA.data.claimedFundedAllocationIds).toEqual(["alloc-1"]);
     expect(userB.data.saved).toBe(false);
     expect(userB.data.claimedFundedAllocationIds).toEqual([]);
+    expect(userA.data.helpfulVisitIds).toEqual(["visit-1"]);
+    expect(userB.data.helpfulVisitIds).toEqual(["visit-2"]);
 
     // Every call that can see claim/saved state was scoped to the actor making the request.
     expect(getClaimedMerchantFundedAllocationIdsMock).toHaveBeenCalledWith(
@@ -140,6 +155,8 @@ describe("GET /api/v1/me/merchant-state/[slug]", () => {
     );
     expect(isMerchantSavedMock).toHaveBeenCalledWith("user-a", "m1");
     expect(isMerchantSavedMock).toHaveBeenCalledWith("user-b", "m1");
+    expect(getHelpfulVerifiedVisitIdsMock).toHaveBeenCalledWith("user-a", ["visit-1", "visit-2"]);
+    expect(getHelpfulVerifiedVisitIdsMock).toHaveBeenCalledWith("user-b", ["visit-1", "visit-2"]);
   });
 
   it("is private, no-store", async () => {

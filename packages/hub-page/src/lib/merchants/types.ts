@@ -120,6 +120,8 @@ export type PublicCustomerPhoto = {
 /** Anonymous, structured recommendation backed by an active verified visit. */
 export type PublicVerifiedVisit = {
   id: string;
+  /** Accepted, independently qualified canonical item; never raw member text. */
+  favoriteOrder: string | null;
   experienceLabels: string[];
   photos: PublicCustomerPhoto[];
 };
@@ -169,6 +171,8 @@ export type PublicMerchantDetail = PublicMerchantSummary & {
   merchantMedia: PublicMerchantMedia[];
   offers: PublicMerchantOffer[];
   verifiedVisits: PublicVerifiedVisit[];
+  /** Threshold-qualified aggregate, never a member's raw item text. */
+  verifiedVisitFavoriteProduct: string | null;
   approvedCustomerPhotos: PublicCustomerPhoto[];
   vouchers: PublicVoucherSummary[];
 };

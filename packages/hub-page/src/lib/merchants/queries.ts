@@ -700,12 +700,14 @@ function mergeCustomerPhotos(
   return [...byId.values()].slice(0, APPROVED_PHOTO_LIMIT);
 }
 
-const PUBLIC_VERIFIED_VISIT_LIMIT = 24;
+const PUBLIC_VERIFIED_VISIT_LIMIT = 100;
 
 type EligibleVisitRow = {
   contribution_id: string;
   experience_option_ids: unknown;
   template_snapshot: unknown;
+  dedup_key: string;
+  favorite_order: unknown;
 };
 
 /**
@@ -714,8 +716,8 @@ type EligibleVisitRow = {
  * purchase data and timestamps never enter this response. The full
  * eligibility predicate (merchant published/active, request submitted,
  * earning event active, not withdrawn/suppressed) lives once in the
- * canonical `eligible_public_merchant_visits` projection, not re-derived
- * here.
+ * canonical `eligible_public_discovery_contributions` projection; the card
+ * RPC then selects the newest eligible contribution per member.
  */
 async function getPublicVerifiedVisits(
   admin: ReturnType<typeof createAdminClient>,
@@ -725,7 +727,7 @@ async function getPublicVerifiedVisits(
 
   try {
     const { data, error } = await admin
-      .rpc("eligible_public_merchant_visits", { p_partner_id: partnerId })
+      .rpc("eligible_public_merchant_visit_cards", { p_partner_id: partnerId })
       .order("submitted_at", { ascending: false })
       .limit(PUBLIC_VERIFIED_VISIT_LIMIT);
 
@@ -734,13 +736,47 @@ async function getPublicVerifiedVisits(
       return [];
     }
 
+    const seen = new Set<string>();
     return ((data ?? []) as EligibleVisitRow[]).flatMap((row) => {
+      // The deck projection selects the newest eligible contribution per
+      // member. Keep this second check so a projection regression still
+      // cannot show two cards from the same anonymous customer.
+      const dedupKey = typeof row.dedup_key === "string" && row.dedup_key
+        ? row.dedup_key
+        : row.contribution_id;
+      if (seen.has(dedupKey)) return [];
+      seen.add(dedupKey);
       const experienceLabels = extractPublicExperienceLabels(row.template_snapshot, row.experience_option_ids, 6);
-      return [{ id: row.contribution_id, experienceLabels, photos: [] }];
+      const favoriteOrder = typeof row.favorite_order === "string" && row.favorite_order.trim()
+        ? row.favorite_order.trim().slice(0, 120)
+        : null;
+      return [{ id: row.contribution_id, favoriteOrder, experienceLabels, photos: [] }];
     });
   } catch (error) {
     console.error("[merchants] verified-visit projection failed:", error instanceof Error ? error.message : error);
     return [];
+  }
+}
+
+async function getPublicVerifiedVisitFavorite(
+  admin: ReturnType<typeof createAdminClient>,
+  partnerId: string,
+): Promise<string | null> {
+  try {
+    const { data, error } = await admin.rpc("get_public_verified_visit_favorite", {
+      p_partner_id: partnerId,
+    });
+    if (error) {
+      console.error("[merchants] verified-visit favorite lookup failed:", error.message);
+      return null;
+    }
+    return typeof data === "string" && data.trim() ? data.trim().slice(0, 120) : null;
+  } catch (error) {
+    console.error(
+      "[merchants] verified-visit favorite projection failed:",
+      error instanceof Error ? error.message : error,
+    );
+    return null;
   }
 }
 
@@ -852,12 +888,14 @@ export async function getPublicMerchant(
   const [
     directApprovedCustomerPhotos,
     verifiedVisits,
+    verifiedVisitFavoriteProduct,
     { data: templates, error: templatesErr },
     { data: availableRows, error: availabilityErr },
     { data: restrictionRows, error: restrictionsErr },
   ] = await Promise.all([
     getIndividuallyApprovedCustomerPhotos(admin, raw.id, raw.name),
     getPublicVerifiedVisits(admin, raw.id),
+    getPublicVerifiedVisitFavorite(admin, raw.id),
     admin
       .from("spend_voucher_templates")
       .select(
@@ -962,6 +1000,7 @@ export async function getPublicMerchant(
     merchantMedia,
     offers,
     verifiedVisits: verifiedVisitsWithPhotos,
+    verifiedVisitFavoriteProduct,
     approvedCustomerPhotos,
     vouchers,
   };

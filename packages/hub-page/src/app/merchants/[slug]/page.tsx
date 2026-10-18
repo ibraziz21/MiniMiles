@@ -18,6 +18,7 @@ import { MerchantOffersPanel } from "@/components/merchants/MerchantOffersPanel"
 import { MerchantProfileDisclosure } from "@/components/merchants/MerchantProfileDisclosure";
 import { getSignedInBalance } from "@/lib/merchants/enrich";
 import { getMemberVerifiedVisitSummary, hasOpenMerchantContributionRequest } from "@/lib/merchants/memberVisits";
+import { getHelpfulVerifiedVisitIds } from "@/lib/merchants/verifiedVisitHelpful";
 import { isMerchantSaved } from "@/lib/merchants/savedMerchants";
 import { rankMerchantFundedOffers, rankMerchantVouchers } from "@/lib/merchants/voucherRanking";
 import {
@@ -146,13 +147,14 @@ export default async function MerchantPage({ params }: { params: { slug: string 
   const totalOfferCount = merchant.offers.length + totalVoucherCount;
   const affordableVoucherCount =
     balance != null ? rankedMilesVouchers.filter((v) => balance >= v.milesCost).length : null;
-  const [initialSaved, memberVerifiedVisit, canAddVerifiedVisit] = userId
+  const [initialSaved, memberVerifiedVisit, canAddVerifiedVisit, initialHelpfulVisitIds] = userId
     ? await Promise.all([
         isMerchantSaved(userId, merchant.id),
         getMemberVerifiedVisitSummary(userId, merchant.id),
         hasOpenMerchantContributionRequest(userId, merchant.id),
+        getHelpfulVerifiedVisitIds(userId, merchant.verifiedVisits.map((visit) => visit.id)),
       ])
-    : [false, null, false];
+    : [false, null, false, [] as string[]];
 
   const hasPhysicalLocation = merchant.locations.length > 0;
 
@@ -316,11 +318,15 @@ export default async function MerchantPage({ params }: { params: { slug: string 
       <MerchantPhotoTabs
         merchantName={merchant.name}
         merchantId={merchant.id}
+        merchantSlug={merchant.slug}
         verifiedVisits={merchant.verifiedVisits}
-        customerPhotos={merchant.approvedCustomerPhotos}
+        communityFavoriteProduct={merchant.verifiedVisitFavoriteProduct}
         merchantMedia={merchant.merchantMedia}
         memberVerifiedVisit={memberVerifiedVisit}
         contributionHref={canAddVerifiedVisit ? `/visit/merchant/${merchant.slug}` : null}
+        initialHelpfulVisitIds={initialHelpfulVisitIds}
+        initialSaved={initialSaved}
+        isSignedIn={isSignedIn}
         offerCount={totalOfferCount}
         offersContent={totalOfferCount > 0 ? (
           <MerchantOffersPanel
