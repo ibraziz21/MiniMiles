@@ -61,7 +61,7 @@ export async function POST(request: Request) {
   });
 
   if (error) {
-    // Unique constraint violation — already signed up
+    // Unique constraint violation: already signed up
     if (error.code === "23505") {
       return NextResponse.json({ ok: true, already: true });
     }

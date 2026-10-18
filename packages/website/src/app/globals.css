@@ -35,9 +35,46 @@ svg {
   color: white;
 }
 
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 .surface-grid {
   background-image:
     linear-gradient(rgba(35, 141, 157, 0.07) 1px, transparent 1px),
     linear-gradient(90deg, rgba(35, 141, 157, 0.07) 1px, transparent 1px);
   background-size: 40px 40px;
+}
+
+/* Soft brand wash behind the hero panel: two teal blooms fading into paper. */
+.hero-wash {
+  background:
+    radial-gradient(900px 540px at 10% -10%, rgba(35, 141, 157, 0.18), transparent 62%),
+    radial-gradient(760px 580px at 95% 12%, rgba(116, 212, 223, 0.3), transparent 60%),
+    linear-gradient(180deg, #f2fafb 0%, #fcfcfc 72%);
+}
+
+/* Faint blueprint grid, used on top of .hero-wash. */
+.wash-grid {
+  background-image:
+    linear-gradient(rgba(13, 14, 12, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(13, 14, 12, 0.04) 1px, transparent 1px);
+  background-size: 72px 72px;
+}
+
+.teal-band {
+  background:
+    radial-gradient(700px 420px at 88% 8%, rgba(255, 255, 255, 0.22), transparent 62%),
+    linear-gradient(135deg, #176575 0%, #238d9d 46%, #39aebf 100%);
+}
+
+.ink-band {
+  background:
+    radial-gradient(620px 420px at 92% 0%, rgba(116, 212, 223, 0.2), transparent 64%),
+    #0d0e0c;
 }

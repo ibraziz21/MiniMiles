@@ -50,10 +50,10 @@ export const metadata: Metadata = {
     siteName: siteConfig.name,
     images: [
       {
-        url: "/webflow/opengraph.jpg",
+        url: "/opengraph.jpg",
         width: 1200,
         height: 630,
-        alt: "AkibaMiles rewards ecosystem",
+        alt: "Akiba: find the good places, get rewarded for going",
       },
     ],
     locale: "en_US",
@@ -63,7 +63,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: siteConfig.title,
     description: siteConfig.description,
-    images: ["/webflow/opengraph.jpg"],
+    images: ["/opengraph.jpg"],
   },
   icons: {
     icon: "/icon.svg",

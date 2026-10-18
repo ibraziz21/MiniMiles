@@ -71,7 +71,7 @@ export default function HubPage() {
               ecosystem. Open the Akiba Hub App to connect your wallet and get personalized
               recommendations.
             </p>
-            <WaitlistForm />
+            <WaitlistForm className="mt-8" />
             <p className="mt-2 text-sm text-white/40">
               Already using Akiba?{" "}
               <a href={siteConfig.appUrl} className="text-white/60 underline underline-offset-2 hover:text-white">
@@ -138,7 +138,7 @@ export default function HubPage() {
                 Launch a campaign with Akiba
               </p>
               <p className="mt-1 text-sm text-white/50">
-                Reach users through quests, vouchers, games, and reward recommendations — across
+                Reach users through quests, vouchers, games, and reward recommendations, across
                 MiniPay, Base, and the Akiba Hub App.
               </p>
             </div>

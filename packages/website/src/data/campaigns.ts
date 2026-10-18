@@ -40,9 +40,9 @@ export const campaigns: Campaign[] = [
     status: "live",
     rewardHighlight: "$50",
     rewardLabel: "daily pool",
-    tagline: "$50 USDT daily — 10 winners every day in June",
+    tagline: "$50 USDT daily. 10 winners every day in June",
     description:
-      "Hold at least $10 USDT in your MiniPay wallet to qualify. Every day in June, 10 wallets are drawn and share a $50 USDT reward pool — $5 USDT each. Use your earned AkibaMiles to buy campaign tickets for more daily entries.",
+      "Hold at least $10 USDT in your MiniPay wallet to qualify. Every day in June, 10 wallets are drawn and share a $50 USDT reward pool, $5 USDT each. Use your earned AkibaMiles to buy campaign tickets for more daily entries.",
     details: [
       { label: "Daily pool", value: "$50 USDT" },
       { label: "Winners/day", value: "10" },
@@ -87,7 +87,7 @@ export const campaigns: Campaign[] = [
     status: "coming-soon",
     rewardHighlight: "$0.15",
     rewardLabel: "USDT per duel win",
-    tagline: "Head-to-head dice duels — roll, bank, and outlast your opponent.",
+    tagline: "Head-to-head dice duels. Roll, bank, and outlast your opponent.",
     description:
       "PvP Farkle is a two-player dice duel. Players take turns rolling, scoring, and banking points. The first player to reach the target score wins. Play in Miles mode using Farkle tickets, or enter Reward Duels with USDT for real stakes.",
     details: [
@@ -111,9 +111,9 @@ export const campaigns: Campaign[] = [
     rewardLabel: "vouchers coming",
     tagline: "Electronics delivered to your door. Pay in USDT, earn 200 Miles.",
     description:
-      "Browse Leshan Group's electronics catalogue — devices, accessories, and services. Pay in cUSD or USDT on Celo. Earn 200 AkibaMiles per order. Apply vouchers at checkout for discounts. Urban delivery in 1–2 days from $3.",
+      "Browse Leshan Group's electronics catalogue: devices, accessories, and services. Pay in cUSD or USDT on Celo. Earn 200 AkibaMiles per order. Apply vouchers at checkout for discounts. Urban delivery in 1–2 days from $3.",
     details: [
-      { label: "Category", value: "Electronics — devices, accessories, services" },
+      { label: "Category", value: "Electronics: devices, accessories, services" },
       { label: "Payment", value: "cUSD or USDT on Celo" },
       { label: "Miles per order", value: "200 Miles" },
       { label: "Urban delivery", value: "$3.00 · 1–2 days (Nairobi, Mombasa)" },
@@ -135,7 +135,7 @@ export const campaigns: Campaign[] = [
     rewardLabel: "new actions",
     tagline: "New ways to earn AkibaMiles are being added.",
     description:
-      "This section will list rewarded actions — things you can do in the Akiba ecosystem to earn Miles outside of quests and games. Nothing active right now, but stay tuned.",
+      "This section will list rewarded actions, things you can do in the Akiba ecosystem to earn Miles outside of quests and games. Nothing active right now, but stay tuned.",
     details: [{ label: "Status", value: "Coming soon" }],
     cta: "Open App",
     ctaHref: "https://app.akibamiles.com",

@@ -5,12 +5,13 @@ import { siteConfig } from "@/content/site";
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-akiba-line bg-white">
-      <div className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1fr_auto_auto_auto] lg:px-8">
+    <footer className="px-3 pb-3 sm:px-5 sm:pb-5">
+      <div className="mx-auto w-full max-w-[84rem] overflow-hidden rounded-[1.75rem] border border-akiba-line bg-white sm:rounded-[2.25rem]">
+      <div className="grid gap-10 px-6 py-12 sm:px-10 lg:grid-cols-[1fr_auto_auto_auto] lg:px-14">
         <div className="max-w-md">
           <Logo />
           <p className="mt-5 text-sm leading-6 text-akiba-muted">
-            Shopping should be rewarding. Earn Miles on everyday spend at Akiba merchants and redeem across the whole network.
+            Find the good places. Get rewarded for going. Shops near you, Miles on what you spend, and a nudge before an offer starts.
           </p>
           <p className="mt-3 text-xs text-akiba-muted/60">
             Built by Akiba Ecosystems Ltd. Not operated by MiniPay or Opera.
@@ -82,8 +83,8 @@ export function SiteFooter() {
           </div>
         </div>
       </div>
-      <div className="border-t border-akiba-line">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-5 text-sm text-akiba-muted sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+      <div className="border-t border-akiba-line bg-akiba-paper">
+        <div className="flex flex-col gap-3 px-6 py-5 text-sm text-akiba-muted sm:flex-row sm:items-center sm:justify-between sm:px-10 lg:px-14">
           <p>© {new Date().getFullYear()} AkibaMiles</p>
           <div className="flex gap-4">
             <Link href="/privacy-policy" className="no-underline hover:text-akiba-teal">
@@ -94,6 +95,7 @@ export function SiteFooter() {
             </Link>
           </div>
         </div>
+      </div>
       </div>
     </footer>
   );
