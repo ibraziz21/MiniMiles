@@ -119,7 +119,7 @@ export default function VerifyScreen() {
           style={styles.scroll}>
           <View style={styles.content}>
             <Text accessibilityRole="header" style={styles.eyebrow}>
-              AKIBA PASS
+              AKIBA
             </Text>
 
             <Card style={styles.card}>

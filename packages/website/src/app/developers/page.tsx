@@ -11,11 +11,12 @@ import {
   Webhook,
 } from "lucide-react";
 import { ButtonLink } from "@/components/ButtonLink";
+import { Panel } from "@/components/Panel";
 import { SectionHeader } from "@/components/SectionHeader";
 import { siteConfig } from "@/content/site";
 
 export const metadata: Metadata = {
-  title: "Voucher and Loyalty API for Merchants",
+  title: "Voucher and Rewards API for Merchants",
   description:
     "Create, distribute, and redeem merchant vouchers with the AkibaMiles API. Connect your checkout, POS, or customer platform and track every redemption.",
 };
@@ -30,7 +31,7 @@ const apiCapabilities = [
   {
     icon: Gift,
     title: "Distribute vouchers",
-    body: "Deliver issued codes through your existing CRM, checkout, campaign, or customer-support workflow—without moving customers into a separate tool.",
+    body: "Deliver issued codes through your existing CRM, checkout, campaign, or customer-support workflow, without moving customers into a separate tool.",
     endpoints: ["POST /api/v1/vouchers/issue"],
   },
   {
@@ -48,7 +49,7 @@ const apiCapabilities = [
   {
     icon: BarChart3,
     title: "Reward customer purchases",
-    body: "Issue Miles after a qualifying purchase and connect loyalty to the payment or order events your business already records.",
+    body: "Issue Miles after a qualifying purchase, tied to the payment or order events your business already records.",
     endpoints: ["POST /api/v1/rewards/issue"],
   },
   {
@@ -107,7 +108,7 @@ export default function DevelopersPage() {
   return (
     <main>
       {/* Hero */}
-      <section className="overflow-hidden bg-akiba-ink px-4 py-16 text-white sm:px-6 lg:px-8 lg:py-20">
+      <Panel tone="ink">
         <div className="mx-auto max-w-4xl text-center">
           <div className="inline-flex rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-[#74D4DF]">
             Akiba Merchant API · REST
@@ -131,11 +132,11 @@ export default function DevelopersPage() {
           </div>
           <p className="mt-5 text-sm text-white/45">Dashboard signup is self-serve.</p>
         </div>
-      </section>
+      </Panel>
 
       {/* Integration paths */}
-      <section id="integration" className="scroll-mt-20 border-b border-akiba-line bg-white px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl">
+      <Panel id="integration" tone="white">
+        <div>
           <SectionHeader
             eyebrow="Choose your setup"
             title="Start in the dashboard. Integrate when you need to."
@@ -155,11 +156,11 @@ export default function DevelopersPage() {
             ))}
           </div>
         </div>
-      </section>
+      </Panel>
 
       {/* API capabilities */}
-      <section id="capabilities" className="scroll-mt-20 bg-akiba-paper px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl">
+      <Panel id="capabilities" tone="card">
+        <div>
           <SectionHeader
             eyebrow="Merchant API"
             title="The voucher workflow, end to end."
@@ -190,11 +191,11 @@ export default function DevelopersPage() {
             })}
           </div>
         </div>
-      </section>
+      </Panel>
 
       {/* Auth model */}
-      <section id="auth" className="scroll-mt-20 border-b border-akiba-line bg-white px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl">
+      <Panel id="auth" tone="white">
+        <div>
           <div className="grid gap-12 lg:grid-cols-2 lg:items-start">
             <div>
               <SectionHeader
@@ -239,11 +240,11 @@ export default function DevelopersPage() {
             </div>
           </div>
         </div>
-      </section>
+      </Panel>
 
       {/* Use cases */}
-      <section className="bg-akiba-paper px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl">
+      <Panel tone="card">
+        <div>
           <SectionHeader
             eyebrow="Built for merchant operations"
             title="Easy for your systems. Easy for your staff."
@@ -270,10 +271,10 @@ export default function DevelopersPage() {
             ))}
           </div>
         </div>
-      </section>
+      </Panel>
 
       {/* CTA */}
-      <section id="contact" className="scroll-mt-20 bg-akiba-ink px-4 py-16 text-white sm:px-6 lg:px-8">
+      <Panel id="contact" tone="ink">
         <div className="mx-auto max-w-4xl text-center">
           <p className="font-sterling text-base font-medium text-[#74D4DF]">Get started</p>
           <h2 className="mt-3 font-sterling text-4xl font-medium leading-[1.08]">
@@ -298,7 +299,7 @@ export default function DevelopersPage() {
             Dashboard signup is self-serve. We respond to API access requests within 2 business days.
           </p>
         </div>
-      </section>
+      </Panel>
     </main>
   );
 }

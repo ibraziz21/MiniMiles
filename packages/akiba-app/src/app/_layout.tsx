@@ -1,13 +1,11 @@
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import {
-  useFonts,
-  DMSans_400Regular,
-  DMSans_500Medium,
-  DMSans_600SemiBold,
-  DMSans_700Bold,
-} from '@expo-google-fonts/dm-sans';
+import { useFonts } from 'expo-font';
+import { DMSans_400Regular } from '@expo-google-fonts/dm-sans/400Regular';
+import { DMSans_500Medium } from '@expo-google-fonts/dm-sans/500Medium';
+import { DMSans_600SemiBold } from '@expo-google-fonts/dm-sans/600SemiBold';
+import { DMSans_700Bold } from '@expo-google-fonts/dm-sans/700Bold';
 
 import { AuthProvider } from '@/auth';
 import { AppConfigProvider } from '@/config';
@@ -21,10 +19,6 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
-    FTSterlingRegular: require('../../assets/fonts/FTSterlingTrial-Regular.otf'),
-    FTSterlingMedium: require('../../assets/fonts/FTSterlingTrial-Medium.otf'),
-    FTSterlingSemiBold: require('../../assets/fonts/FTSterlingTrial-Semi-Bold.otf'),
-    FTSterlingBold: require('../../assets/fonts/FTSterlingTrial-Bold.otf'),
     DMSans_400Regular,
     DMSans_500Medium,
     DMSans_600SemiBold,

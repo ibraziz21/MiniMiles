@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 import type { ComponentProps } from 'react';
-import type { Feather } from '@expo/vector-icons';
+import type Feather from '@expo/vector-icons/Feather';
 
 import { Icon } from './icon';
 import { colors, radius } from './tokens';

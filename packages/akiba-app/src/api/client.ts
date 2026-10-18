@@ -18,6 +18,7 @@ import {
   merchantDetailSchema,
   merchantStateDetailSchema,
   offerReminderStateSchema,
+  merchantOfferFeedSchema,
   ownedVouchersListSchema,
   voucherDetailSchema,
   voucherQuoteSchema,
@@ -44,6 +45,7 @@ import {
   type MerchantDetail,
   type MerchantStateDetail,
   type OfferReminderState,
+  type MerchantOfferFeed,
   type OwnedVouchersList,
   type VoucherDetail,
   type VoucherQuote,
@@ -59,6 +61,15 @@ import {
 } from '@/contracts';
 
 import { ApiRequestError } from './errors';
+import {
+  getScreenshotMerchantOffers,
+  getScreenshotOwnedVouchers,
+  getScreenshotVoucherCatalogue,
+  getScreenshotVoucherState,
+  isScreenshotModeEnabled,
+  isScreenshotOfferId,
+  withScreenshotHomeFixtures,
+} from '@/fixtures/screenshot-commerce';
 
 type ApiClientOptions = {
   accessToken?: string | null;
@@ -224,8 +235,13 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
         policyVersion: input.policyVersion,
       });
     },
-    getHome(params: { lat?: number; lng?: number; intent?: string } = {}): Promise<MobileHome> {
-      return get(`/api/v1/home${toQueryString(params)}`, mobileHomeSchema);
+    async getHome(params: { lat?: number; lng?: number; intent?: string } = {}): Promise<MobileHome> {
+      const home = await get(`/api/v1/home${toQueryString(params)}`, mobileHomeSchema);
+      return isScreenshotModeEnabled() ? withScreenshotHomeFixtures(home) : home;
+    },
+    getMerchantOffers(): Promise<MerchantOfferFeed> {
+      if (isScreenshotModeEnabled()) return Promise.resolve(getScreenshotMerchantOffers());
+      return get('/api/v1/merchant-offers', merchantOfferFeedSchema);
     },
     getMerchants(
       params: {
@@ -256,12 +272,14 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
       return mutate('PATCH', '/api/v1/me/settings', settingsUpdateSchema, input);
     },
     getVouchers(): Promise<VoucherCatalogue> {
+      if (isScreenshotModeEnabled()) return Promise.resolve(getScreenshotVoucherCatalogue());
       return get('/api/v1/vouchers', voucherCatalogueSchema);
     },
     getVoucherState(): Promise<VoucherState> {
       if (!accessToken) {
         return Promise.reject(new Error('getVoucherState requires an authenticated access token'));
       }
+      if (isScreenshotModeEnabled()) return Promise.resolve(getScreenshotVoucherState());
       return get('/api/v1/me/voucher-state', voucherStateSchema);
     },
     getOverview(): Promise<MobileOverview> {
@@ -300,12 +318,23 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
       if (!accessToken) {
         return Promise.reject(new Error('getOfferReminder requires an authenticated access token'));
       }
+      if (isScreenshotModeEnabled() && isScreenshotOfferId(offerId)) {
+        return Promise.resolve({ reminder: null });
+      }
       return get(`/api/v1/merchant-offers/${offerId}/reminder`, offerReminderStateSchema);
     },
     setOfferReminder(offerId: string, leadMinutes: 30 | 60 | 1440): Promise<OfferReminderState> {
+      if (isScreenshotModeEnabled() && isScreenshotOfferId(offerId)) {
+        if (!accessToken) return Promise.reject(new Error('setOfferReminder requires an authenticated access token'));
+        return Promise.resolve({ reminder: { leadMinutes } });
+      }
       return mutate('PUT', `/api/v1/merchant-offers/${offerId}/reminder`, offerReminderStateSchema, { leadMinutes });
     },
     removeOfferReminder(offerId: string): Promise<OfferReminderState> {
+      if (isScreenshotModeEnabled() && isScreenshotOfferId(offerId)) {
+        if (!accessToken) return Promise.reject(new Error('removeOfferReminder requires an authenticated access token'));
+        return Promise.resolve({ reminder: null });
+      }
       return mutate('DELETE', `/api/v1/merchant-offers/${offerId}/reminder`, offerReminderStateSchema);
     },
     getOwnedVouchers(
@@ -313,6 +342,13 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
     ): Promise<OwnedVouchersList> {
       if (!accessToken) {
         return Promise.reject(new Error('getOwnedVouchers requires an authenticated access token'));
+      }
+      if (isScreenshotModeEnabled()) {
+        const result = getScreenshotOwnedVouchers();
+        const vouchers = params.status
+          ? result.vouchers.filter((voucher) => voucher.status === params.status)
+          : result.vouchers;
+        return Promise.resolve({ vouchers, next_cursor: null });
       }
       return get(`/api/v1/me/vouchers${toQueryString(params)}`, ownedVouchersListSchema);
     },

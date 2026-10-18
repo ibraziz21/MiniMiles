@@ -33,7 +33,7 @@ const categoryAccent: Record<
   Rewards:                { border: "border-l-akiba-teal", highlight: "bg-akiba-tint text-akiba-teal", label: "bg-akiba-tint text-akiba-teal" },
 };
 
-// Replaces "NUMBER Miles" / "NUMBER AkibaMiles" with [icon]NUMBER — symbol acts as the currency prefix.
+// Replaces "NUMBER Miles" / "NUMBER AkibaMiles" with [icon]NUMBER; symbol acts as the currency prefix.
 function WithMilesIcon({ text }: { text: string }) {
   if (!text.match(/(?:Akiba)?Miles/)) return <>{text}</>;
 
@@ -88,7 +88,7 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
           </span>
         </div>
 
-        {/* Reward highlight — top right */}
+        {/* Reward highlight, top right */}
         <div className={cn("shrink-0 rounded-xl px-3 py-2 text-right", accent.highlight)}>
           <p className="inline-flex items-center gap-1 text-xl font-bold leading-none tracking-tight">
             <WithMilesIcon text={campaign.rewardHighlight} />
@@ -131,7 +131,7 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-sm font-semibold text-akiba-teal no-underline transition hover:gap-2"
-          aria-label={`${campaign.cta} — ${campaign.title}`}
+          aria-label={`${campaign.cta}: ${campaign.title}`}
         >
           {campaign.cta}
           <ArrowUpRight className="h-4 w-4" />

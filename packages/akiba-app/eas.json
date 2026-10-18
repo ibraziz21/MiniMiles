@@ -6,24 +6,42 @@
   },
   "build": {
     "development": {
-      "developmentClient": true,
       "distribution": "internal",
       "environment": "development",
+      "node": "22.13.0",
+      "env": { "AKIBA_BUILD_VARIANT": "development" },
       "ios": { "simulator": false },
       "android": { "buildType": "apk" }
     },
     "preview": {
       "distribution": "internal",
       "environment": "preview",
+      "node": "22.13.0",
+      "env": { "AKIBA_BUILD_VARIANT": "preview" },
+      "android": { "buildType": "apk" }
+    },
+    "screenshots": {
+      "distribution": "internal",
+      "environment": "preview",
+      "node": "22.13.0",
+      "env": {
+        "AKIBA_BUILD_VARIANT": "preview",
+        "EXPO_PUBLIC_SCREENSHOT_MODE": "true"
+      },
       "android": { "buildType": "apk" }
     },
     "production": {
       "distribution": "store",
       "environment": "production",
-      "autoIncrement": true
+      "node": "22.13.0",
+      "env": { "AKIBA_BUILD_VARIANT": "production" },
+      "autoIncrement": true,
+      "android": { "buildType": "app-bundle" }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "android": { "track": "internal" }
+    }
   }
 }

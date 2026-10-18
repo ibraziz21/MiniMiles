@@ -1,11 +1,12 @@
+import { Panel } from "@/components/Panel";
 import type { LegalPage as LegalPageContent } from "@/content/legal";
 
 export function LegalPage({ page }: { page: LegalPageContent }) {
   return (
-    <main className="bg-akiba-paper">
-      <section className="px-4 py-16 sm:px-6 lg:px-8">
+    <main>
+      <Panel tone="white">
         <div className="mx-auto max-w-3xl">
-          <div className="inline-flex rounded-full bg-white px-4 py-2 text-sm font-medium text-akiba-teal shadow-chip">
+          <div className="inline-flex rounded-full border border-akiba-line bg-akiba-paper px-4 py-1.5 text-sm font-semibold text-akiba-teal">
             Last update: {page.lastUpdated}
           </div>
           <h1 className="mt-6 font-sterling text-5xl font-medium leading-[1.08] text-akiba-ink">
@@ -35,7 +36,7 @@ export function LegalPage({ page }: { page: LegalPageContent }) {
             ))}
           </div>
         </div>
-      </section>
+      </Panel>
     </main>
   );
 }

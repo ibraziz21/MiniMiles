@@ -4,7 +4,7 @@
 #
 # Asserting the receipt exists server-side (§15.3) is the wrapper script's
 # job; Maestro can only see the screen.
-appId: com.akiba.pass
+appId: com.akibamiles.akiba
 env:
   OTP: ${AKIBA_E2E_OTP}
 ---

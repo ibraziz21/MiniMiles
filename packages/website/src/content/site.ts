@@ -1,8 +1,8 @@
 export const siteConfig = {
   name: "AkibaMiles",
-  title: "Akiba | Shopping Should Be Rewarding",
+  title: "Akiba | Find the good places. Get rewarded for going.",
   description:
-    "Akiba turns everyday shopping into rewards. Earn Miles every time you spend at an Akiba merchant, then redeem vouchers, discounts and rewards across the whole network. Merchants launch loyalty in days — no hardware.",
+    "Find shops near you, earn Miles when you spend, and turn them into discounts. Businesses get discovered and earn the second visit. No hardware.",
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "https://app.akibamiles.com",
   passUrl: process.env.NEXT_PUBLIC_PASS_URL ?? "https://pass.akibamiles.com",
   merchantUrl: process.env.NEXT_PUBLIC_MERCHANT_URL ?? "https://merchant.akibamiles.com",
@@ -13,54 +13,124 @@ export const siteConfig = {
 };
 
 export const navLinks = [
-  { label: "How it works", href: "/#how-it-works" },
+  { label: "What you get", href: "/#what-you-get" },
+  { label: "Get the app", href: "/#app" },
   { label: "For Merchants", href: "/merchants" },
   { label: "About", href: "/about" },
 ];
 
+/**
+ * The five things Akiba does for a shopper, in the order they happen.
+ * Each screenshot is a shipped screen, not a mockup: Merchants, Rewards,
+ * Shop, a merchant profile and the Business offers deck.
+ */
+export const pillars = [
+  {
+    id: "discover",
+    step: "01",
+    eyebrow: "Discover",
+    title: "Discover new places to shop",
+    body: "See what's around you. Food, fuel, groceries, beauty, repairs.",
+    points: [
+      "Filter by category or by what's nearest",
+      "Opening hours and distance on every shop",
+      "Directions, call or WhatsApp in one tap",
+    ],
+    image: { src: "/app/merchants.webp", alt: "The Akiba merchant directory, with category and city filters" },
+  },
+  {
+    id: "earn",
+    step: "02",
+    eyebrow: "Earn",
+    title: "Earn Miles for shopping",
+    body: "Pay the way you always do. Your Miles land before you leave the counter.",
+    points: [
+      "Instant at the till",
+      "Earn at one shop, spend at another",
+      "Miles never expire",
+    ],
+    image: { src: "/app/rewards.webp", alt: "The Akiba rewards screen showing an AkibaMiles balance" },
+  },
+  {
+    id: "vouchers",
+    step: "03",
+    eyebrow: "Redeem",
+    title: "Get discounts and vouchers",
+    body: "Spend your Miles on discounts, or claim free offers that cost nothing.",
+    points: [
+      "See the Miles price before you confirm",
+      "Free offers you can claim with no Miles",
+      "More rewards the more you shop at one place",
+      "One wallet for everything you've claimed",
+    ],
+    image: { src: "/app/shop.webp", alt: "Shop with Miles: a voucher priced in AkibaMiles" },
+    secondaryImage: { src: "/app/free-offers.webp", alt: "Free offers that need no Miles to claim" },
+  },
+  {
+    id: "recommend",
+    step: "04",
+    eyebrow: "Recommend",
+    title: "Tell people what you loved",
+    body: "Shopped somewhere good? Say what you loved and add a photo.",
+    points: [
+      "Only people who actually bought can post",
+      "Real photos, and what to try when you go",
+      "Your tip helps the next person choose",
+    ],
+    image: { src: "/app/merchant-profile.webp", alt: "A merchant profile showing a verified visit recommendation" },
+  },
+  {
+    id: "offers",
+    step: "05",
+    eyebrow: "Never miss it",
+    title: "Get reminded for business offers",
+    body: "Shops run offers on set days. Get a nudge before they start.",
+    points: [
+      "Swipe through what's on",
+      "Remind me 30 minutes, an hour, or a day before",
+      "See what's live now and what's coming",
+      "Most need no Miles",
+    ],
+    image: { src: "/app/offers.webp", alt: "A business offer with a reminder bell in the Akiba offers deck" },
+  },
+];
+
 export const homeContent = {
   hero: {
-    eyebrow: "Loyalty for everyday shopping",
-    title: "Shopping should be rewarding.",
-    body:
-      "Earn Miles every time you spend at an Akiba merchant — then turn them into vouchers, discounts na zawadi. Free to join. 30 seconds to register.",
+    eyebrow: "Shop. Earn. Recommend.",
+    title: "Find the good places. Get rewarded for going.",
+    body: "Find shops near you, earn Miles when you spend, and turn them into discounts.",
     primaryCta: "Get your Akiba Pass",
     secondaryCta: "I'm a merchant",
+    imageAlt: "The Akiba Explore screen showing business offers and places people loved",
+    badge: "iOS & Android app coming soon",
+    assurances: ["Free to join", "Miles never expire"],
   },
-  howItWorks: {
-    eyebrow: "How it works",
-    title: "Shop. Earn. Redeem.",
-    body: "No points math, no punch cards, no expiry. Just the shopping you already do.",
-    steps: [
-      {
-        step: "01",
-        title: "Shop like you always do",
-        body: "Pay at any Akiba merchant — electronics, groceries, fuel, pharmacy, repairs. Nothing extra to do at the counter.",
-      },
-      {
-        step: "02",
-        title: "Earn Miles instantly",
-        body: "The merchant scans your Akiba Pass and Miles land before you leave the shop. Every shilling you spend counts.",
-      },
-      {
-        step: "03",
-        title: "Redeem real rewards",
-        body: "Turn Miles into vouchers and discounts at any merchant in the network — not just the one where you earned them.",
-      },
-    ],
+  whatYouGet: {
+    eyebrow: "What you get",
+    title: "Five things Akiba does for you.",
   },
   merchantBand: {
-    eyebrow: "For merchants",
-    title: "Your customers shop with you today. Akiba brings them back tomorrow.",
-    body:
-      "Launch a loyalty program in days — no hardware, no POS integration. Choose a plan for your monthly activity, set your reward rate, scan to award, and watch repeat visits grow.",
-    cta: "Become an Akiba merchant",
+    eyebrow: "For businesses",
+    title: "Get found. Then get them back.",
+    body: "Reach shoppers looking for what you sell, and give them a reason to come back.",
+    cta: "Put your business on Akiba",
+  },
+  app: {
+    eyebrow: "Coming soon",
+    title: "Akiba is coming to your home screen.",
+    body: "iOS and Android, in final testing. Leave your email and we'll tell you when it's out.",
+    platforms: [
+      { name: "iOS", status: "In final testing" },
+      { name: "Android", status: "In final testing" },
+    ],
+    meanwhile: "Works today in any phone browser",
+    meanwhileCta: "Open Akiba",
   },
   miniApp: {
     eyebrow: "Akiba Mini-App on MiniPay",
-    title: "Already on MiniPay? Play on.",
-    body:
-      "The Akiba Mini-App is where 300K users complete quests, enter raffles, and win real prizes — smartphones, laptops, cUSD and more. Your Miles work there too.",
+    title: "Already on MiniPay? Your Miles work there too.",
+    body: "Same balance. Earn it shopping, spend it either side.",
     cta: "Open Mini-App",
   },
   proofStats: [
@@ -74,32 +144,47 @@ export const faqs = [
   {
     question: "What is Akiba?",
     answer:
-      "Akiba is a loyalty network for everyday shopping in Kenya. You earn Miles every time you spend at a participating merchant, and redeem them for vouchers, discounts and rewards — at any merchant in the network, not just one store.",
+      "A way to find good places to shop in Kenya and get rewarded for shopping there.",
   },
   {
-    question: "How do I start earning?",
+    question: "How do I start?",
     answer:
-      "Get your Akiba Pass — it takes about 30 seconds. Then shop at any Akiba merchant, have them scan your Pass at the counter, and Miles land instantly. Hakuna app ya lazima, hakuna forms ndefu.",
+      "Get your Akiba Pass. It takes about 30 seconds in your phone browser. Then shop as usual and have the till scan your Pass.",
   },
   {
-    question: "What can I redeem Miles for?",
+    question: "What can I use Miles for?",
     answer:
-      "Merchant vouchers and discounts on your next purchase, plus rewards from network campaigns. Miles are portable — earn at one shop, spend at another.",
+      "Discounts and vouchers at shops on Akiba. You see the Miles price before you confirm. There are also free offers that cost no Miles.",
   },
   {
     question: "Do Miles expire?",
     answer:
-      "No. Your Miles stay yours until you spend them, and your balance grows across every Akiba merchant you shop at.",
+      "No. Miles are yours until you spend them. A voucher you claim can have its own end date, shown on the voucher.",
   },
   {
-    question: "How does it work for merchants?",
+    question: "Who can leave a recommendation?",
     answer:
-      "Choose a subscription, set a reward rate, and scan customer passes at the point of sale. Akiba handles issuance, redemption, and reporting from the merchant dashboard — with no hardware or integration project required.",
+      "Only someone who actually bought something there. That's why the recommendations are worth reading.",
+  },
+  {
+    question: "How do offer reminders work?",
+    answer:
+      "Tap the bell on an offer and pick 30 minutes, an hour, or a day ahead. Remove it any time.",
+  },
+  {
+    question: "Is there an Akiba app?",
+    answer:
+      "Akiba works today in your phone browser. The iOS and Android app is in final testing. Join the list above and we'll tell you when it's out.",
+  },
+  {
+    question: "How does it work for businesses?",
+    answer:
+      "Set up a profile, pick a plan, and scan customer passes at the till. No hardware, no POS integration.",
   },
   {
     question: "Is Akiba operated by MiniPay or Opera?",
     answer:
-      "No. Akiba is built and operated by Akiba Ecosystems Ltd, independently of MiniPay and Opera. The Akiba Mini-App runs on MiniPay as a distribution surface, but it is not affiliated with or operated by them.",
+      "No. Akiba is built and operated by Akiba Ecosystems Ltd, independently of MiniPay and Opera. The Akiba Mini-App runs on MiniPay but is not affiliated with or operated by them.",
   },
 ];
 
@@ -108,12 +193,12 @@ export const rewardContent = {
     eyebrow: "Consumer rewards",
     title: "Every purchase earns something back.",
     body:
-      "Akiba issues instant, merchant-funded Miles every time you spend at an Akiba merchant — no points math, no expiry, no minimum. Spend Miles across the whole network on rewards you actually want.",
+      "Akiba issues instant, merchant-funded Miles every time you spend at an Akiba merchant. No points math, no expiry, no minimum. Spend Miles across the whole network on rewards you actually want.",
   },
   steps: [
     {
       title: "Shop at Akiba merchants",
-      body: "Every qualifying purchase at a participating merchant — grocery, fuel, pharmacy, airtime, fast food — issues instant Miles. Nothing extra to do.",
+      body: "Every qualifying purchase at a participating merchant (grocery, fuel, pharmacy, airtime, fast food) issues instant Miles. Nothing extra to do.",
     },
     {
       title: "Stack your Miles",
@@ -121,7 +206,7 @@ export const rewardContent = {
     },
     {
       title: "Win real things",
-      body: "Spend Miles on raffle entries, merchant vouchers, and game sessions. Prize pools are funded by real merchant campaigns — cUSD, smartphones, laptops, and more.",
+      body: "Spend Miles on raffle entries, merchant vouchers, and game sessions. Prize pools are funded by real merchant campaigns: cUSD, smartphones and laptops.",
     },
   ],
   featureBlocks: [
@@ -161,9 +246,9 @@ export const rewardContent = {
 export const partnerContent = {
   hero: {
     eyebrow: "Merchants and growth partners",
-    title: "Run loyalty. Drive campaigns. Reach our users.",
+    title: "Get discovered. Keep them coming back. Reach our users.",
     body:
-      "Two ways to work with Akiba. Merchants fund instant rewards on everyday purchases and pay only when transactions happen. Projects run performance campaigns to move real KPIs against 300K users.",
+      "Two ways to work with Akiba. Businesses get found by nearby shoppers and fund instant rewards that earn the second visit. Projects run performance campaigns to move real KPIs against 300K users.",
   },
   audienceStats: [
     { value: "300K", label: "Total lifetime users" },
@@ -171,23 +256,61 @@ export const partnerContent = {
   ],
 
   merchant: {
-    eyebrow: "For merchants",
-    title: "Loyalty that brings them back.",
-    body: "Akiba Scan & Award rewards your customers instantly on every purchase. Set your reward rate, scan at the counter, and track repeat spend from one dashboard — no hardware, no integration project.",
+    eyebrow: "For businesses",
+    title: "Discovery that finds them. Retention that keeps them.",
+    body: "Get in front of shoppers searching for what you sell, then give them a reason to come back.",
+    /**
+     * The merchant side of the five shopper pillars on the home page,
+     * same order. `icon` keys map to the lucide set in the merchants page.
+     */
+    surfaces: [
+      {
+        icon: "storefront",
+        title: "A profile people can find",
+        body: "Your categories, branches, hours and photos, in front of shoppers browsing nearby.",
+      },
+      {
+        icon: "counter",
+        title: "Rewards at the counter",
+        body: "Scan the customer's Pass at the till. You set the rate, your plan caps the spend.",
+      },
+      {
+        icon: "vouchers",
+        title: "Vouchers and repeat-customer rewards",
+        body: "Discounts priced in Miles, free offers, or rewards that unlock after a few visits.",
+      },
+      {
+        icon: "offers",
+        title: "Offer days with reminders",
+        body: "Schedule an offer and customers get a nudge before it opens. Fills your quiet shifts.",
+      },
+      {
+        icon: "recommendations",
+        title: "Recommendations you earned",
+        body: "Photos and tips from customers who actually bought. Nobody else can post.",
+      },
+    ],
+    reasons: [
+      {
+        title: "Reach people who've never heard of you",
+        body: "Shoppers browse by category and by what's nearby, so your profile reaches them first.",
+      },
+      {
+        title: "You set the rate. You control the cost.",
+        body: "Pick your reward rate and qualifying spend. Your plan includes a monthly allowance with clear overage pricing.",
+      },
+      {
+        title: "Portability builds the habit",
+        body: "Customers are building a balance, not chasing a one-off deal. That's what makes them pick you again.",
+      },
+      {
+        title: "Every reward accounted for",
+        body: "Your dashboard shows what was issued, when, and against which sale.",
+      },
+    ],
     pricing: {
       note: "Subscription plans",
       plans: [
-        {
-          name: "Basic",
-          monthlyPrice: 500,
-          features: [
-            "1,500 Miles per usage month",
-            "2 active voucher types",
-            "Up to 2 branches",
-            "KES 0.30 per overage Mile",
-            "Recommended for businesses below KES 150,000.00 / mo",
-          ],
-        },
         {
           name: "Standard",
           monthlyPrice: 2500,
@@ -252,29 +375,29 @@ export const partnerContent = {
       ],
     },
     howItWorks: [
-      { step: "01", title: "Set your reward rate", body: "Onboard via the merchant dashboard, configure your qualifying spend categories, and set the reward rate you want to offer customers. No hardware to install." },
-      { step: "02", title: "Scan to award", body: "Customer pays, you scan their Akiba Pass — Miles land in their account before they leave the counter. Works with M-Pesa and connected payment methods." },
-      { step: "03", title: "Watch them come back", body: "Your dashboard shows repeat-customer rate, spend per visit, and Miles usage so you can see what drives the next visit." },
+      { step: "01", title: "Set your reward rate", body: "Onboard in the dashboard, pick your qualifying categories, set the rate. No hardware." },
+      { step: "02", title: "Scan to award", body: "Customer pays, you scan their Pass, Miles land before they leave the counter." },
+      { step: "03", title: "Watch them come back", body: "Repeat-customer rate, spend per visit and Miles usage, all in your dashboard." },
     ],
   },
 
   project: {
     eyebrow: "For projects and growth teams",
     title: "Turn reward budgets into sustained user activity.",
-    body: "Most campaigns optimise for completions. AkibaMiles is built for behavior — repeat transactions, retained balances, and daily engagement that outlasts the campaign window.",
+    body: "Most campaigns optimise for completions. AkibaMiles is built for behavior: repeat transactions, retained balances, and daily engagement that outlasts the campaign window.",
     problem: "Most campaigns: wallets pour in → tasks completed → rewards claimed → activity drops. You paid for a spike, not a user.",
     differentiators: [
       {
         title: "Probabilistic rewards",
-        body: "Raffles and games create anticipated value without guaranteed payout. A $25 prize pool drives participation equivalent to $200+ in direct payouts — you fund a prize many compete for.",
+        body: "Raffles and games create anticipated value without guaranteed payout. A $25 prize pool drives participation equivalent to $200+ in direct payouts. You fund one prize that many compete for.",
       },
       {
         title: "Behavior is the prerequisite",
-        body: "Miles can't be sold, traded, or cashed out. The only way to extract value is to play — and the only way to play is to keep using the protocol. The loop doesn't break at the claim step.",
+        body: "Miles can't be sold, traded, or cashed out. The only way to extract value is to play, and the only way to play is to keep using the protocol. The loop doesn't break at the claim step.",
       },
       {
         title: "Streak mechanics build habits",
-        body: "Streaks, boosts, and time-gated multipliers train daily engagement. A user with a 7-day streak has a behavioral anchor — breaking it has perceived cost.",
+        body: "Streaks, boosts, and time-gated multipliers train daily engagement. A user with a 7-day streak has a behavioral anchor, and breaking it has perceived cost.",
       },
       {
         title: "Measurable at every stage",
@@ -285,14 +408,14 @@ export const partnerContent = {
       {
         name: "Partner Quests",
         tag: "Performance incentives",
-        body: "Define the action that matters — purchase, deposit, hold, payment, or app usage. Users complete it, earn Miles, and re-engage to accumulate more. Streaks and boosts drive frequency.",
+        body: "Define the action that matters: purchase, deposit, hold, payment, or app usage. Users complete it, earn Miles, and re-engage to accumulate more. Streaks and boosts drive frequency.",
         bullets: ["KPI-mapped: volume, frequency, TVL, DAU", "Streak and time-gated boost mechanics", "D7/D14/D30 retention reporting"],
       },
       {
         name: "Sponsored Raffles",
         tag: "Acquisition & retention",
-        body: "Fund a prize pool — we run the raffle. Entry is gated by quest completion, so only users who took your target action can participate. Casual claimers are excluded by design.",
-        bullets: ["Behaviour gates raffle access", "More tickets per more completions — rewards frequency", "Cash, airtime, and protocol token prizes"],
+        body: "Fund a prize pool and we run the raffle. Entry is gated by quest completion, so only users who took your target action can participate. Casual claimers are excluded by design.",
+        bullets: ["Behaviour gates raffle access", "More tickets per more completions, rewarding frequency", "Cash, airtime, and protocol token prizes"],
       },
     ],
     pilotPricing: [
@@ -312,7 +435,7 @@ export const partnerContent = {
           "Benchmark data for scaling decision",
         ],
         popular: false,
-        note: "The $100 test gives you enough signal to justify a full campaign — not full-campaign results on a test budget.",
+        note: "The $100 test gives you enough signal to justify a full campaign, not full-campaign results on a test budget.",
       },
       {
         tier: "Standard · core product",
@@ -333,7 +456,7 @@ export const partnerContent = {
         note: null,
       },
     ],
-    pilotFootnote: "100% of the reward pool goes directly to users. AkibaMiles earns only the platform fee — our incentive is to make your campaign perform.",
+    pilotFootnote: "100% of the reward pool goes directly to users. AkibaMiles earns only the platform fee, so our incentive is to make your campaign perform.",
     kpis: ["Repeat users ↑", "Transaction volume ↑", "Wallet balance (TVL) ↑", "Cost per active user ↓", "D7 / D14 retention ↑"],
     proofStats: [
       { value: "1.39M+", label: "Quest claims across all campaigns" },
@@ -353,37 +476,45 @@ export const partnerContent = {
 export const aboutContent = {
   hero: {
     eyebrow: "About Akiba",
-    title: "A loyalty network built for everyday commerce.",
+    title: "Discovery and retention, built for everyday commerce.",
     body:
-      "Akiba is merchant-funded, mobile-money-embedded rewards — portable across every merchant in the network. Lower settlement cost means more value handed back to customers. We win on the two things legacy points programs can't do: relationship depth and interoperability.",
+      "Two halves of one loop. Shoppers find businesses worth going to and get rewarded for going. Businesses get found, and earn the second visit.",
   },
   principles: [
     {
       title: "Miles come from real spend",
-      body: "Every Mile in circulation was funded by a merchant against a real purchase event. We don't manufacture engagement to generate Miles — frequency comes from transactions, not tricks.",
+      body: "Every Mile in circulation was funded by a business against a real purchase. Frequency comes from transactions, not tricks.",
     },
     {
       title: "Portability is the product",
-      body: "A loyalty program where miles only work at one merchant is a discount scheme. Miles that work everywhere turn individual merchant relationships into a network. That's what we're building.",
+      body: "Miles that only work at one shop are just a discount. Miles that work everywhere turn single relationships into a network.",
+    },
+    {
+      title: "Recommendations have to be earned",
+      body: "Only a customer who actually bought something is asked to recommend it. No anonymous ratings, no bought reviews.",
     },
     {
       title: "The economics are honest",
-      body: "Merchants invest in repeat customers. Customers get value back from their own spend. Every Mile issued and every redemption has a clear, auditable record.",
+      body: "Businesses invest in repeat customers. Customers get value back from their own spend. Every Mile has an auditable record.",
     },
   ],
   builtBy: {
     title: "Built by Akiba Ecosystems Ltd.",
-    body: "Akiba connects 300K users with merchant-funded rewards on everyday spend. Merchants can launch from a self-serve dashboard, while the platform API connects voucher distribution and redemption to existing checkout and customer systems.",
+    body: "We connect shoppers with businesses worth visiting and reward the visit. Businesses publish a profile, offers and vouchers from a self-serve dashboard, and the platform API connects vouchers to existing checkout systems.",
   },
   surfaces: [
-    "Scan & Award",
+    "Discovery feed",
+    "Merchant profiles",
     "Akiba Pass",
+    "Scan & Award",
+    "Verified visits",
+    "Business offers & reminders",
+    "Voucher wallet",
     "Merchant Dashboard",
     "Platform API",
-    "Rewards Ledger",
-    "Partner Quests",
-    "Raffles & Games",
+    "Rewards ledger",
     "MiniPay Mini-App",
+    "iOS & Android app (soon)",
   ],
   disclaimer:
     "Akiba is built by Akiba Ecosystems Ltd and is not operated by MiniPay or Opera.",

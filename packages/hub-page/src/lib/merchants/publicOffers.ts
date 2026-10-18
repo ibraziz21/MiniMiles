@@ -1,5 +1,6 @@
 import { HIDDEN_PARTNER_IDS } from "@/lib/akiba/hidden-partners";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getDevelopmentMerchantOfferFixtures } from "./developmentOfferFixtures";
 import { getMerchantOfferAvailability } from "./offerAvailability";
 import type { PublicMerchantOfferFeedItem } from "./types";
 
@@ -85,6 +86,7 @@ function isVisiblePartner(partner: PartnerRow): boolean {
  */
 export async function listPublicMerchantOffers(limit = 10): Promise<PublicMerchantOfferFeedItem[]> {
   const safeLimit = Math.min(Math.max(Math.floor(limit), 1), 50);
+  const developmentFixtures = getDevelopmentMerchantOfferFixtures();
   const admin = createAdminClient();
 
   try {
@@ -105,7 +107,7 @@ export async function listPublicMerchantOffers(limit = 10): Promise<PublicMercha
 
     if (error) {
       console.error("[merchant-offers] public query failed:", error.message);
-      return [];
+      return developmentFixtures.slice(0, safeLimit);
     }
 
     const rows = (data ?? []) as unknown as OfferRow[];
@@ -167,7 +169,7 @@ export async function listPublicMerchantOffers(limit = 10): Promise<PublicMercha
       }];
     });
 
-    return offers
+    return [...offers, ...developmentFixtures]
       .map((offer, index) => ({ offer, index, availability: getMerchantOfferAvailability(offer) }))
       .filter(({ availability }) => availability.state !== "ended")
       .sort((a, b) => {
@@ -178,6 +180,6 @@ export async function listPublicMerchantOffers(limit = 10): Promise<PublicMercha
       .map(({ offer }) => offer);
   } catch (error) {
     console.error("[merchant-offers] public projection failed:", error);
-    return [];
+    return developmentFixtures.slice(0, safeLimit);
   }
 }

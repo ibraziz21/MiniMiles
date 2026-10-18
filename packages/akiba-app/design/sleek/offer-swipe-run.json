@@ -1,0 +1,10 @@
+{
+  "projectId": "MiaYmlO7aLT",
+  "idempotencyKey": "akiba-offer-swipe-v1-20261014",
+  "runId": "vcHt5jyC9pN",
+  "statusUrl": "/api/v1/projects/MiaYmlO7aLT/chat/runs/vcHt5jyC9pN",
+  "status": "completed",
+  "screenId": "Lo5CEjGbsvU",
+  "componentId": "yfqM9Kc3n35",
+  "componentVersionId": "gd3YgFhDwim"
+}

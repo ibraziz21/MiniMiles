@@ -37,6 +37,7 @@ export default function TabsLayout() {
         <Tabs.Screen name="merchants" options={{ title: 'Merchants' }} />
         <Tabs.Screen name="vouchers" options={{ title: 'Rewards' }} />
         <Tabs.Screen name="pass" options={{ title: 'Pass' }} />
+        <Tabs.Screen name="offers" options={{ href: gifts ? null : undefined, title: 'Offers' }} />
         <Tabs.Screen name="gifts" options={{ href: gifts ? undefined : null, title: 'Gifts' }} />
         <Tabs.Screen name="profile" options={{ href: null }} />
       </Tabs>

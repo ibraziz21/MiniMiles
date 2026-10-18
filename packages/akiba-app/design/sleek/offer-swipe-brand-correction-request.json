@@ -1,0 +1,9 @@
+{
+  "message": {
+    "text": "Correct the existing Business Offers Discovery screen to use the Akiba product palette exactly. Replace the beige/cream page background with Akiba paper #FCFCFC. Replace every forest-green accent, icon, button fill, status dot, swipe stamp, and Undo treatment with Akiba teal #238D9D, using dark teal #1E7E8D only for pressed or high-contrast accent states and pale tint #EAF7F9 only for subtle teal surfaces. Use Akiba ink #0D0E0C for primary text, muted #504C4C for secondary text, line #E2E2E2 for borders, and #FFFFFF for the offer card and action surfaces. Do not introduce any other green, beige, cream, or gradient. Preserve the current layout, card hierarchy, typography scale, spacing, and actions exactly; this request is a brand-color correction only."
+  },
+  "source": "codex",
+  "target": {
+    "screenId": "Lo5CEjGbsvU"
+  }
+}

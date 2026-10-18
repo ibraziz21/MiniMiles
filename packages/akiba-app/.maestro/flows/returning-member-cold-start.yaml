@@ -1,7 +1,7 @@
 # AKIBA-MOB-001 — a member who already onboarded must resume at Explore,
 # never see onboarding again, and survive a background/foreground cycle.
 # Run after first-run-onboarding.yaml, without clearState.
-appId: com.akiba.pass
+appId: com.akibamiles.akiba
 ---
 - launchApp
 

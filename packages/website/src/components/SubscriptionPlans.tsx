@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check } from "lucide-react";
 import { ButtonLink } from "@/components/ButtonLink";
+import { cn } from "@/lib/utils";
 
 type Plan = {
   name: string;
@@ -88,7 +89,12 @@ export function SubscriptionPlans({ plans, merchantUrl }: SubscriptionPlansProps
         </div>
       </div>
 
-      <div className="mt-10 grid gap-5 md:grid-cols-3">
+      <div
+        className={cn(
+          "mt-10 grid gap-5",
+          plans.length >= 3 ? "md:grid-cols-3" : "mx-auto max-w-4xl md:grid-cols-2",
+        )}
+      >
         {plans.map((plan) => {
           const effectiveMonthlyPrice = plan.monthlyPrice * (1 - billing.discount);
           const billedPrice = effectiveMonthlyPrice * billing.months;

@@ -43,7 +43,7 @@ function LaunchShell({
   );
 }
 
-export function LaunchLoadingScreen({ message = 'Loading Akiba Pass…' }: { message?: string }) {
+export function LaunchLoadingScreen({ message = 'Loading Akiba…' }: { message?: string }) {
   return (
     <LaunchShell label={message}>
       <ActivityIndicator accessibilityLabel={message} color={colors.teal} size="large" />
@@ -54,13 +54,13 @@ export function LaunchLoadingScreen({ message = 'Loading Akiba Pass…' }: { mes
 
 export function MaintenanceScreen() {
   return (
-    <LaunchShell label="Akiba Pass is under maintenance">
+    <LaunchShell label="Akiba is under maintenance">
       <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.glyph}>
         <Icon color={colors.tealDark} name="tool" size={28} />
       </View>
       <Text style={styles.title}>We&apos;ll be right back</Text>
       <Text style={styles.body}>
-        Akiba Pass is down for scheduled maintenance. Your Miles and vouchers are safe — please try again
+        Akiba is down for scheduled maintenance. Your Miles and vouchers are safe — please try again
         shortly.
       </Text>
     </LaunchShell>
@@ -76,7 +76,7 @@ export function UpgradeRequiredScreen({ config }: { config: MobileConfig }) {
       <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.glyph}>
         <Icon color={colors.tealDark} name="download" size={28} />
       </View>
-      <Text style={styles.title}>Update Akiba Pass</Text>
+      <Text style={styles.title}>Update Akiba</Text>
       <Text style={styles.body}>
         This version is no longer supported. Update to the latest version to keep earning and using your
         rewards.
@@ -84,7 +84,7 @@ export function UpgradeRequiredScreen({ config }: { config: MobileConfig }) {
       {storeUrl ? (
         <PrimaryButton
           accessibilityHint={`Opens ${storeName}`}
-          label="Update Akiba Pass"
+          label="Update Akiba"
           onPress={() => {
             Linking.openURL(storeUrl).catch(() => null);
           }}
@@ -94,7 +94,7 @@ export function UpgradeRequiredScreen({ config }: { config: MobileConfig }) {
         // No store listing is published for this platform yet, so there is
         // nothing to open — say where to go instead of offering a button
         // that would do nothing.
-        <Text style={styles.body}>Open {storeName} and update Akiba Pass to continue.</Text>
+        <Text style={styles.body}>Open {storeName} and update Akiba to continue.</Text>
       )}
     </LaunchShell>
   );

@@ -6,8 +6,43 @@ import {
 } from "@/lib/api/v1/mutationGuard";
 import { requireActor, UnauthorizedError, type RequestActor } from "@/lib/auth/requestActor";
 import { getServerEnv } from "@/lib/env.server";
+import {
+  developmentMerchantOfferSupportsReminders,
+  isDevelopmentMerchantOfferFixture,
+} from "@/lib/merchants/developmentOfferFixtures";
 
 type ReminderPayload = { reminder: { leadMinutes: number } | null };
+
+type LeadMinutes = 30 | 60 | 1440;
+
+const developmentReminders = new Map<string, LeadMinutes>();
+
+function developmentReminderKey(actor: RequestActor, offerId: string): string {
+  return `${actor.userId}:${offerId}`;
+}
+
+function developmentReminderResponse(
+  request: Request,
+  actor: RequestActor,
+  offerId: string,
+  method: "GET" | "PUT" | "DELETE",
+  leadMinutes?: LeadMinutes,
+): Response | null {
+  if (!isDevelopmentMerchantOfferFixture(offerId)) return null;
+  if (!developmentMerchantOfferSupportsReminders(offerId)) {
+    return apiError(request, "REMINDERS_DISABLED", "Reminders are disabled for this offer.", 409);
+  }
+
+  const key = developmentReminderKey(actor, offerId);
+  if (method === "PUT" && leadMinutes) developmentReminders.set(key, leadMinutes);
+  if (method === "DELETE") developmentReminders.delete(key);
+  const saved = developmentReminders.get(key);
+  const response = apiSuccess<ReminderPayload>(request, {
+    reminder: saved ? { leadMinutes: saved } : null,
+  });
+  response.headers.set("Cache-Control", "private, no-store");
+  return response;
+}
 
 async function authenticatedActor(request: Request): Promise<RequestActor | Response> {
   try {
@@ -89,6 +124,8 @@ async function forwardReminder(
 export async function GET(request: Request, { params }: { params: { offerId: string } }) {
   const actor = await authenticatedActor(request);
   if (isResponse(actor)) return actor;
+  const developmentResponse = developmentReminderResponse(request, actor, params.offerId, "GET");
+  if (developmentResponse) return developmentResponse;
   return forwardReminder(request, actor, params.offerId, "GET");
 }
 
@@ -108,6 +145,8 @@ export async function PUT(request: Request, { params }: { params: { offerId: str
   if (body?.leadMinutes !== 30 && body?.leadMinutes !== 60 && body?.leadMinutes !== 1440) {
     return apiError(request, "INVALID_LEAD_MINUTES", "leadMinutes must be 30, 60, or 1440", 400);
   }
+  const developmentResponse = developmentReminderResponse(request, actor, params.offerId, "PUT", body.leadMinutes);
+  if (developmentResponse) return developmentResponse;
   return forwardReminder(request, actor, params.offerId, "PUT", body.leadMinutes);
 }
 
@@ -122,5 +161,7 @@ export async function DELETE(request: Request, { params }: { params: { offerId: 
     }
     throw error;
   }
+  const developmentResponse = developmentReminderResponse(request, actor, params.offerId, "DELETE");
+  if (developmentResponse) return developmentResponse;
   return forwardReminder(request, actor, params.offerId, "DELETE");
 }
