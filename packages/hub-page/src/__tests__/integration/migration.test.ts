@@ -42,6 +42,7 @@ const MIGRATION_PATH_031 = resolve(__dirname, "../../../../../supabase/migration
 const MIGRATION_PATH_045 = resolve(__dirname, "../../../../../supabase/migrations/045_weekly_leaderboard_channel.sql");
 const MIGRATION_PATH_046 = resolve(__dirname, "../../../../../supabase/migrations/046_hub_miles_spend_intents.sql");
 const MIGRATION_PATH_054 = resolve(__dirname, "../../../../../supabase/migrations/054_canonical_partner_quest_completion.sql");
+const MIGRATION_PATH_099 = resolve(__dirname, "../../../../../supabase/migrations/099_hub_auth_purchase_identity_bridge.sql");
 
 const SETUP_SQL = `
 -- Drop and recreate the public schema so each test run starts from a clean slate.
@@ -117,6 +118,15 @@ CREATE TABLE IF NOT EXISTS miles_ledger (
   tx_hash       text,
   note          text,
   created_at    timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS purchase_event_identities (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  purchase_event_id uuid NOT NULL,
+  identity_type     text NOT NULL,
+  identity_value    text NOT NULL,
+  canonical_id      uuid NOT NULL,
+  created_at        timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS idempotency_keys (
@@ -291,6 +301,7 @@ beforeAll(async () => {
   await pool.query(readFileSync(MIGRATION_PATH_045, "utf-8"));
   await pool.query(readFileSync(MIGRATION_PATH_046, "utf-8"));
   await pool.query(readFileSync(MIGRATION_PATH_054, "utf-8"));
+  await pool.query(readFileSync(MIGRATION_PATH_099, "utf-8"));
 }, 30_000);
 
 afterAll(async () => {
@@ -358,6 +369,73 @@ describe("Canonical cross-app partner quests (054)", () => {
       [wallet],
     );
     expect(link.canonical_id).toBe(hubParticipant.canonical_id);
+  });
+});
+
+describe("Auth and purchase canonical identity bridge (099)", () => {
+  it("is safe to apply again", async () => {
+    await expect(pool.query(readFileSync(MIGRATION_PATH_099, "utf-8"))).resolves.not.toThrow();
+  });
+
+  it("adopts an existing purchase canonical when the matching Auth user is created", async () => {
+    const purchaseCanonical = "10000000-0000-4000-8000-000000000099";
+    await pool.query(
+      `INSERT INTO purchase_event_identities (
+         purchase_event_id, identity_type, identity_value, canonical_id
+       ) VALUES ($1, 'email', 'event-member@test.com', $2)`,
+      ["20000000-0000-4000-8000-000000000099", purchaseCanonical],
+    );
+
+    const { rows: [user] } = await pool.query(
+      `INSERT INTO auth.users (email) VALUES ('Event-Member@Test.com') RETURNING id`,
+    );
+    const { rows: [mapping] } = await pool.query(
+      `SELECT canonical_id FROM hub_user_canonicals WHERE hub_user_id=$1`,
+      [user.id],
+    );
+    const { rows: [emailLink] } = await pool.query(
+      `SELECT canonical_id FROM identity_links
+       WHERE identity_type='email' AND identity_value='event-member@test.com'`,
+    );
+
+    expect(mapping.canonical_id).toBe(purchaseCanonical);
+    expect(emailLink.canonical_id).toBe(purchaseCanonical);
+  });
+
+  it("records an ambiguous purchase identity instead of guessing or blocking signup", async () => {
+    const email = "ambiguous-event-member@test.com";
+    await pool.query(
+      `INSERT INTO purchase_event_identities (
+         purchase_event_id, identity_type, identity_value, canonical_id
+       ) VALUES
+       ($1, 'email', $3, $4),
+       ($2, 'email', $3, $5)`,
+      [
+        "30000000-0000-4000-8000-000000000099",
+        "40000000-0000-4000-8000-000000000099",
+        email,
+        "50000000-0000-4000-8000-000000000099",
+        "60000000-0000-4000-8000-000000000099",
+      ],
+    );
+
+    const { rows: [user] } = await pool.query(
+      `INSERT INTO auth.users (email) VALUES ($1) RETURNING id`,
+      [email],
+    );
+    const { rows: [failure] } = await pool.query(
+      `SELECT error_code, resolved_at
+       FROM hub_identity_reconciliation_failures WHERE hub_user_id=$1`,
+      [user.id],
+    );
+    const { rows: [mapping] } = await pool.query(
+      `SELECT count(*)::int AS count FROM hub_user_canonicals WHERE hub_user_id=$1`,
+      [user.id],
+    );
+
+    expect(failure.error_code).toBe("P0001");
+    expect(failure.resolved_at).toBeNull();
+    expect(mapping.count).toBe(0);
   });
 });
 

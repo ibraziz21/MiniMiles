@@ -222,6 +222,18 @@ export async function resolveMerchantContributionFromMilesIssuance(input: {
           .eq("identity_type", "email")
           .eq("identity_value", email),
       );
+      // Purchase ingestion snapshots its authoritative identity separately
+      // from the global identity graph. Include that evidence so a verified
+      // Auth email can recover its own recent in-store award even if the
+      // post-credit callback or identity-promotion step was missed. The
+      // purchase row is still revalidated below before it can qualify.
+      identityLookups.push(
+        admin
+          .from("purchase_event_identities")
+          .select("canonical_id")
+          .eq("identity_type", "email")
+          .eq("identity_value", email),
+      );
     }
     if (walletAddresses.length > 0) {
       identityLookups.push(

@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   approvedPhotos: [] as Array<{ photo_id: string; contribution_id: string; thumbnail_key: string; display_key: string }>,
   approvedPhotosError: null as { message: string } | null,
   verifiedVisits: [] as unknown[],
+  verifiedVisitFavorite: null as string | null,
   previewOffers: [] as unknown[],
 }));
 
@@ -38,12 +39,15 @@ function setupAdmin() {
     if (name === "list_available_voucher_template_ids_hub") {
       return Promise.resolve({ data: state.availableIds.map((id) => ({ template_id: id })), error: null });
     }
-    if (name === "eligible_public_merchant_visits") {
+    if (name === "eligible_public_merchant_visit_cards") {
       mockPhotoEq(args);
       const builder: Record<string, unknown> = {};
       builder.order = vi.fn(() => builder);
       builder.limit = vi.fn(async () => ({ data: state.verifiedVisits, error: null }));
       return builder;
+    }
+    if (name === "get_public_verified_visit_favorite") {
+      return Promise.resolve({ data: state.verifiedVisitFavorite, error: null });
     }
     if (name === "eligible_public_merchant_visit_photos") {
       mockPhotoEq(args);
@@ -300,6 +304,7 @@ describe("getPublicMerchant — voucher branch-restriction correctness", () => {
     state.approvedPhotos = [];
     state.approvedPhotosError = null;
     state.verifiedVisits = [];
+    state.verifiedVisitFavorite = null;
     setupAdmin();
   });
 
@@ -320,10 +325,71 @@ describe("getPublicMerchant — voucher branch-restriction correctness", () => {
 
     expect(merchant?.verifiedVisits).toEqual([{
       id: "visit-1",
+      favoriteOrder: null,
       experienceLabels: ["Friendly staff", "Relaxed atmosphere"],
       photos: [],
     }]);
     expect(JSON.stringify(merchant?.verifiedVisits)).not.toContain("user must not leak");
+  });
+
+  it("defensively deduplicates contributions carrying the same anonymous member key", async () => {
+    state.detailJson = baseDetailJson();
+    state.verifiedVisits = [
+      {
+        contribution_id: "visit-1",
+        dedup_key: "anonymous-day-1",
+        experience_option_ids: ["friendly_staff"],
+        template_snapshot: { experience_options: [{ id: "friendly_staff", publicLabel: "Friendly staff" }] },
+      },
+      {
+        contribution_id: "visit-duplicate",
+        dedup_key: "anonymous-day-1",
+        experience_option_ids: ["relaxed"],
+        template_snapshot: { experience_options: [{ id: "relaxed", publicLabel: "Relaxed atmosphere" }] },
+      },
+      {
+        contribution_id: "visit-2",
+        dedup_key: "anonymous-day-2",
+        experience_option_ids: [],
+        template_snapshot: { experience_options: [] },
+      },
+    ];
+
+    const merchant = await getPublicMerchant("acme", null);
+
+    expect(merchant?.verifiedVisits.map((visit) => visit.id)).toEqual(["visit-1", "visit-2"]);
+  });
+
+  it("exposes a qualified canonical favorite order on its visit card", async () => {
+    state.detailJson = baseDetailJson();
+    state.verifiedVisits = [{
+      contribution_id: "visit-1",
+      dedup_key: "anonymous-member-1",
+      favorite_order: "  Iced latte  ",
+      experience_option_ids: [],
+      template_snapshot: { experience_options: [] },
+    }];
+
+    const merchant = await getPublicMerchant("acme", null);
+
+    expect(merchant?.verifiedVisits[0]?.favoriteOrder).toBe("Iced latte");
+  });
+
+  it("keeps the aggregate favorite separate and never projects raw item text", async () => {
+    state.detailJson = baseDetailJson();
+    state.verifiedVisitFavorite = "  Iced latte  ";
+    state.verifiedVisits = [{
+      contribution_id: "visit-1",
+      dedup_key: "anonymous-day-1",
+      experience_option_ids: [],
+      template_snapshot: { experience_options: [] },
+      recommended_item: "must never be projected per visit",
+    }];
+
+    const merchant = await getPublicMerchant("acme", null);
+
+    expect(merchant?.verifiedVisitFavoriteProduct).toBe("Iced latte");
+    expect(JSON.stringify(merchant?.verifiedVisits)).not.toContain("must never be projected per visit");
   });
 
   it("publishes one approved verified-visit photo without a contributor threshold", async () => {

@@ -70,6 +70,8 @@ export {
   type MerchantOffer,
   offerReminderStateSchema,
   type OfferReminderState,
+  verifiedVisitHelpfulResponseSchema,
+  type VerifiedVisitHelpfulResponse,
   type CustomerPhoto,
   type VerifiedVisit,
 } from './merchant-detail';

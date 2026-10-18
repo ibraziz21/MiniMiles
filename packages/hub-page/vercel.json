@@ -25,6 +25,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/internal/reconcile-verified-earnings",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/internal/verified-discovery-health",
       "schedule": "*/5 * * * *"
     },

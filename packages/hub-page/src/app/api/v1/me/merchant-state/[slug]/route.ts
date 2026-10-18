@@ -9,6 +9,7 @@ import { getPublicMerchant, DirectoryUnavailableError } from "@/lib/merchants/qu
 import { getSignedInBalance } from "@/lib/merchants/enrich";
 import { isMerchantSaved } from "@/lib/merchants/savedMerchants";
 import { getMemberVerifiedVisitSummary, hasOpenMerchantContributionRequest } from "@/lib/merchants/memberVisits";
+import { getHelpfulVerifiedVisitIds } from "@/lib/merchants/verifiedVisitHelpful";
 import {
   getMerchantFundedOffers,
   getClaimedMerchantFundedAllocationIds,
@@ -48,7 +49,7 @@ export async function GET(request: Request, { params }: { params: { slug: string
 
   const fundedOffers = await getMerchantFundedOffers(merchantId);
 
-  const [balance, claimedFundedAllocationIds, saved, verifiedVisit, openContributionRequest] = await Promise.all([
+  const [balance, claimedFundedAllocationIds, saved, verifiedVisit, openContributionRequest, helpfulVisitIds] = await Promise.all([
     getSignedInBalance(actor.userId, actor.email),
     getClaimedMerchantFundedAllocationIds(
       fundedOffers.map((offer) => offer.allocationId),
@@ -58,6 +59,7 @@ export async function GET(request: Request, { params }: { params: { slug: string
     isMerchantSaved(actor.userId, merchantId),
     getMemberVerifiedVisitSummary(actor.userId, merchantId),
     hasOpenMerchantContributionRequest(actor.userId, merchantId),
+    getHelpfulVerifiedVisitIds(actor.userId, merchant.verifiedVisits.map((visit) => visit.id)),
   ]);
 
   const response = apiSuccess(request, {
@@ -66,6 +68,7 @@ export async function GET(request: Request, { params }: { params: { slug: string
     claimedFundedAllocationIds: Array.from(claimedFundedAllocationIds),
     verifiedVisit,
     openContributionRequest,
+    helpfulVisitIds,
     offerReminderIds,
   });
   response.headers.set("Cache-Control", "private, no-store");

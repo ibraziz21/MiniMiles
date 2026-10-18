@@ -3,15 +3,14 @@
 // mobile information architecture.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Alert, Linking, Modal, Pressable, ScrollView as HorizontalScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { createApiClient } from '@/api';
 import { useAuth } from '@/auth';
 import { FundedOfferCard } from '@/components/funded-offer-card';
 import { MilesAmount } from '@/components/miles-amount';
+import { VerifiedVisitCommunity } from '@/components/verified-visit-community';
 import type {
   CustomerPhoto,
   MerchantDetail,
@@ -38,6 +37,7 @@ export default function MerchantDetailScreen() {
   const [state, setState] = useState<ScreenState>({ status: 'loading' });
   const [saved, setSaved] = useState(false);
   const [savePending, setSavePending] = useState(false);
+  const [helpfulVisitIds, setHelpfulVisitIds] = useState<Set<string>>(() => new Set());
 
   const load = useCallback(async () => {
     try {
@@ -52,6 +52,7 @@ export default function MerchantDetailScreen() {
       }
       setState({ status: 'ready', detail, overlay });
       setSaved(overlay?.saved ?? false);
+      setHelpfulVisitIds(new Set(overlay?.helpfulVisitIds ?? []));
     } catch (error) {
       setState({ status: 'error', message: error instanceof Error ? error.message : 'Something went wrong' });
     }
@@ -63,7 +64,11 @@ export default function MerchantDetailScreen() {
   }, [load]);
 
   const toggleSave = useCallback(async () => {
-    if (!accessToken || savePending) return;
+    if (!accessToken) {
+      Alert.alert('Sign in required', 'Sign in to save this merchant.');
+      return;
+    }
+    if (savePending) return;
     const previous = saved;
     setSaved(!previous);
     setSavePending(true);
@@ -77,6 +82,34 @@ export default function MerchantDetailScreen() {
       setSavePending(false);
     }
   }, [accessToken, savePending, saved, slug]);
+
+  const toggleHelpful = useCallback(async (visitId: string) => {
+    if (!accessToken) {
+      Alert.alert('Sign in required', 'Sign in to mark a verified visit as helpful.');
+      return;
+    }
+
+    const previous = helpfulVisitIds.has(visitId);
+    setHelpfulVisitIds((current) => {
+      const updated = new Set(current);
+      if (previous) updated.delete(visitId);
+      else updated.add(visitId);
+      return updated;
+    });
+    try {
+      const client = createApiClient({ accessToken });
+      if (previous) await client.unmarkVerifiedVisitHelpful(slug, visitId);
+      else await client.markVerifiedVisitHelpful(slug, visitId);
+    } catch {
+      setHelpfulVisitIds((current) => {
+        const updated = new Set(current);
+        if (previous) updated.add(visitId);
+        else updated.delete(visitId);
+        return updated;
+      });
+      Alert.alert('Could not update Helpful', 'Please try again.');
+    }
+  }, [accessToken, helpfulVisitIds, slug]);
 
   const refreshVisitPhoto = useCallback(async (photoId: string, updateProfile = true): Promise<CustomerPhoto | null> => {
     try {
@@ -103,7 +136,9 @@ export default function MerchantDetailScreen() {
         ) : (
           <MerchantProfile
             detail={state.detail}
+            helpfulVisitIds={helpfulVisitIds}
             onToggleSave={toggleSave}
+            onToggleHelpful={toggleHelpful}
             overlay={state.overlay}
             refreshVisitPhoto={refreshVisitPhoto}
             savePending={savePending}
@@ -117,6 +152,8 @@ export default function MerchantDetailScreen() {
 
 function MerchantProfile({
   detail,
+  helpfulVisitIds,
+  onToggleHelpful,
   onToggleSave,
   overlay,
   refreshVisitPhoto,
@@ -124,6 +161,8 @@ function MerchantProfile({
   saved,
 }: {
   detail: MerchantDetail;
+  helpfulVisitIds: Set<string>;
+  onToggleHelpful: (visitId: string) => Promise<void>;
   onToggleSave: () => void;
   overlay: MerchantStateDetail | null;
   refreshVisitPhoto: (photoId: string, updateProfile?: boolean) => Promise<CustomerPhoto | null>;
@@ -135,7 +174,7 @@ function MerchantProfile({
   const totalOffers = merchant.offers.length + vouchers.length + fundedOffers.length;
   const defaultTab: ProfileTab = totalOffers > 0
     ? 'vouchers'
-    : overlay?.verifiedVisit || merchant.verifiedVisits.length > 0 || merchant.approvedCustomerPhotos.length > 0
+    : overlay?.verifiedVisit || merchant.verifiedVisits.length > 0
       ? 'verified'
       : merchant.merchantMedia.length > 0
         ? 'merchant'
@@ -212,7 +251,19 @@ function MerchantProfile({
       </View>
 
       {activeTab === 'verified' ? (
-        <VerifiedPanel merchantName={merchant.name} overlay={overlay} refreshVisitPhoto={refreshVisitPhoto} visits={merchant.verifiedVisits} customerPhotos={merchant.approvedCustomerPhotos} />
+        <VerifiedPanel
+          favoriteProduct={merchant.verifiedVisitFavoriteProduct}
+          helpfulVisitIds={helpfulVisitIds}
+          merchantName={merchant.name}
+          merchantSlug={merchant.slug}
+          onToggleHelpful={onToggleHelpful}
+          onToggleSave={onToggleSave}
+          overlay={overlay}
+          refreshVisitPhoto={refreshVisitPhoto}
+          savePending={savePending}
+          saved={saved}
+          visits={merchant.verifiedVisits}
+        />
       ) : activeTab === 'merchant' ? (
         <BusinessGallery merchantName={merchant.name} media={merchant.merchantMedia} />
       ) : activeTab === 'vouchers' ? (
@@ -289,14 +340,31 @@ function TabButton({ active, onPress, tab }: { active: boolean; onPress: () => v
   );
 }
 
-function VerifiedPanel({ merchantName, overlay, refreshVisitPhoto, visits, customerPhotos }: { merchantName: string; overlay: MerchantStateDetail | null; refreshVisitPhoto: (photoId: string, updateProfile?: boolean) => Promise<CustomerPhoto | null>; visits: VerifiedVisit[]; customerPhotos: CustomerPhoto[] }) {
-  const attached = new Set(visits.flatMap((visit) => visit.photos.map((photo) => photo.id)));
-  const posts = [
-    ...visits.map((visit) => ({ ...visit, recommendation: true })),
-    ...customerPhotos.filter((photo) => !attached.has(photo.id)).map((photo) => ({ id: `photo-${photo.id}`, experienceLabels: [], photos: [photo], recommendation: false })),
-  ];
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = posts.find((post) => post.id === selectedId) ?? null;
+function VerifiedPanel({
+  favoriteProduct,
+  helpfulVisitIds,
+  merchantName,
+  merchantSlug,
+  onToggleHelpful,
+  onToggleSave,
+  overlay,
+  refreshVisitPhoto,
+  savePending,
+  saved,
+  visits,
+}: {
+  favoriteProduct: string | null;
+  helpfulVisitIds: Set<string>;
+  merchantName: string;
+  merchantSlug: string;
+  onToggleHelpful: (visitId: string) => Promise<void>;
+  onToggleSave: () => void;
+  overlay: MerchantStateDetail | null;
+  refreshVisitPhoto: (photoId: string, updateProfile?: boolean) => Promise<CustomerPhoto | null>;
+  savePending: boolean;
+  saved: boolean;
+  visits: VerifiedVisit[];
+}) {
   return (
     <View style={styles.panel}>
       {overlay?.openContributionRequest ? (
@@ -311,98 +379,18 @@ function VerifiedPanel({ merchantName, overlay, refreshVisitPhoto, visits, custo
           <View style={styles.flex}><Text style={styles.cardTitle}>Your verified visit</Text><Text style={styles.privateBadge}>Only visible to you</Text><Text style={styles.cardBody}>{memberVisitCopy(overlay.verifiedVisit, merchantName)}</Text></View>
         </View>
       ) : null}
-      {posts.length === 0 ? (
-        <EmptyPanel icon="check-circle" title="No verified visits yet" body="Recommendations and approved photos from verified Akiba visits will appear here." />
-      ) : posts.map((post) => {
-        const cover = post.photos[0];
-        return (
-          <Pressable
-            key={post.id}
-            onPress={() => {
-              setSelectedId(post.id);
-              if (cover) void refreshVisitPhoto(cover.id);
-            }}
-            style={({ pressed }) => [styles.visitCard, pressed && styles.pressed]}>
-            {cover ? <Image source={{ uri: cover.thumbnailUrl }} style={StyleSheet.absoluteFill} contentFit="cover" transition={180} /> : <View style={[StyleSheet.absoluteFill, styles.visitFallback]} />}
-            {cover ? <LinearGradient colors={['rgba(0,0,0,0.18)', 'rgba(0,0,0,0.78)']} style={StyleSheet.absoluteFill} /> : null}
-            <View style={[styles.verifiedVisitBadge, !cover && styles.verifiedVisitBadgeLight]}><Icon name="check-circle" size={15} color={cover ? colors.white : colors.teal} /><Text style={[styles.verifiedVisitBadgeText, !cover && styles.verifiedVisitBadgeTextDark]}>Verified visit</Text></View>
-            <View style={styles.visitCardBottom}><Text style={[styles.visitTitle, !cover && styles.visitTitleDark]}>{post.recommendation ? `Would recommend ${merchantName}` : `A verified visit to ${merchantName}`}</Text><Text style={[styles.visitHint, !cover && styles.visitHintDark]}>Tap to see the verified visit</Text></View>
-          </Pressable>
-        );
-      })}
-      <VisitModal key={selected?.id ?? 'closed'} merchantName={merchantName} onClose={() => setSelectedId(null)} post={selected} refreshVisitPhoto={refreshVisitPhoto} />
-    </View>
-  );
-}
-
-function VisitModal({ merchantName, onClose, post, refreshVisitPhoto }: { merchantName: string; onClose: () => void; post: { experienceLabels: string[]; photos: CustomerPhoto[]; recommendation: boolean } | null; refreshVisitPhoto: (photoId: string, updateProfile?: boolean) => Promise<CustomerPhoto | null> }) {
-  const insets = useSafeAreaInsets();
-  const [photoIndex, setPhotoIndex] = useState(0);
-  const photo = post?.photos[photoIndex];
-  return (
-    <Modal animationType="slide" onRequestClose={onClose} transparent visible={Boolean(post)}>
-      <View style={styles.modalScrim}>
-        <View style={[styles.visitModal, { paddingBottom: Math.max(insets.bottom, 20) }]}>
-          {photo ? <VisitPhoto key={`${photo.id}:${photo.displayUrl}`} photo={photo} refreshVisitPhoto={refreshVisitPhoto} /> : <VisitPhotoFallback />}
-          <Pressable accessibilityLabel="Close verified visit" onPress={onClose} style={styles.modalClose}><Icon name="x" size={20} color={colors.ink} /></Pressable>
-          {post && post.photos.length > 1 ? <View style={styles.photoNav}><Pressable onPress={() => setPhotoIndex((photoIndex - 1 + post.photos.length) % post.photos.length)} style={styles.photoNavButton}><Icon name="chevron-left" size={20} color={colors.white} /></Pressable><Text style={styles.photoCount}>{photoIndex + 1} / {post.photos.length}</Text><Pressable onPress={() => setPhotoIndex((photoIndex + 1) % post.photos.length)} style={styles.photoNavButton}><Icon name="chevron-right" size={20} color={colors.white} /></Pressable></View> : null}
-          {post ? <View style={styles.modalCopy}><Text style={styles.modalEyebrow}>Verified Akiba visit</Text><Text style={styles.modalTitle}>{post.recommendation ? `Would recommend ${merchantName}` : `A verified visit to ${merchantName}`}</Text>{post.experienceLabels.length > 0 ? <View style={styles.chipRow}>{post.experienceLabels.map((label) => <Pill key={label} label={label} tone="teal" />)}</View> : null}<Text style={styles.modalFootnote}>Shared anonymously after an eligible Akiba purchase. Verification confirms the visit, not every detail shown in a photo.</Text></View> : null}
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function VisitPhoto({ photo, refreshVisitPhoto }: { photo: CustomerPhoto; refreshVisitPhoto: (photoId: string, updateProfile?: boolean) => Promise<CustomerPhoto | null> }) {
-  const [source, setSource] = useState<'display' | 'thumbnail' | 'unavailable'>('display');
-  const [refreshAttempted, setRefreshAttempted] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [urls, setUrls] = useState(() => ({ display: photo.displayUrl.trim(), thumbnail: photo.thumbnailUrl.trim() }));
-  const displayUrl = urls.display;
-  const thumbnailUrl = urls.thumbnail;
-  const imageUrl = source === 'display' ? displayUrl : thumbnailUrl;
-
-  if (refreshing) return <VisitPhotoFallback loading />;
-  if (source === 'unavailable' || !imageUrl) return <VisitPhotoFallback />;
-
-  return (
-    <Image
-      accessibilityLabel={photo.altText}
-      cachePolicy="memory-disk"
-      contentFit="contain"
-      onError={async () => {
-        if (!refreshAttempted) {
-          setRefreshAttempted(true);
-          setRefreshing(true);
-          const refreshed = await refreshVisitPhoto(photo.id, false);
-          const refreshedDisplay = refreshed?.displayUrl.trim() ?? '';
-          const refreshedThumbnail = refreshed?.thumbnailUrl.trim() ?? '';
-          if (refreshedDisplay || refreshedThumbnail) {
-            setUrls({ display: refreshedDisplay, thumbnail: refreshedThumbnail });
-            setSource(refreshedDisplay ? 'display' : 'thumbnail');
-            setRefreshing(false);
-            return;
-          }
-          setRefreshing(false);
-        }
-        if (source === 'display' && thumbnailUrl && thumbnailUrl !== displayUrl) {
-          setSource('thumbnail');
-          return;
-        }
-        setSource('unavailable');
-      }}
-      source={{ uri: imageUrl }}
-      style={styles.modalPhoto}
-      transition={160}
-    />
-  );
-}
-
-function VisitPhotoFallback({ loading = false }: { loading?: boolean }) {
-  return (
-    <View style={styles.modalPhotoFallback}>
-      {loading ? <ActivityIndicator color={colors.teal} /> : <Icon name="image" size={54} color="rgba(35,141,157,0.28)" />}
-      <Text style={styles.modalPhotoFallbackText}>{loading ? 'Refreshing photo…' : 'Photo temporarily unavailable'}</Text>
+      <VerifiedVisitCommunity
+        favoriteProduct={favoriteProduct}
+        helpfulVisitIds={helpfulVisitIds}
+        merchantName={merchantName}
+        merchantSlug={merchantSlug}
+        onToggleHelpful={onToggleHelpful}
+        onToggleSave={onToggleSave}
+        refreshVisitPhoto={refreshVisitPhoto}
+        savePending={savePending}
+        saved={saved}
+        visits={visits}
+      />
     </View>
   );
 }
@@ -636,8 +624,6 @@ const styles = StyleSheet.create({
   actionRow: { gap: 8, paddingTop: 10 }, action: { alignItems: 'center', backgroundColor: colors.white, borderColor: colors.line, borderRadius: 999, borderWidth: 1, flexDirection: 'row', gap: 6, minHeight: 40, paddingHorizontal: 16 }, actionPrimary: { backgroundColor: colors.ink, borderColor: colors.ink }, actionCompact: { height: 40, justifyContent: 'center', paddingHorizontal: 0, width: 40 }, actionText: { color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 14 }, actionTextPrimary: { color: colors.white },
   tabs: { backgroundColor: 'rgba(252,252,252,0.96)', borderBottomColor: colors.line, borderBottomWidth: 1, borderTopColor: colors.line, borderTopWidth: 1, flexDirection: 'row' }, tab: { alignItems: 'center', flex: 1, gap: 4, justifyContent: 'center', minHeight: 58, position: 'relative' }, tabPressed: { backgroundColor: colors.card }, tabText: { color: colors.muted, fontFamily: fontFamily.sansSemiBold, fontSize: 11 }, tabTextActive: { color: colors.ink }, tabIndicator: { backgroundColor: 'transparent', bottom: -1, height: 2, left: 8, position: 'absolute', right: 8 }, tabIndicatorActive: { backgroundColor: colors.teal },
   panel: { gap: 12, padding: 16 }, contributionCard: { alignItems: 'flex-start', backgroundColor: colors.tint, borderColor: 'rgba(35,141,157,0.20)', borderCurve: 'continuous', borderRadius: 16, borderWidth: 1, flexDirection: 'row', gap: 12, padding: 14 }, privateVisit: { alignItems: 'flex-start', backgroundColor: colors.white, borderColor: colors.line, borderCurve: 'continuous', borderRadius: 16, borderWidth: 1, flexDirection: 'row', gap: 12, padding: 16 }, roundIcon: { alignItems: 'center', backgroundColor: colors.white, borderRadius: 999, height: 40, justifyContent: 'center', width: 40 }, roundIconTint: { alignItems: 'center', backgroundColor: colors.tint, borderRadius: 999, height: 40, justifyContent: 'center', width: 40 }, cardTitle: { color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 14 }, cardBody: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 13, lineHeight: 19, marginTop: 3 }, privateBadge: { alignSelf: 'flex-start', backgroundColor: colors.card, borderRadius: 999, color: colors.muted, fontFamily: fontFamily.sansSemiBold, fontSize: 10, marginTop: 4, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 2 },
-  visitCard: { backgroundColor: colors.white, borderColor: colors.line, borderCurve: 'continuous', borderRadius: 22, borderWidth: 1, height: 224, overflow: 'hidden', position: 'relative' }, visitFallback: { backgroundColor: colors.tint }, verifiedVisitBadge: { alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 999, flexDirection: 'row', gap: 6, left: 12, paddingHorizontal: 10, paddingVertical: 6, position: 'absolute', top: 12 }, verifiedVisitBadgeLight: { backgroundColor: 'rgba(255,255,255,0.82)' }, verifiedVisitBadgeText: { color: colors.white, fontFamily: fontFamily.sansSemiBold, fontSize: 11 }, verifiedVisitBadgeTextDark: { color: colors.teal }, visitCardBottom: { bottom: 0, left: 0, padding: 16, position: 'absolute', right: 0 }, visitTitle: { color: colors.white, fontFamily: fontFamily.sterlingSemiBold, fontSize: 19, lineHeight: 23 }, visitTitleDark: { color: colors.ink }, visitHint: { color: 'rgba(255,255,255,0.75)', fontFamily: fontFamily.sans, fontSize: 12, marginTop: 4 }, visitHintDark: { color: colors.muted },
-  modalScrim: { backgroundColor: 'rgba(0,0,0,0.70)', flex: 1, justifyContent: 'flex-end' }, visitModal: { backgroundColor: colors.white, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '94%', overflow: 'hidden' }, modalPhoto: { backgroundColor: colors.ink, height: 390, width: '100%' }, modalPhotoFallback: { alignItems: 'center', backgroundColor: colors.tint, gap: 10, height: 390, justifyContent: 'center', paddingHorizontal: 24 }, modalPhotoFallbackText: { color: colors.muted, fontFamily: fontFamily.sansMedium, fontSize: 13 }, modalClose: { alignItems: 'center', backgroundColor: colors.card, borderRadius: 999, height: 44, justifyContent: 'center', position: 'absolute', right: 12, top: 12, width: 44 }, photoNav: { alignItems: 'center', flexDirection: 'row', justifyContent: 'center', marginTop: -54 }, photoNavButton: { alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.60)', borderRadius: 999, height: 40, justifyContent: 'center', width: 40 }, photoCount: { color: colors.white, fontFamily: fontFamily.sansSemiBold, fontSize: 12, marginHorizontal: 12 }, modalCopy: { gap: 10, paddingHorizontal: 20, paddingTop: 24 }, modalEyebrow: { color: colors.teal, fontFamily: fontFamily.sansSemiBold, fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase' }, modalTitle: { color: colors.ink, fontFamily: fontFamily.sterlingSemiBold, fontSize: 24, lineHeight: 29 }, modalFootnote: { borderTopColor: colors.line, borderTopWidth: 1, color: colors.muted, fontFamily: fontFamily.sans, fontSize: 12, lineHeight: 18, marginTop: 10, paddingTop: 14 },
   businessPanel: { paddingBottom: 16 }, panelIntro: { alignItems: 'flex-start', flexDirection: 'row', gap: 16, justifyContent: 'space-between', padding: 16 }, panelIntroText: { color: colors.muted, flex: 1, fontFamily: fontFamily.sans, fontSize: 13, lineHeight: 19 }, panelCount: { color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 12 }, photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 1 }, gridPhotoButton: { aspectRatio: 1, backgroundColor: colors.card, flexBasis: '33%', flexGrow: 1, maxWidth: '33.2%', position: 'relative' }, galleryModal: { backgroundColor: '#000', flex: 1 }, galleryHeader: { alignItems: 'center', borderBottomColor: 'rgba(255,255,255,0.10)', borderBottomWidth: 1, flexDirection: 'row', justifyContent: 'space-between', padding: 16, paddingTop: 54 }, galleryMerchant: { color: colors.white, fontFamily: fontFamily.sansSemiBold, fontSize: 16 }, gallerySource: { color: 'rgba(255,255,255,0.65)', fontFamily: fontFamily.sans, fontSize: 12 }, galleryClose: { alignItems: 'center', height: 44, justifyContent: 'center', width: 44 }, galleryImage: { flex: 1, width: '100%' }, galleryCaption: { color: colors.white, fontFamily: fontFamily.sans, fontSize: 14, padding: 18, textAlign: 'center' },
   panelHeading: { alignItems: 'flex-start', flexDirection: 'row', gap: 12 }, panelTitle: { color: colors.ink, fontFamily: fontFamily.sterlingSemiBold, fontSize: 19 }, panelDescription: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 14, lineHeight: 19, marginTop: 3 }, emptyPanel: { alignItems: 'center', borderColor: colors.line, borderCurve: 'continuous', borderRadius: 16, borderWidth: 1, padding: 28 }, emptyIcon: { alignItems: 'center', backgroundColor: colors.white, borderColor: colors.line, borderRadius: 999, borderWidth: 1, height: 48, justifyContent: 'center', width: 48 }, emptyTitle: { color: colors.ink, fontFamily: fontFamily.sterlingSemiBold, fontSize: 19, marginTop: 10, textAlign: 'center' }, emptyBody: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 14, lineHeight: 20, marginTop: 3, textAlign: 'center' },
   offerToolbar: { alignItems: 'center', flexDirection: 'row', minHeight: 44 }, offerCount: { color: colors.muted, fontFamily: fontFamily.sansSemiBold, fontSize: 12, marginLeft: 'auto', marginRight: 10 }, offerFilterButton: { alignItems: 'center', backgroundColor: colors.white, borderColor: colors.line, borderRadius: 999, borderWidth: 1, height: 44, justifyContent: 'center', position: 'relative', width: 44 }, offerFilterButtonActive: { backgroundColor: colors.ink, borderColor: colors.ink }, offerFilterDot: { backgroundColor: colors.teal, borderRadius: 999, height: 6, position: 'absolute', right: 7, top: 7, width: 6 },

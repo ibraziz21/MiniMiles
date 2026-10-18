@@ -1022,10 +1022,12 @@ the UI does not identify which selection is currently “winning”.
 #### Review and submit
 
 The final visit card previews the structured recommendation and experience
-tags. For a positive answer, only `Would recommend` and template-owned public
-experience labels may appear on the anonymous public visit card. Party context,
-raw/recommended item text and private negative reasons do not appear on that
-individual card and remain inputs to separately governed aggregates.
+tags. For a positive answer, `Would recommend`, template-owned public
+experience labels, and at most one accepted, independently qualified canonical
+favorite order may appear on the anonymous public visit card. Party context,
+raw item text, pending or flagged item mentions, and private negative reasons
+do not appear on that individual card. Unqualified item selections remain
+inputs to separately governed aggregates.
 
 Primary CTA: `Add to the Akiba guide`. Secondary action: `Edit`. The CTA is
 not `Post`, because the output is an anonymous structured recommendation—not

@@ -17,6 +17,7 @@ import {
   saveMerchantResponseSchema,
   merchantDetailSchema,
   merchantStateDetailSchema,
+  verifiedVisitHelpfulResponseSchema,
   offerReminderStateSchema,
   merchantOfferFeedSchema,
   ownedVouchersListSchema,
@@ -44,6 +45,7 @@ import {
   type SaveMerchantResponse,
   type MerchantDetail,
   type MerchantStateDetail,
+  type VerifiedVisitHelpfulResponse,
   type OfferReminderState,
   type MerchantOfferFeed,
   type OwnedVouchersList,
@@ -313,6 +315,21 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
         return Promise.reject(new Error('getMerchantStateDetail requires an authenticated access token'));
       }
       return get(`/api/v1/me/merchant-state/${slug}`, merchantStateDetailSchema);
+    },
+    markVerifiedVisitHelpful(slug: string, visitId: string): Promise<VerifiedVisitHelpfulResponse> {
+      return mutate(
+        'POST',
+        `/api/v1/merchants/${encodeURIComponent(slug)}/verified-visits/${encodeURIComponent(visitId)}/helpful`,
+        verifiedVisitHelpfulResponseSchema,
+        {},
+      );
+    },
+    unmarkVerifiedVisitHelpful(slug: string, visitId: string): Promise<VerifiedVisitHelpfulResponse> {
+      return mutate(
+        'DELETE',
+        `/api/v1/merchants/${encodeURIComponent(slug)}/verified-visits/${encodeURIComponent(visitId)}/helpful`,
+        verifiedVisitHelpfulResponseSchema,
+      );
     },
     getOfferReminder(offerId: string): Promise<OfferReminderState> {
       if (!accessToken) {

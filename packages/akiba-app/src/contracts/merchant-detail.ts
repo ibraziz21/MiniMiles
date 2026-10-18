@@ -77,6 +77,7 @@ const customerPhotoSchema = z.object({
 
 const verifiedVisitSchema = z.object({
   id: z.string(),
+  favoriteOrder: z.string().nullable(),
   experienceLabels: z.array(z.string()),
   photos: z.array(customerPhotoSchema),
 });
@@ -150,6 +151,7 @@ export const merchantDetailSchema = z.object({
     merchantMedia: z.array(merchantMediaSchema),
     offers: z.array(merchantOfferSchema),
     verifiedVisits: z.array(verifiedVisitSchema),
+    verifiedVisitFavoriteProduct: z.string().nullable(),
     approvedCustomerPhotos: z.array(customerPhotoSchema),
   }),
   vouchers: z.array(publicVoucherSummarySchema),
@@ -177,7 +179,11 @@ export const merchantStateDetailSchema = z.object({
   claimedFundedAllocationIds: z.array(z.string()),
   verifiedVisit: memberVerifiedVisitSchema.nullable(),
   openContributionRequest: z.boolean(),
+  helpfulVisitIds: z.array(z.string()),
   offerReminderIds: z.array(z.string()),
 });
 
 export type MerchantStateDetail = z.infer<typeof merchantStateDetailSchema>;
+
+export const verifiedVisitHelpfulResponseSchema = z.object({ helpful: z.boolean() });
+export type VerifiedVisitHelpfulResponse = z.infer<typeof verifiedVisitHelpfulResponseSchema>;
