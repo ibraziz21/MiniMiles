@@ -348,7 +348,7 @@ export function VisitCardFlow({
       : null;
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-6">
+    <main className="mx-auto flex h-[calc(100dvh-8rem-env(safe-area-inset-bottom))] max-w-md flex-col px-4 pb-4 pt-4 sm:h-auto sm:min-h-[calc(100dvh-4rem)] sm:pb-8 sm:pt-6">
       {progressLabel && (
         <p className="mb-2 text-xs font-medium uppercase tracking-wide text-akiba-muted" aria-live="polite">
           {progressLabel}
