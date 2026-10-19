@@ -154,7 +154,15 @@ const manual = [
   ],
   [
     "APNs key + FCM credentials uploaded to Expo",
-    "Run `eas credentials`. Until both exist, Expo accepts the send and then drops it — the job completes as 'accepted' and no banner ever appears. This is the single most misleading failure in the chain.",
+    "Run `eas credentials`. Android uses FCM V1 (Google Service Account), not the Legacy API key. Until both exist, Expo accepts the send and then drops it — the job completes as 'accepted' and no banner ever appears. This is the single most misleading failure in the chain.",
+  ],
+  [
+    "Firebase Cloud Messaging API enabled on the Firebase project",
+    "A valid service-account key on a project with the API switched off authenticates perfectly and refuses every send with 403 SERVICE_DISABLED. Check it before trusting the key: pnpm --filter @akiba/akiba-app push:verify-fcm <key.json> — HTTP 400 from the send probe is the success signal.",
+  ],
+  [
+    "google-services.json present in packages/akiba-app",
+    "Required for the Android app to register with FCM; app.json already references ./google-services.json, so an Android build fails until the file is added. It holds only public identifiers and is safe to commit (unlike the service-account key).",
   ],
   [
     "App is a development or preview build, not Expo Go",

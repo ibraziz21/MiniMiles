@@ -36,6 +36,44 @@ processPushJobs()                          src/lib/push/dispatch.ts
 Only the member's own device registration and the two transports differ; the
 queue, the retry/backoff and the preference decision are shared.
 
+## Which device can demo this
+
+| Target | Real FCM/APNs push? | Needs |
+|---|---|---|
+| **Android emulator** with a Play Store image | **yes** | A `google_apis_playstore` system image. A plain AOSP image has no Play services and cannot receive FCM |
+| Android physical device | yes | — |
+| **iOS Simulator** | **no** — but see `push:simulate-ios` below | — |
+| iOS physical device | yes | Approved paid Apple Developer Program membership |
+
+So the full end-to-end demo runs on an **Android emulator**. iOS needs an approved
+Apple account for real push; until then the Simulator covers everything except
+the transport.
+
+### Simulating a *remote* notification on the iOS Simulator
+
+`expo-notifications` derives `content.data` differently for remote and local
+notifications — `NotificationRecords.swift`:
+
+```swift
+let isRemote = request.trigger is UNPushNotificationTrigger
+if isRemote { return request.content.userInfo["body"] as? [String: Any] }
+return request.content.userInfo
+```
+
+So a remote payload must nest its data under a top-level `body` key, which is
+exactly what Expo's push service does with the `data` field the native adapter
+sends. `scripts/simulated-remote-push.apns` reproduces that shape, so pushing it
+into the Simulator exercises the real remote path — the response listener and
+the deep-link whitelist — with no Apple account and no APNs:
+
+```bash
+pnpm --filter @akiba/akiba-app push:simulate-ios
+```
+
+The app must be installed on the booted Simulator. This is the closest you can
+get to a real iOS push without an approved account; what it still cannot prove
+is the APNs transport itself.
+
 ## Phase 1 — the app half, today, with no credentials
 
 This needs nothing from Expo and proves every piece of the app: notification
@@ -49,6 +87,31 @@ listener, and the deep-link whitelist routing to the right screen.
    ```bash
    pnpm akiba-app:ios     # or: pnpm akiba-app:android
    ```
+
+   Two things to know before choosing local vs EAS:
+
+   - A **local** `expo run:android` needs **JDK 17** on `PATH`. The project
+     breaks on 24+ (AGP 8.12 with prefab/JNA), so the generated JDK 25 pin
+     does not work. EAS Build uses its own pinned image and sidesteps this.
+   - An **EAS** build needs the `EXPO_PUBLIC_*` variables set as EAS
+     environment variables. `.env` is untracked and `cli.requireCommit` is
+     true, so an EAS build gets none of them and the app throws on launch.
+     Set them once per environment:
+
+     ```bash
+     cd packages/akiba-app
+     npx eas-cli@latest env:create --environment development \
+       --name EXPO_PUBLIC_API_BASE_URL --value https://pass.akibamiles.com \
+       --visibility plaintext
+     # repeat for EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY
+     ```
+
+   Also note `cli.requireCommit: true` means EAS builds the **committed**
+   tree — uncommitted work is simply not in the build.
+
+   The in-app *Send a test notification* row is gated on `__DEV__`, which is
+   false in a standalone EAS build. It appears only in a local debug build.
+   The end-to-end demo does not need it; it uses the real push path.
 
 2. Sign in and finish onboarding. The permission prompt is deliberately
    behind the onboarding gate, so it appears on the first tab render, not at
@@ -131,6 +194,38 @@ Everything above can be done now. This cannot:
    exist, nothing is delivered and the queue still reports `accepted`. This is
    the single most misleading failure in the chain and the main reason to do
    Phases 1 and 2 first.
+
+   Android uses **FCM V1** (`Android` → profile → *Google Service Account* →
+   *FCM V1*), not the Legacy API key. Two files come out of Firebase and only
+   one is secret:
+
+   | File | Goes | Secret |
+   |---|---|---|
+   | Service-account key, `<project>-<keyid>.json` | uploaded to EAS | **yes**, gitignored |
+   | `google-services.json` | `packages/akiba-app/`, referenced by `android.googleServicesFile` | no, commit it |
+
+   **Both files must come from the same Firebase project.** The canonical one
+   is **`akiba-7bd7a`**, where the `com.akibamiles.akiba` Android app is
+   registered. If the key and `google-services.json` disagree, the app
+   registers with FCM in one project while Expo sends from the other: nothing
+   arrives, and the symptom looks like an unrecognised device token rather
+   than a configuration fault. `push:verify-fcm` refuses on that mismatch
+   before making any network call.
+
+   Verify the key before trusting it — a valid key on a project with the API
+   switched off authenticates perfectly and then refuses every send:
+
+   ```bash
+   pnpm --filter @akiba/akiba-app push:verify-fcm ~/path/to/<project>-<keyid>.json
+   ```
+
+   It mints a real `firebase.messaging` token and probes `messages:send` with
+   `validate_only`. **HTTP 400 is the success signal** (authorized, rejected
+   only because the probe message is empty). A 403 `SERVICE_DISABLED` means
+   the Firebase Cloud Messaging API is not enabled on the project — enable it
+   at `console.developers.google.com/apis/api/fcm.googleapis.com/overview?project=<project-id>`
+   and allow a few minutes to propagate. A 403 without `SERVICE_DISABLED` is
+   the IAM-role case: grant *Firebase Cloud Messaging API Admin*.
 3. **Set `NATIVE_PUSH_ENABLED=true`** in the target environment.
 4. **Confirm Akiba-Platform actually calls
    `POST /api/internal/miles-credited`** after its award commits. That repo is
