@@ -186,6 +186,14 @@ export const merchantStateDetailSchema = z.object({
 
 export type MerchantStateDetail = z.infer<typeof merchantStateDetailSchema>;
 
+export const verifiedVisitReportResponseSchema = z.object({
+  reported: z.boolean(),
+  // True when this member had already reported the same card. Treated as a
+  // success by the server; surfaced so the sheet can acknowledge it honestly.
+  alreadyReported: z.boolean(),
+});
+export type VerifiedVisitReportResponse = z.infer<typeof verifiedVisitReportResponseSchema>;
+
 export const verifiedVisitHelpfulResponseSchema = z.object({ helpful: z.boolean() });
 export type VerifiedVisitHelpfulResponse = z.infer<typeof verifiedVisitHelpfulResponseSchema>;
 

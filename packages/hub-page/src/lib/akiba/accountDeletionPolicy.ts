@@ -150,11 +150,15 @@ export const DELETION_INVENTORY: InventoryRow[] = [
     targets: [
       "hub_user_saved_merchants",
       "merchant_verified_visit_helpful_reactions",
+      "merchant_verified_visit_reports",
       "hub_notification_preferences",
     ],
     action: "delete",
     retention: NO_RETENTION_NEEDED,
-    notes: "No retention purpose.",
+    notes:
+      "No retention purpose. Reports this member *filed* go with them; reports other members " +
+      "filed about this member's cards are not theirs to erase and follow the card itself, " +
+      "which contribution_id cascades handle when the contribution is removed.",
   },
   {
     id: "push_registrations",

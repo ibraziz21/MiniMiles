@@ -21,6 +21,7 @@ import {
   merchantDetailSchema,
   merchantStateDetailSchema,
   verifiedVisitHelpfulResponseSchema,
+  verifiedVisitReportResponseSchema,
   verifiedVisitPhotoUploadIntentSchema,
   verifiedVisitPhotoCompletionSchema,
   verifiedVisitPhotoWithdrawalSchema,
@@ -56,6 +57,7 @@ import {
   type MerchantDetail,
   type MerchantStateDetail,
   type VerifiedVisitHelpfulResponse,
+  type VerifiedVisitReportResponse,
   type VerifiedVisitPhotoUploadIntent,
   type VerifiedVisitPhotoCompletion,
   type VerifiedVisitPhotoWithdrawal,
@@ -407,6 +409,21 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
         'DELETE',
         `/api/v1/me/discovery-contributions/${encodeURIComponent(contributionId)}/photos/${encodeURIComponent(photoId)}`,
         verifiedVisitPhotoWithdrawalSchema,
+      );
+    },
+    // Idempotent on the server: a repeat report by the same member returns
+    // alreadyReported rather than erroring, so a retry after a dropped
+    // response is safe.
+    reportVerifiedVisit(
+      slug: string,
+      visitId: string,
+      input: { reason: string; photoId?: string | null },
+    ): Promise<VerifiedVisitReportResponse> {
+      return mutate(
+        'POST',
+        `/api/v1/merchants/${encodeURIComponent(slug)}/verified-visits/${encodeURIComponent(visitId)}/report`,
+        verifiedVisitReportResponseSchema,
+        { reason: input.reason, photoId: input.photoId ?? null },
       );
     },
     getOfferReminder(offerId: string): Promise<OfferReminderState> {

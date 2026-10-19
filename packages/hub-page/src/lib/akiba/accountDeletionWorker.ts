@@ -189,6 +189,10 @@ const STEP_EXECUTORS: Record<string, StepExecutor> = {
   saved_merchants: async ({ admin, userId }) => {
     await deleteWhere(admin, "hub_user_saved_merchants", "hub_user_id", userId);
     await deleteWhere(admin, "merchant_verified_visit_helpful_reactions", "hub_user_id", userId);
+    // Reports this member filed. Keyed on the reporter, so reports *about*
+    // their cards stay with the card and are removed by the contribution
+    // cascade later in the order.
+    await deleteWhere(admin, "merchant_verified_visit_reports", "reporter_hub_user_id", userId);
     await deleteWhere(admin, "hub_notification_preferences", "hub_user_id", userId);
   },
 
