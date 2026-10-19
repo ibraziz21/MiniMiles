@@ -7,6 +7,12 @@ export type AnalyticsEvent =
   | 'sign_in_started'
   | 'otp_sent'
   | 'otp_verified'
+  // Password sign-in (AKIBA-MOB-001 §2 "Continue supporting password login
+  // only if it is needed operationally"). Tracked separately from OTP so the
+  // split is visible — OTP is meant to stay the primary path.
+  | 'password_sign_in_submitted'
+  | 'password_sign_in_succeeded'
+  | 'password_sign_in_failed'
   | 'onboarding_started'
   | 'onboarding_step_viewed'
   | 'onboarding_completed'

@@ -102,7 +102,8 @@ See `packages/hub-page/docs/hub-mobile-app-migration-plan.md`
 | Kenya-only availability for first rollout | blocked | Product | | §12 |
 | Age rating / target audience consistent with 18+ Terms | blocked | Product / Legal | | |
 | Review notes: OTP login, location, Pass QR, Miles, vouchers, no cash-out | todo | Product | | Draft in `metadata.md` |
-| Durable review account or review-safe OTP procedure | **blocked** | Engineering / Support | | Reviewers cannot receive a member's email OTP |
+| Password sign-in in the native app | done | Engineering | 2026-10-19 | Mirrors hub-page's `signInWithPassword` with an OTP/password toggle; OTP remains the default and the promoted path. Also closes the dead end where Settings could set a password that no screen accepted |
+| Durable review account with a password | **todo** | Engineering / Support | | The mechanism now exists. What remains is operational: create the review account, set its password (Settings → Security, or server-side), confirm its email so `email_not_confirmed` cannot block sign-in, and record the credentials in the Play Console's App access section — not in Git. Reviewers never need an OTP |
 | Export compliance, content rights, advertising, financial declarations | blocked | Legal | | |
 | No mention of Gifts, Games, raffles, or push anywhere in the listing | todo | Product | | Gifts is hidden by `features.gifts` in the production config. Push now exists in the binary (migration 101) but ships switched off via `NATIVE_PUSH_ENABLED`, so it must still stay out of the listing until credentials are in place and delivery is verified on a device |
 
