@@ -59,6 +59,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "release:check": "node ./scripts/validate-production-build.mjs --production",
+    "push:verify-fcm": "node ./scripts/verify-fcm-key.mjs",
+    "push:simulate-ios": "xcrun simctl push booted com.akibamiles.akiba ./scripts/simulated-remote-push.apns",
     "eas-build-post-install": "node ./scripts/validate-production-build.mjs"
   },
   "private": true
