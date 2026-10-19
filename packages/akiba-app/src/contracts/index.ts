@@ -17,8 +17,20 @@ export {
   merchantOfferFeedSchema,
   type MerchantOfferFeed,
 } from './merchant-offers';
-export { mobilePassSchema, type MobilePass } from './pass';
+export {
+  mobilePassSchema,
+  type MobilePass,
+  passPresentationSchema,
+  type PassPresentation,
+} from './pass';
 export { mobileSettingsSchema, type MobileSettings, settingsUpdateSchema, type SettingsUpdate } from './settings';
+export {
+  deviceRegistrationSchema,
+  type DeviceRegistration,
+  notificationPreferencesSchema,
+  type NotificationPreferences,
+  type NotificationCategory,
+} from './push';
 export {
   mobileOverviewSchema,
   type MobileOverview,
@@ -71,7 +83,13 @@ export {
   offerReminderStateSchema,
   type OfferReminderState,
   verifiedVisitHelpfulResponseSchema,
+  verifiedVisitPhotoUploadIntentSchema,
+  verifiedVisitPhotoCompletionSchema,
+  verifiedVisitPhotoWithdrawalSchema,
   type VerifiedVisitHelpfulResponse,
+  type VerifiedVisitPhotoUploadIntent,
+  type VerifiedVisitPhotoCompletion,
+  type VerifiedVisitPhotoWithdrawal,
   type CustomerPhoto,
   type VerifiedVisit,
 } from './merchant-detail';

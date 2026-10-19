@@ -183,6 +183,13 @@ const STEP_EXECUTORS: Record<string, StepExecutor> = {
       "hub_user_id",
       userId,
     );
+    const devices = await selectColumn<{ id: string }>(
+      admin,
+      "hub_user_devices",
+      "id",
+      "hub_user_id",
+      userId,
+    );
 
     // Deliveries first: web_push_deliveries.subscription_id has no ON DELETE
     // action, and a campaign job's deliveries can reference this member's
@@ -193,8 +200,19 @@ const STEP_EXECUTORS: Record<string, StepExecutor> = {
       "subscription_id",
       subscriptions.map((row) => row.id),
     );
+    // Same reasoning for the native transport (101_native_push_devices.sql).
+    // native_push_deliveries.device_id does cascade, but deleting by device
+    // explicitly keeps this step independent of which parent happens to go
+    // first, and covers deliveries whose job belongs to nobody.
+    await deleteIn(
+      admin,
+      "native_push_deliveries",
+      "device_id",
+      devices.map((row) => row.id),
+    );
     await deleteWhere(admin, "web_push_jobs", "hub_user_id", userId);
     await deleteWhere(admin, "web_push_subscriptions", "hub_user_id", userId);
+    await deleteWhere(admin, "hub_user_devices", "hub_user_id", userId);
   },
 
   wallet_links: async ({ admin, userId }) => {

@@ -3,8 +3,8 @@
 // photo never requires withdrawing the structured contribution.
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { isSameOriginRequest } from "@/lib/push/origin";
+import { DiscoveryPhotoError, withdrawDiscoveryPhoto } from "@/lib/discovery/photoUploads";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -22,22 +22,16 @@ export async function DELETE(req: Request, { params }: { params: { id: string; p
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("merchant_visit_photos")
-    .update({ moderation_status: "withdrawn", withdrawn_at: new Date().toISOString() })
-    .eq("id", params.photoId)
-    .eq("contribution_id", params.id)
-    .eq("hub_user_id", user.id)
-    .not("moderation_status", "in", "(rejected,withdrawn)")
-    .select("id")
-    .maybeSingle();
-
-  if (error) {
-    console.error("[discovery-photos/:photoId] withdraw failed:", error.message);
-    return NextResponse.json({ error: "internal_error" }, { status: 500 });
+  try {
+    return NextResponse.json(await withdrawDiscoveryPhoto({
+      contributionId: params.id,
+      photoId: params.photoId,
+      userId: user.id,
+    }));
+  } catch (error) {
+    if (error instanceof DiscoveryPhotoError) {
+      return NextResponse.json({ error: error.code }, { status: error.status });
+    }
+    throw error;
   }
-  if (!data) return NextResponse.json({ error: "not_found" }, { status: 404 });
-
-  return NextResponse.json({ ok: true });
 }

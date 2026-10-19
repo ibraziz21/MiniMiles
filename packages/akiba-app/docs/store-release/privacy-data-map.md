@@ -28,7 +28,7 @@ Verified from the code in `packages/akiba-app` at the time of writing:
 | Photos / user content | Yes | Discovery contributions (web today) | Yes — Supabase Storage | Merchant discovery proof | Yes | No | Optional |
 | Crash data / diagnostics | **TBD** | Expo/React Native defaults | **TBD** | **TBD** | **TBD** | No | **TBD** |
 | App interactions (analytics) | **No, today** | `src/analytics/track.ts` logs in development and is a no-op in production — no provider is wired up | No | n/a until a provider is chosen | n/a | No | n/a |
-| Device/installation identifiers | **TBD** | `expo-device`, future push tokens | **TBD** | **TBD** | **TBD** | No | **TBD** |
+| Device/installation identifiers | Yes, when push is enabled | `expo-notifications` mints an Expo push token; the app generates an installation UUID in SecureStore | Yes — both go to the Akiba Hub API (`POST /api/v1/me/devices`) and the token is held by Expo's push service as processor | Delivering transactional notifications (Miles credited, voucher ready) | Yes — stored against `hub_user_id` in `hub_user_devices` | No | Optional — only after the member grants notification permission, and nothing is sent while `NATIVE_PUSH_ENABLED` is off |
 
 ### Notes that change the console answers
 
@@ -57,6 +57,7 @@ account for (§10.3). From `package.json`:
 | `expo-secure-store` | No | On-device keychain/keystore only |
 | `expo-web-browser` | No (opens URLs) | Legal pages |
 | `expo-constants`, `expo-device` | **TBD** | Confirm no identifier is transmitted |
+| `expo-notifications` | Yes, when push is enabled | Mints an Expo push token, which reaches Expo's push service and the Akiba Hub API. Expo is a processor for delivery. Nothing is transmitted until the member grants permission *and* `NATIVE_PUSH_ENABLED` is on |
 | `expo-image`, `expo-linear-gradient`, `expo-glass-effect`, `expo-symbols` | No | Rendering only |
 | `react-native-qrcode-svg`, `react-native-svg` | No | Local rendering |
 

@@ -828,7 +828,10 @@ export async function getPublicMerchant(
   slug: string,
   hubUserId: string | null
 ): Promise<PublicMerchantDetail | null> {
-  const admin = createAdminClient();
+  // This projection mints short-lived customer-photo URLs. Its Supabase
+  // requests must bypass Next's server fetch cache as well as the outer
+  // route cache, otherwise a cache miss can still return expired JWTs.
+  const admin = createAdminClient({ noStore: true });
 
   const { data, error } = await admin.rpc("get_public_merchant", {
     p_slug: slug,

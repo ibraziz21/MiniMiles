@@ -12,6 +12,7 @@ import { resolveHubProfile } from "@/lib/akiba/hubProfile";
 import { resolveHubQuestCanonical } from "@/lib/akiba/canonicalPartnerQuests";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveNativeFeatureFlags } from "@/lib/capabilities/resolveCapabilities";
+import { nativePushConfigured } from "@/lib/push/expo";
 
 async function resolveUsername(userId: string, email: string | null): Promise<string | null> {
   try {
@@ -103,8 +104,12 @@ export async function GET(request: Request) {
       needsWalletChoice: profile.needsPicker,
     },
     capabilities: {
+      // Whether this deployment can actually deliver a native push, which is
+      // what the app gates its permission prompt and device registration on.
+      // Reads the same switch the dispatcher's native adapter does, so the
+      // app is never invited to register a token nothing would send to.
       quests: capabilities.quests,
-      nativePush: false, // device-token infra is Phase 5 — not built yet.
+      nativePush: nativePushConfigured(),
     },
   };
 

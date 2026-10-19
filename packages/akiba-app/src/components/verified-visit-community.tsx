@@ -17,15 +17,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { CustomerPhoto, VerifiedVisit } from '@/contracts';
 import { ActivityIndicator, Icon, colors, fontFamily, shadows } from '@/design-system';
+import { prioritizeVerifiedVisitsWithPhotos } from '@/lib/verified-visit-deck';
 
 const VISIT_SWIPE_THRESHOLD = 72;
 const PHOTO_SWIPE_THRESHOLD = 48;
 
 export function VerifiedVisitCommunity({
+  canAddVisit,
   favoriteProduct,
   helpfulVisitIds,
   merchantName,
   merchantSlug,
+  onAddVisit,
   onToggleHelpful,
   onToggleSave,
   refreshVisitPhoto,
@@ -33,10 +36,12 @@ export function VerifiedVisitCommunity({
   saved,
   visits,
 }: {
+  canAddVisit: boolean;
   favoriteProduct: string | null;
   helpfulVisitIds: Set<string>;
   merchantName: string;
   merchantSlug: string;
+  onAddVisit: () => void;
   onToggleHelpful: (visitId: string) => Promise<void>;
   onToggleSave: () => void;
   refreshVisitPhoto: (photoId: string, updateProfile?: boolean) => Promise<CustomerPhoto | null>;
@@ -52,21 +57,22 @@ export function VerifiedVisitCommunity({
   const [helpfulPending, setHelpfulPending] = useState(false);
   const [translation] = useState(() => new Animated.ValueXY());
 
-  const current = visits[visitIndex] ?? null;
-  const next = visits[visitIndex + 1] ?? null;
+  const deckVisits = useMemo(() => prioritizeVerifiedVisitsWithPhotos(visits), [visits]);
+  const current = deckVisits[visitIndex] ?? null;
+  const next = deckVisits[visitIndex + 1] ?? null;
   const photos = current?.photos ?? [];
   const currentPhoto = photos[photoIndex] ?? null;
-  const summaryPhoto = visits.flatMap((visit) => visit.photos)[0] ?? null;
+  const summaryPhoto = deckVisits.flatMap((visit) => visit.photos)[0] ?? null;
   const deckWidth = Math.min(Math.max(width - 32, 288), 560);
   const cardWidth = deckWidth - 24;
-  const exactCount = visits.length >= 5;
-  const countCopy = exactCount ? `${visits.length} verified visits` : 'New from verified visits';
-  const progressCopy = exactCount ? `${visitIndex + 1} of ${visits.length}` : 'Anonymous verified visit';
+  const exactCount = deckVisits.length >= 5;
+  const countCopy = exactCount ? `${deckVisits.length} verified visits` : 'New from verified visits';
+  const progressCopy = exactCount ? `${visitIndex + 1} of ${deckVisits.length}` : 'Anonymous verified visit';
   const helpful = current ? helpfulVisitIds.has(current.id) : false;
 
   const moveVisit = useCallback((direction: -1 | 1) => {
     const target = visitIndex + direction;
-    if (target < 0 || target >= visits.length) {
+    if (target < 0 || target >= deckVisits.length) {
       Animated.spring(translation, { friction: 7, tension: 80, toValue: { x: 0, y: 0 }, useNativeDriver: true }).start();
       return;
     }
@@ -79,7 +85,12 @@ export function VerifiedVisitCommunity({
       setPhotoIndex(0);
       translation.setValue({ x: 0, y: 0 });
     });
-  }, [cardWidth, translation, visitIndex, visits.length]);
+  }, [cardWidth, deckVisits.length, translation, visitIndex]);
+
+  const addVisit = useCallback(() => {
+    setOpen(false);
+    onAddVisit();
+  }, [onAddVisit]);
 
   const visitPanResponder = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponder: (_event, gesture) => Math.abs(gesture.dx) > 8 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
@@ -133,6 +144,12 @@ export function VerifiedVisitCommunity({
         <View style={styles.emptyIcon}><Icon name="check-circle" size={28} color={colors.teal} /></View>
         <Text style={styles.emptyTitle}>No verified visits yet</Text>
         <Text style={styles.emptyBody}>Recommendations and approved photos from verified Akiba visits will appear here.</Text>
+        {canAddVisit ? (
+          <Pressable accessibilityRole="button" onPress={onAddVisit} style={({ pressed }) => [styles.emptyAddButton, pressed && styles.pressed]}>
+            <Icon name="message-square" size={18} color={colors.white} />
+            <Text style={styles.emptyAddButtonText}>Add your verified visit</Text>
+          </Pressable>
+        ) : null}
       </View>
     );
   }
@@ -147,7 +164,7 @@ export function VerifiedVisitCommunity({
       >
         <View style={styles.communityImageWrap}>
           {summaryPhoto ? (
-            <Image accessibilityLabel={summaryPhoto.altText} contentFit="cover" source={{ uri: summaryPhoto.thumbnailUrl }} style={StyleSheet.absoluteFill} transition={160} />
+            <RefreshableVisitImage key={summaryPhoto.id} photo={summaryPhoto} refreshVisitPhoto={refreshVisitPhoto} preferThumbnail />
           ) : (
             <View style={styles.imageFallback}><Icon name="users" size={42} color={colors.teal} /></View>
           )}
@@ -181,7 +198,7 @@ export function VerifiedVisitCommunity({
                   <Animated.View style={[styles.visitCard, { width: cardWidth, transform: [{ translateX: translation.x }] }]}>
                     <View {...photoPanResponder.panHandlers} style={styles.visitImageWrap}>
                       {currentPhoto ? (
-                        <RefreshableVisitImage photo={currentPhoto} refreshVisitPhoto={refreshVisitPhoto} />
+                        <RefreshableVisitImage key={currentPhoto.id} photo={currentPhoto} refreshVisitPhoto={refreshVisitPhoto} />
                       ) : (
                         <View style={styles.imageFallback}><Icon name="check-circle" size={56} color={colors.teal} /></View>
                       )}
@@ -211,9 +228,20 @@ export function VerifiedVisitCommunity({
 
               <View style={styles.visitNavigation}>
                 <Pressable accessibilityLabel="Previous verified visit" disabled={visitIndex === 0} onPress={() => moveVisit(-1)} style={[styles.navButton, visitIndex === 0 && styles.disabled]}><Icon name="chevron-left" size={20} color={colors.ink} /></Pressable>
-                <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${((visitIndex + 1) / visits.length) * 100}%` }]} /></View>
-                <Pressable accessibilityLabel="Next verified visit" disabled={visitIndex === visits.length - 1} onPress={() => moveVisit(1)} style={[styles.navButton, visitIndex === visits.length - 1 && styles.disabled]}><Icon name="chevron-right" size={20} color={colors.ink} /></Pressable>
+                <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${((visitIndex + 1) / deckVisits.length) * 100}%` }]} /></View>
+                <Pressable accessibilityLabel="Next verified visit" disabled={visitIndex === deckVisits.length - 1} onPress={() => moveVisit(1)} style={[styles.navButton, visitIndex === deckVisits.length - 1 && styles.disabled]}><Icon name="chevron-right" size={20} color={colors.ink} /></Pressable>
               </View>
+
+              {canAddVisit ? (
+                <Pressable accessibilityRole="button" onPress={addVisit} style={({ pressed }) => [styles.addVisitCta, pressed && styles.pressed]}>
+                  <View style={styles.addVisitIcon}><Icon name="message-square" size={19} color={colors.teal} /></View>
+                  <View style={styles.flex}>
+                    <Text style={styles.addVisitTitle}>Share your verified visit</Text>
+                    <Text style={styles.addVisitBody}>Add what you ordered, what stood out and optional photos.</Text>
+                  </View>
+                  <Icon name="chevron-right" size={19} color={colors.white} />
+                </Pressable>
+              ) : null}
 
               {helpful ? <View style={styles.confirmation}><Icon name="check-circle" size={17} color={colors.teal} /><Text style={styles.confirmationText}>Thanks — this helps surface useful visits.</Text></View> : null}
               <View style={styles.actions}>
@@ -235,8 +263,9 @@ export function VerifiedVisitCommunity({
   );
 }
 
-function RefreshableVisitImage({ photo, refreshVisitPhoto }: { photo: CustomerPhoto; refreshVisitPhoto: (photoId: string, updateProfile?: boolean) => Promise<CustomerPhoto | null> }) {
-  const [uri, setUri] = useState(photo.displayUrl.trim() || photo.thumbnailUrl.trim());
+function RefreshableVisitImage({ photo, preferThumbnail = false, refreshVisitPhoto }: { photo: CustomerPhoto; preferThumbnail?: boolean; refreshVisitPhoto: (photoId: string, updateProfile?: boolean) => Promise<CustomerPhoto | null> }) {
+  const preferredUri = preferThumbnail ? photo.thumbnailUrl.trim() : photo.displayUrl.trim();
+  const [uri, setUri] = useState(preferredUri || photo.thumbnailUrl.trim());
   const [attempted, setAttempted] = useState(false);
   return (
     <Image
@@ -310,8 +339,14 @@ const styles = StyleSheet.create({
   actionSelected: { backgroundColor: colors.tint, borderColor: colors.teal },
   actionText: { color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 12 },
   actionTextSelected: { color: colors.teal },
+  addVisitCta: { alignItems: 'center', backgroundColor: colors.ink, borderRadius: 18, flexDirection: 'row', gap: 11, marginHorizontal: 16, marginTop: 12, minHeight: 68, paddingHorizontal: 14, paddingVertical: 11 },
+  addVisitIcon: { alignItems: 'center', backgroundColor: colors.white, borderRadius: 999, height: 38, justifyContent: 'center', width: 38 },
+  addVisitTitle: { color: colors.white, fontFamily: fontFamily.sansSemiBold, fontSize: 13 },
+  addVisitBody: { color: colors.white, fontFamily: fontFamily.sans, fontSize: 11, lineHeight: 16, marginTop: 2, opacity: 0.72 },
   empty: { alignItems: 'center', paddingHorizontal: 28, paddingVertical: 42 },
   emptyIcon: { alignItems: 'center', backgroundColor: colors.tint, borderRadius: 999, height: 54, justifyContent: 'center', width: 54 },
   emptyTitle: { color: colors.ink, fontFamily: fontFamily.sterlingSemiBold, fontSize: 20, marginTop: 14 },
   emptyBody: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 13, lineHeight: 19, marginTop: 5, textAlign: 'center' },
+  emptyAddButton: { alignItems: 'center', backgroundColor: colors.ink, borderRadius: 999, flexDirection: 'row', gap: 8, marginTop: 18, minHeight: 46, paddingHorizontal: 18 },
+  emptyAddButtonText: { color: colors.white, fontFamily: fontFamily.sansSemiBold, fontSize: 13 },
 });

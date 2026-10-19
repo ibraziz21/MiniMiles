@@ -26,7 +26,7 @@ export async function getMemberVerifiedVisitSummary(
   const admin = createAdminClient();
   const { data: contribution, error } = await admin
     .from("merchant_discovery_contributions")
-    .select("id, submitted_at, would_recommend")
+    .select("id, request_id, submitted_at, would_recommend")
     .eq("hub_user_id", hubUserId)
     .eq("partner_id", merchantId)
     .is("withdrawn_at", null)
@@ -53,6 +53,7 @@ export async function getMemberVerifiedVisitSummary(
 
   return {
     id: contribution.id,
+    requestId: contribution.request_id,
     submittedAt: contribution.submitted_at,
     recommendation:
       contribution.would_recommend === true

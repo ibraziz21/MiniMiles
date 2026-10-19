@@ -166,6 +166,7 @@ export type VerifiedVisit = z.infer<typeof verifiedVisitSchema>;
 
 export const memberVerifiedVisitSchema = z.object({
   id: z.string(),
+  requestId: z.string(),
   submittedAt: z.string(),
   recommendation: z.enum(['recommended', 'not_recommended', 'skipped']),
   photoState: z.enum(['none', 'under_review', 'approved', 'not_approved']),
@@ -187,3 +188,23 @@ export type MerchantStateDetail = z.infer<typeof merchantStateDetailSchema>;
 
 export const verifiedVisitHelpfulResponseSchema = z.object({ helpful: z.boolean() });
 export type VerifiedVisitHelpfulResponse = z.infer<typeof verifiedVisitHelpfulResponseSchema>;
+
+export const verifiedVisitPhotoUploadIntentSchema = z.object({
+  photoId: z.string(),
+  bucket: z.string(),
+  path: z.string(),
+  expiresAt: z.string(),
+  expiresInSeconds: z.number(),
+});
+export type VerifiedVisitPhotoUploadIntent = z.infer<typeof verifiedVisitPhotoUploadIntentSchema>;
+
+export const verifiedVisitPhotoCompletionSchema = z.object({
+  ok: z.literal(true),
+  photoId: z.string(),
+  status: z.string(),
+  idempotent: z.boolean(),
+});
+export type VerifiedVisitPhotoCompletion = z.infer<typeof verifiedVisitPhotoCompletionSchema>;
+
+export const verifiedVisitPhotoWithdrawalSchema = z.object({ ok: z.literal(true) });
+export type VerifiedVisitPhotoWithdrawal = z.infer<typeof verifiedVisitPhotoWithdrawalSchema>;

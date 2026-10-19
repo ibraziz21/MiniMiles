@@ -141,13 +141,21 @@ export const DELETION_INVENTORY: InventoryRow[] = [
   {
     id: "push_registrations",
     dataClass: "Push/device registrations",
-    targets: ["web_push_deliveries", "web_push_jobs", "web_push_subscriptions"],
+    targets: [
+      "web_push_deliveries",
+      "native_push_deliveries",
+      "web_push_jobs",
+      "web_push_subscriptions",
+      "hub_user_devices",
+    ],
     action: "delete",
     retention: NO_RETENTION_NEEDED,
     notes:
-      "Covers queued sends and delivery rows as well as endpoints; native device tokens join here " +
-      "when they ship. Delivery rows must go first — web_push_deliveries.subscription_id has no " +
-      "ON DELETE action, and a campaign job's deliveries can point at this member's subscription.",
+      "Covers queued sends and delivery rows as well as endpoints, for both transports — web " +
+      "endpoints (web_push_subscriptions) and native device tokens (hub_user_devices, " +
+      "101_native_push_devices.sql). Delivery rows must go first — web_push_deliveries." +
+      "subscription_id has no ON DELETE action, and a campaign job's deliveries can point at " +
+      "this member's subscription.",
   },
   {
     id: "wallet_links",

@@ -3,6 +3,7 @@
 // mobile information architecture.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image } from 'expo-image';
+import * as WebBrowser from 'expo-web-browser';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Alert, Linking, Modal, Pressable, ScrollView as HorizontalScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
@@ -11,6 +12,7 @@ import { useAuth } from '@/auth';
 import { FundedOfferCard } from '@/components/funded-offer-card';
 import { MilesAmount } from '@/components/miles-amount';
 import { VerifiedVisitCommunity } from '@/components/verified-visit-community';
+import { VerifiedVisitPhotoSheet } from '@/components/verified-visit-photo-sheet';
 import type {
   CustomerPhoto,
   MerchantDetail,
@@ -135,11 +137,13 @@ export default function MerchantDetailScreen() {
           <ErrorState message={state.message} onRetry={load} />
         ) : (
           <MerchantProfile
+            accessToken={accessToken}
             detail={state.detail}
             helpfulVisitIds={helpfulVisitIds}
             onToggleSave={toggleSave}
             onToggleHelpful={toggleHelpful}
             overlay={state.overlay}
+            onRefresh={load}
             refreshVisitPhoto={refreshVisitPhoto}
             savePending={savePending}
             saved={saved}
@@ -151,20 +155,24 @@ export default function MerchantDetailScreen() {
 }
 
 function MerchantProfile({
+  accessToken,
   detail,
   helpfulVisitIds,
   onToggleHelpful,
   onToggleSave,
   overlay,
+  onRefresh,
   refreshVisitPhoto,
   savePending,
   saved,
 }: {
+  accessToken: string | null;
   detail: MerchantDetail;
   helpfulVisitIds: Set<string>;
   onToggleHelpful: (visitId: string) => Promise<void>;
   onToggleSave: () => void;
   overlay: MerchantStateDetail | null;
+  onRefresh: () => Promise<void>;
   refreshVisitPhoto: (photoId: string, updateProfile?: boolean) => Promise<CustomerPhoto | null>;
   savePending: boolean;
   saved: boolean;
@@ -181,6 +189,23 @@ function MerchantProfile({
         : merchant.locations.length > 0 ? 'locations' : 'verified';
   const [activeTab, setActiveTab] = useState<ProfileTab>(defaultTab);
   const [expanded, setExpanded] = useState(false);
+  const [photoSheetOpen, setPhotoSheetOpen] = useState(false);
+
+  const addVerifiedVisit = useCallback(async () => {
+    const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.trim().replace(/\/$/, '');
+    if (!baseUrl) {
+      Alert.alert('Could not open your visit', 'The Akiba Hub URL is not configured.');
+      return;
+    }
+
+    try {
+      await WebBrowser.openBrowserAsync(`${baseUrl}/visit/merchant/${encodeURIComponent(merchant.slug)}`);
+    } catch {
+      Alert.alert('Could not open your visit', 'Please try again.');
+    }
+  }, [merchant.slug]);
+
+  const addVerifiedVisitPhotos = useCallback(() => setPhotoSheetOpen(true), []);
 
   const availableTabs: ProfileTab[] = merchant.locations.length > 0
     ? ['verified', 'merchant', 'vouchers', 'locations']
@@ -256,6 +281,8 @@ function MerchantProfile({
           helpfulVisitIds={helpfulVisitIds}
           merchantName={merchant.name}
           merchantSlug={merchant.slug}
+          onAddVisit={addVerifiedVisit}
+          onAddVisitPhotos={addVerifiedVisitPhotos}
           onToggleHelpful={onToggleHelpful}
           onToggleSave={onToggleSave}
           overlay={overlay}
@@ -279,6 +306,17 @@ function MerchantProfile({
       ) : (
         <LocationsPanel locations={merchant.locations} />
       )}
+
+      {accessToken && overlay?.verifiedVisit ? (
+        <VerifiedVisitPhotoSheet
+          accessToken={accessToken}
+          merchantName={merchant.name}
+          onClose={() => setPhotoSheetOpen(false)}
+          onUpdated={onRefresh}
+          visit={overlay.verifiedVisit}
+          visible={photoSheetOpen}
+        />
+      ) : null}
     </View>
   );
 }
@@ -345,6 +383,8 @@ function VerifiedPanel({
   helpfulVisitIds,
   merchantName,
   merchantSlug,
+  onAddVisit,
+  onAddVisitPhotos,
   onToggleHelpful,
   onToggleSave,
   overlay,
@@ -357,6 +397,8 @@ function VerifiedPanel({
   helpfulVisitIds: Set<string>;
   merchantName: string;
   merchantSlug: string;
+  onAddVisit: () => void;
+  onAddVisitPhotos: () => void;
   onToggleHelpful: (visitId: string) => Promise<void>;
   onToggleSave: () => void;
   overlay: MerchantStateDetail | null;
@@ -368,22 +410,32 @@ function VerifiedPanel({
   return (
     <View style={styles.panel}>
       {overlay?.openContributionRequest ? (
-        <View style={styles.contributionCard}>
+        <Pressable accessibilityHint="Opens the verified visit form" accessibilityRole="button" onPress={onAddVisit} style={({ pressed }) => [styles.contributionCard, pressed && styles.pressed]}>
           <View style={styles.roundIcon}><Icon name="message-square" size={20} color={colors.teal} /></View>
           <View style={styles.flex}><Text style={styles.cardTitle}>Your Akiba visit is verified</Text><Text style={styles.cardBody}>Add what you tried, what you would recommend and optional photos.</Text></View>
-        </View>
+          <View style={styles.contributionAction}><Text style={styles.contributionActionText}>Add visit</Text><Icon name="chevron-right" size={16} color={colors.white} /></View>
+        </Pressable>
       ) : null}
       {overlay?.verifiedVisit ? (
-        <View style={styles.privateVisit}>
+        <Pressable
+          accessibilityHint="Opens your saved verified visit at the photo step"
+          accessibilityLabel="Your verified visit. Add photos"
+          accessibilityRole="button"
+          onPress={onAddVisitPhotos}
+          style={({ pressed }) => [styles.privateVisit, pressed && styles.pressed]}
+        >
           <View style={styles.roundIconTint}><Icon name="check-circle" size={20} color={colors.teal} /></View>
           <View style={styles.flex}><Text style={styles.cardTitle}>Your verified visit</Text><Text style={styles.privateBadge}>Only visible to you</Text><Text style={styles.cardBody}>{memberVisitCopy(overlay.verifiedVisit, merchantName)}</Text></View>
-        </View>
+          <View style={styles.privateVisitAction}><Text style={styles.privateVisitActionText}>Add photos</Text><Icon name="chevron-right" size={16} color={colors.teal} /></View>
+        </Pressable>
       ) : null}
       <VerifiedVisitCommunity
+        canAddVisit={Boolean(overlay?.openContributionRequest)}
         favoriteProduct={favoriteProduct}
         helpfulVisitIds={helpfulVisitIds}
         merchantName={merchantName}
         merchantSlug={merchantSlug}
+        onAddVisit={onAddVisit}
         onToggleHelpful={onToggleHelpful}
         onToggleSave={onToggleSave}
         refreshVisitPhoto={refreshVisitPhoto}
@@ -623,7 +675,7 @@ const styles = StyleSheet.create({
   disclosure: { marginTop: 10 }, description: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 13, lineHeight: 20 }, offerings: { marginTop: 10 }, microHeading: { color: colors.muted, fontFamily: fontFamily.sansSemiBold, fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase' }, seeMore: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 3, minHeight: 36 }, seeMoreText: { color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 12 },
   actionRow: { gap: 8, paddingTop: 10 }, action: { alignItems: 'center', backgroundColor: colors.white, borderColor: colors.line, borderRadius: 999, borderWidth: 1, flexDirection: 'row', gap: 6, minHeight: 40, paddingHorizontal: 16 }, actionPrimary: { backgroundColor: colors.ink, borderColor: colors.ink }, actionCompact: { height: 40, justifyContent: 'center', paddingHorizontal: 0, width: 40 }, actionText: { color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 14 }, actionTextPrimary: { color: colors.white },
   tabs: { backgroundColor: 'rgba(252,252,252,0.96)', borderBottomColor: colors.line, borderBottomWidth: 1, borderTopColor: colors.line, borderTopWidth: 1, flexDirection: 'row' }, tab: { alignItems: 'center', flex: 1, gap: 4, justifyContent: 'center', minHeight: 58, position: 'relative' }, tabPressed: { backgroundColor: colors.card }, tabText: { color: colors.muted, fontFamily: fontFamily.sansSemiBold, fontSize: 11 }, tabTextActive: { color: colors.ink }, tabIndicator: { backgroundColor: 'transparent', bottom: -1, height: 2, left: 8, position: 'absolute', right: 8 }, tabIndicatorActive: { backgroundColor: colors.teal },
-  panel: { gap: 12, padding: 16 }, contributionCard: { alignItems: 'flex-start', backgroundColor: colors.tint, borderColor: 'rgba(35,141,157,0.20)', borderCurve: 'continuous', borderRadius: 16, borderWidth: 1, flexDirection: 'row', gap: 12, padding: 14 }, privateVisit: { alignItems: 'flex-start', backgroundColor: colors.white, borderColor: colors.line, borderCurve: 'continuous', borderRadius: 16, borderWidth: 1, flexDirection: 'row', gap: 12, padding: 16 }, roundIcon: { alignItems: 'center', backgroundColor: colors.white, borderRadius: 999, height: 40, justifyContent: 'center', width: 40 }, roundIconTint: { alignItems: 'center', backgroundColor: colors.tint, borderRadius: 999, height: 40, justifyContent: 'center', width: 40 }, cardTitle: { color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 14 }, cardBody: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 13, lineHeight: 19, marginTop: 3 }, privateBadge: { alignSelf: 'flex-start', backgroundColor: colors.card, borderRadius: 999, color: colors.muted, fontFamily: fontFamily.sansSemiBold, fontSize: 10, marginTop: 4, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 2 },
+  panel: { gap: 12, padding: 16 }, contributionCard: { alignItems: 'center', backgroundColor: colors.tint, borderColor: 'rgba(35,141,157,0.20)', borderCurve: 'continuous', borderRadius: 16, borderWidth: 1, flexDirection: 'row', gap: 12, padding: 14 }, contributionAction: { alignItems: 'center', backgroundColor: colors.ink, borderRadius: 999, flexDirection: 'row', gap: 3, minHeight: 38, paddingHorizontal: 12 }, contributionActionText: { color: colors.white, fontFamily: fontFamily.sansSemiBold, fontSize: 11 }, privateVisit: { alignItems: 'center', backgroundColor: colors.white, borderColor: colors.line, borderCurve: 'continuous', borderRadius: 16, borderWidth: 1, flexDirection: 'row', gap: 12, minHeight: 72, padding: 16 }, privateVisitAction: { alignItems: 'center', flexDirection: 'row', gap: 2, minHeight: 44 }, privateVisitActionText: { color: colors.teal, fontFamily: fontFamily.sansSemiBold, fontSize: 11 }, roundIcon: { alignItems: 'center', backgroundColor: colors.white, borderRadius: 999, height: 40, justifyContent: 'center', width: 40 }, roundIconTint: { alignItems: 'center', backgroundColor: colors.tint, borderRadius: 999, height: 40, justifyContent: 'center', width: 40 }, cardTitle: { color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 14 }, cardBody: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 13, lineHeight: 19, marginTop: 3 }, privateBadge: { alignSelf: 'flex-start', backgroundColor: colors.card, borderRadius: 999, color: colors.muted, fontFamily: fontFamily.sansSemiBold, fontSize: 10, marginTop: 4, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 2 },
   businessPanel: { paddingBottom: 16 }, panelIntro: { alignItems: 'flex-start', flexDirection: 'row', gap: 16, justifyContent: 'space-between', padding: 16 }, panelIntroText: { color: colors.muted, flex: 1, fontFamily: fontFamily.sans, fontSize: 13, lineHeight: 19 }, panelCount: { color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 12 }, photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 1 }, gridPhotoButton: { aspectRatio: 1, backgroundColor: colors.card, flexBasis: '33%', flexGrow: 1, maxWidth: '33.2%', position: 'relative' }, galleryModal: { backgroundColor: '#000', flex: 1 }, galleryHeader: { alignItems: 'center', borderBottomColor: 'rgba(255,255,255,0.10)', borderBottomWidth: 1, flexDirection: 'row', justifyContent: 'space-between', padding: 16, paddingTop: 54 }, galleryMerchant: { color: colors.white, fontFamily: fontFamily.sansSemiBold, fontSize: 16 }, gallerySource: { color: 'rgba(255,255,255,0.65)', fontFamily: fontFamily.sans, fontSize: 12 }, galleryClose: { alignItems: 'center', height: 44, justifyContent: 'center', width: 44 }, galleryImage: { flex: 1, width: '100%' }, galleryCaption: { color: colors.white, fontFamily: fontFamily.sans, fontSize: 14, padding: 18, textAlign: 'center' },
   panelHeading: { alignItems: 'flex-start', flexDirection: 'row', gap: 12 }, panelTitle: { color: colors.ink, fontFamily: fontFamily.sterlingSemiBold, fontSize: 19 }, panelDescription: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 14, lineHeight: 19, marginTop: 3 }, emptyPanel: { alignItems: 'center', borderColor: colors.line, borderCurve: 'continuous', borderRadius: 16, borderWidth: 1, padding: 28 }, emptyIcon: { alignItems: 'center', backgroundColor: colors.white, borderColor: colors.line, borderRadius: 999, borderWidth: 1, height: 48, justifyContent: 'center', width: 48 }, emptyTitle: { color: colors.ink, fontFamily: fontFamily.sterlingSemiBold, fontSize: 19, marginTop: 10, textAlign: 'center' }, emptyBody: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 14, lineHeight: 20, marginTop: 3, textAlign: 'center' },
   offerToolbar: { alignItems: 'center', flexDirection: 'row', minHeight: 44 }, offerCount: { color: colors.muted, fontFamily: fontFamily.sansSemiBold, fontSize: 12, marginLeft: 'auto', marginRight: 10 }, offerFilterButton: { alignItems: 'center', backgroundColor: colors.white, borderColor: colors.line, borderRadius: 999, borderWidth: 1, height: 44, justifyContent: 'center', position: 'relative', width: 44 }, offerFilterButtonActive: { backgroundColor: colors.ink, borderColor: colors.ink }, offerFilterDot: { backgroundColor: colors.teal, borderRadius: 999, height: 6, position: 'absolute', right: 7, top: 7, width: 6 },

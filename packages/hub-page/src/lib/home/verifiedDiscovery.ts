@@ -331,7 +331,9 @@ async function getSnapshotPartnerAggregates(
 export async function getVerifiedDiscoveryHighlights(): Promise<VerifiedDiscoveryHighlight[]> {
   if (!isDiscoverySpotlightEnabled()) return [];
 
-  const admin = createAdminClient();
+  // The spotlight also carries short-lived signed photo URLs; never reuse
+  // an expired Storage signing response from Next's server fetch cache.
+  const admin = createAdminClient({ noStore: true });
   try {
     const aggregates = isDiscoverySnapshotReadEnabled()
       ? await getSnapshotPartnerAggregates(admin)
