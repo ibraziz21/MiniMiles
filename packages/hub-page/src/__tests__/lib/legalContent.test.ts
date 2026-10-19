@@ -38,6 +38,8 @@ describe("privacy policy — AKIBA-MOB-002 §10.1", () => {
     // showing this copy would be rejected as stale.
     const text = textOf(sectionByTitlePrefix(privacyPolicy, "9."));
     expect(text).toContain(DELETION_POLICY_VERSION);
+    const nativePolicy=readFileSync(path.resolve(process.cwd(),"../akiba-app/src/account-deletion/policy.ts"),"utf8");
+    expect(nativePolicy).toContain(`'${DELETION_POLICY_VERSION}'`);
   });
 
   it("distinguishes deletion from legal retention and restricted processing", () => {

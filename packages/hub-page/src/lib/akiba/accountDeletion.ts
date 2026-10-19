@@ -94,6 +94,12 @@ export class AccountDeletionError extends Error {
   }
 }
 
+async function memberCanBeProcessed(userId: string): Promise<boolean> {
+  const { data, error } = await createAdminClient().rpc("account_deletion_preflight", { p_user_id: userId });
+  if (error || !Array.isArray(data)) throw new AccountDeletionError("storage_unavailable");
+  return data.length === 0;
+}
+
 /** The actor's own deletion-effects projection. Counts only — never ids. */
 export async function getAccountDeletionSummary(actor: {
   userId: string;
@@ -135,7 +141,7 @@ export async function getAccountDeletionSummary(actor: {
     // Stated as a constant true, not computed: Akiba can never erase a Celo
     // record, whether or not this member has one today.
     onChainRecordsRemain: true,
-    acceptingRequests: deletionAvailability().acceptingRequests,
+    acceptingRequests: deletionAvailability().acceptingRequests && await memberCanBeProcessed(actor.userId),
   };
 }
 
@@ -163,6 +169,7 @@ export async function createDeletionChallenge(actor: {
   if (!deletionAvailability().acceptingRequests) {
     throw new AccountDeletionError("deletion_unavailable");
   }
+  if (!await memberCanBeProcessed(actor.userId)) throw new AccountDeletionError("deletion_unavailable");
   if (!actor.email) throw new AccountDeletionError("account_has_no_email");
 
   const withinLimit = await checkRateLimit({
@@ -267,6 +274,7 @@ export async function submitDeletionRequest(
   if (!deletionAvailability().acceptingRequests) {
     throw new AccountDeletionError("deletion_unavailable");
   }
+  if (!await memberCanBeProcessed(actor.userId)) throw new AccountDeletionError("deletion_unavailable");
 
   // Step 7 before the OTP is spent: a stale app build must be rejected
   // without burning the member's code.

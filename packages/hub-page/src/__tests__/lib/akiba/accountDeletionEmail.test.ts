@@ -87,7 +87,9 @@ describe("completion email — resend adapter", () => {
 
     const payload = JSON.parse(init.body as string);
     expect(payload.to).toEqual(["member@example.com"]);
-    expect(payload.subject).toMatch(/deleted/i);
+    expect(payload.subject).toMatch(/native-app deletion is complete/i);
+    expect(payload.text).toContain("does not close your shared Akiba account");
+    expect(payload.text).not.toMatch(/blockchain|Celo/i);
     // The notice must carry the reference the member was shown, and nothing
     // that could be mistaken for a sign-in link.
     expect(payload.text).toContain("req-abc-123");

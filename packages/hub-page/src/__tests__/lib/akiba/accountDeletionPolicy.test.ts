@@ -42,7 +42,20 @@ describe("retention inventory", () => {
       if (!row.retention) continue;
       expect(row.retention.purpose).toMatch(/\S/);
       expect(row.retention.lawfulBasis).toMatch(/\S/);
-      expect(typeof row.retention.periodDays).toBe("number");
+      expect(row.retention.schedule.duration.count).toBeGreaterThanOrEqual(0);
+      expect(Number.isInteger(row.retention.schedule.duration.count)).toBe(true);
+      expect(["days", "months", "years"]).toContain(row.retention.schedule.duration.unit);
+      const schedule = row.retention.schedule;
+      if (schedule.startsAt === "record_event") {
+        expect(schedule.event).toMatch(/\S/);
+        expect(schedule.timestampField).toMatch(/\S/);
+      } else if (schedule.startsAt === "reporting_period_end") {
+        expect(schedule.calendarReference).toMatch(/\S/);
+        expect(schedule.timeZone).toMatch(/\S/);
+        expect(schedule.periodEndField).toMatch(/\S/);
+      } else {
+        expect(schedule.startsAt).toBe("deletion_completed");
+      }
       expect(row.retention.pseudonymizationMethod).toMatch(/\S/);
       expect(row.retention.processor).toMatch(/\S/);
       expect(row.retention.storageRegion).toMatch(/\S/);

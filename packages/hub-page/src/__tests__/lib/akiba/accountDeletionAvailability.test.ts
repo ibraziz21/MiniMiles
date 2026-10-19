@@ -1,4 +1,6 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import * as policy from "@/lib/akiba/accountDeletionPolicy";
+import { DELETION_IMPLEMENTATION_VERSION } from "@/lib/akiba/accountDeletionRetention";
 
 import {
   deletionAvailability,
@@ -12,6 +14,7 @@ function env(overrides: Record<string, string | undefined> = {}): NodeJS.Process
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   delete process.env.ACCOUNT_DELETION_SUBMISSION_ENABLED;
   delete process.env.ACCOUNT_DELETION_PROCESSING_ENABLED;
 });
@@ -49,7 +52,7 @@ describe("deletion availability", () => {
 
     const review = reviewInventory();
     if (review.approved) {
-      expect(result).toEqual({ acceptingRequests: true });
+      expect(result).toEqual({ acceptingRequests: false, reason: "implementation_unverified" });
       return;
     }
 
@@ -61,6 +64,15 @@ describe("deletion availability", () => {
     if (!result.acceptingRequests) {
       expect(result.unapprovedRowIds).toEqual(review.unapprovedRowIds);
     }
+  });
+
+  it("keeps unreviewed shared identity steps blocked even after policy approval and verification flags", () => {
+    vi.spyOn(policy,"reviewInventory").mockReturnValue({approved:true});
+    const configured={ACCOUNT_DELETION_SUBMISSION_ENABLED:"true",ACCOUNT_DELETION_PROCESSING_ENABLED:"true"};
+    expect(deletionAvailability(env(configured))).toMatchObject({acceptingRequests:false,reason:"implementation_unverified"});
+    expect(deletionAvailability(env({...configured,ACCOUNT_DELETION_IMPLEMENTATION_VERIFIED:DELETION_IMPLEMENTATION_VERSION}))).toMatchObject({acceptingRequests:false});
+    expect(deletionAvailability(env({...configured,ACCOUNT_DELETION_IMPLEMENTATION_VERIFIED:DELETION_IMPLEMENTATION_VERSION,
+      ACCOUNT_DELETION_EXPIRY_ENABLED:"true"}))).toEqual({acceptingRequests:false,reason:"implementation_unverified"});
   });
 
   it("reports the inventory blocker ahead of a paused worker", () => {

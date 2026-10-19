@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/internal/expire-account-deletion-evidence",
+      "schedule": "30 2 * * *"
+    },
+    {
       "path": "/api/internal/process-reward-jobs",
       "schedule": "*/5 * * * *"
     },

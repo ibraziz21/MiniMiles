@@ -16,7 +16,8 @@
  * disabled", step 5: enable submission), which the original implementation
  * skipped.
  */
-import { reviewInventory } from "@/lib/akiba/accountDeletionPolicy";
+import { executableInventoryRows, reviewInventory } from "@/lib/akiba/accountDeletionPolicy";
+import { DELETION_IMPLEMENTATION_VERSION, IMPLEMENTED_DELETION_STEPS } from "@/lib/akiba/accountDeletionRetention";
 
 export type DeletionUnavailableReason =
   /** The operator switch is off — §16 step 5 has not happened yet. */
@@ -24,7 +25,8 @@ export type DeletionUnavailableReason =
   /** §9: processing may not run while any retention row is unapproved. */
   | "retention_inventory_unapproved"
   /** Processing is switched off, so accepting a request would strand it. */
-  | "processing_disabled";
+  | "processing_disabled"
+  | "implementation_unverified";
 
 export type DeletionAvailability =
   | { acceptingRequests: true }
@@ -61,6 +63,12 @@ export function deletionAvailability(env: NodeJS.ProcessEnv = process.env): Dele
   // since it is the one that needs a decision rather than a restart.
   if (!isProcessingEnabled(env)) {
     return { acceptingRequests: false, reason: "processing_disabled" };
+  }
+
+  if (executableInventoryRows().some((row) => !IMPLEMENTED_DELETION_STEPS.has(row.id)) ||
+      env.ACCOUNT_DELETION_IMPLEMENTATION_VERIFIED !== DELETION_IMPLEMENTATION_VERSION ||
+      env.ACCOUNT_DELETION_EXPIRY_ENABLED !== "true") {
+    return { acceptingRequests: false, reason: "implementation_unverified" };
   }
 
   return { acceptingRequests: true };

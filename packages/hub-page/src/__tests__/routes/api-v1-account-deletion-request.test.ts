@@ -100,6 +100,7 @@ vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     rpc: async (name: string, args: Record<string, unknown>) => {
       rpcCalls.push({ name, args });
+      if (name === "account_deletion_preflight") return { data: [], error: null };
 
       if (name === "record_account_deletion_challenge_attempt") {
         const row = state.challenges.get(args.p_challenge_id as string);

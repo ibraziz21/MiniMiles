@@ -56,6 +56,7 @@ vi.mock("@supabase/supabase-js", () => ({
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     rpc: async (name: string) => {
+      if (name === "account_deletion_preflight") return { data: [], error: null };
       if (name !== "create_account_deletion_challenge") throw new Error(`Unexpected rpc ${name}`);
       if (state.rpcError) return { data: null, error: state.rpcError };
       return {

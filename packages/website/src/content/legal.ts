@@ -15,7 +15,7 @@ export const privacyPolicy: LegalPage = {
   title: "Privacy Policy",
   lastUpdated: "Oct 10, 2026",
   intro:
-    "This Privacy Policy explains how Akiba Ecosystems Ltd (\"Akiba\", \"we\") collects, uses, and protects information when you use the Akiba services, including the Akiba Pass mobile app for iOS and Android, the Akiba Pass web experience, Scan & Award at participating merchants, the Akiba Hub, the Akiba Mini-App on MiniPay, and this website. By using our services or submitting information through this site, you agree to this policy.",
+    "This Privacy Policy explains how Akiba Ecosystems Ltd (\"Akiba\", \"we\") collects, uses, and protects information when you use the Akiba services — including the Akiba Pass mobile app for iOS and Android, the Akiba Pass web experience, Scan & Award at participating merchants, the Akiba Hub, the Akiba Mini-App on MiniPay, and this website. By using our services or submitting information through this site, you agree to this policy.",
   sections: [
     {
       title: "1. What We Collect",
@@ -48,7 +48,7 @@ export const privacyPolicy: LegalPage = {
     {
       title: "3. What Merchants Can See",
       paragraphs: [
-        "Participating merchants can see loyalty activity connected to their own store, such as rewards issued against their sales, redemption of their vouchers, and aggregate repeat-visit patterns. Merchants do not receive your activity at other merchants, your wallet balances, or your full profile.",
+        "Participating merchants can see loyalty activity connected to their own store — such as rewards issued against their sales, redemption of their vouchers, and aggregate repeat-visit patterns. Merchants do not receive your activity at other merchants, your wallet balances, or your full profile.",
       ],
     },
     {
@@ -78,19 +78,20 @@ export const privacyPolicy: LegalPage = {
     {
       title: "8. Your Rights",
       paragraphs: [
-        "You may request to view or update your data by contacting hello@akibamiles.com. To delete your whole account, you do not need to email us. See Section 9.",
+        "You may request to view or update your data by contacting hello@akibamiles.com. To delete your whole account, you do not need to email us — see Section 9.",
         "Under the Kenya Data Protection Act you may ask us to erase personal data we are no longer authorised or required to keep. Some records are instead kept in a pseudonymised, access-restricted form where a legal, accounting, settlement, fraud-prevention, or audit purpose requires it; that is retention with restricted processing, not continued ordinary use of your data. On-chain records (see Section 4) are outside our control and cannot be deleted by anyone.",
       ],
     },
     {
       title: "9. Deleting Your Account",
       paragraphs: [
-        "You can delete your entire Akiba account and the personal data connected to it. In the Akiba Pass app, open Settings, then the Danger zone section, then Delete account. Without the app, use https://app.akibamiles.com/account-deletion. Both paths use the same verification and the same process. We verify the request with a one-time code sent to your account email before accepting it, because otherwise anyone with your unlocked phone could delete your account.",
+        "You can delete your entire Akiba account and the personal data connected to it. In the Akiba Pass app, open Settings, then the Danger zone section, then Delete account. Without the app, use https://pass.akibamiles.com/account-deletion. Both paths use the same verification and the same process. We verify the request with a one-time code sent to your account email before accepting it, because otherwise anyone with your unlocked phone could delete your account.",
         "We delete your sign-in account and email address, your profile and contact details, your Akiba Pass and its credentials, your saved places, your notification and device registrations, our record of any wallet address you linked, and the photos and contributions you submitted.",
         "Deleting your account ends your access to Miles earned on it. Your Akiba Pass stops working and vouchers you have not yet redeemed become unusable. We cannot transfer Miles or vouchers to another account and cannot restore them afterwards. We will not refuse your deletion request because you still hold a balance or an active voucher.",
-        "Some records survive deletion in pseudonymised form, with your name, email, and other direct identifiers removed, where an approved purpose requires it. That covers transaction and voucher-redemption records, merchant settlement and payment evidence, and fraud, security, and audit records. Access to those records is restricted, each is held only for its approved retention period, and we keep a record that you asked for deletion and that we carried it out.",
+        "Some records survive deletion in pseudonymised form — with your name, email, and other direct identifiers removed — where an approved purpose requires it. That covers transaction and voucher-redemption records, merchant settlement and payment evidence, and fraud, security, and audit records. Access to those records is restricted, each is held only for its approved retention period, and we keep a record that you asked for deletion and that we carried it out.",
+        "For native-app activity, minimal moderation evidence is retained for 90 days after deletion completion. Minimal Miles, voucher, referral-reward and security evidence is retained for 180 days. Restricted proof of deletion is retained for 24 months. Direct member identity and contact details are removed from this evidence; a specific documented legal hold may extend retention of affected records only. Native-app data deletion does not itself close other Akiba accounts or erase shared rewards or merchant accounting records.",
         "Transactions already written to the Celo blockchain, and the public wallet addresses in them, are permanent and public. Neither you nor Akiba can delete or change them. Deleting your Akiba account removes our own off-chain association with your wallet where our retention plan allows it; it does not and cannot remove anything from the blockchain itself.",
-        "We aim to complete deletion within 14 calendar days of a verified request, unless we are legally required to hold data for longer, and we email your account address when processing finishes. You cannot cancel the request yourself once you confirm it. The version of this deletion notice shown when you confirm is 2026-10-10.1.",
+        "We aim to complete deletion within 14 calendar days of a verified request, unless we are legally required to hold data for longer, and we email your account address when processing finishes. You cannot cancel the request yourself once you confirm it. The version of this deletion notice shown when you confirm is 2026-10-19.2.",
         "If you have lost access to your account email and cannot receive the verification code, contact hello@akibamiles.com and we will verify you another way.",
       ],
     },
@@ -173,7 +174,7 @@ export const termsOfUse: LegalPage = {
     {
       title: "8. Merchants",
       paragraphs: [
-        "Merchant participation in the Akiba network, including subscription plans and reward activity, is governed by a separate merchant agreement entered into during merchant onboarding. Subscription invoices are generated in the merchant dashboard and paid directly to Akiba by M-Pesa or bank transfer. These subscription payments are separate from customer purchases.",
+        "Merchant participation in the Akiba network — including subscription plans and reward activity — is governed by a separate merchant agreement entered into during merchant onboarding. Subscription invoices are generated in the merchant dashboard and paid directly to Akiba by M-Pesa or bank transfer. These subscription payments are separate from customer purchases.",
         "Published subscription prices exclude VAT. Miles issued above a plan's monthly allowance are charged at the published per-Mile overage rate and added to the invoice for the next billing period. On quarterly and annual plans, overage is invoiced monthly.",
         "Monthly renewal invoices are issued 7 days before renewal. Quarterly and annual renewal invoices are issued 14 days before renewal. Akiba sends a reminder 3 days before the due date, on the due date, and 3 days after it, and may follow up directly with the merchant.",
         "An unpaid renewal invoice has a 7-day grace period. After the grace period, Akiba may pause new Miles issuance and voucher publishing until the invoice is paid in full. Vouchers already issued to customers remain redeemable, and full service is restored after payment is confirmed.",
@@ -196,7 +197,7 @@ export const termsOfUse: LegalPage = {
       title: "11. Privacy and Account Deletion",
       paragraphs: [
         "Akiba respects your privacy. We collect data to operate the service, support rewards, and respond to relevant inquiries as described in our Privacy Policy.",
-        "You can delete your Akiba account at any time from Settings in the Akiba Pass app, or at https://app.akibamiles.com/account-deletion without the app. Section 9 of the Privacy Policy explains what is deleted, what is kept in pseudonymised form for legal and fraud-prevention purposes, what cannot be removed from the Celo blockchain, and how long processing takes.",
+        "You can delete your Akiba account at any time from Settings in the Akiba Pass app, or at https://pass.akibamiles.com/account-deletion without the app. Section 9 of the Privacy Policy explains what is deleted, what is kept in pseudonymised form for legal and fraud-prevention purposes, what cannot be removed from the Celo blockchain, and how long processing takes.",
       ],
     },
     {

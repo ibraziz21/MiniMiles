@@ -20,6 +20,10 @@ const KNOWN_USER_ROW = { full_name: "Alice K.", username: "alicek" };
 // ── Mutable flag: controls whether hub_user_passes returns a row ──────────────
 // Must be prefixed "mock" so Vitest's vi.mock hoisting allows reference.
 let mockPassExists = true;
+let mockDeletionPending = false;
+vi.mock("@/lib/akiba/accountDeletionGuard", () => ({
+  findOpenDeletionRequest: async () => mockDeletionPending ? { id: "request" } : null,
+}));
 const mockRpc = vi.fn(async (fn: string) => {
   if (fn === "create_or_get_hub_pass_with_referral") {
     return {
@@ -165,7 +169,12 @@ describe("GET /api/me/pass", () => {
 
 // ── GET /api/me/pass/resolve ──────────────────────────────────────────────────
 describe("GET /api/me/pass/resolve", () => {
-  beforeEach(() => { mockPassExists = true; vi.clearAllMocks(); });
+  beforeEach(() => { mockPassExists = true; mockDeletionPending = false; vi.clearAllMocks(); });
+
+  it("refuses a printed Pass as soon as deletion is pending", async () => {
+    mockDeletionPending = true;
+    expect((await resolveGET(resolveRequest(KNOWN_PASS_ID))).status).toBe(410);
+  });
 
   it("returns 401 when Authorization header is missing", async () => {
     const req = new Request(`http://localhost/api/me/pass/resolve?passId=${KNOWN_PASS_ID}`);

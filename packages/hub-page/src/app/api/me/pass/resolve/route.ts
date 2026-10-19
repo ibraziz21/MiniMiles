@@ -29,6 +29,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { timingSafeEqual } from "crypto";
+import { findOpenDeletionRequest } from "@/lib/akiba/accountDeletionGuard";
 
 // Key rotation: AKIBA_API_KEYS (comma-separated) takes precedence, so a new
 // key can be issued and the old one revoked without a coordinated deploy.
@@ -105,6 +106,16 @@ export async function GET(request: Request) {
       { error: "Pass not found — QR may have been regenerated" },
       { status: 404 },
     );
+  }
+
+  // A printed QR can outlive the member's session. Refuse it immediately
+  // after request acceptance, before the asynchronous worker removes it.
+  try {
+    if (await findOpenDeletionRequest(passRow.user_id)) {
+      return NextResponse.json({ error: "Pass unavailable" }, { status: 410 });
+    }
+  } catch {
+    return NextResponse.json({ error: "Pass temporarily unavailable" }, { status: 503 });
   }
 
   // ── Fetch display name from Hub users table ────────────────────────────────
