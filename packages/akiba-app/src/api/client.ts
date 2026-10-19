@@ -76,6 +76,7 @@ import {
 } from '@/contracts';
 
 import { ApiRequestError } from './errors';
+import { fetchWithTimeout } from './timeout';
 import {
   getScreenshotMerchantOffers,
   getScreenshotOwnedVouchers,
@@ -144,7 +145,7 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
       headers.Authorization = `Bearer ${accessToken}`;
     }
 
-    const response = await fetch(`${getApiBaseUrl()}${path}`, { headers });
+    const response = await fetchWithTimeout(`${getApiBaseUrl()}${path}`, { headers });
     const body: unknown = await response.json().catch(() => null);
 
     if (!response.ok) {
@@ -192,7 +193,7 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
       Authorization: `Bearer ${accessToken}`,
     };
 
-    const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    const response = await fetchWithTimeout(`${getApiBaseUrl()}${path}`, {
       method,
       headers,
       body: requestBody !== undefined ? JSON.stringify(requestBody) : undefined,

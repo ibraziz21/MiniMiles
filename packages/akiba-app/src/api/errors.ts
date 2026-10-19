@@ -14,6 +14,24 @@ export class ApiRequestError extends Error {
   }
 }
 
+/**
+ * A request that outlived its budget.
+ *
+ * Deliberately not an ApiRequestError: that type carries an HTTP status, and
+ * a timeout has none. Conflating them would also put a timeout within reach
+ * of MemberProvider's `status === 401 || 410` branch, which signs the member
+ * out — a stalled network must never look like an expired session.
+ *
+ * The message is written for a member because screens render `error.message`
+ * straight into their error state.
+ */
+export class ApiTimeoutError extends Error {
+  constructor(readonly timeoutMs: number) {
+    super('The request took too long. Check your connection and try again.');
+    this.name = 'ApiTimeoutError';
+  }
+}
+
 /** The `{ error: { code, message, retryable } }` envelope every v1 route returns. */
 export type ApiErrorEnvelope = {
   code: string | null;
