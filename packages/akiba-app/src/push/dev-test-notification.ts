@@ -23,7 +23,12 @@ import { Platform } from 'react-native';
  * Development builds only — see the __DEV__ guard at the call site.
  */
 export async function sendTestNotification(
-  deepLink = '/vouchers/purchase/test-template',
+  // A *server-shaped* link, i.e. the hub-page path a producer emits — not a
+  // native route. resolveNotificationRoute maps `/vouchers/<templateId>` to
+  // `/vouchers/purchase/<templateId>`; handing it the native route instead
+  // would fall through the whitelist to Explore and make a working deep
+  // link look broken.
+  deepLink = '/vouchers/test-template',
 ): Promise<{ ok: true } | { ok: false; reason: 'denied' | 'failed' }> {
   const permission = await Notifications.getPermissionsAsync();
   const granted =

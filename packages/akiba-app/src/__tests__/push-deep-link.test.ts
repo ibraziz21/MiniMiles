@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_ROUTE, notificationRouteShape, resolveNotificationRoute } from '@/push/deep-link';
@@ -68,6 +71,32 @@ describe('resolveNotificationRoute', () => {
       const isParameterised = /^\/(vouchers\/purchase|merchants)\/[A-Za-z0-9_-]+$/.test(route);
       expect(allowed.has(route) || isParameterised).toBe(true);
     }
+  });
+});
+
+describe('test fixtures route somewhere useful', () => {
+  // Both test harnesses carry a deep link, and both must use the *server's*
+  // path shape rather than a native route. A native route like
+  // `/vouchers/purchase/<id>` has three segments, falls through the
+  // whitelist, and lands on Explore — which makes a perfectly good deep link
+  // look broken and sends you debugging the wrong thing.
+
+  it('the simctl remote-push payload lands on the voucher screen', () => {
+    const payload = JSON.parse(
+      readFileSync(resolve(__dirname, '../../scripts/simulated-remote-push.apns'), 'utf8'),
+    ) as { 'Simulator Target Bundle': string; body: { url: string } };
+
+    // Remote notifications read content.data from the top-level `body` key
+    // (expo-notifications, NotificationRecords.swift), so the link lives there.
+    expect(payload['Simulator Target Bundle']).toBe('com.akibamiles.akiba');
+    expect(resolveNotificationRoute(payload.body.url)).toBe('/vouchers/purchase/test-template');
+  });
+
+  it("the in-app dev button's default link lands on the voucher screen", () => {
+    const source = readFileSync(resolve(__dirname, '../push/dev-test-notification.ts'), 'utf8');
+    const match = /deepLink = '([^']+)'/.exec(source);
+    expect(match).not.toBeNull();
+    expect(resolveNotificationRoute(match![1])).toBe('/vouchers/purchase/test-template');
   });
 });
 

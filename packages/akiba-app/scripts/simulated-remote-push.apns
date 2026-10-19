@@ -1,0 +1,19 @@
+{
+  "Simulator Target Bundle": "com.akibamiles.akiba",
+  "aps": {
+    "alert": {
+      "title": "You earned 250 Miles 🎉",
+      "body": "From Java House. Only 150 more to unlock a free coffee."
+    },
+    "sound": "default"
+  },
+  "body": {
+    "v": 1,
+    "notificationId": "simulated-remote-push",
+    "title": "You earned 250 Miles 🎉",
+    "body": "From Java House. Only 150 more to unlock a free coffee.",
+    "url": "/vouchers/test-template",
+    "tag": "notification:simulated-remote-push",
+    "category": "earnings"
+  }
+}

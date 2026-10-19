@@ -18,6 +18,21 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
+# FCM V1 service-account private key (push credentials).
+# NOTE: google-services.json is deliberately NOT ignored — it holds only
+# public-facing identifiers and Expo's FCM guide says to commit it. The
+# service-account keys below are the secret ones; they are uploaded to EAS
+# and must never be committed.
+#
+# The `akibamiles-*.json` rule matches Firebase's own download naming,
+# `<project-id>-<key-id>.json` (e.g. akibamiles-4089fb0340d7.json) — the
+# shape a key actually arrives in. Keep these out of the repo entirely
+# where you can; this is the backstop for when one gets moved in by hand.
+akibamiles-*.json
+google-services-account*.json
+*-firebase-adminsdk-*.json
+service-account*.json
+
 # Metro
 .metro-health-check*
 
