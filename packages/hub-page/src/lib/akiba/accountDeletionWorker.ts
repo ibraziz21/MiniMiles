@@ -449,7 +449,7 @@ async function processRequest(admin: Admin, row: DeletionRequestRow): Promise<Pr
   return { requestId: row.id, result: "completed", stepsRun };
 }
 
-async function deliverOneCompletionEmail(admin: Admin, row: DeletionRequestRow): Promise<boolean> {
+export async function deliverOneCompletionEmail(admin: Admin, row: DeletionRequestRow): Promise<boolean> {
   const contact = decryptCompletionContact(
     row.completion_contact_ciphertext,
     row.completion_contact_key_version,
@@ -470,8 +470,10 @@ async function deliverOneCompletionEmail(admin: Admin, row: DeletionRequestRow):
   });
 
   if (delivery.delivered) {
-    await admin.rpc("purge_account_deletion_contact", { p_request_id: row.id, p_delivered: true });
-    return true;
+    const purge = await admin.rpc("purge_account_deletion_contact", { p_request_id: row.id, p_delivered: true });
+    // A lost acknowledgement retries with the provider's same idempotency
+    // key rather than silently claiming contact removal succeeded.
+    return !purge.error;
   }
 
   // A permanent failure (bad key, unverified sending domain, address the

@@ -81,12 +81,12 @@ dependencies entirely.
 
 - Privacy policy URL: production `/privacy-policy`
 - User Privacy Choices URL (optional): production `/account-deletion`
-- Account deletion: the in-app path exists — Settings → Danger zone → Delete
-  account — but **it currently refuses requests**. `deletionAvailability()`
-  returns `retention_inventory_unapproved` while any inventory row is
-  unapproved, and the submission/processing switches are off. Do not
-  declare deletion as available until a request actually completes end to
-  end; a reviewer following this path today reaches the support fallback
+- Account deletion: Settings → Danger zone → Delete account and the public
+  web flow submit verified requests to the same backend. Admin Dashboard guided
+  shared-account cleanup, verification and independent completion notices are
+  implemented under notice `.3`. Production is not enabled by this code change;
+  do not declare deletion available until deployment and the full staging/live
+  acceptance procedure succeed. See `packages/admin-dashboard/docs/account-deletion-operations.md`.
 - Privacy manifest: inspect the generated manifest inside the archived `.ipa`
   (§15.4). **TBD** until a build exists.
 - Encryption declaration: **TBD** — the app uses HTTPS and platform
@@ -96,8 +96,9 @@ dependencies entirely.
 
 - Data deletion URL: production `/account-deletion` (works without the app)
 - In-app deletion path: Settings → Danger zone → Delete account — **gated**,
-  see the Apple note above. The public URL works and is the honest answer
-  for the Data deletion field until the in-app flow accepts requests
+  see the note above. Both the declared web resource and the in-app path must
+  support a working request and fulfillment process; a reachable page alone is
+  not evidence that deletion is operational
 - Encryption in transit: yes — all API and Supabase traffic is HTTPS
 - Account creation: yes, email OTP on first sign-in. Password sign-in also
   exists for members who set one, and is how a Play reviewer signs in

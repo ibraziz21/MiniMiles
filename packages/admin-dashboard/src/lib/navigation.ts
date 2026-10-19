@@ -164,6 +164,7 @@ const DESKTOP_PRIMARY_MODULES: NavNode[] = [
       { id: "merchants-profile-reviews", label: "Profile Reviews", icon: ClipboardCheck, targetRoute: "/directory-reviews", permission: "merchants.read" },
       { id: "merchants-discovery-items", label: "Discovery Items", icon: Sparkles, targetRoute: "/discovery-items", permission: "discovery.read" },
       { id: "merchants-discovery-photos", label: "Discovery Photos", icon: ImageIcon, targetRoute: "/discovery-photos", permission: "discovery.read" },
+      { id: "merchants-discovery-reports", label: "Content Reports", icon: ShieldCheck, targetRoute: "/discovery-reports", permission: "discovery.read" },
       { id: "merchants-discovery-health", label: "Discovery Health", icon: Activity, targetRoute: "/verified-discovery-health", permission: "discovery.read" },
       { id: "merchants-leads", label: "Leads", icon: Inbox, targetRoute: "/leads", permission: "leads.read" },
     ],
@@ -198,12 +199,15 @@ const DESKTOP_PRIMARY_MODULES: NavNode[] = [
       { id: "system-audit", label: "Audit Log", icon: ScrollText, targetRoute: "/audit-log", permission: "audit.read" },
       { id: "system-team", label: "Admin Team", icon: ShieldCheck, targetRoute: "/team", permission: "audit.read" },
       { id: "system-members", label: "Members", icon: Users, targetRoute: "/users", permission: "users.read" },
+      { id: "system-deletions", label: "Account Deletions", icon: ShieldCheck, targetRoute: "/account-deletions", permission: "deletions.read" },
       { id: "system-settings", label: "Settings", icon: Settings, targetRoute: "/settings" },
     ],
   },
 ];
 
 const MOBILE_MORE_DESTINATIONS: NavNode[] = [
+  { id: "more-deletions", label: "Account Deletions", icon: ShieldCheck, targetRoute: "/account-deletions", permission: "deletions.read" },
+  { id: "more-discovery-reports", label: "Content Reports", icon: ShieldCheck, targetRoute: "/discovery-reports", permission: "discovery.read" },
   { id: "more-merchants", label: "Merchants", icon: Store, targetRoute: "/merchants", permission: "merchants.read" },
   { id: "more-insights", label: "Insights", icon: BarChart2, targetRoute: "/insights/polls", permission: "polls.read" },
   { id: "more-members", label: "Members", icon: Users, targetRoute: "/users", permission: "users.read" },

@@ -33,14 +33,14 @@ export type CompletionEmailMessage = {
 
 type Adapter = (message: CompletionEmailMessage) => Promise<DeliveryResult>;
 
-const SUBJECT = "Your Akiba native-app deletion is complete";
+const SUBJECT = "Your shared Akiba account deletion is complete";
 
 function body(message: CompletionEmailMessage): string {
   // Plain text on purpose. This is a legal notice, it must render in any
   // client, and it carries no link that could be mistaken for a sign-in.
   return [
-    "Your Akiba native-app deletion request has been completed.",
-    "This does not close your shared Akiba account or remove rewards in other Akiba services.",
+    "Your shared Akiba member account deletion has been completed.",
+    "Access to the shared account, account-bound rewards and linked wallet associations has been removed.",
     "",
     `Request reference: ${message.requestReference}`,
     `Completed: ${new Date(message.completedAt).toISOString().slice(0, 10)}`,
@@ -75,6 +75,7 @@ const resendAdapter: Adapter = async (message) => {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
+        "Idempotency-Key": `account-deletion/${message.requestReference}`,
       },
       body: JSON.stringify({
         from: fromAddress(),

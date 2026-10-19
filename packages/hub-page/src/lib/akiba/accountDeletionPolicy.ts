@@ -21,7 +21,7 @@
  * only this value, so an app build showing older copy is rejected rather than
  * silently recording consent to a policy the member never saw.
  */
-export const DELETION_POLICY_VERSION = "2026-10-19.2";
+export const DELETION_POLICY_VERSION = "2026-10-19.3";
 
 /** §4.5 — the member-facing maximum processing target, in calendar days. */
 export const PROCESSING_TARGET_DAYS = 14;
@@ -120,7 +120,7 @@ export const DELETION_INVENTORY: InventoryRow[] = [
     targets: ["auth.users"],
     action: "delete",
     retention: null,
-    notes: "TBD: the native-only release must not delete the shared Auth identity. Account lifecycle and effects on other services need review before activation.",
+    notes: "TBD: full shared-account closure is now authorized. Admin fulfilment verifies erasure under notice .3; formal inventory terms still gate unattended automation.",
   },
   {
     id: "profile_contact",
@@ -128,7 +128,7 @@ export const DELETION_INVENTORY: InventoryRow[] = [
     targets: ["hub_user_profiles"],
     action: "delete",
     retention: NO_RETENTION_NEEDED,
-    notes: "Native Hub profile only. Shared leaderboard identity projections have their own scope-review row.",
+    notes: "Hub contact profile is removed; admin full-account fulfilment also removes shared username projections.",
   },
   {
     id: "pass_credentials",
@@ -185,7 +185,7 @@ export const DELETION_INVENTORY: InventoryRow[] = [
     targets: ["hub_user_wallets", "wallet_link_challenges"],
     action: "unlink",
     retention: null,
-    notes: "TBD: shared wallet relationships are outside the native-only release; review effects on other Akiba services before removing links.",
+    notes: "TBD: shared wallet unlinking is authorized under notice .3; formal processor/access terms and unsupported identity aliases still need review before unattended automation.",
   },
   {
     id: "deletion_challenges",
@@ -356,7 +356,7 @@ export const DELETION_INVENTORY: InventoryRow[] = [
     targets: ["leaderboard_profiles", "leaderboard_username_changes"],
     action: "unlink",
     retention: null,
-    notes: "TBD: native-only scope must preserve shared identity projections until cross-service effects are reviewed.",
+    notes: "TBD: full-account scope now includes removing shared username projections. Formal inventory approval remains separate from admin-directed verified cleanup.",
   },
   {
     id: "canonical_identity",
@@ -365,7 +365,7 @@ export const DELETION_INVENTORY: InventoryRow[] = [
     action: "pseudonymize",
     retention: null,
     workingPeriod: { days: 180 },
-    notes: "TBD: exact shared-service scope and access/processor terms. Native reward evidence is accepted for 180 days; unreviewed shared histories must fail preflight, not be silently erased.",
+    notes: "TBD: full shared-account scope is authorized; access/processor terms and the retained Platform ledger schedule still need review. Native reward evidence is accepted for 180 days; unreviewed histories fail preflight rather than being silently erased.",
   },
   {
     id: "deletion_record",

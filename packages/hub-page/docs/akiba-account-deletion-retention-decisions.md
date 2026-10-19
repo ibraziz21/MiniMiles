@@ -1,5 +1,11 @@
 # Account deletion — retention decision sheet
 
+**Latest scope decision:** the user subsequently chose **Entire shared Akiba
+account** for Admin Dashboard fulfilment. [BDR-004](../../../docs/BDR-004-admin-shared-account-deletion.md)
+supersedes the native-only scope below. Working evidence periods stay accepted;
+unsupported financial/identity histories still require review. Formal inventory
+approval remains separate from this product scope decision.
+
 - **Blocks:** AKIBA-MOB-002 §9, and therefore account deletion processing
 - **Owners:** Akiba data-protection owner (all rows), finance (settlement and
   prize rows), product (published content)

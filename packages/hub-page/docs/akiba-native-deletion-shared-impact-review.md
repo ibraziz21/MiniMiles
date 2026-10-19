@@ -1,5 +1,10 @@
 # Native deletion: shared-account impact review
 
+**Historical review:** the user has since explicitly selected entire shared
+Akiba member-account deletion. [BDR-004](../../../docs/BDR-004-admin-shared-account-deletion.md)
+records the approved scope and verified admin workflow. The earlier native-only
+recommendation below no longer describes the intended deletion effect.
+
 Reviewed 2026-10-19 after the user selected **native-app data only; review shared-account effects first**. Source inspected in MiniMiles and `/Users/ibraziz21/Desktop/Work/Akiba-Platform/packages/api` plus Platform migrations. No Platform source was edited and no production data was modified.
 
 ## Finding

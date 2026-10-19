@@ -108,28 +108,24 @@ describe("legal surface parity", () => {
   });
 
   it("names one and only one Akiba host across the legal copy", () => {
-    // The repo currently has three candidate production hosts in play —
-    // pass.akibamiles.com (MPESA_CALLBACK_URL), hub.akibamiles.com (the
-    // sitemap and merchant-page fallbacks), and app.akibamiles.com (this
-    // copy) — and NEXT_PUBLIC_SITE_URL points at a vercel.app domain. The
-    // canonical host is an open decision; until it lands, this at least
-    // fails if the legal copy starts naming more than one.
+    // Product ratified pass.akibamiles.com as the canonical native-app
+    // backend/legal host. Other Akiba applications use different hosts.
     const legal = readFileSync(path.join(process.cwd(), "src/content/legal.ts"), "utf8");
     const hosts = new Set(
       [...legal.matchAll(/https:\/\/([a-z.-]*akibamiles\.com)/g)].map((match) => match[1]),
     );
-    expect([...hosts]).toHaveLength(1);
+    expect([...hosts]).toEqual(["pass.akibamiles.com"]);
   });
 
   it("serves the same deletion URL in the config contract that the page is mounted at", () => {
     // §15.1 "public page/config URL parity": the URL the app and the store
     // listings read must be the route that actually exists.
-    const links = getLegalLinks("https://app.akibamiles.com");
-    expect(links.accountDeletionUrl).toBe("https://app.akibamiles.com/account-deletion");
+    const links = getLegalLinks("https://pass.akibamiles.com");
+    expect(links.accountDeletionUrl).toBe("https://pass.akibamiles.com/account-deletion");
     expect(existsSync(path.join(process.cwd(), "src/app/account-deletion/page.tsx"))).toBe(true);
-    expect(links.privacyUrl).toBe("https://app.akibamiles.com/privacy-policy");
+    expect(links.privacyUrl).toBe("https://pass.akibamiles.com/privacy-policy");
     expect(existsSync(path.join(process.cwd(), "src/app/privacy-policy/page.tsx"))).toBe(true);
-    expect(links.termsUrl).toBe("https://app.akibamiles.com/terms-of-use");
+    expect(links.termsUrl).toBe("https://pass.akibamiles.com/terms-of-use");
     expect(existsSync(path.join(process.cwd(), "src/app/terms-of-use/page.tsx"))).toBe(true);
   });
 });

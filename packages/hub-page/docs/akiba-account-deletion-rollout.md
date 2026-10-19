@@ -1,5 +1,12 @@
 # Account deletion implementation and rollout
 
+**Updated scope and workflow:** the user now authorizes entire shared-member
+account deletion through the Admin Dashboard. Migration 108 implements guided,
+verified fulfilment; see [BDR-004](../../../docs/BDR-004-admin-shared-account-deletion.md)
+and [operations](../../admin-dashboard/docs/account-deletion-operations.md).
+The historical native-only state below is superseded. Production is still off;
+new notice `.3`, staging validation and deployment configuration are required.
+
 ## Current state — 2026-10-19
 
 **Scope was narrowed by the user to native-app data, with shared-account effects reviewed first.** See [the shared impact review](akiba-native-deletion-shared-impact-review.md). Shared Auth, wallet/canonical identities, usernames and the global ledger are preserved. The end-to-end account lifecycle remains blocked in code and SQL; configuration flags alone cannot activate it.

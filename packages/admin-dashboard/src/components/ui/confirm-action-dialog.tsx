@@ -13,6 +13,7 @@ interface ConfirmActionDialogProps {
   confirmLabel: string;
   variant?: "default" | "destructive";
   onConfirm: () => Promise<void> | void;
+  confirmDisabled?: boolean;
 }
 
 export function ConfirmActionDialog({
@@ -23,6 +24,7 @@ export function ConfirmActionDialog({
   confirmLabel,
   variant = "default",
   onConfirm,
+  confirmDisabled = false,
 }: ConfirmActionDialogProps) {
   const [busy, setBusy] = useState(false);
 
@@ -46,7 +48,7 @@ export function ConfirmActionDialog({
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancel
           </Button>
-          <Button variant={variant} size="sm" onClick={handleConfirm} disabled={busy}>
+          <Button variant={variant} size="sm" onClick={handleConfirm} disabled={busy || confirmDisabled}>
             {busy ? "Working…" : confirmLabel}
           </Button>
         </div>

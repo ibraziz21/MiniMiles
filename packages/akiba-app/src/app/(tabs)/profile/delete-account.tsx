@@ -365,8 +365,8 @@ function ReviewStep({
           <Stat label="Active vouchers" value={String(summary.activeVoucherCount)} />
         </View>
         <Text style={styles.bodyText}>
-          Deletion ends access to your native Akiba Pass and account-bound vouchers in this app.
-          It does not close accounts with other Akiba services or remove rewards held there.
+          Deletion closes your shared Akiba member account across connected Akiba services.
+          You lose access to account-bound Miles, Passes and vouchers, and linked wallet associations are removed.
           Having a balance won&apos;t block your request.
         </Text>
       </Section>
@@ -386,6 +386,16 @@ function ReviewStep({
           unless we&apos;re legally required to hold data longer. We&apos;ll email {summary.maskedEmail}{' '}
           when it&apos;s done. You can&apos;t cancel the request yourself once you confirm it.
         </Text>
+        {summary.fulfilment === 'manual' ? (
+          // Said plainly rather than hidden: a person carries this out, so it
+          // is not instant, and the member should not be left wondering why
+          // they can still sign in afterwards.
+          <Text style={styles.bodyText}>
+            Our team reviews and processes this request, so deletion won&apos;t happen the moment you
+            confirm. Your unredeemed vouchers stop working straight away. You can still sign in while
+            the request waits for review; access stops when cleanup begins.
+          </Text>
+        ) : null}
       </Section>
 
       <View style={styles.actions}>
@@ -516,8 +526,8 @@ function ConfirmStep({
           size={22}
         />
         <Text style={styles.acknowledgeLabel}>
-          I understand that I will lose access to my Akiba Pass, active vouchers, and account-based
-          rewards.
+          I understand that my shared Akiba account will close and I will lose sign-in access,
+          my Akiba Pass, active vouchers, account-based rewards and linked wallet associations.
         </Text>
       </Button>
 
