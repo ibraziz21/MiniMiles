@@ -10,7 +10,10 @@
     "userInterfaceStyle": "light",
     "ios": {
       "bundleIdentifier": "com.akibamiles.akiba",
-      "buildNumber": "1"
+      "buildNumber": "1",
+      "associatedDomains": [
+        "applinks:pass.akibamiles.com"
+      ]
     },
     "android": {
       "package": "com.akibamiles.akiba",
@@ -29,6 +32,28 @@
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ],
+          "data": [
+            {
+              "scheme": "https",
+              "host": "pass.akibamiles.com",
+              "pathPrefix": "/merchants"
+            },
+            {
+              "scheme": "https",
+              "host": "pass.akibamiles.com",
+              "pathPrefix": "/vouchers"
+            }
+          ]
+        }
       ]
     },
     "plugins": [
@@ -47,8 +72,23 @@
           "locationWhenInUsePermission": "Allow Akiba to use your location to show nearby merchants."
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Akiba to choose photos for your verified visits.",
+          "cameraPermission": "Allow Akiba to take photos for your verified visits.",
+          "microphonePermission": false
+        }
+      ],
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "color": "#238D9D",
+          "defaultChannel": "default"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

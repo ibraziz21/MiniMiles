@@ -21,7 +21,15 @@ export type AnalyticsEvent =
   | 'account_deletion_verification_failed'
   | 'account_deletion_confirmed'
   | 'account_deletion_request_accepted'
-  | 'account_deletion_request_failed';
+  | 'account_deletion_request_failed'
+  // Native push (migration plan Phase 5). Permission outcome and device
+  // registration only — never a push token, which scrubProps would redact
+  // as a long opaque value anyway.
+  | 'push_permission_requested'
+  | 'push_permission_granted'
+  | 'push_permission_denied'
+  | 'push_device_registered'
+  | 'push_notification_opened';
 
 /** Only non-PII scalars are carryable — see scrubProps in ./track. */
 export type AnalyticsProps = Record<string, string | number | boolean | null | undefined>;

@@ -129,6 +129,7 @@ export type PublicVerifiedVisit = {
 /** Private confirmation shown only to the signed-in contributing member. */
 export type MemberVerifiedVisitSummary = {
   id: string;
+  requestId: string;
   submittedAt: string;
   recommendation: "recommended" | "not_recommended" | "skipped";
   photoState: "none" | "under_review" | "approved" | "not_approved";

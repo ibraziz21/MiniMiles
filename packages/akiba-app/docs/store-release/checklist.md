@@ -37,6 +37,27 @@ Status key: `done` · `blocked` · `todo`
 | Expo SDK package versions aligned (`expo install --fix`) | done | Engineering | 2026-10-15 | Updated to the current SDK 57 patches; `expo-doctor` 21/21 |
 | Node version matches `engines` (`>=22.13.0`) | done | Engineering | 2026-10-15 | All EAS profiles pin Node 22.13.0; local verification uses the bundled Node 24 runtime |
 
+## Native push and deep links
+
+Added 2026-10-19 with the native push foundation (migration 101, Phase 5).
+See `packages/hub-page/docs/hub-mobile-app-migration-plan.md`
+§"Push notifications → Status" for what shipped.
+
+| Item | Status | Owner | Date | Note |
+|---|---|---|---|---|
+| Device-token schema, registration API, native sender branch | done | Engineering | 2026-10-19 | `101_native_push_devices.sql`, `/api/v1/me/devices`, `adapters/native.ts` |
+| Transport decision (Expo Push vs direct FCM/APNs) | done | Engineering / Product | 2026-10-19 | Expo Push; `native_device_token` reserved for a later direct path |
+| APNs key + FCM credentials uploaded to Expo (`eas credentials`) | **blocked** | Operations | | Nothing has been delivered end to end without these. Keep `NATIVE_PUSH_ENABLED=false` until done |
+| `NATIVE_PUSH_ENABLED` set per environment | **blocked** | Operations | | Gates both the bootstrap capability and device registration |
+| **iOS `aps-environment` for store builds** | **todo** | Engineering | | `expo-notifications` `mode` defaults to `development`; a store build needs `production` or it receives no production APNs push. Not settable per EAS profile from a static `app.json` — converting to `app.config.js` must also update `scripts/validate-production-build.mjs`, which reads `app.json` directly. **Decide before the first TestFlight build** |
+| 96×96 all-white notification icon (Android) | todo | Brand | | `icon` omitted from the plugin rather than mis-using the 1024px monochrome layer; Android currently falls back to the app icon |
+| `APPLE_TEAM_ID` set so `/.well-known/apple-app-site-association` serves | blocked | Operations | | 404s until set, deliberately — iOS caches a fetched association |
+| `ANDROID_CERT_SHA256` set so `/.well-known/assetlinks.json` serves | blocked | Operations | | From `eas credentials`; list both upload and Play App Signing keys during rollout |
+| App-link host confirmed | done | Product | 2026-10-19 | `pass.akibamiles.com`, scoped to `/merchants/*` and `/vouchers/*` |
+| Push opens the correct screen from foreground, background and terminated states (§Phase 5 exit) | todo | Engineering | | Needs credentials and a physical-device run; taps route in-process and do not depend on app-link verification |
+| Expo delivery receipts polled | todo | Engineering | | `provider_ticket` is stored; nothing reads `/push/getReceipts`, so an accepted-then-failed send still reads as `accepted` |
+| Notification copy reviewed for the lock screen | todo | Product / Legal | | Templates are shared with web push (`src/lib/push/templates.ts`) and already avoid amounts, receipts and identity |
+
 ## Assets and fonts
 
 | Item | Status | Owner | Date | Note |
@@ -77,7 +98,7 @@ Status key: `done` · `blocked` · `todo`
 | Review notes: OTP login, location, Pass QR, Miles, vouchers, no cash-out | todo | Product | | Draft in `metadata.md` |
 | Durable review account or review-safe OTP procedure | **blocked** | Engineering / Support | | Reviewers cannot receive a member's email OTP |
 | Export compliance, content rights, advertising, financial declarations | blocked | Legal | | |
-| No mention of Gifts, Games, raffles, or push anywhere in the listing | todo | Product | | Gifts is hidden by `features.gifts` in the production config |
+| No mention of Gifts, Games, raffles, or push anywhere in the listing | todo | Product | | Gifts is hidden by `features.gifts` in the production config. Push now exists in the binary (migration 101) but ships switched off via `NATIVE_PUSH_ENABLED`, so it must still stay out of the listing until credentials are in place and delivery is verified on a device |
 
 ### Hub production build
 

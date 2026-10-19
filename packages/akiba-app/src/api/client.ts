@@ -7,8 +7,11 @@ import {
   mobileConfigSchema,
   mobileHomeSchema,
   mobilePassSchema,
+  passPresentationSchema,
   mobileSettingsSchema,
   settingsUpdateSchema,
+  deviceRegistrationSchema,
+  notificationPreferencesSchema,
   merchantDirectoryResponseSchema,
   voucherCatalogueSchema,
   voucherStateSchema,
@@ -18,6 +21,9 @@ import {
   merchantDetailSchema,
   merchantStateDetailSchema,
   verifiedVisitHelpfulResponseSchema,
+  verifiedVisitPhotoUploadIntentSchema,
+  verifiedVisitPhotoCompletionSchema,
+  verifiedVisitPhotoWithdrawalSchema,
   offerReminderStateSchema,
   merchantOfferFeedSchema,
   ownedVouchersListSchema,
@@ -35,8 +41,12 @@ import {
   type MobileConfig,
   type MobileHome,
   type MobilePass,
+  type PassPresentation,
   type MobileSettings,
   type SettingsUpdate,
+  type DeviceRegistration,
+  type NotificationPreferences,
+  type NotificationCategory,
   type MerchantDirectoryResponse,
   type VoucherCatalogue,
   type VoucherState,
@@ -46,6 +56,9 @@ import {
   type MerchantDetail,
   type MerchantStateDetail,
   type VerifiedVisitHelpfulResponse,
+  type VerifiedVisitPhotoUploadIntent,
+  type VerifiedVisitPhotoCompletion,
+  type VerifiedVisitPhotoWithdrawal,
   type OfferReminderState,
   type MerchantOfferFeed,
   type OwnedVouchersList,
@@ -264,6 +277,38 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
       }
       return get('/api/v1/me/pass', mobilePassSchema);
     },
+    getPassPresentation(): Promise<PassPresentation> {
+      return mutate('POST', '/api/v1/me/pass/token', passPresentationSchema);
+    },
+    // ── Native push (migration plan P1 "Native push") ────────────────
+    // Registration is idempotent on the server: the same installation
+    // re-registering after a token rotation updates its row rather than
+    // adding one, so retrying after a dropped response is always safe.
+    registerDevice(input: {
+      installationId: string;
+      platform: 'ios' | 'android';
+      expoPushToken: string;
+      appVersion?: string | null;
+      buildNumber?: string | null;
+      locale?: string | null;
+      timezone?: string | null;
+    }): Promise<DeviceRegistration> {
+      return mutate('POST', '/api/v1/me/devices', deviceRegistrationSchema, input);
+    },
+    // Also idempotent: unregistering an installation that is already revoked
+    // (or was never registered) succeeds rather than erroring.
+    unregisterDevice(installationId: string): Promise<DeviceRegistration> {
+      return mutate('DELETE', '/api/v1/me/devices', deviceRegistrationSchema, { installationId });
+    },
+    getNotificationPreferences(): Promise<NotificationPreferences> {
+      if (!accessToken) {
+        return Promise.reject(new Error('getNotificationPreferences requires an authenticated access token'));
+      }
+      return get('/api/v1/me/notification-preferences', notificationPreferencesSchema);
+    },
+    updateNotificationPreferences(patch: Partial<Record<NotificationCategory, boolean>>): Promise<NotificationPreferences> {
+      return mutate('PATCH', '/api/v1/me/notification-preferences', notificationPreferencesSchema, patch);
+    },
     getSettings(): Promise<MobileSettings> {
       if (!accessToken) {
         return Promise.reject(new Error('getSettings requires an authenticated access token'));
@@ -329,6 +374,38 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
         'DELETE',
         `/api/v1/merchants/${encodeURIComponent(slug)}/verified-visits/${encodeURIComponent(visitId)}/helpful`,
         verifiedVisitHelpfulResponseSchema,
+      );
+    },
+    createVerifiedVisitPhotoUploadIntent(
+      contributionId: string,
+      contentType: string,
+    ): Promise<VerifiedVisitPhotoUploadIntent> {
+      return mutate(
+        'POST',
+        `/api/v1/me/discovery-contributions/${encodeURIComponent(contributionId)}/photos/upload-intent`,
+        verifiedVisitPhotoUploadIntentSchema,
+        { contentType, consentVersion: 'v1' },
+      );
+    },
+    completeVerifiedVisitPhotoUpload(
+      contributionId: string,
+      photoId: string,
+    ): Promise<VerifiedVisitPhotoCompletion> {
+      return mutate(
+        'POST',
+        `/api/v1/me/discovery-contributions/${encodeURIComponent(contributionId)}/photos/${encodeURIComponent(photoId)}/complete`,
+        verifiedVisitPhotoCompletionSchema,
+        {},
+      );
+    },
+    withdrawVerifiedVisitPhoto(
+      contributionId: string,
+      photoId: string,
+    ): Promise<VerifiedVisitPhotoWithdrawal> {
+      return mutate(
+        'DELETE',
+        `/api/v1/me/discovery-contributions/${encodeURIComponent(contributionId)}/photos/${encodeURIComponent(photoId)}`,
+        verifiedVisitPhotoWithdrawalSchema,
       );
     },
     getOfferReminder(offerId: string): Promise<OfferReminderState> {

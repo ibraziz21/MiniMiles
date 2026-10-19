@@ -7,6 +7,7 @@ import { ConnectionErrorScreen, LaunchLoadingScreen } from '@/components/launch-
 import { PassTabBar } from '@/components/pass-tab-bar';
 import { useFeatureFlags } from '@/config';
 import { useMember } from '@/member';
+import { PushRegistrar } from '@/push';
 import { colors } from '@/design-system';
 
 export default function TabsLayout() {
@@ -32,6 +33,11 @@ export default function TabsLayout() {
 
   return (
     <SafeAreaView edges={['top']} style={styles.shell}>
+      {/* Renders nothing. It sits here rather than in the root layout so the
+          notification-permission prompt happens below every guard above —
+          signed in, bootstrap loaded, onboarding finished — and never on a
+          cold start (migration plan Phase 5). */}
+      <PushRegistrar />
       <Tabs screenOptions={{ headerShown: false }} tabBar={() => <PassTabBar showGifts={gifts} />}>
         <Tabs.Screen name="index" options={{ title: 'Explore' }} />
         <Tabs.Screen name="merchants" options={{ title: 'Merchants' }} />

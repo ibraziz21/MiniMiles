@@ -1,6 +1,10 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 
+// Imported from the module rather than the '@/push' barrel: the barrel also
+// exports PushRegistrar, which imports this provider.
+import { unregisterPushNotifications } from '@/push/register';
+
 import { restoreSession } from './session';
 import { supabase } from './supabase';
 
@@ -46,6 +50,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     accessToken: session?.access_token ?? null,
     loading,
     signOut: async () => {
+      // Release this install's push registration while the token is still
+      // valid — otherwise the next member to sign in on this phone inherits
+      // the previous one's notifications until their first send fails.
+      // Best effort by design: a failure here must never block signing out.
+      const token = session?.access_token;
+      if (token) await unregisterPushNotifications(token);
       await supabase.auth.signOut();
     },
   };

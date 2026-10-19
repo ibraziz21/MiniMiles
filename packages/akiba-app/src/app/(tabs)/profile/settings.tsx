@@ -4,12 +4,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Image } from 'expo-image';
 import { router, Stack } from 'expo-router';
-import { KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { createApiClient, ApiRequestError } from '@/api';
 import { supabase, useAuth } from '@/auth';
 import { useAppConfig } from '@/config';
+import { sendTestNotification } from '@/push';
 import type { MobileSettings } from '@/contracts';
 import { ActivityIndicator, Icon, ListGroup, ListRow, ScrollView, colors, fontFamily } from '@/design-system';
 
@@ -64,7 +65,32 @@ function SettingsContent({ accessToken, initial, onSignOut }: { accessToken: str
     <View style={styles.profileCard}><View style={styles.avatar}>{profile.avatarUrl ? <Image source={{ uri: profile.avatarUrl }} style={styles.avatarImage} contentFit="cover" /> : <Text style={styles.avatarInitial}>{initials}</Text>}</View><View style={styles.flex}><Text style={styles.identity} numberOfLines={1}>{identity}</Text>{profile.email ? <Text style={styles.meta} numberOfLines={1}>{profile.email}</Text> : null}</View></View>
 
     <SettingsSection title="Profile details"><ListRow icon="at-sign" label="Username" description={profile.username ? `@${profile.username}` : 'Choose a username'} onPress={() => setEditor('username')} /><ListRow icon="phone" label="Phone number" description={profile.phone ?? 'Add a phone number'} onPress={() => setEditor('phone')} /><ListRow icon="map-pin" label="Location" description={location} onPress={() => setEditor('location')} /></SettingsSection>
-    <SettingsSection title="Notifications"><ListRow icon="bell" label="Notifications" description="Reward and account updates" onPress={() => Linking.openSettings()} /></SettingsSection>
+    <SettingsSection title="Notifications">
+      <ListRow icon="bell" label="Notifications" description="Reward and account updates" onPress={() => Linking.openSettings()} />
+      {/* Development builds only. `__DEV__` is false in any release build, so
+          this never reaches a store binary. Fires a *local* notification
+          shaped like a real earned-Miles push: it proves permission, the
+          Android channel, the banner and the tap-to-deep-link path without
+          needing Expo Push credentials. It does not prove delivery. */}
+      {__DEV__ ? (
+        <ListRow
+          icon="bell"
+          label="Send a test notification"
+          description="Local only — does not test push delivery"
+          onPress={async () => {
+            const result = await sendTestNotification();
+            if (!result.ok) {
+              Alert.alert(
+                'Test notification not sent',
+                result.reason === 'denied'
+                  ? 'Notification permission has not been granted on this device.'
+                  : 'Could not schedule the notification.',
+              );
+            }
+          }}
+        />
+      ) : null}
+    </SettingsSection>
     <SettingsSection title="Account & security"><ListRow icon="mail" label="Email" description={profile.email ?? 'No email on this account'} showChevron={false} /><ListRow icon="lock" label="Security" description="Password & sign-in" onPress={() => setEditor('security')} /></SettingsSection>
     <SettingsSection title="Help & legal">{helpLinks.map((link) => <ListRow key={link.label} icon={link.icon} label={link.label} description={link.description} onPress={() => Linking.openURL(link.url)} />)}</SettingsSection>
     <ListGroup><ListRow icon="log-out" label="Sign out" variant="danger" showChevron={false} onPress={onSignOut} /></ListGroup>

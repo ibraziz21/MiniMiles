@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
-  contribution: null as null | { id: string; submitted_at: string; would_recommend: boolean | null },
+  contribution: null as null | {
+    id: string;
+    request_id: string;
+    submitted_at: string;
+    would_recommend: boolean | null;
+  },
   contributionError: null as null | { message: string },
   photos: [] as Array<{ moderation_status: string }>,
   openRequest: null as null | { id: string },
@@ -110,6 +115,7 @@ describe("member verified visit summary", () => {
   it("returns the signed-in member's private saved-visit confirmation", async () => {
     state.contribution = {
       id: "contribution-1",
+      request_id: "request-1",
       submitted_at: "2026-10-01T10:00:00.000Z",
       would_recommend: true,
     };
@@ -117,6 +123,7 @@ describe("member verified visit summary", () => {
 
     await expect(getMemberVerifiedVisitSummary("member-1", "merchant-1")).resolves.toEqual({
       id: "contribution-1",
+      requestId: "request-1",
       submittedAt: "2026-10-01T10:00:00.000Z",
       recommendation: "recommended",
       photoState: "under_review",

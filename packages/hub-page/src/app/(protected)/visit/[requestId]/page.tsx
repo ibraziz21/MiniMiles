@@ -13,6 +13,7 @@ export const metadata = { title: "Add your visit — Akiba" };
 type MentionShape = { client_item_key: string; raw_label: string };
 
 type ContributionRow = {
+  id: string;
   would_recommend: boolean | null;
   negative_reason_id: string | null;
   party_size: number | null;
@@ -39,7 +40,13 @@ function one<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-export default async function VisitCardPage({ params }: { params: { requestId: string } }) {
+export default async function VisitCardPage({
+  params,
+  searchParams,
+}: {
+  params: { requestId: string };
+  searchParams?: { step?: string };
+}) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -51,7 +58,7 @@ export default async function VisitCardPage({ params }: { params: { requestId: s
   const { data: request } = await admin
     .from("discovery_contribution_requests")
     .select(
-      "id, state, expires_at, template_snapshot, merchant:partners(name, slug), contribution:merchant_discovery_contributions(would_recommend, negative_reason_id, party_size, party_size_is_six_plus, experience_option_ids, withdrawn_at, items:merchant_discovery_contribution_items(is_recommended, mention:merchant_discovery_item_mentions(client_item_key, raw_label)))",
+      "id, state, expires_at, template_snapshot, merchant:partners(name, slug), contribution:merchant_discovery_contributions(id, would_recommend, negative_reason_id, party_size, party_size_is_six_plus, experience_option_ids, withdrawn_at, items:merchant_discovery_contribution_items(is_recommended, mention:merchant_discovery_item_mentions(client_item_key, raw_label)))",
     )
     .eq("id", params.requestId)
     .eq("hub_user_id", user.id)
@@ -72,6 +79,7 @@ export default async function VisitCardPage({ params }: { params: { requestId: s
 
   const initialContribution: InitialContribution | null = resolvedContributionRow
     ? {
+        id: resolvedContributionRow.id,
         wouldRecommend: resolvedContributionRow.would_recommend,
         negativeReasonId: resolvedContributionRow.negative_reason_id,
         partySize: resolvedContributionRow.party_size,
@@ -97,6 +105,7 @@ export default async function VisitCardPage({ params }: { params: { requestId: s
       initialState={request.state}
       expiresAt={request.expires_at}
       initialContribution={initialContribution}
+      startWithPhotos={searchParams?.step === "photos" && initialContribution !== null}
     />
   );
 }

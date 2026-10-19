@@ -17,6 +17,7 @@ export const colors = {
   dangerTint: '#FEF2F2',
   scrim: 'rgba(0,0,0,0.68)',
   imageControl: 'rgba(0,0,0,0.55)',
+  imageShade: 'rgba(0,0,0,0.18)',
 } as const;
 
 export const spacing = {

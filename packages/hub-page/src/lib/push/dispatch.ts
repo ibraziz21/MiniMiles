@@ -1,29 +1,14 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getWebPushClient, vapidConfigured } from "./vapid";
+import { vapidConfigured } from "./vapid";
+import { nativePushConfigured } from "./expo";
 import { renderTemplate } from "./templates";
 import { buildPushPayload } from "./payload";
+import { sendWebPush } from "./adapters/web";
+import { sendNativePush } from "./adapters/native";
+import { NO_TARGETS, type AdapterResult, type PushJob } from "./adapters/types";
 
 const BATCH_SIZE = 25;
 const WORKER_ID = `hub-push-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
-
-interface ClaimedJob {
-  job_id: string;
-  notification_id: string;
-  hub_user_id: string;
-  template: string;
-  category: string;
-  deep_link: string;
-  metadata: Record<string, unknown>;
-  attempts: number;
-}
-
-interface SubscriptionRow {
-  id: string;
-  endpoint: string;
-  p256dh: string;
-  auth_secret: string;
-  failure_count: number;
-}
 
 type PreferenceRow = {
   orders_enabled: boolean;
@@ -46,6 +31,42 @@ export function categoryEnabled(prefs: PreferenceRow | null, category: string): 
   return false;
 }
 
+export type JobOutcome = "accepted" | "no_active_subscriptions" | "retry" | "config_error";
+
+/**
+ * Folds both transports' results into the one outcome
+ * complete_web_push_job accepts.
+ *
+ * The ordering matters and is not arbitrary:
+ *  - no targets anywhere is a *completion*, not a failure — the member
+ *    simply has no registration, and retrying would never change that;
+ *  - a credentials problem outranks a retry, but only when nothing got
+ *    through, so one broken transport cannot mask another's success;
+ *  - any retryable target keeps the job alive on the existing backoff.
+ *
+ * Exported for the unit tests, which is also what keeps this logic honest:
+ * with one transport configured it must reduce to exactly the behaviour the
+ * web-only dispatcher had.
+ */
+export function combineOutcomes(web: AdapterResult, native: AdapterResult): {
+  outcome: JobOutcome;
+  error: string | null;
+} {
+  const targets = web.targets + native.targets;
+  if (targets === 0) return { outcome: "no_active_subscriptions", error: null };
+
+  const accepted = web.accepted + native.accepted;
+  if ((web.configError || native.configError) && accepted === 0) {
+    return { outcome: "config_error", error: web.lastError ?? native.lastError ?? "push configuration error" };
+  }
+
+  if (web.anyRetryable || native.anyRetryable) {
+    return { outcome: "retry", error: web.lastError ?? native.lastError ?? "one or more deliveries are retryable" };
+  }
+
+  return { outcome: "accepted", error: null };
+}
+
 export async function processPushJobs(): Promise<{
   claimed: number;
   accepted: number;
@@ -64,7 +85,7 @@ export async function processPushJobs(): Promise<{
     return { claimed: 0, accepted: 0, suppressed: 0, retried: 0, configErrors: 0 };
   }
 
-  const claimed = (jobs ?? []) as ClaimedJob[];
+  const claimed = (jobs ?? []) as PushJob[];
   let accepted = 0;
   let suppressed = 0;
   let retried = 0;
@@ -74,21 +95,25 @@ export async function processPushJobs(): Promise<{
     return { claimed: 0, accepted, suppressed, retried, configErrors };
   }
 
-  if (!vapidConfigured()) {
-    // Global configuration failure -- re-arm every claimed job, touch no subscriptions.
+  const webEnabled = vapidConfigured();
+  const nativeEnabled = nativePushConfigured();
+
+  if (!webEnabled && !nativeEnabled) {
+    // No transport at all is a global configuration failure -- re-arm every
+    // claimed job, touch no registrations. (Previously this was the VAPID
+    // check alone; a deployment with only native push configured must no
+    // longer be treated as misconfigured.)
     for (const job of claimed) {
       await admin.rpc("complete_web_push_job", {
         p_job_id: job.job_id,
         p_outcome: "config_error",
-        p_error: "WEB_PUSH_VAPID_CONFIG_MISSING",
+        p_error: "PUSH_TRANSPORT_CONFIG_MISSING",
       });
       configErrors++;
     }
-    console.error("[process-push-jobs] VAPID not configured; re-armed", claimed.length, "job(s)");
+    console.error("[process-push-jobs] no push transport configured; re-armed", claimed.length, "job(s)");
     return { claimed: claimed.length, accepted, suppressed, retried, configErrors };
   }
-
-  const webpush = getWebPushClient();
 
   for (const job of claimed) {
     let renderMetadata = job.metadata;
@@ -133,6 +158,8 @@ export async function processPushJobs(): Promise<{
       .eq("hub_user_id", job.hub_user_id)
       .maybeSingle();
 
+    // One preference decision for the member, applied to every transport —
+    // a category switched off must not leak through on a second channel.
     if (!categoryEnabled(prefs as PreferenceRow | null, job.category)) {
       await admin.rpc("complete_web_push_job", {
         p_job_id: job.job_id,
@@ -143,161 +170,27 @@ export async function processPushJobs(): Promise<{
       continue;
     }
 
-    const { data: subs, error: subsErr } = await admin
-      .from("web_push_subscriptions")
-      .select("id, endpoint, p256dh, auth_secret, failure_count")
-      .eq("hub_user_id", job.hub_user_id)
-      .eq("status", "active");
+    const webResult = webEnabled
+      ? await sendWebPush(
+          admin,
+          job,
+          JSON.stringify(buildPushPayload(job.notification_id, job.category, job.deep_link, rendered)),
+        )
+      : NO_TARGETS;
 
-    if (subsErr) {
-      console.error("[process-push-jobs] failed to load subscriptions:", subsErr.message);
-      await admin.rpc("complete_web_push_job", {
-        p_job_id: job.job_id,
-        p_outcome: "retry",
-        p_error: subsErr.message,
-      });
-      retried++;
-      continue;
-    }
+    const nativeResult = nativeEnabled ? await sendNativePush(admin, job, rendered) : NO_TARGETS;
 
-    const subscriptions = (subs ?? []) as SubscriptionRow[];
-    if (subscriptions.length === 0) {
-      await admin.rpc("complete_web_push_job", {
-        p_job_id: job.job_id,
-        p_outcome: "no_active_subscriptions",
-      });
-      accepted++;
-      continue;
-    }
+    const { outcome, error } = combineOutcomes(webResult, nativeResult);
 
-    const payload = JSON.stringify(
-      buildPushPayload(job.notification_id, job.category, job.deep_link, rendered)
-    );
+    await admin.rpc("complete_web_push_job", {
+      p_job_id: job.job_id,
+      p_outcome: outcome,
+      ...(error ? { p_error: error } : {}),
+    });
 
-    let anyRetryable = false;
-    let allSameAuthError = true;
-    let firstAuthStatus: number | null = null;
-
-    for (const sub of subscriptions) {
-      const { data: existingDelivery } = await admin
-        .from("web_push_deliveries")
-        .select("id, attempts, status")
-        .eq("job_id", job.job_id)
-        .eq("subscription_id", sub.id)
-        .maybeSingle();
-
-      // Already delivered (or the subscription is gone) on a prior attempt at
-      // this job — a retry means *another* subscription needs another try,
-      // not that this one should be resent.
-      if (existingDelivery?.status === "accepted" || existingDelivery?.status === "gone") {
-        continue;
-      }
-
-      try {
-        await webpush.sendNotification(
-          {
-            endpoint: sub.endpoint,
-            keys: { p256dh: sub.p256dh, auth: sub.auth_secret },
-          },
-          payload
-        );
-
-        await admin
-          .from("web_push_deliveries")
-          .upsert(
-            {
-              id: existingDelivery?.id,
-              job_id: job.job_id,
-              subscription_id: sub.id,
-              status: "accepted",
-              attempts: (existingDelivery?.attempts ?? 0) + 1,
-              provider_status: 201,
-              accepted_at: new Date().toISOString(),
-              last_error: null,
-            },
-            { onConflict: "job_id,subscription_id" }
-          );
-
-        await admin
-          .from("web_push_subscriptions")
-          .update({ failure_count: 0, last_success_at: new Date().toISOString() })
-          .eq("id", sub.id);
-
-        allSameAuthError = false;
-      } catch (err) {
-        const statusCode = (err as { statusCode?: number })?.statusCode ?? null;
-        const message = (err as Error)?.message ?? "push send failed";
-
-        let deliveryStatus: "gone" | "retry" | "failed" = "failed";
-        if (statusCode === 404 || statusCode === 410) {
-          deliveryStatus = "gone";
-          await admin
-            .from("web_push_subscriptions")
-            .update({ status: "expired", last_failure_at: new Date().toISOString() })
-            .eq("id", sub.id);
-        } else if (statusCode === 408 || statusCode === 429 || (statusCode && statusCode >= 500)) {
-          deliveryStatus = "retry";
-          anyRetryable = true;
-          allSameAuthError = false;
-        } else if (statusCode === 401 || statusCode === 403) {
-          if (firstAuthStatus === null) firstAuthStatus = statusCode;
-          else if (firstAuthStatus !== statusCode) allSameAuthError = false;
-          deliveryStatus = "retry";
-          anyRetryable = true;
-        } else {
-          deliveryStatus = "failed";
-          allSameAuthError = false;
-          await admin
-            .from("web_push_subscriptions")
-            .update({
-              status: "revoked",
-              revoked_at: new Date().toISOString(),
-              last_failure_at: new Date().toISOString(),
-              failure_count: sub.failure_count + 1,
-            })
-            .eq("id", sub.id);
-        }
-
-        await admin
-          .from("web_push_deliveries")
-          .upsert(
-            {
-              id: existingDelivery?.id,
-              job_id: job.job_id,
-              subscription_id: sub.id,
-              status: deliveryStatus,
-              attempts: (existingDelivery?.attempts ?? 0) + 1,
-              provider_status: statusCode,
-              last_error: message.slice(0, 2000),
-            },
-            { onConflict: "job_id,subscription_id" }
-          );
-      }
-    }
-
-    if (firstAuthStatus !== null && allSameAuthError && subscriptions.length > 1) {
-      // Every send in the batch hit the same auth error -- this is a global
-      // VAPID/configuration problem, not N bad endpoints. Don't revoke them.
-      await admin.rpc("complete_web_push_job", {
-        p_job_id: job.job_id,
-        p_outcome: "config_error",
-        p_error: `push provider rejected all sends with ${firstAuthStatus}`,
-      });
-      configErrors++;
-      continue;
-    }
-
-    if (anyRetryable) {
-      await admin.rpc("complete_web_push_job", {
-        p_job_id: job.job_id,
-        p_outcome: "retry",
-        p_error: "one or more deliveries are retryable",
-      });
-      retried++;
-    } else {
-      await admin.rpc("complete_web_push_job", { p_job_id: job.job_id, p_outcome: "accepted" });
-      accepted++;
-    }
+    if (outcome === "config_error") configErrors++;
+    else if (outcome === "retry") retried++;
+    else accepted++;
   }
 
   return { claimed: claimed.length, accepted, suppressed, retried, configErrors };

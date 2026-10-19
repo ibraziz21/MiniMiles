@@ -46,6 +46,7 @@ const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 const ACCEPTED_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic"];
 
 export type InitialContribution = {
+  id: string;
   wouldRecommend: boolean | null;
   negativeReasonId: string | null;
   partySize: number | null;
@@ -62,6 +63,7 @@ export function VisitCardFlow({
   initialState,
   expiresAt,
   initialContribution,
+  startWithPhotos,
 }: {
   requestId: string;
   merchantName: string;
@@ -70,6 +72,7 @@ export function VisitCardFlow({
   initialState: string;
   expiresAt: string;
   initialContribution: InitialContribution | null;
+  startWithPhotos: boolean;
 }) {
   const router = useRouter();
   const alreadyExpired = new Date(expiresAt).getTime() < Date.now();
@@ -78,7 +81,7 @@ export function VisitCardFlow({
   // A previously saved contribution hydrates the flow instead of starting
   // blank — editing an existing visit card must not silently erase answers
   // the member already gave just because this submit didn't re-send them.
-  const [step, setStep] = useState<Step>("intro");
+  const [step, setStep] = useState<Step>(startWithPhotos ? "photos" : "intro");
   const [wouldRecommend, setWouldRecommend] = useState<boolean | null>(initialContribution?.wouldRecommend ?? null);
   const [negativeReasonId, setNegativeReasonId] = useState<string | null>(
     initialContribution?.negativeReasonId ?? null,
@@ -93,7 +96,7 @@ export function VisitCardFlow({
   const [submitting, setSubmitting] = useState(false);
   const [dismissing, setDismissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [contributionId, setContributionId] = useState<string | null>(null);
+  const [contributionId, setContributionId] = useState<string | null>(initialContribution?.id ?? null);
   const [photos, setPhotos] = useState<PhotoUpload[]>([]);
   const cancelledPhotoIds = useRef(new Set<string>());
 
@@ -337,7 +340,10 @@ export function VisitCardFlow({
     void uploadPhoto(localId, photo.file, contributionId);
   }
 
-  if (alreadyExpired || alreadyClosed) {
+  // A submitted visit can receive optional photos later. The contribution
+  // itself remains owner-scoped and active even after the original response
+  // request expires, so only bypass request expiry for this photo-only entry.
+  if ((alreadyExpired && !startWithPhotos) || alreadyClosed) {
     return <ClosedState merchantName={merchantName} headingRef={headingRef} />;
   }
 
@@ -348,7 +354,7 @@ export function VisitCardFlow({
       : null;
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-6">
+    <main className="mx-auto flex h-[calc(100dvh-8rem-env(safe-area-inset-bottom))] max-w-md flex-col px-4 pb-4 pt-4 sm:h-auto sm:min-h-[calc(100dvh-4rem)] sm:pb-8 sm:pt-6">
       {progressLabel && (
         <p className="mb-2 text-xs font-medium uppercase tracking-wide text-akiba-muted" aria-live="polite">
           {progressLabel}

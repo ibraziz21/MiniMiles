@@ -289,7 +289,7 @@ Do not rewrite working business logic merely to change its URL. Extract or retai
 |---|---|---|---|---|
 | P0 | Profile | `PATCH /api/me`, `/api/me/username` | `PATCH /api/v1/me/profile`, `PATCH /api/v1/me/username` | Bearer auth, response schemas, consistent errors. |
 | P0 | Wallets | `/api/me/wallets`, `challenge`, `verify`, `select-legacy`, `clear-minipay` | Same structure under `/api/v1/me/wallets/*` | Use WalletConnect/system-wallet signing in native; never accept an unsigned address. |
-| P0 | Pass | `/api/me/pass`, `token`, `regenerate` | `/api/v1/me/pass*` | Bearer auth; define online rotating token versus offline stable fallback. |
+| P0 | Pass | `/api/me/pass`, `token`, `regenerate` | `/api/v1/me/pass*` | Bearer auth; use the rotating token for merchant scans and keep the stable ID non-presentational until scanner support exists. |
 | P0 | Merchant save | `/api/merchants/[slug]/save` | `POST`/`DELETE /api/v1/merchants/:slug/save` | Bearer auth and explicit actor/merchant constraint. |
 | P0 | Voucher purchase/claim | `quote`, `redeem`, loyalty eligibility/claim, funded eligibility/claim | `/api/v1/vouchers/*` | Preserve idempotency and canonical ownership; standardize error codes. |
 | P0 | Voucher presentation | `/api/shop/vouchers/[id]/presentation`, `status` | `/api/v1/me/vouchers/:id/presentation`, `/status` | Self-or-verified-wallet authorization; support app background/foreground cleanup. |
@@ -345,19 +345,95 @@ hub_user_devices
 
 `process-push-jobs` should dispatch through separate Web Push and native push adapters, then normalize delivery outcomes into the existing delivery/audit model.
 
+#### Status: shipped 2026-10-19
+
+Decision 7 is resolved: **Expo Push**, not direct FCM/APNs. `hub_user_devices`
+keeps both `expo_push_token` and `native_device_token`, so moving to a direct
+path later adds a sender branch rather than reshaping the table and everything
+reading it. There is no `expo-server-sdk` dependency — the transport is Expo's
+documented HTTP endpoint in `src/lib/push/expo.ts`, which keeps chunking and
+ticket classification as small tested functions and the send path mockable.
+
+What landed:
+
+- `supabase/migrations/101_native_push_devices.sql` — `hub_user_devices` per
+  the sketch above, plus `native_push_deliveries` (one row per job × device).
+- The job queue was **not** duplicated. `notification_outbox` →
+  `enqueue_web_push_job()` → `web_push_jobs` stays the single queue, because
+  one notification is one "did we tell this member" decision however many
+  transports it fans out to. One claim, one combined outcome, so retry/backoff
+  and terminal-state protection cannot disagree between transports. Only the
+  per-target delivery rows are transport-specific. The table keeps its
+  `web_push_*` name; renaming it would churn the RPCs and the deletion worker
+  for no behavioural gain.
+- `src/lib/push/dispatch.ts` now renders the template and checks the member's
+  category preference once, then fans out to `adapters/web.ts` (the original
+  loop, behaviour intact) and `adapters/native.ts`, folding both results
+  through `combineOutcomes`. With one transport configured it reduces to
+  exactly the previous web-only behaviour, which is asserted in
+  `src/__tests__/lib/push/combineOutcomes.test.ts`.
+- `POST`/`DELETE /api/v1/me/devices` and `GET`/`PATCH
+  /api/v1/me/notification-preferences`, both behind `requireActor` +
+  `assertMutationAllowed`. Registration is idempotent on
+  `(hub_user_id, installation_id)` and releases a token still held by another
+  account first — one phone, two members is otherwise a cross-account leak.
+- `capabilities.nativePush` in bootstrap now reports `NATIVE_PUSH_ENABLED`
+  rather than a hardcoded `false`. The app gates its permission prompt on it,
+  and `POST /api/v1/me/devices` refuses while it is off, so a deployment that
+  cannot send never collects a token.
+- App side: `packages/akiba-app/src/push/`. Permission is requested below the
+  tabs' onboarding gate — never at cold start. Notification taps resolve
+  through a **whitelist** (`deep-link.ts`): the server's `deep_link` is data,
+  and the only routes it can produce are ones the app actually has, so a
+  malformed or hostile value lands on Explore at worst.
+- Deletion: `push_registrations` in `accountDeletionPolicy.ts` now covers
+  `hub_user_devices` and `native_push_deliveries`, and the worker clears them
+  in FK order. `accountDeletionStepOrder.test.ts` parses the real migration
+  SQL, so this is verified against the schema rather than a mock.
+
+Still open:
+
+- **Credentials.** Nothing has been sent end to end. Expo needs the APNs key
+  and FCM credentials via `eas credentials` before a single notification
+  arrives, and `NATIVE_PUSH_ENABLED` should stay `false` until then.
+- **iOS `aps-environment`.** `expo-notifications`' `mode` prop defaults to
+  `development`, and a store build needs `production` or it receives nothing
+  from production APNs. It cannot be set per EAS profile from a static
+  `app.json`. The usual fix is converting to `app.config.js` reading
+  `AKIBA_BUILD_VARIANT` — but `scripts/validate-production-build.mjs` reads
+  `app.json` directly, so that conversion has to update the preflight in the
+  same change. **Decide before the first TestFlight build.**
+- **Android notification icon.** The plugin wants a 96×96 all-white
+  transparent PNG; none exists, so `icon` is omitted and Android falls back to
+  the app icon (a flat silhouette). A Brand asset, not a code change.
+- **App-link verification.** `/.well-known/apple-app-site-association` and
+  `/.well-known/assetlinks.json` are wired as routes on hub-page but 404 until
+  `APPLE_TEAM_ID` and `ANDROID_CERT_SHA256` are set. Deliberate: the OS caches
+  a fetched association, so a placeholder outlasts its usefulness. Push taps
+  do not depend on these — they route in-process — only web-link-opens-app
+  does. Host confirmed as `pass.akibamiles.com`, scoped to `/merchants/*` and
+  `/vouchers/*` so links the app cannot render stay in the browser.
+- **Receipts.** `native_push_deliveries.provider_ticket` stores Expo's ticket
+  id, but nothing polls `/push/getReceipts` yet, so a notification Expo
+  accepted and then failed to deliver still reads as `accepted`.
+- The other two notification paths from the mobile audit are unbuilt and
+  independent of this work: a **verified-visit review** prompt has no
+  producer, template or trigger in any channel, and **offer reminders** are
+  only proxied to the Platform — nothing here schedules or delivers them.
+
 ### Offline pass
 
-The current contracts answer the scanner-compatibility question. `GET /api/me/pass` returns a stable `akiba-pass:v1:{publicPassId}` payload that does not expire, and the service-key-authenticated scanner route resolves that stable ID until the member regenerates it. `POST /api/me/pass/token` separately mints the preferred rotating presentation token, currently documented with an approximately five-minute TTL.
+The merchant scanner's production path accepts the rotating presentation token minted by `POST /api/me/pass/token`, currently documented with an approximately five-minute TTL. `GET /api/me/pass` also returns a stable `akiba-pass:v1:{publicPassId}` identity payload, but the production merchant scanner does not currently accept that payload as an earn credential. Native must therefore never label the stable payload as ready to scan at the till.
 
 Native should therefore use this explicit model:
 
-1. Store the stable public pass ID and its rendered QR payload in encrypted/local app storage after a successful online load.
+1. Store the stable public pass ID as recovery identity after a successful online load; do not present it as a merchant-ready QR.
 2. Store rotating presentation tokens only with their expiry.
-3. Prefer a valid rotating presentation token while online.
-4. When offline or token minting is unavailable, show the stable pass as a clearly labelled lower-trust fallback if security approves the replay profile.
-5. If security does not approve that fallback for native, show an honest offline-unavailable state rather than a QR that cannot redeem.
+3. Present only a valid rotating presentation token as the merchant-ready QR.
+4. When offline or token minting is unavailable, show an honest retry/offline-unavailable state rather than a QR the current scanner cannot redeem.
+5. A stable offline fallback may be enabled later only after the scanner path supports it and security approves its replay profile.
 
-No scanner change is required for the existing stable fallback. The remaining decision is a security/product approval of its replay risk and the merchant UX for distinguishing live and fallback codes.
+Supporting a stable offline fallback requires both a scanner change and security/product approval of its replay risk. Until both exist, live presentation-token availability is required at the till.
 
 ### Wallet linking
 
@@ -415,7 +491,7 @@ Deliverables:
 - Record Games and leaderboards as excluded from native while leaving the existing web implementation intact.
 - Record that the Hub raffle route only claims a finalized external win; do not gate the first build on unrelated CrackPot, Dice, or paid-USDT modes that are absent from `hub-page`.
 - Approve a web-to-native parity checklist covering every current non-game Akiba Pass surface, route, and user journey.
-- Approve or reject the existing stable Pass as a lower-trust native offline fallback.
+- Decide whether to add scanner support for the stable Pass, then approve or reject it as a lower-trust native offline fallback.
 - Select a Celo + Base wallet-link provider/return flow and a deferred deep-link provider.
 - Define account deletion/retention policy.
 - Publish the public account-deletion request page and canonical URL.
@@ -646,7 +722,7 @@ Therefore, the default native-v1 policy should be:
 | Cookie/bearer behavior diverges | Medium | High | One request-actor helper and parity tests for both auth modes. |
 | Native client is blocked by same-origin checks | High without changes | High | Auth-mode-aware mutation guard; retain browser CSRF protection. |
 | API contract drifts from web rendering | Medium | High | Shared loaders, contract package, fixture parity tests. |
-| Stable offline Pass is replayed or mistaken for a live rotating code | Medium | High | Label it as a lower-trust fallback, retain regeneration/revocation, train scanners, or disable it if security rejects the replay profile. |
+| Stable Pass is presented even though production scanners accept only live rotating codes | Medium | High | Present only a valid rotating token; require scanner support plus security approval before enabling a stable offline fallback. |
 | Referral install attribution is lost | High | Medium | Signed attribution token and deferred deep-link flow before launch campaigns. |
 | Push jobs support Web Push but not native devices | Certain without changes | Medium | Separate device-token table and sender adapter. |
 | Wallet handoff fails after app backgrounding | Medium | High | Universal-link return handling and lifecycle tests on real devices. |
@@ -703,11 +779,12 @@ A third parity-test generator can be added after the first two endpoint migratio
 
 1. Is an Android TWA worth operating while the native app is built?
 2. Will the native app promote or link to raffle entry in the MiniPay mini-app or another sibling surface? The Hub's own route is claim-only.
-3. Does security approve the already-supported stable Pass as a lower-trust offline fallback, and how should scanners distinguish it from a live rotating code?
+3. Should scanners add support for the stable Pass, does security approve it as a lower-trust offline fallback, and how should scanners distinguish it from a live rotating code?
 4. Which WalletConnect/deep-link integration will reliably sign and return on the required Celo and Base chains, including MiniPay on Celo?
 5. Which deferred deep-link provider and attribution retention window will referrals use?
 6. Which records must be retained after account deletion, and for how long?
-7. Will native push use Expo Push initially, or direct FCM/APNs from day one?
+7. ~~Will native push use Expo Push initially, or direct FCM/APNs from day one?~~
+   **Resolved 2026-10-19: Expo Push.** See "Push notifications → Status".
 8. Who owns final security and legal sign-off for `/api/v1` and store submission?
 
 Once those decisions are recorded, this document is sufficient to turn the migration into epics and endpoint-level tickets.

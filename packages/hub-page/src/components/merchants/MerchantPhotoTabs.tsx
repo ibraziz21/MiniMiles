@@ -385,7 +385,13 @@ export function MerchantPhotoTabs({
                 )}
 
                 {memberVerifiedVisit && (
-                  <div className="mx-4 mt-3 flex min-w-0 items-start gap-3 rounded-2xl border border-akiba-line bg-white px-4 py-4 shadow-sm sm:mx-0 sm:px-5">
+                  <TrackedLink
+                    href={`/visit/${memberVerifiedVisit.requestId}?step=photos`}
+                    event="merchant_verified_visit_edit_photos_tap"
+                    eventProps={{ merchant_id: merchantId }}
+                    className="group mx-4 mt-3 flex min-w-0 touch-manipulation items-start gap-3 rounded-2xl border border-akiba-line bg-white px-4 py-4 shadow-sm transition-colors hover:border-akiba-teal/40 hover:bg-akiba-tint/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus-visible:ring-offset-2 motion-reduce:transition-none sm:mx-0 sm:px-5"
+                    aria-label="Open your verified visit to add photos"
+                  >
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-akiba-tint text-akiba-teal">
                       <BadgeCheck className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
                     </span>
@@ -403,7 +409,11 @@ export function MerchantPhotoTabs({
                         {memberPhotoCopy(memberVerifiedVisit.photoState)}
                       </p>
                     </div>
-                  </div>
+                    <span className="flex min-h-11 shrink-0 items-center gap-1 self-center text-xs font-semibold text-akiba-teal">
+                      Add photos
+                      <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" aria-hidden="true" />
+                    </span>
+                  </TrackedLink>
                 )}
 
                 <VerifiedVisitPosts
