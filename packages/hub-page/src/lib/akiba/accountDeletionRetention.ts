@@ -24,6 +24,12 @@ export const IMPLEMENTED_DELETION_STEPS = new Set([
   "settlement_evidence", "earning_events", "skill_game_prizes", "active_vouchers",
   "fraud_risk", "referrals", "pass_credentials", "notification_history",
   "deletion_record", "deletion_challenges",
+  // Shared-identity steps, implemented in migration 105. 103 declared them in
+  // STEP_ORDER but left the bodies out while shared Auth/identity/ledger
+  // effects were unreviewed — see BDR-002. Membership here closes guard 2
+  // only; account_deletion_preflight still refuses every request
+  // unconditionally until the shared-account scope review happens.
+  "wallet_links", "shared_profile_projection", "canonical_identity", "auth_identity",
 ]);
 
-export const DELETION_IMPLEMENTATION_VERSION = "2026-10-19.1";
+export const DELETION_IMPLEMENTATION_VERSION = "2026-10-19.2";

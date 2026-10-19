@@ -155,6 +155,13 @@ const STEP_EXECUTORS: Record<string, StepExecutor> = {
   notification_history: databaseStep("notification_history"),
   deletion_record: databaseStep("deletion_record"),
   canonical_identity: databaseStep("canonical_identity"),
+  wallet_links: databaseStep("wallet_links"),
+  shared_profile_projection: databaseStep("shared_profile_projection"),
+  // Releases account_deletion_requests.hub_user_id and deletes the Auth user
+  // in one transaction. It has to be atomic: the proof row's reference is
+  // what blocks the delete, and losing the user id between the two halves
+  // would strand the request with nothing left to resolve it against.
+  auth_identity: databaseStep("auth_identity"),
   member_photo_objects: async ({ admin, userId }) => {
     const photos = await selectColumn<{
       private_source_key: string | null;

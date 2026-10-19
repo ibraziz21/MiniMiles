@@ -66,13 +66,30 @@ describe("deletion availability", () => {
     }
   });
 
-  it("keeps unreviewed shared identity steps blocked even after policy approval and verification flags", () => {
+  it("gates on the exact version string and the expiry worker, then accepts", () => {
+    // Migration 105 implemented the four shared-identity steps, so this no
+    // longer stops at an absent executor (BDR-002). The remaining two
+    // conditions are deliberate re-confirmations and both must hold.
     vi.spyOn(policy,"reviewInventory").mockReturnValue({approved:true});
     const configured={ACCOUNT_DELETION_SUBMISSION_ENABLED:"true",ACCOUNT_DELETION_PROCESSING_ENABLED:"true"};
-    expect(deletionAvailability(env(configured))).toMatchObject({acceptingRequests:false,reason:"implementation_unverified"});
-    expect(deletionAvailability(env({...configured,ACCOUNT_DELETION_IMPLEMENTATION_VERIFIED:DELETION_IMPLEMENTATION_VERSION}))).toMatchObject({acceptingRequests:false});
-    expect(deletionAvailability(env({...configured,ACCOUNT_DELETION_IMPLEMENTATION_VERIFIED:DELETION_IMPLEMENTATION_VERSION,
-      ACCOUNT_DELETION_EXPIRY_ENABLED:"true"}))).toEqual({acceptingRequests:false,reason:"implementation_unverified"});
+    const verified={...configured,ACCOUNT_DELETION_IMPLEMENTATION_VERIFIED:DELETION_IMPLEMENTATION_VERSION};
+
+    // Neither re-confirmation given.
+    expect(deletionAvailability(env(configured)))
+      .toMatchObject({acceptingRequests:false,reason:"implementation_unverified"});
+    // A stale or guessed version string is not a confirmation.
+    expect(deletionAvailability(env({...configured,ACCOUNT_DELETION_IMPLEMENTATION_VERIFIED:"2026-01-01.1",
+      ACCOUNT_DELETION_EXPIRY_ENABLED:"true"})))
+      .toMatchObject({acceptingRequests:false,reason:"implementation_unverified"});
+    // Version confirmed, but nothing would ever expire the evidence.
+    expect(deletionAvailability(env(verified)))
+      .toMatchObject({acceptingRequests:false,reason:"implementation_unverified"});
+
+    // All four gates satisfied. Note this is availability only: the worker's
+    // own preflight still refuses every request unconditionally while the
+    // shared-account scope review is outstanding — see BDR-002 §6.
+    expect(deletionAvailability(env({...verified,ACCOUNT_DELETION_EXPIRY_ENABLED:"true"})))
+      .toEqual({acceptingRequests:true});
   });
 
   it("reports the inventory blocker ahead of a paused worker", () => {

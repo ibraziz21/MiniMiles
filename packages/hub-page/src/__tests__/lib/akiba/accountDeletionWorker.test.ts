@@ -240,11 +240,24 @@ describe("account deletion worker", () => {
     expect(state.storageRemovals.find((batch)=>batch.bucket==="discovery-visit-photos-derived")?.keys).toHaveLength(10);
   });
 
-  it("refuses shared Auth cleanup before claiming while scope is unreviewed", async () => {
+  it("refuses a step that is ordered but not implemented, before touching anything", async () => {
+    // Guard 2: a declared data class whose implementation is absent must fail
+    // loudly rather than be skipped, or the member is told their data is gone
+    // when a whole class of it remains.
+    //
+    // Until migration 105 this was auth_identity's genuine state. Every step
+    // is implemented now, so the guard is exercised by withdrawing one —
+    // which is also the realistic regression: a step added to the inventory
+    // and the order, but never registered.
     state.executableRows=[...EXECUTABLE_ROWS,{id:"auth_identity",action:"delete"}];
-    await expect(processAccountDeletionRequests()).rejects.toThrow(/auth_identity/);
-    expect(state.authDeletes).toEqual([]);
-    expect(state.rpcCalls).toEqual([]);
+    IMPLEMENTED_DELETION_STEPS.delete("auth_identity");
+    try {
+      await expect(processAccountDeletionRequests()).rejects.toThrow(/auth_identity/);
+      expect(state.authDeletes).toEqual([]);
+      expect(state.rpcCalls).toEqual([]);
+    } finally {
+      IMPLEMENTED_DELETION_STEPS.add("auth_identity");
+    }
   });
 
   it("deletes push delivery rows before the subscriptions they reference", async () => {
