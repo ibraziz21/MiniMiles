@@ -277,7 +277,10 @@ export const DELETION_INVENTORY: InventoryRow[] = [
     targets: ["voucher_redemptions", "voucher_purchase_quotes", "mpesa_stk_requests"],
     action: "pseudonymize",
     retention: null,
-    notes: "TBD: statutory accounting period; M-Pesa evidence may have its own minimum.",
+    notes:
+      "TBD: statutory accounting period for merchant-settlement evidence. The M-Pesa clause is " +
+      "resolved — the legacy mpesa_stk_requests/_results rows were test data from retired " +
+      "direct commerce and were removed on 2026-10-19; see the retention decision sheet.",
   },
   {
     id: "earning_events",

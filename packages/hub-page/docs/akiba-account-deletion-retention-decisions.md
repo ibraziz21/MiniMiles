@@ -65,6 +65,52 @@ For **B11**, the user accepted a restricted minimal deletion record: request dat
 
 All behavior decisions have now been discussed. Retention terms and implementation remain incomplete; nothing in this log enables processing.
 
+### Legacy M-Pesa STK data removed — 2026-10-19
+
+The `settlement_evidence` row carried "M-Pesa evidence may have its own
+minimum" as an open question. It is now moot: the data has been removed.
+
+What was there, captured before deletion:
+
+- `mpesa_stk_requests` — 33 rows, 13 distinct members, 13 distinct phone
+  numbers, KES 2–19,500 totalling KES 113,146, all created between
+  2026-07-23 and 2026-07-31.
+- `mpesa_stk_results` — 24 rows. Result codes: two `0` (successful), and 22
+  failures across codes 1, 11, 1032, 1037 and 2035. Two rows carried an
+  M-Pesa receipt.
+
+Both successful payments were **KES 2**, on 2026-07-23 — test transactions.
+Every larger amount, including 6,500 / 13,000 / 19,500, failed; no money
+moved for any of them. The data originates from the retired direct-commerce
+flow and the native app has no money-payment path, so nothing was generating
+more of it.
+
+**Merchant subscription records were verified as a separate system before
+deleting anything**, after the question was raised directly:
+
+| | Merchant subscriptions | Removed M-Pesa rows |
+|---|---|---|
+| Table | `subscription_invoices` (6 rows, untouched) | `mpesa_stk_requests` / `_results` |
+| Amounts | KES 500 and 2,500 | 2 … 19,500 |
+| Receipts | Akiba-issued `AKB-RCT-2026-…` | M-Pesa `UGN…` |
+| Paid | 2026-08-31, 2026-09-11 | 23–31 July |
+| Schema link | none — no migration connects them | |
+
+So the 6,500 / 13,000 / 19,500 attempts were not subscription payments;
+the plans in use are KES 500 and 2,500 and settle through Akiba's own
+invoice and receipt system, as the merchant terms describe.
+
+Deleted in foreign-key order — `mpesa_stk_results` (24) then
+`mpesa_stk_requests` (33) — and both verified empty afterwards, with
+`subscription_invoices` still at 6.
+
+Only aggregates are recorded here. The full rows contained phone numbers and
+were not committed anywhere.
+
+Consequence: `settlement_evidence` no longer has an M-Pesa component to
+decide. What remains on that row is merchant-settlement accounting evidence,
+which is a separate question and still unapproved.
+
 ## Proposed retention worksheet — pending approval
 
 ### Working periods accepted — 2026-10-19
