@@ -266,8 +266,13 @@ the send itself is under a second.
 
 Migration `102_push_job_immediate_dispatch.sql` removes that wait. A
 statement-level `AFTER INSERT` trigger on `web_push_jobs` uses `pg_net` to
-POST `/api/internal/process-push-jobs`, waking the existing worker at once:
-roughly 1–3 seconds end to end, which is Expo plus FCM rather than us.
+POST `/api/internal/process-push-jobs`, waking the existing worker at once.
+
+**Measured on production, 2026-10-19: 4.0 seconds** from the
+`notification_outbox` insert to the job completing, against the 38-second
+cron baseline. That remaining 4s is `pg_net`'s background sender picking up
+the queued request, the function invocation, the claim, and the Expo call —
+not queue wait. Treat ~4s as the number to expect, not 1s.
 
 It deliberately does **not** send inline. The job is still enqueued the same
 way, still claimed by `claim_web_push_jobs` with `FOR UPDATE SKIP LOCKED`,
