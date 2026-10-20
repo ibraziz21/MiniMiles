@@ -1,0 +1,58 @@
+# Account deletion — field and implementation map
+
+**Scope update:** the user chose native-app data only and shared-account review first. The shared Auth/canonical/ledger/username cleanup proposals below are deferred, not authorized for activation. See [shared impact review](akiba-native-deletion-shared-impact-review.md).
+
+Implementation has started; see [current status, limitations and rollout](akiba-account-deletion-rollout.md). The map below records the intended contract and is not a completion checklist.
+
+Prepared 2026-10-19 from the accepted product decisions in [the decision sheet](akiba-account-deletion-retention-decisions.md). This is an implementation proposal, not a claim that the executors exist or that production deletion is enabled. Column names below are grounded in migrations; inspect later alterations and actual deployed schema before writing a forward migration.
+
+## Retained evidence contract
+
+Keep operational identity and evidence separate. Retained evidence must not require an active/soft-deleted member row solely to satisfy a foreign key. Use random evidence IDs; do not substitute the same deterministic hash of a user ID everywhere. Merchant references and transaction references can still permit re-identification, so treat retained evidence as restricted personal data unless anonymization is established. Explicitly decide how support locates an evidence item from a member-held reference without preserving a hidden account-wide identity map.
+
+Add an explicit policy category, `deletion_completed_at`, `expires_at` and hold association for each retained item. The clock starts at deletion completion, not at retries of an individual worker step. Evidence created before completion needs a staged state that is not expired based on a missing date. A hold needs a scoped reason, owner and review date. Held records must still lose ordinary app access. A daily expiry job must actually remove evidence and its dependent stubs; policy text alone is insufficient.
+
+| Category | Proposed retained field allowlist | Remove | Expiry and access |
+|---|---|---|---|
+| Moderation | Random evidence ID, `action`, bounded `reason_code`, `before_status`, `after_status`, `created_at`; minimal photo/audit reference only where needed | Member IDs, source/display/thumbnail keys and image bytes, contribution answers/item labels, request correlation values that link back to member requests. Review moderator `actor_id` separately: it identifies staff and must not be silently treated as the deleting member. | 90 days after completion; designated moderation lead/privacy owner only |
+| Completed Miles spending | Random evidence ID, merchant/template references where justified, `total_points`, `ledger_points`, final `state`, `confirmed_at`/`failed_at`, `disclosure_version`, bounded failure code | `hub_user_id`, wallet address, on-chain details irrelevant to native use, reusable identity/idempotency/request hashes and free-text `failure_reason`; reconcile jobs and linked quote/hold/voucher references before removing them | 180 days after completion; designated reconciliation/support lead and privacy owner |
+| Completed voucher redemption | Random evidence ID, justified merchant/voucher evidence reference, `discount_applied`, `redeemed_at`; `order_id` only if necessary for reconciliation and still treated as linkable | `hub_user_id`, `user_address`, unnecessary product/order references and ordinary member linkage | 180 days after completion; designated reconciliation/support lead and privacy owner |
+| Completed earning evidence | Random evidence ID, justified `partner_id`, `source`, `channel`, `occurred_at`, `verification_status`; amounts/currency only when necessary to reconcile the reward | `hub_user_id`, `canonical_id`, unnecessary purchase/branch/item references and item snapshots. Audit `event_id`/`purchase_event_id` before retaining them; they can reconnect other identity-bearing records. | 180 days after completion; designated reconciliation/support lead and privacy owner |
+| Non-financial fraud/security | Random evidence ID, bounded incident/flag/reason code, relevant event/resolution times and outcome | Email, wallet, member/canonical IDs, `notes`, `error_detail` and free-text reasons unless a specific documented investigation requires selected information. Country audit also has an `actor` FK that may refer to the deleting user on another member's row; inspect both subject and actor relationships. | 180 days after completion; designated security lead/privacy owner; specific holds separately controlled |
+| Deletion proof | Opaque request reference, `policy_version`, `requested_at`, `completed_at`, final status and bounded per-step outcomes/times | Original `hub_user_id` after safe Auth completion, contact ciphertext/key version after delivery or bounded delivery expiry, credentials, free-text errors and unnecessary worker/lease bookkeeping | 24 calendar months after completion; privacy owner/authorized compliance role |
+
+These are proposed allowlists. Any additional field requires a stated purpose. Access roles above are proposed job functions, not existing verified database permissions. Ordinary member, merchant and general support access must not expose these retained datasets. Verify role enforcement despite the existing shared service-role client bypassing RLS.
+
+## Immediate removal and revocation
+
+- On confirmed request acceptance, block normal account access through the pending-deletion guard and make Pass/voucher use reject the pending identity. Verify the merchant scan/award and voucher redemption paths also enforce this; merely deleting credentials at the end of the worker does not implement immediate invalidation.
+- Stop/reconcile in-flight rewards, notifications, photo jobs and spending before deleting their source rows. Cancel/release only work not already committed; preserve accounting invariants and prevent jobs/callbacks recreating deleted data.
+- Remove all source and derived photo bytes, then public contributions, raw item mentions and contribution items. Recompute/suppress affected public projections and caches, not only the source rows.
+- Delete profile/contact data, preferences, saved merchants, push registrations/delivery history, wallet relationships if any, deletion challenges and Pass credentials. Audit denormalized email/canonical/identity projections, logs, Storage ownership and caches.
+- Revoke unused vouchers; remove reconciled expired quotes/abandoned attempts. Resolve dependent completed reward evidence into the restricted format first.
+
+## Database work packages
+
+1. **Evidence storage and expiry:** add restricted evidence records or carefully migrate the existing records with explicit nullable identity links. Add expiry/hold controls and indexes. Implement narrow evidence insertion/redaction/expiry functions and deny ordinary app reads. Validate exact elapsed-day and calendar-month expiry, leap dates, retry behavior and holds.
+2. **Moderation dependencies:** `discovery_moderation_audit_events.photo_id` currently forces retention of photo → contribution → request → earning-event parents. Prefer detaching a minimal audit snapshot from source content through an explicitly reviewed migration rather than retaining identifying parent chains. Existing append-only triggers prevent UPDATE/DELETE, including eventual 90-day expiry: introduce a narrowly authorized deletion/expiry mechanism without broadly disabling audit protection.
+3. **Pass/referrals:** allow detachment of `referred_pass_id`; address `referrer_user_id`, `referred_user_id`, reward-job recipient IDs and code/click references too. Preserve the other member's earned entitlement without exposing the deleted member. The user accepted **180 days after deletion completion** for minimal completed referral-reward evidence, solely for reward reconciliation; delete at expiry unless a specific documented hold applies. Proposed retained fields are an opaque evidence ID, reward milestone, amount, final outcome and relevant timestamps; retain program/transaction references only where necessary, and remove deleted member/Pass/code/click identity links. Exact column mapping and access enforcement remain to implement.
+4. **Miles/vouchers:** reconcile holds/spend intents before deleting quotes; replace `NOT NULL` identity FKs or snapshot minimal evidence so Auth removal is possible. Preserve idempotency only as long as its retry safety requires, without retaining a permanent account identity map. Include other ledgers/projections found by the full schema inventory rather than assuming the currently named tables are exhaustive.
+5. **Security:** migrate incident evidence rather than inserting fake values into required identity/address columns. Inspect subject and actor references, related logs and nested payloads.
+6. **Deletion proof/Auth:** current deletion requests require `hub_user_id` and Auth is soft-deleted. Plan a transition to detached completion proof without losing the pending-account guard, first-request-wins, dropped-response retries or completion email delivery. Preserve an operational identity link only while needed, then remove it and verify what the Auth provider retains. The append-only event design needs a controlled 24-month expiry path.
+7. **Acceptance readiness:** extend `deletionAvailability` to check executor/expiry readiness, not just policy approval/flags. An approved inventory with missing executors must not accept a request.
+
+## Shared services and unknowns
+
+Native Akiba has no verified money-payment integration or blockchain feature. Do not add those to its notice. Shared identity deletion can still encounter older M-Pesa, wallet, referral or game-prize rows. Check actual deployed data and legal scope rather than dropping these classes from coverage. `skill_game_leaderboard_prize_deliveries` has a recipient CHECK requiring either a user or a wallet, so nulling `hub_user_id` alone fails. Snapshot/detach evidence if needed; never fabricate a wallet. Completed referral evidence now has an accepted 180-day period; game-prize evidence still needs a separate scope/retention decision.
+
+Verify Supabase region, Auth/Storage backup recovery and retention, processors, operational owners, record lookup method and exact role permissions. No guessed region, invented legal basis or unused payment table should be used to mark policy inventory approved.
+
+## Execution and verification order
+
+1. Establish these schema/field contracts and resolve the remaining shared-data scope and evidence lookup decisions.
+2. Add forward migrations, evidence/expiry controls and readiness guards. Keep production flags off during rollout.
+3. Implement each missing executor with retry-safe behavior and dependency ordering derived from the actual migrated graph.
+4. Test against real PostgreSQL: FK/CHECK enforcement, scoped deletion, RLS/privileges, concurrent/repeated requests, worker leases, partial failures and resurrection prevention. Verify expiry and holds independently from initial deletion.
+5. Exercise a disposable member with photos, moderated evidence, Pass, referrals, spent/unspent vouchers and queued notifications. Verify retained field allowlists and absence of identity/content, as well as safe unrelated-member behavior. Include a member with shared-service history if such data exists.
+6. Update versioned native/web notices together, remove native blockchain wording, correct the canonical deletion URL and verify provider/email/backup disclosures. Run mobile lint/typecheck/tests and backend checks.
+7. Verify completion email and expiry operations in the deployment, attach residue/evidence reports, and only then enable submission/processing.

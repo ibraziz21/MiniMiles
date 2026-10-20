@@ -9,10 +9,12 @@ import { Alert, Linking, Modal, Pressable, ScrollView as HorizontalScrollView, S
 
 import { createApiClient } from '@/api';
 import { useAuth } from '@/auth';
+import { useFeatureFlags } from '@/config';
 import { FundedOfferCard } from '@/components/funded-offer-card';
 import { MilesAmount } from '@/components/miles-amount';
 import { VerifiedVisitCommunity } from '@/components/verified-visit-community';
 import { VerifiedVisitPhotoSheet } from '@/components/verified-visit-photo-sheet';
+import { VerifiedVisitReportSheet } from '@/components/verified-visit-report-sheet';
 import type {
   CustomerPhoto,
   MerchantDetail,
@@ -190,6 +192,14 @@ function MerchantProfile({
   const [activeTab, setActiveTab] = useState<ProfileTab>(defaultTab);
   const [expanded, setExpanded] = useState(false);
   const [photoSheetOpen, setPhotoSheetOpen] = useState(false);
+  // The card being reported, plus the photo that prompted it when the
+  // member was looking at one. Null closes the sheet.
+  const [reporting, setReporting] = useState<{ visitId: string; photoId: string | null } | null>(null);
+  // Server-resolved, member-scoped. Gates *contributing* only — viewing other
+  // members' approved visits is unaffected, which matches what the flag means
+  // on the hub-page side (isDiscoveryContributionsEnabledFor). It doubles as
+  // the kill switch: turning it off stops new uploads without a store release.
+  const { discoveryContributions } = useFeatureFlags();
 
   const addVerifiedVisit = useCallback(async () => {
     const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.trim().replace(/\/$/, '');
@@ -206,6 +216,24 @@ function MerchantProfile({
   }, [merchant.slug]);
 
   const addVerifiedVisitPhotos = useCallback(() => setPhotoSheetOpen(true), []);
+
+  const submitReport = useCallback(
+    async (reason: string): Promise<'reported' | 'already' | 'failed'> => {
+      if (!reporting || !accessToken) return 'failed';
+      try {
+        const result = await createApiClient({ accessToken }).reportVerifiedVisit(merchant.slug, reporting.visitId, {
+          reason,
+          photoId: reporting.photoId,
+        });
+        return result.alreadyReported ? 'already' : 'reported';
+      } catch {
+        // The sheet shows its own retryable message; nothing here should
+        // surface a raw error to the member.
+        return 'failed';
+      }
+    },
+    [accessToken, merchant.slug, reporting],
+  );
 
   const availableTabs: ProfileTab[] = merchant.locations.length > 0
     ? ['verified', 'merchant', 'vouchers', 'locations']
@@ -283,6 +311,7 @@ function MerchantProfile({
           merchantSlug={merchant.slug}
           onAddVisit={addVerifiedVisit}
           onAddVisitPhotos={addVerifiedVisitPhotos}
+          onReport={(visitId, photoId) => setReporting({ visitId, photoId })}
           onToggleHelpful={onToggleHelpful}
           onToggleSave={onToggleSave}
           overlay={overlay}
@@ -307,7 +336,19 @@ function MerchantProfile({
         <LocationsPanel locations={merchant.locations} />
       )}
 
-      {accessToken && overlay?.verifiedVisit ? (
+      {/* Reporting is available whether or not contributing is: a member
+          must be able to flag content they can see, even when uploads are
+          switched off. */}
+      {accessToken ? (
+        <VerifiedVisitReportSheet
+          merchantName={merchant.name}
+          onClose={() => setReporting(null)}
+          onSubmit={submitReport}
+          visible={reporting !== null}
+        />
+      ) : null}
+
+      {accessToken && discoveryContributions && overlay?.verifiedVisit ? (
         <VerifiedVisitPhotoSheet
           accessToken={accessToken}
           merchantName={merchant.name}
@@ -385,6 +426,7 @@ function VerifiedPanel({
   merchantSlug,
   onAddVisit,
   onAddVisitPhotos,
+  onReport,
   onToggleHelpful,
   onToggleSave,
   overlay,
@@ -399,6 +441,7 @@ function VerifiedPanel({
   merchantSlug: string;
   onAddVisit: () => void;
   onAddVisitPhotos: () => void;
+  onReport: (visitId: string, photoId: string | null) => void;
   onToggleHelpful: (visitId: string) => Promise<void>;
   onToggleSave: () => void;
   overlay: MerchantStateDetail | null;
@@ -407,16 +450,21 @@ function VerifiedPanel({
   saved: boolean;
   visits: VerifiedVisit[];
 }) {
+  // Read here as well as in the parent rather than threading another prop
+  // through: it is a context read, and keeping it next to each affordance
+  // makes it obvious at a glance which surfaces the switch controls.
+  const { discoveryContributions } = useFeatureFlags();
+
   return (
     <View style={styles.panel}>
-      {overlay?.openContributionRequest ? (
+      {discoveryContributions && overlay?.openContributionRequest ? (
         <Pressable accessibilityHint="Opens the verified visit form" accessibilityRole="button" onPress={onAddVisit} style={({ pressed }) => [styles.contributionCard, pressed && styles.pressed]}>
           <View style={styles.roundIcon}><Icon name="message-square" size={20} color={colors.teal} /></View>
           <View style={styles.flex}><Text style={styles.cardTitle}>Your Akiba visit is verified</Text><Text style={styles.cardBody}>Add what you tried, what you would recommend and optional photos.</Text></View>
           <View style={styles.contributionAction}><Text style={styles.contributionActionText}>Add visit</Text><Icon name="chevron-right" size={16} color={colors.white} /></View>
         </Pressable>
       ) : null}
-      {overlay?.verifiedVisit ? (
+      {discoveryContributions && overlay?.verifiedVisit ? (
         <Pressable
           accessibilityHint="Opens your saved verified visit at the photo step"
           accessibilityLabel="Your verified visit. Add photos"
@@ -430,12 +478,13 @@ function VerifiedPanel({
         </Pressable>
       ) : null}
       <VerifiedVisitCommunity
-        canAddVisit={Boolean(overlay?.openContributionRequest)}
+        canAddVisit={discoveryContributions && Boolean(overlay?.openContributionRequest)}
         favoriteProduct={favoriteProduct}
         helpfulVisitIds={helpfulVisitIds}
         merchantName={merchantName}
         merchantSlug={merchantSlug}
         onAddVisit={onAddVisit}
+        onReport={onReport}
         onToggleHelpful={onToggleHelpful}
         onToggleSave={onToggleSave}
         refreshVisitPhoto={refreshVisitPhoto}

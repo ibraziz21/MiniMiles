@@ -22,6 +22,13 @@ export const accountDeletionSummarySchema = z.object({
    * an older server that omits the field fails safe.
    */
   acceptingRequests: z.boolean().default(false),
+  /**
+   * How the request will be carried out. `manual` means a person does the
+   * work, so it takes longer than the automated path and the screen says so.
+   * Defaulted to `automated` because that is what every server that omits the
+   * field is doing — the field was added when the manual route was.
+   */
+  fulfilment: z.enum(['automated', 'manual', 'unavailable']).default('automated'),
 });
 
 export type AccountDeletionSummary = z.infer<typeof accountDeletionSummarySchema>;
@@ -44,6 +51,10 @@ export const deletionRequestStatusSchema = z.enum([
   'failed',
   'completed',
   'cancelled',
+  // Accepted, awaiting a person. Omitting it here would make the app reject
+  // its own successful receipt: the request lands server-side, the parse
+  // fails, and the member sees an error for something that worked.
+  'manual_review',
 ]);
 
 // §7.3 — the durable receipt. `alreadyRequested` is how a retry after a

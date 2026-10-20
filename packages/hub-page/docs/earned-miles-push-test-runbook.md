@@ -257,6 +257,51 @@ per EAS profile from a static `app.json`; see the store-release checklist row.
 So: a dev build receiving push and TestFlight not receiving it is this, not a
 code bug.
 
+## Latency, and making it immediate
+
+The cron is `*/1 * * * *`, so a notification waits for the next minute
+boundary. A measured trace: outbox row at 14:45:44, job completed at
+14:46:22 — **38 seconds, essentially all of it queue wait**. Once claimed,
+the send itself is under a second.
+
+Migration `102_push_job_immediate_dispatch.sql` removes that wait. A
+statement-level `AFTER INSERT` trigger on `web_push_jobs` uses `pg_net` to
+POST `/api/internal/process-push-jobs`, waking the existing worker at once.
+
+**Measured on production, 2026-10-19: 4.0 seconds** from the
+`notification_outbox` insert to the job completing, against the 38-second
+cron baseline. That remaining 4s is `pg_net`'s background sender picking up
+the queued request, the function invocation, the claim, and the Expo call —
+not queue wait. Treat ~4s as the number to expect, not 1s.
+
+It deliberately does **not** send inline. The job is still enqueued the same
+way, still claimed by `claim_web_push_jobs` with `FOR UPDATE SKIP LOCKED`,
+still completed by `complete_web_push_job` — only the start of the sweep
+moves. Racing the cron is safe by construction, and **the cron stays as the
+backstop**, because `pg_net` is fire-and-forget and never retries.
+
+The trigger is **inert until two Vault secrets exist**, which is what keeps a
+restored dump or a preview branch from POSTing at production:
+
+```sql
+SELECT vault.create_secret(
+  'https://pass.akibamiles.com/api/internal/process-push-jobs', 'push_worker_url');
+SELECT vault.create_secret(
+  '<INTERNAL_WEBHOOK_SECRET for that deployment>', 'push_worker_secret');
+```
+
+Turn it off without a migration by deleting either secret; delivery falls
+back to the cron, one minute slower. Check a POST went out with:
+
+```sql
+SELECT id, status_code, created FROM net._http_response ORDER BY created DESC LIMIT 5;
+```
+
+A dispatch failure can never block a notification — the trigger swallows
+every error and degrades to the cron. That is asserted against a real
+database with `pg_net` and Vault absent, in
+`src/__tests__/integration/push-immediate-dispatch.test.ts`.
+
 ## Known gaps
 
 - **Delivery receipts are not polled.** `provider_ticket` is stored but

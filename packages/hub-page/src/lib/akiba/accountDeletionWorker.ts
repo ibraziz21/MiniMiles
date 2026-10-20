@@ -27,7 +27,7 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { resolveHubQuestCanonical } from "@/lib/akiba/canonicalPartnerQuests";
+import { IMPLEMENTED_DELETION_STEPS } from "@/lib/akiba/accountDeletionRetention";
 import {
   assertInventoryApproved,
   executableInventoryRows,
@@ -48,7 +48,7 @@ type Admin = SupabaseClient;
 
 export type DeletionRequestRow = {
   id: string;
-  hub_user_id: string;
+  hub_user_id: string | null;
   status: string;
   attempts: number;
   completed_at: string | null;
@@ -118,9 +118,18 @@ async function selectColumn<T>(
   column: string,
   value: string,
 ): Promise<T[]> {
-  const { data, error } = await admin.from(table).select(columns).eq(column, value);
-  if (error) throw new StepFailure(table, sqlStateOf(error));
-  return (data ?? []) as T[];
+  const rows: T[] = [];
+  let offset = 0;
+  for (;;) {
+    const { data, error } = await admin.from(table).select(columns).eq(column, value)
+      .order("id").range(offset, offset + ID_CHUNK - 1);
+    if (error) throw new StepFailure(table, sqlStateOf(error));
+    if (!data?.length) return rows;
+    rows.push(...data as T[]);
+    // Advance by actual rows, even if the project's API cap is smaller than
+    // our requested page. A single capped read can orphan Storage objects.
+    offset += data.length;
+  }
 }
 
 /**
@@ -131,6 +140,28 @@ async function selectColumn<T>(
  * failure rather than a silent skip.
  */
 const STEP_EXECUTORS: Record<string, StepExecutor> = {
+  // These RPCs snapshot only allowlisted evidence and mutate related rows in
+  // one database transaction. An interrupted step rolls back its snapshot too.
+  published_photos: databaseStep("published_photos"),
+  unpublished_contributions: databaseStep("unpublished_contributions"),
+  reward_ledger: databaseStep("reward_ledger"),
+  settlement_evidence: databaseStep("settlement_evidence"),
+  earning_events: databaseStep("earning_events"),
+  skill_game_prizes: databaseStep("skill_game_prizes"),
+  active_vouchers: databaseStep("active_vouchers"),
+  fraud_risk: databaseStep("fraud_risk"),
+  referrals: databaseStep("referrals"),
+  pass_credentials: databaseStep("pass_credentials"),
+  notification_history: databaseStep("notification_history"),
+  deletion_record: databaseStep("deletion_record"),
+  canonical_identity: databaseStep("canonical_identity"),
+  wallet_links: databaseStep("wallet_links"),
+  shared_profile_projection: databaseStep("shared_profile_projection"),
+  // Releases account_deletion_requests.hub_user_id and deletes the Auth user
+  // in one transaction. It has to be atomic: the proof row's reference is
+  // what blocks the delete, and losing the user id between the two halves
+  // would strand the request with nothing left to resolve it against.
+  auth_identity: databaseStep("auth_identity"),
   member_photo_objects: async ({ admin, userId }) => {
     const photos = await selectColumn<{
       private_source_key: string | null;
@@ -159,19 +190,16 @@ const STEP_EXECUTORS: Record<string, StepExecutor> = {
 
   profile_contact: async ({ admin, userId }) => {
     await deleteWhere(admin, "hub_user_profiles", "user_id", userId);
-
-    // The username lives in a canonical-keyed projection, not on the
-    // profile row — deleting only hub_user_profiles would leave it published.
-    const canonicalId = await resolveHubQuestCanonical({ hubUserId: userId, email: null });
-    if (canonicalId) {
-      await deleteWhere(admin, "leaderboard_username_changes", "canonical_id", canonicalId);
-      await deleteWhere(admin, "leaderboard_profiles", "canonical_id", canonicalId);
-    }
+    // Shared username/canonical projections are intentionally preserved.
   },
 
   saved_merchants: async ({ admin, userId }) => {
     await deleteWhere(admin, "hub_user_saved_merchants", "hub_user_id", userId);
     await deleteWhere(admin, "merchant_verified_visit_helpful_reactions", "hub_user_id", userId);
+    // Reports this member filed. Keyed on the reporter, so reports *about*
+    // their cards stay with the card and are removed by the contribution
+    // cascade later in the order.
+    await deleteWhere(admin, "merchant_verified_visit_reports", "reporter_hub_user_id", userId);
     await deleteWhere(admin, "hub_notification_preferences", "hub_user_id", userId);
   },
 
@@ -215,24 +243,23 @@ const STEP_EXECUTORS: Record<string, StepExecutor> = {
     await deleteWhere(admin, "hub_user_devices", "hub_user_id", userId);
   },
 
-  wallet_links: async ({ admin, userId }) => {
-    // Severs Akiba's association only. Nothing here touches the wallet or
-    // the chain, which §4.7 requires and §9 records as immutable.
-    await deleteWhere(admin, "wallet_link_challenges", "hub_user_id", userId);
-    await deleteWhere(admin, "hub_user_wallets", "user_id", userId);
-  },
+
 
   deletion_challenges: async ({ admin, userId }) => {
     await deleteWhere(admin, "account_deletion_challenges", "hub_user_id", userId);
   },
 
-  auth_identity: async ({ admin, userId }) => {
-    // Last, and soft: the deletion request and its events keep a foreign key
-    // to this row as evidence that the request was made and honoured.
-    const { error } = await admin.auth.admin.deleteUser(userId, true);
-    if (error) throw new StepFailure("auth.users", null);
-  },
+
 };
+
+function databaseStep(step: string): StepExecutor {
+  return async ({ admin, requestId }) => {
+    const { error } = await admin.rpc("execute_account_deletion_step", {
+      p_request_id: requestId, p_step: step,
+    });
+    if (error) throw new StepFailure(step, sqlStateOf(error));
+  };
+}
 
 /**
  * Execution order, leaves of the foreign-key graph first. None of the
@@ -274,6 +301,8 @@ export const STEP_ORDER: readonly string[] = [
   "referrals",
   "pass_credentials",
   "notification_history",
+  "shared_profile_projection",
+  "canonical_identity",
   "deletion_record",
   "deletion_challenges",
   "auth_identity",
@@ -310,7 +339,7 @@ export function orderedSteps(): { id: string; action: string }[] {
 
 /** Whether a step's executor has been written yet — see guard 2 above. */
 export function hasStepExecutor(id: string): boolean {
-  return id in STEP_EXECUTORS;
+  return IMPLEMENTED_DELETION_STEPS.has(id) && id in STEP_EXECUTORS;
 }
 
 async function completedSteps(admin: Admin, requestId: string): Promise<Set<string>> {
@@ -344,20 +373,35 @@ async function appendEvent(
         sqlStateOf(error) ?? "unknown"
       }`,
     );
+    throw new StepFailure("account_deletion_events", sqlStateOf(error));
   }
 }
 
 async function processRequest(admin: Admin, row: DeletionRequestRow): Promise<ProcessOutcome> {
-  const context: StepContext = { admin, userId: row.hub_user_id, requestId: row.id };
   const alreadyDone = await completedSteps(admin, row.id);
   const stepsRun: string[] = [];
+  if (!row.hub_user_id) throw new StepFailure("account_deletion_requests", "55000");
+
+  // Reject unresolved shared-service records or in-flight work before any
+  // Storage or database cleanup. Rechecked on every retry.
+  const preflight = await admin.rpc("execute_account_deletion_step", {
+    p_request_id: row.id, p_step: "preflight",
+  });
+  if (preflight.error) {
+    const finish = await admin.rpc("finish_account_deletion_request", {
+      p_request_id: row.id, p_outcome: "failed", p_failure_code: "preflight_blocked",
+    });
+    if (finish.error) throw new StepFailure("account_deletion_requests", sqlStateOf(finish.error));
+    return { requestId: row.id, result: "failed", failureCode: "preflight_blocked", stepsRun };
+  }
 
   async function fail(failureCode: string): Promise<ProcessOutcome> {
-    await admin.rpc("finish_account_deletion_request", {
+    const finish = await admin.rpc("finish_account_deletion_request", {
       p_request_id: row.id,
       p_outcome: "failed",
       p_failure_code: failureCode,
     });
+    if (finish.error) throw new StepFailure("account_deletion_requests", sqlStateOf(finish.error));
     return { requestId: row.id, result: "failed", failureCode, stepsRun };
   }
 
@@ -365,13 +409,13 @@ async function processRequest(admin: Admin, row: DeletionRequestRow): Promise<Pr
     if (alreadyDone.has(step.id)) continue;
 
     const executor = STEP_EXECUTORS[step.id];
-    if (!executor) {
+    if (!executor || !hasStepExecutor(step.id)) {
       await appendEvent(admin, row.id, "step_blocked", { step: step.id, action: step.action });
       return fail("step_executor_missing");
     }
 
     try {
-      await executor(context);
+      await executor({ admin, userId: row.hub_user_id!, requestId: row.id });
     } catch (error) {
       // Bounded fields only. A Postgres or provider message can quote a row
       // value (§8.3), so neither the log line nor the stored failure code
@@ -389,11 +433,15 @@ async function processRequest(admin: Admin, row: DeletionRequestRow): Promise<Pr
     stepsRun.push(step.id);
   }
 
-  await admin.rpc("finish_account_deletion_request", {
+  const finish = await admin.rpc("finish_account_deletion_request", {
     p_request_id: row.id,
     p_outcome: "completed",
     p_failure_code: null,
   });
+  const result = Array.isArray(finish.data) ? finish.data[0] : finish.data;
+  if (finish.error || !result?.ok) {
+    throw new StepFailure("account_deletion_requests", sqlStateOf(finish.error));
+  }
 
   // The completion email is NOT attempted here. It is claimed separately, so
   // a mail outage retries on its own schedule without reopening a request
@@ -401,7 +449,7 @@ async function processRequest(admin: Admin, row: DeletionRequestRow): Promise<Pr
   return { requestId: row.id, result: "completed", stepsRun };
 }
 
-async function deliverOneCompletionEmail(admin: Admin, row: DeletionRequestRow): Promise<boolean> {
+export async function deliverOneCompletionEmail(admin: Admin, row: DeletionRequestRow): Promise<boolean> {
   const contact = decryptCompletionContact(
     row.completion_contact_ciphertext,
     row.completion_contact_key_version,
@@ -422,8 +470,10 @@ async function deliverOneCompletionEmail(admin: Admin, row: DeletionRequestRow):
   });
 
   if (delivery.delivered) {
-    await admin.rpc("purge_account_deletion_contact", { p_request_id: row.id, p_delivered: true });
-    return true;
+    const purge = await admin.rpc("purge_account_deletion_contact", { p_request_id: row.id, p_delivered: true });
+    // A lost acknowledgement retries with the provider's same idempotency
+    // key rather than silently claiming contact removal succeeded.
+    return !purge.error;
   }
 
   // A permanent failure (bad key, unverified sending domain, address the
@@ -483,7 +533,9 @@ export async function processAccountDeletionRequests(
 ): Promise<WorkerRunSummary> {
   assertInventoryApproved();
   // Fail before any destructive work if the order and the inventory disagree.
-  orderedSteps();
+  const steps = orderedSteps();
+  const missing = steps.filter((step) => !hasStepExecutor(step.id)).map((step) => step.id);
+  if (missing.length > 0) throw new StepOrderMismatchError(missing);
 
   const admin = createAdminClient();
   const { data, error } = await admin.rpc("claim_account_deletion_requests", {

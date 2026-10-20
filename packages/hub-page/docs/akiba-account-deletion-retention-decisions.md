@@ -1,20 +1,186 @@
 # Account deletion — retention decision sheet
 
+**Latest scope decision:** the user subsequently chose **Entire shared Akiba
+account** for Admin Dashboard fulfilment. [BDR-004](../../../docs/BDR-004-admin-shared-account-deletion.md)
+supersedes the native-only scope below. Working evidence periods stay accepted;
+unsupported financial/identity histories still require review. Formal inventory
+approval remains separate from this product scope decision.
+
 - **Blocks:** AKIBA-MOB-002 §9, and therefore account deletion processing
 - **Owners:** Akiba data-protection owner (all rows), finance (settlement and
   prize rows), product (published content)
 - **Source of truth:** `packages/hub-page/src/lib/akiba/accountDeletionPolicy.ts`
-- **Last reviewed:** 2026-10-10
+- **Last reviewed:** 2026-10-19
+
+## Decision log — 2026-10-19
+
+### Photos and contributions: product direction accepted
+
+The user accepted the following recommended behavior in the release-readiness discussion:
+
+- Delete all uploaded source images, thumbnails and display copies.
+- Remove the member's contributions from public view.
+- Delete photo/contribution records without a moderation-audit dependency.
+- Where moderation evidence must survive, keep only the minimum restricted internal evidence; remove member linkage, content and storage keys. Inspect the audit payload itself for identifiers/content as well as its referenced rows.
+- Delete associated draft/request records where dependencies permit. Minimize and restrict any parent records that retained evidence still requires; do not assume A1-b permits deleting every request row.
+
+This selects **A1-b**, with **A2 following per retained dependency chain**. It authorizes this implementation direction, not a blanket approval of retention. The exact retention period, lawful basis, retained field allowlist, access roles, storage region, expiry mechanism and legal disclosure remain unresolved. Keep `retention: null` and deletion submission/processing gates closed until those terms and the required executors/migrations are complete and verified.
+
+Implementation must reconcile this direction with the append-only moderation audit design. Do not silently retain identifying audit payloads or rewrite append-only evidence; explicitly resolve any schema conflict before enabling processing.
+
+### Pass and referrals: product direction accepted
+
+The user accepted the following recommended behavior:
+
+- Delete the member's Pass and invalidate its credentials.
+- Disable their referral codes and cancel pending referral rewards.
+- Preserve only minimal evidence of completed referral rewards for reconciliation, removing the deleted member's identity and preventing either party from viewing the deleted member's identity through referral history.
+- Migrate the database so retained referral evidence does not require the deleted Pass (`A3-b`: make `referred_pass_id` nullable and detach the reference before Pass deletion). Review all other member references and constraints as part of implementation.
+
+This resolves the product direction for **A3 / B6**. The exact retained field allowlist, retention period, lawful basis, restricted access roles and expiry mechanism remain pending. Do not mark these inventory rows approved or enable processing on this decision alone. Verify credential invalidation, both sides of referral visibility, pending reward cancellation and completed reward evidence in integration tests.
+
+### Vouchers, Miles and financial evidence: product direction accepted
+
+The user accepted the following recommended behavior for **B1–B4 / B7**:
+
+- Revoke unused vouchers so they cannot be redeemed.
+- End access to the deleted account's Miles balance; cancel pending spending and release holds. Reconcile in-flight or already committed transactions before releasing anything to avoid double spending or altering completed settlements.
+- Preserve only restricted evidence of completed earning/redemption needed for reconciliation; remove unnecessary personal details and the ordinary member identity linkage.
+- Preserve required payment and merchant-settlement accounting evidence. Account deletion must not erase amounts owed to merchants or other parties.
+- Apply the same evidence-minimization approach to completed prize deliveries.
+- Permit deletion despite an existing Miles balance or unused vouchers; disclose the loss of access before confirmation.
+
+These are accepted product behaviors, not approved financial retention terms. Finance/data protection still need to specify lawful bases, exact periods and their start events, retained field allowlists (including any legally necessary identifiers), access roles, treatment of disputes/legal holds and expiry actions. Executors must reconcile ledger and payment invariants, resolve foreign keys and prevent retained evidence from remaining visible as an active member account. Keep the corresponding inventory rows unapproved until those details and implementation are complete.
+
+### Fraud/security, notifications and analytics: product direction accepted
+
+The user accepted the following recommended behavior for **B5 / B8 / B9**:
+
+- Retain only necessary fraud/security evidence under restricted access and a defined expiry. Remove identity unless a documented investigation requires it.
+- Delete queued notifications, delivery history, device tokens and delivery addresses. Keep required transaction evidence in the financial records rather than using notification history as a substitute ledger. Stop/reconcile in-flight delivery work so it cannot send or recreate registrations after deletion.
+- Delete identifiable analytics/crash data held by connected providers. The mobile tracker currently has no provider; verify other services/processors before treating this step as not applicable. Do not claim processor deletion succeeded without confirmation/evidence or an explicitly documented expiry process.
+- A specific legal hold may delay removal of affected evidence; it must not preserve an active account or unrelated data. Preserve the minimum identifiers necessary for a documented hold and restrict their use/access.
+
+Exact security retention periods, lawful bases, retained fields, investigation/hold controls, processor inventory and expiry mechanisms remain pending. These accepted behaviors do not approve the inventory rows or open deletion processing.
+
+### App scope and deletion proof: product direction accepted
+
+The user clarified that public blockchain records are not part of the Akiba native app. Exclude them from the native app's deletion notice/flow; do not present blockchain retention as a native-app feature. Shared-backend wallet relationships or records originating in other services still require explicit scoping and cleanup when deleting a shared identity. This does not authorize discarding shared-backend inventory coverage or making false erasure claims for other services. Native copy changes remain to be implemented.
+
+For **B11**, the user accepted a restricted minimal deletion record: request date, policy version, completion date and step outcomes, referenced by an opaque identifier. Remove email, phone, content and credentials after required confirmation delivery. Define an expiry period; an opaque reference is not anonymous if Akiba can still link it to a person. Resolve the current Auth foreign keys/soft-deletion and audit payloads against this requirement during implementation.
+
+All behavior decisions have now been discussed. Retention terms and implementation remain incomplete; nothing in this log enables processing.
+
+### Legacy M-Pesa STK data removed — 2026-10-19
+
+The `settlement_evidence` row carried "M-Pesa evidence may have its own
+minimum" as an open question. It is now moot: the data has been removed.
+
+What was there, captured before deletion:
+
+- `mpesa_stk_requests` — 33 rows, 13 distinct members, 13 distinct phone
+  numbers, KES 2–19,500 totalling KES 113,146, all created between
+  2026-07-23 and 2026-07-31.
+- `mpesa_stk_results` — 24 rows. Result codes: two `0` (successful), and 22
+  failures across codes 1, 11, 1032, 1037 and 2035. Two rows carried an
+  M-Pesa receipt.
+
+Both successful payments were **KES 2**, on 2026-07-23 — test transactions.
+Every larger amount, including 6,500 / 13,000 / 19,500, failed; no money
+moved for any of them. The data originates from the retired direct-commerce
+flow and the native app has no money-payment path, so nothing was generating
+more of it.
+
+**Merchant subscription records were verified as a separate system before
+deleting anything**, after the question was raised directly:
+
+| | Merchant subscriptions | Removed M-Pesa rows |
+|---|---|---|
+| Table | `subscription_invoices` (6 rows, untouched) | `mpesa_stk_requests` / `_results` |
+| Amounts | KES 500 and 2,500 | 2 … 19,500 |
+| Receipts | Akiba-issued `AKB-RCT-2026-…` | M-Pesa `UGN…` |
+| Paid | 2026-08-31, 2026-09-11 | 23–31 July |
+| Schema link | none — no migration connects them | |
+
+So the 6,500 / 13,000 / 19,500 attempts were not subscription payments;
+the plans in use are KES 500 and 2,500 and settle through Akiba's own
+invoice and receipt system, as the merchant terms describe.
+
+Deleted in foreign-key order — `mpesa_stk_results` (24) then
+`mpesa_stk_requests` (33) — and both verified empty afterwards, with
+`subscription_invoices` still at 6.
+
+Only aggregates are recorded here. The full rows contained phone numbers and
+were not committed anywhere.
+
+Consequence: `settlement_evidence` no longer has an M-Pesa component to
+decide. What remains on that row is merchant-settlement accounting evidence,
+which is a separate question and still unapproved.
+
+## Proposed retention worksheet — pending approval
+
+### Working periods accepted — 2026-10-19
+
+The user accepted these three proposed periods as working policy, subject to confirming necessity:
+
+- Minimal moderation evidence: **90 days after deletion completion**.
+- Necessary non-financial fraud/security evidence: **180 days after deletion completion**.
+- Minimal proof of deletion: **24 calendar months after deletion completion**.
+
+These are no longer unanswered product preferences. Remaining work is the necessity/lawful-basis assessment, exact retained columns, assigned access roles, schema/executor implementation and tested expiry. Do not treat this acceptance as approval of all outstanding `RetentionTerms`, financial periods, or production enablement. The table below remains a draft for the other terms; its three matching period proposals are now accepted on this basis.
+
+### Payment scope correction — 2026-10-19
+
+The user questioned whether the native app has payment records. Source verification found no money-payment integration in `packages/akiba-app/src` or its `/api/v1` routes: the voucher purchase flow spends Miles. `mpesa_stk_requests` / `mpesa_stk_results` exist in the shared database schema and older `/api/payments/mpesa/callback` and `/status` routes reference them, but this review has not established populated production rows or a native-app payment flow. Do not describe those tables as proof that native members make payments, and do not apply a tax-record retention period to Miles activity without a separate justified classification. The preceding question about a financial-versus-temporary payment retention split was **not accepted** by the user. Shared-service records still need verification before deleting a shared identity; classify that as a backend inventory check, not a native-app feature or a reason to retain every member's reward history.
+
+### Native Miles and voucher evidence: working policy accepted — 2026-10-19
+
+The user accepted the following proposed behavior and period:
+
+- Immediately revoke unused vouchers and end access to Miles on confirmed deletion, without waiting for evidence-retention expiry. Reconcile in-flight transactions safely.
+- Delete expired quotes and abandoned attempts once reconciled, rather than retaining them automatically with completed evidence.
+- Retain minimal completed earning/redemption evidence for **180 days after deletion completion**, solely for reward disputes and reconciliation, under restricted access.
+- Remove the member's identity/contact details; delete the retained evidence at expiry unless a specific documented hold applies.
+
+This is an accepted working product policy, not a statutory accounting period. It supersedes any suggested five-year financial classification for native Miles/voucher history. It does not establish a period for actual shared-service payment records or game-prize evidence. Confirm any such records and their separate purpose before resolving those inventory rows. Completed referral evidence was subsequently resolved below. Exact field allowlists, evidence linkage needed for dispute lookup, assigned access roles, necessity assessment and tested cleanup remain implementation work; do not call linkable evidence anonymous or mark all retention terms approved on this basis alone.
+
+### Completed referral rewards: working period accepted — 2026-10-19
+
+The user accepted **180 days after deletion completion** for minimal completed referral-reward evidence, for reward reconciliation, matching the Miles/voucher evidence period. Remove the deleted member's identity and contact details, restrict access, and delete evidence at expiry unless a specific documented hold applies. This complements the already accepted Pass/referral behavior: invalidate the Pass, disable referral codes, cancel pending referral rewards and detach retained records from the deleted Pass/member without exposing that identity to the other party. Preserve completed entitlements belonging to the other member. Exact retained columns, safe retry/idempotency handling, permissions and necessity assessment remain implementation work. This acceptance does not cover game-prize or money-payment records.
+
+The following is a starting proposal for review, not statutory advice or accepted production policy. Product-selected periods require a documented necessity assessment; finance must identify which records actually qualify as accounting/tax evidence. Do not copy these into `RetentionTerms` as approved values yet.
+
+| Record class | Proposed period and start event | Minimal retained information | Proposed access | At expiry |
+|---|---|---|---|---|
+| Profile, Pass secrets, images, drafts without dependencies, preferences and push registrations | No post-deletion retention; remove during processing | None | Deletion worker while processing | Verify removal, including queued work |
+| Moderation evidence and required parent stubs | 90 days after deletion completion, subject to documented necessity and audit-schema resolution | Opaque evidence references, action/reason codes and event times; no images, text content or ordinary member link | Moderation lead; privacy owner | Delete evidence/stubs in dependency order through an approved audit-expiry mechanism |
+| Non-financial fraud/security evidence | 180 days after deletion completion, subject to documented necessity | Event type, relevant timestamps, bounded risk outcome and minimum investigation evidence | Designated security lead; privacy owner | Delete; a specific documented hold pauses only affected records |
+| Financial records, including completed referrals/prizes when accounting evidence | Finance-confirmed legal schedule; candidate baseline is five years from the end of the relevant reporting period, not five years from deletion | Finance-approved transaction IDs, amounts, dates, merchant/settlement references and strictly required identifiers | Finance; authorized audit/legal roles | Delete or irreversibly aggregate after applicable obligations/holds expire |
+| Non-financial completed reward/referral evidence | Do not automatically apply the tax period; finance/product must classify purpose and propose a justified period | Only fields necessary for the classified purpose | Purpose-specific restricted roles | Delete at approved expiry |
+| Notification history and delivery addresses | Remove during deletion processing | None; financial evidence belongs in its own records | Deletion worker while processing | Verify queues cannot recreate/send |
+| Identifiable analytics/crash processor data | Request deletion during processing; actual completion/backup expiry depends on verified processor policy | Minimal deletion acknowledgement only | Privacy owner; deletion worker | Confirm removal/expiry; no unsupported completion claim |
+| Proof of deletion | 24 months after completion, subject to documented necessity | Opaque request ID, policy version, request/completion dates, bounded step outcomes; no contact details or credentials | Privacy owner; authorized compliance/audit role | Delete proof and any residual identity linkage |
+
+Proposed operational controls: daily expiry job, monthly failure/hold review, annual schedule review; holds must have a reason, scope, owner and review date. These controls are also pending acceptance and implementation. Database, Storage, backups, logs and external processors need separate verified coverage; a primary-row delete is not proof of immediate backup erasure.
+
+Outstanding facts: actual Supabase region and backup retention, deployed processor inventory, named role assignments, financial reporting calendar and legal holds, exact column allowlists and foreign-key changes. The policy model now supports day/month/year durations anchored to deletion completion, a named record event, or a reporting-period end with an explicit calendar reference, time zone and source field. Reporting-calendar expiry execution remains unimplemented and outside the native-only release; no financial schedule is approved by this model change. The native evidence migration independently implements the accepted completion-based clocks.
+
+Sources checked on 2026-10-19:
+
+- [ODPC General Regulations 2021](https://www.odpc.go.ke/wp-content/uploads/2024/03/THE-DATA-PROTECTION-GENERAL-REGULATIONS-2021-1.pdf): retention schedules and necessity review.
+- [KRA recordkeeping FAQ](https://www.kra.go.ke/component/kra_faq/faq/449) and [Tax Procedures Act reference](https://www.kra.go.ke/images/publications/TaxProceduresAct29of2015.pdf): five-year tax-record baseline; applicability, current amendments and proceedings exceptions require finance/legal confirmation. This is not a justification to retain every app record for five years.
 
 ---
 
 ## What this document is for
 
-`DELETION_INVENTORY` has 21 rows. **14 are unapproved** — their `retention`
+`DELETION_INVENTORY` now has 23 rows. **18 formal retention/scope contracts remain incomplete** — their `retention`
 is `null` — and `assertInventoryApproved()` throws while any of them is, so
 no member data can be deleted in any environment. The acceptance path is
 gated on the same condition, so requests are *refused* rather than accepted
 and stranded.
+
+The accepted working periods are recorded above and in code. The additional canonical-identity row records shared Platform coverage; this is not a request to repeat the accepted product decisions. Exact legal/operational terms and shared-service handlers remain outstanding. See [implementation status and rollout](akiba-account-deletion-rollout.md).
 
 This sheet exists because the reasoning for each row currently lives in code
 comments, which is not a form a data-protection owner can sign. Each section
@@ -37,7 +203,10 @@ row leaves any of them blank:
 retention: {
   purpose: "…",                     // why Akiba keeps it at all
   lawfulBasis: "…",                 // under the Kenya Data Protection Act
-  periodDays: 2555,                 // exact, not "as long as necessary"
+  schedule: {                      // illustrative only; no period approved here
+    startsAt: "deletion_completed",
+    duration: { unit: "days", count: 180 },
+  },
   fieldsRetained: ["…"],            // after pseudonymisation
   pseudonymizationMethod: "…",      // e.g. "hub_user_id → HMAC, contact nulled"
   accessRoles: ["…"],               // who may read it
@@ -211,3 +380,7 @@ match the canonical production host, which is itself still open).
 Until step 6, the member-facing behaviour is honest: the app and
 `/account-deletion` both show the support fallback instead of a Continue
 button, and nothing is accepted that cannot be carried out.
+
+## Scope steering — native-only release (2026-10-19)
+
+After inspection of Akiba-Platform, the user explicitly chose: **limit this release to native-app data and review shared-account effects first**. This supersedes any implementation assumption that native deletion may remove the shared Auth identity, canonical identity links or Platform Miles ledger. Those operations are excluded from activation; the shared ledger mutation exception and Auth hard-delete change were removed. The earlier working retention periods remain recorded, but no whole-account pipeline may be enabled until native lifecycle isolation/shared effects are reviewed. The database preflight reports `shared_account_scope_review` and the executable registry deliberately omits shared Auth/canonical cleanup. This adds a scope review item, not another request to choose a retention period.

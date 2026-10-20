@@ -84,10 +84,13 @@ describe("completion email — resend adapter", () => {
     const [url, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("https://api.resend.com/emails");
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer re_test_key");
+    expect((init.headers as Record<string, string>)["Idempotency-Key"]).toBe("account-deletion/req-abc-123");
 
     const payload = JSON.parse(init.body as string);
     expect(payload.to).toEqual(["member@example.com"]);
-    expect(payload.subject).toMatch(/deleted/i);
+    expect(payload.subject).toMatch(/shared Akiba account deletion is complete/i);
+    expect(payload.text).toContain("shared Akiba member account deletion has been completed");
+    expect(payload.text).not.toMatch(/blockchain|Celo/i);
     // The notice must carry the reference the member was shown, and nothing
     // that could be mistaken for a sign-in link.
     expect(payload.text).toContain("req-abc-123");

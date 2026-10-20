@@ -21,6 +21,7 @@ import {
   merchantDetailSchema,
   merchantStateDetailSchema,
   verifiedVisitHelpfulResponseSchema,
+  verifiedVisitReportResponseSchema,
   verifiedVisitPhotoUploadIntentSchema,
   verifiedVisitPhotoCompletionSchema,
   verifiedVisitPhotoWithdrawalSchema,
@@ -56,6 +57,7 @@ import {
   type MerchantDetail,
   type MerchantStateDetail,
   type VerifiedVisitHelpfulResponse,
+  type VerifiedVisitReportResponse,
   type VerifiedVisitPhotoUploadIntent,
   type VerifiedVisitPhotoCompletion,
   type VerifiedVisitPhotoWithdrawal,
@@ -76,6 +78,7 @@ import {
 } from '@/contracts';
 
 import { ApiRequestError } from './errors';
+import { fetchWithTimeout } from './timeout';
 import {
   getScreenshotMerchantOffers,
   getScreenshotOwnedVouchers,
@@ -144,7 +147,7 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
       headers.Authorization = `Bearer ${accessToken}`;
     }
 
-    const response = await fetch(`${getApiBaseUrl()}${path}`, { headers });
+    const response = await fetchWithTimeout(`${getApiBaseUrl()}${path}`, { headers });
     const body: unknown = await response.json().catch(() => null);
 
     if (!response.ok) {
@@ -192,7 +195,7 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
       Authorization: `Bearer ${accessToken}`,
     };
 
-    const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    const response = await fetchWithTimeout(`${getApiBaseUrl()}${path}`, {
       method,
       headers,
       body: requestBody !== undefined ? JSON.stringify(requestBody) : undefined,
@@ -406,6 +409,21 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
         'DELETE',
         `/api/v1/me/discovery-contributions/${encodeURIComponent(contributionId)}/photos/${encodeURIComponent(photoId)}`,
         verifiedVisitPhotoWithdrawalSchema,
+      );
+    },
+    // Idempotent on the server: a repeat report by the same member returns
+    // alreadyReported rather than erroring, so a retry after a dropped
+    // response is safe.
+    reportVerifiedVisit(
+      slug: string,
+      visitId: string,
+      input: { reason: string; photoId?: string | null },
+    ): Promise<VerifiedVisitReportResponse> {
+      return mutate(
+        'POST',
+        `/api/v1/merchants/${encodeURIComponent(slug)}/verified-visits/${encodeURIComponent(visitId)}/report`,
+        verifiedVisitReportResponseSchema,
+        { reason: input.reason, photoId: input.photoId ?? null },
       );
     },
     getOfferReminder(offerId: string): Promise<OfferReminderState> {

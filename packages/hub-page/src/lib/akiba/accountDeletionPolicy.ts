@@ -21,7 +21,7 @@
  * only this value, so an app build showing older copy is rejected rather than
  * silently recording consent to a policy the member never saw.
  */
-export const DELETION_POLICY_VERSION = "2026-10-10.1";
+export const DELETION_POLICY_VERSION = "2026-10-19.3";
 
 /** §4.5 — the member-facing maximum processing target, in calendar days. */
 export const PROCESSING_TARGET_DAYS = 14;
@@ -47,11 +47,27 @@ export type DeletionAction =
   /** Outside Akiba's control — public chain. Never presented as deleted. */
   | "immutable";
 
+/** Calendar rules require a documented calendar and a per-record resolved anchor.
+ * This policy representation does not itself authorize or implement an expiry job.
+ */
+export type RetentionSchedule = {
+  duration: { unit: "days" | "months" | "years"; count: number };
+} & (
+  | { startsAt: "deletion_completed" }
+  | { startsAt: "record_event"; event: string; timestampField: string }
+  | {
+      startsAt: "reporting_period_end";
+      calendarReference: string;
+      timeZone: string;
+      periodEndField: string;
+    }
+);
+
 export type RetentionTerms = {
   purpose: string;
   lawfulBasis: string;
-  /** Exact period. `null` is not allowed here — use a null `retention` instead. */
-  periodDays: number;
+  /** Exact duration and anchor; unresolved terms keep the whole row null. */
+  schedule: RetentionSchedule;
   fieldsRetained: string[];
   pseudonymizationMethod: string;
   accessRoles: string[];
@@ -74,12 +90,14 @@ export type InventoryRow = {
    */
   retention: RetentionTerms | null;
   notes: string;
+  /** Product periods accepted separately from remaining legal/ops terms. */
+  workingPeriod?: { days: number } | { months: number };
 };
 
 const NO_RETENTION_NEEDED: RetentionTerms = {
   purpose: "None — deleted on request",
   lawfulBasis: "Erasure of data no longer necessary to retain",
-  periodDays: 0,
+  schedule: { startsAt: "deletion_completed", duration: { unit: "days", count: 0 } },
   fieldsRetained: [],
   pseudonymizationMethod: "n/a — row removed",
   accessRoles: [],
@@ -101,16 +119,16 @@ export const DELETION_INVENTORY: InventoryRow[] = [
     dataClass: "Supabase Auth identity and sessions",
     targets: ["auth.users"],
     action: "delete",
-    retention: NO_RETENTION_NEEDED,
-    notes: "Soft-deleted with the service role, only after every dependent step succeeds.",
+    retention: null,
+    notes: "TBD: full shared-account closure is now authorized. Admin fulfilment verifies erasure under notice .3; formal inventory terms still gate unattended automation.",
   },
   {
     id: "profile_contact",
     dataClass: "Email, phone, name, username, city, avatar",
-    targets: ["hub_user_profiles", "leaderboard_profiles", "leaderboard_username_changes"],
+    targets: ["hub_user_profiles"],
     action: "delete",
     retention: NO_RETENTION_NEEDED,
-    notes: "Includes the duplicated leaderboard username projection, not just the profile row.",
+    notes: "Hub contact profile is removed; admin full-account fulfilment also removes shared username projections.",
   },
   {
     id: "pass_credentials",
@@ -132,11 +150,15 @@ export const DELETION_INVENTORY: InventoryRow[] = [
     targets: [
       "hub_user_saved_merchants",
       "merchant_verified_visit_helpful_reactions",
+      "merchant_verified_visit_reports",
       "hub_notification_preferences",
     ],
     action: "delete",
     retention: NO_RETENTION_NEEDED,
-    notes: "No retention purpose.",
+    notes:
+      "No retention purpose. Reports this member *filed* go with them; reports other members " +
+      "filed about this member's cards are not theirs to erase and follow the card itself, " +
+      "which contribution_id cascades handle when the contribution is removed.",
   },
   {
     id: "push_registrations",
@@ -162,8 +184,8 @@ export const DELETION_INVENTORY: InventoryRow[] = [
     dataClass: "Linked-wallet relationship",
     targets: ["hub_user_wallets", "wallet_link_challenges"],
     action: "unlink",
-    retention: NO_RETENTION_NEEDED,
-    notes: "Severs Akiba's association only. The external wallet and its chain history are untouched.",
+    retention: null,
+    notes: "TBD: shared wallet unlinking is authorized under notice .3; formal processor/access terms and unsupported identity aliases still need review before unattended automation.",
   },
   {
     id: "deletion_challenges",
@@ -201,6 +223,7 @@ export const DELETION_INVENTORY: InventoryRow[] = [
   },
   {
     id: "published_photos",
+    workingPeriod: { days: 90 },
     dataClass: "Published member photos/content",
     // Includes the in-flight processing jobs and contribution items, which
     // are children of the photo/contribution rows and must go in the same
@@ -240,6 +263,7 @@ export const DELETION_INVENTORY: InventoryRow[] = [
   },
   {
     id: "reward_ledger",
+    workingPeriod: { days: 180 },
     dataClass: "Miles/reward ledger",
     targets: ["miles_ledger_holds", "miles_spend_intents"],
     action: "pseudonymize",
@@ -248,14 +272,19 @@ export const DELETION_INVENTORY: InventoryRow[] = [
   },
   {
     id: "settlement_evidence",
+    workingPeriod: { days: 180 },
     dataClass: "Voucher redemption, settlement, payment evidence",
     targets: ["voucher_redemptions", "voucher_purchase_quotes", "mpesa_stk_requests"],
     action: "pseudonymize",
     retention: null,
-    notes: "TBD: statutory accounting period; M-Pesa evidence may have its own minimum.",
+    notes:
+      "TBD: statutory accounting period for merchant-settlement evidence. The M-Pesa clause is " +
+      "resolved — the legacy mpesa_stk_requests/_results rows were test data from retired " +
+      "direct commerce and were removed on 2026-10-19; see the retention decision sheet.",
   },
   {
     id: "earning_events",
+    workingPeriod: { days: 180 },
     dataClass: "Verified earning and quest evidence",
     targets: ["verified_earning_events", "hub_quest_action_proofs", "hub_user_canonicals"],
     action: "pseudonymize",
@@ -264,6 +293,7 @@ export const DELETION_INVENTORY: InventoryRow[] = [
   },
   {
     id: "fraud_risk",
+    workingPeriod: { days: 180 },
     dataClass: "Fraud, abuse, risk and security audit",
     targets: [
       "hub_user_risk_flags",
@@ -277,6 +307,7 @@ export const DELETION_INVENTORY: InventoryRow[] = [
   },
   {
     id: "referrals",
+    workingPeriod: { days: 180 },
     dataClass: "Referral relationships",
     targets: ["hub_referrals", "hub_referral_codes", "referral_reward_jobs"],
     action: "pseudonymize",
@@ -320,7 +351,25 @@ export const DELETION_INVENTORY: InventoryRow[] = [
     notes: "TBD: the disclosure wording only. Akiba cannot delete or mutate these records.",
   },
   {
+    id: "shared_profile_projection",
+    dataClass: "Shared leaderboard username identity projections",
+    targets: ["leaderboard_profiles", "leaderboard_username_changes"],
+    action: "unlink",
+    retention: null,
+    notes: "TBD: full-account scope now includes removing shared username projections. Formal inventory approval remains separate from admin-directed verified cleanup.",
+  },
+  {
+    id: "canonical_identity",
+    dataClass: "Shared canonical identity and remaining Miles ledger",
+    targets: ["identity_links", "miles_ledger"],
+    action: "pseudonymize",
+    retention: null,
+    workingPeriod: { days: 180 },
+    notes: "TBD: full shared-account scope is authorized; access/processor terms and the retained Platform ledger schedule still need review. Native reward evidence is accepted for 180 days; unreviewed histories fail preflight rather than being silently erased.",
+  },
+  {
     id: "deletion_record",
+    workingPeriod: { months: 24 },
     dataClass: "Deletion request/events",
     targets: ["account_deletion_requests", "account_deletion_events"],
     action: "pseudonymize",

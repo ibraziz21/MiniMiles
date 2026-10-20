@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { DISCOVERY_PHOTO_REJECTION_REASONS } from "@/lib/discoveryModeration";
 
-export function DiscoveryPhotoPreview({ photoId }: { photoId: string }) {
+export function DiscoveryPhotoPreview({ photoId, reviewLink = false }: { photoId: string; reviewLink?: boolean }) {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
@@ -28,7 +28,8 @@ export function DiscoveryPhotoPreview({ photoId }: { photoId: string }) {
   if (error) return <div className="flex h-32 w-32 items-center justify-center rounded-lg bg-slate-100 text-xs text-slate-400">Unavailable</div>;
   if (!url) return <div className="flex h-32 w-32 items-center justify-center rounded-lg bg-slate-100 text-xs text-slate-400">Loading…</div>;
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={url} alt="Submitted visit photo pending moderation" className="h-32 w-32 rounded-lg object-cover" />;
+  const image = <img src={url} width={128} height={128} loading="lazy" onError={() => setError(true)} alt="Submitted visit photo for moderation" className="h-32 w-32 rounded-lg object-cover" />;
+  return reviewLink ? <a href={url} target="_blank" rel="noopener noreferrer" className="block text-sm text-primary underline focus-visible:outline-primary">{image}<span className="inline-flex min-h-11 items-center">Open full photo<span className="sr-only"> in a new tab</span></span></a> : image;
 }
 
 export function DiscoveryPhotoActions({ photoId }: { photoId: string }) {

@@ -1,6 +1,14 @@
 {
   "crons": [
     {
+      "path": "/api/internal/process-account-deletion-emails",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/internal/expire-account-deletion-evidence",
+      "schedule": "30 2 * * *"
+    },
+    {
       "path": "/api/internal/process-reward-jobs",
       "schedule": "*/5 * * * *"
     },

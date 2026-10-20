@@ -29,6 +29,7 @@ export function VerifiedVisitCommunity({
   merchantName,
   merchantSlug,
   onAddVisit,
+  onReport,
   onToggleHelpful,
   onToggleSave,
   refreshVisitPhoto,
@@ -42,6 +43,12 @@ export function VerifiedVisitCommunity({
   merchantName: string;
   merchantSlug: string;
   onAddVisit: () => void;
+  /**
+   * Opens the report flow for a card. The sheet and the request live in the
+   * parent, like onAddVisit — this component stays presentational and never
+   * holds an access token.
+   */
+  onReport: (visitId: string, photoId: string | null) => void;
   onToggleHelpful: (visitId: string) => Promise<void>;
   onToggleSave: () => void;
   refreshVisitPhoto: (photoId: string, updateProfile?: boolean) => Promise<CustomerPhoto | null>;
@@ -254,6 +261,19 @@ export function VerifiedVisitCommunity({
                   <Text style={[styles.actionText, saved && styles.actionTextSelected]}>Save</Text>
                 </Pressable>
                 <Pressable accessibilityLabel={`Share ${merchantName}`} accessibilityRole="button" onPress={() => void shareCommunity()} style={({ pressed }) => [styles.action, pressed && styles.pressed]}><Icon name="share-2" size={20} color={colors.ink} /><Text style={styles.actionText}>Share</Text></Pressable>
+                {/* Required by Play's user-generated content policy. Closing
+                    the deck first mirrors addVisit: stacking a second modal
+                    over this one is unreliable on Android. */}
+                <Pressable
+                  accessibilityHint="Opens reasons for reporting this visit"
+                  accessibilityLabel="Report this visit"
+                  accessibilityRole="button"
+                  onPress={() => { setOpen(false); onReport(current.id, currentPhoto?.id ?? null); }}
+                  style={({ pressed }) => [styles.action, pressed && styles.pressed]}
+                >
+                  <Icon name="flag" size={20} color={colors.muted} />
+                  <Text style={styles.actionText}>Report</Text>
+                </Pressable>
               </View>
             </ScrollView>
           </View>

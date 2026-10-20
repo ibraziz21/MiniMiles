@@ -32,7 +32,7 @@ import type { PublicMerchantDetail } from "@/lib/merchants/types";
 // never be statically executed at build time.
 export const dynamic = "force-dynamic";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://hub.akibamiles.com";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://pass.akibamiles.com";
 
 async function getSignedInIdentity(): Promise<{ userId: string | null; email: string | null }> {
   const supabase = await createClient();

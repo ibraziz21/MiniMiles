@@ -4934,12 +4934,13 @@ async function createSpendIntentFixture(options: {
     [program.id],
   );
 
-  const canonicalId = crypto.randomUUID();
-  await pool.query(
-    `INSERT INTO identity_links(canonical_id, identity_type, identity_value)
-     VALUES($1, 'email', lower($2))`,
-    [canonicalId, hubUser.email],
+  // Migration 099 already links a new Auth user's email. Use that canonical
+  // instead of inserting a second identity and failing on its unique key.
+  const { rows: [participant] } = await pool.query(
+    `SELECT resolve_partner_quest_canonical($1,$2,NULL) AS canonical_id`,
+    [hubUser.id,hubUser.email],
   );
+  const canonicalId = participant.canonical_id as string;
   if (ledgerCredit > 0) {
     await pool.query(
       `INSERT INTO miles_ledger(

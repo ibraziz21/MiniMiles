@@ -24,9 +24,15 @@ import {
 } from "@/lib/akiba/accountDeletionPolicy";
 import { encryptCompletionContact } from "@/lib/akiba/accountDeletionContact";
 import { maskEmail } from "@/lib/akiba/maskEmail";
-import { deletionAvailability } from "@/lib/akiba/accountDeletionAvailability";
+import { adminExecutionConfigBlockers } from "./accountDeletionAdminConfig";
+import {
+  deletionFulfilmentMode,
+  isManualFulfilmentEnabled,
+  type FulfilmentMode,
+} from "@/lib/akiba/accountDeletionAvailability";
 import {
   DeletionLookupUnavailableError,
+  findDeletionReceipt,
   findOpenDeletionRequest,
 } from "@/lib/akiba/accountDeletionGuard";
 
@@ -39,7 +45,12 @@ export type DeletionRequestStatus =
   | "legal_hold"
   | "failed"
   | "completed"
-  | "cancelled";
+  | "cancelled"
+  /**
+   * Accepted and awaiting a person. Outside PENDING_DELETION_STATUSES on
+   * purpose, so the member keeps access while they wait — see BDR-003.
+   */
+  | "manual_review";
 
 export type AccountDeletionSummary = {
   maskedEmail: string;
@@ -54,6 +65,12 @@ export type AccountDeletionSummary = {
    * member read every disclosure and then be refused.
    */
   acceptingRequests: boolean;
+  /**
+   * How it will be carried out, so the app can set honest expectations: under
+   * `manual` a person does the work, which is slower and worth saying out
+   * loud. `unavailable` pairs with acceptingRequests false.
+   */
+  fulfilment: FulfilmentMode;
 };
 
 export type AccountDeletionChallenge = {
@@ -94,6 +111,33 @@ export class AccountDeletionError extends Error {
   }
 }
 
+async function memberCanBeProcessed(userId: string): Promise<boolean> {
+  const { data, error } = await createAdminClient().rpc("account_deletion_preflight", { p_user_id: userId });
+  if (error || !Array.isArray(data)) throw new AccountDeletionError("storage_unavailable");
+  return data.length === 0;
+}
+
+/**
+ * How a request from this member would be carried out, or `unavailable`.
+ *
+ * The preflight gates the *automated* pipeline specifically: it refuses while
+ * shared-service records are unreviewed, because the worker would have to act
+ * on them unsupervised. Under manual fulfilment a person does the work, so an
+ * unresolved record is a note for that person rather than a reason to refuse
+ * the member — which is what makes an in-app path possible at all while the
+ * native-only scope decision stands. See BDR-003.
+ */
+async function resolveFulfilment(userId: string): Promise<FulfilmentMode> {
+  const mode = deletionFulfilmentMode();
+  if (mode === "unavailable") return mode;
+  if (mode === "automated" && await memberCanBeProcessed(userId)) return "automated";
+  // The worker cannot carry out this member's deletion in particular. Manual
+  // fulfilment, where enabled, is still a legitimate route for them.
+  if (!isManualFulfilmentEnabled() || adminExecutionConfigBlockers().length > 0) return "unavailable";
+  const ready = await createAdminClient().rpc("admin_deletion_fulfilment_ready");
+  return !ready.error && ready.data === true ? "manual" : "unavailable";
+}
+
 /** The actor's own deletion-effects projection. Counts only — never ids. */
 export async function getAccountDeletionSummary(actor: {
   userId: string;
@@ -126,6 +170,8 @@ export async function getAccountDeletionSummary(actor: {
     throw new AccountDeletionError("storage_unavailable");
   }
 
+  const fulfilment = await resolveFulfilment(actor.userId);
+
   return {
     maskedEmail: maskEmail(actor.email),
     milesBalance: balance.balance,
@@ -135,7 +181,8 @@ export async function getAccountDeletionSummary(actor: {
     // Stated as a constant true, not computed: Akiba can never erase a Celo
     // record, whether or not this member has one today.
     onChainRecordsRemain: true,
-    acceptingRequests: deletionAvailability().acceptingRequests,
+    acceptingRequests: fulfilment !== "unavailable",
+    fulfilment,
   };
 }
 
@@ -160,7 +207,7 @@ export async function createDeletionChallenge(actor: {
   // Before anything else: never send a verification code for a request that
   // cannot be accepted. Sending one would walk the member up to a locked
   // door.
-  if (!deletionAvailability().acceptingRequests) {
+  if ((await resolveFulfilment(actor.userId)) === "unavailable") {
     throw new AccountDeletionError("deletion_unavailable");
   }
   if (!actor.email) throw new AccountDeletionError("account_has_no_email");
@@ -244,7 +291,10 @@ export async function submitDeletionRequest(
   // Step 2: an existing request short-circuits everything else.
   let existing;
   try {
-    existing = await findOpenDeletionRequest(actor.userId);
+    // The receipt lookup, not the access guard: a member retrying must get
+    // their existing manual_review request back rather than being sent
+    // through the challenge again with a consumed code.
+    existing = await findDeletionReceipt(actor.userId);
   } catch (error) {
     if (error instanceof DeletionLookupUnavailableError) {
       throw new AccountDeletionError("storage_unavailable");
@@ -264,9 +314,8 @@ export async function submitDeletionRequest(
   // Checked *after* the existing-request short-circuit on purpose: a member
   // whose request was already accepted must still be able to retry and read
   // their receipt, even if submission was switched off in between.
-  if (!deletionAvailability().acceptingRequests) {
-    throw new AccountDeletionError("deletion_unavailable");
-  }
+  const fulfilment = await resolveFulfilment(actor.userId);
+  if (fulfilment === "unavailable") throw new AccountDeletionError("deletion_unavailable");
 
   // Step 7 before the OTP is spent: a stale app build must be rejected
   // without burning the member's code.
@@ -316,7 +365,16 @@ export async function submitDeletionRequest(
   // because after processing there is no record left to read it from.
   const contact = encryptCompletionContact(actor.email);
 
-  const { data: created, error: createError } = await admin.rpc("create_account_deletion_request", {
+  // The manual creator skips only the preflight gate in the automated
+  // creator — which exists to stop a request the *worker* cannot carry out.
+  // Challenge ownership, expiry, consumption and the one-open-request rule
+  // are the same code either way.
+  const createFunction =
+    fulfilment === "manual"
+      ? "create_manual_account_deletion_request"
+      : "create_account_deletion_request";
+
+  const { data: created, error: createError } = await admin.rpc(createFunction, {
     p_hub_user_id: actor.userId,
     p_challenge_id: challengeId,
     p_policy_version: policyVersion,

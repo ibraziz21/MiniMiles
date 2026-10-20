@@ -1,7 +1,7 @@
 // Account deletion (AKIBA-MOB-002 §5.2–§5.6).
 //
 // A full screen, not an alert (§4.3): the member has to be able to read what
-// they lose, what Akiba keeps, and what the blockchain keeps, before any
+// they lose and what limited evidence Akiba keeps, before any
 // destructive action is reachable. The irreversible tap is protected by an
 // email code and one explicit acknowledgement — no typed confirmation word,
 // which adds effort without proving identity.
@@ -25,7 +25,7 @@ import {
   useResendCountdown,
 } from '@/auth';
 import { resolveDeletionError, previousStep, type DeletionStep } from '@/account-deletion';
-import { useAppConfig } from '@/config';
+import { DELETION_NOTICE_VERSION } from '@/account-deletion/policy';
 import type { AccountDeletionSummary } from '@/contracts';
 import { clearOnboardingStep } from '@/onboarding';
 import { useMember } from '@/member';
@@ -53,7 +53,6 @@ type SummaryState =
 
 export default function DeleteAccountScreen() {
   const { accessToken, signOut } = useAuth();
-  const { legal } = useAppConfig();
   const { state: memberState } = useMember();
 
   const [summary, setSummary] = useState<SummaryState>({ status: 'loading' });
@@ -153,7 +152,7 @@ export default function DeleteAccountScreen() {
       const receipt = await createApiClient({ accessToken }).submitAccountDeletionRequest({
         challengeId,
         otp: code,
-        policyVersion: legal.deletionPolicyVersion,
+        policyVersion: DELETION_NOTICE_VERSION,
       });
 
       track('account_deletion_request_accepted', {
@@ -211,7 +210,7 @@ export default function DeleteAccountScreen() {
       }
       setBusy(false);
     }
-  }, [accessToken, acknowledged, busy, challengeId, code, legal.deletionPolicyVersion, memberState, signOut]);
+  }, [accessToken, acknowledged, busy, challengeId, code, memberState, signOut]);
 
   const goBack = useCallback(() => {
     const target = previousStep(step);
@@ -357,7 +356,6 @@ function ReviewStep({
         <Bullet>Your profile and contact details — username, phone, city and avatar</Bullet>
         <Bullet>Your Akiba Pass, so no code of yours can be scanned again</Bullet>
         <Bullet>Saved places, notification settings and this device&apos;s registration</Bullet>
-        <Bullet>The link between your Akiba account and any wallet you connected</Bullet>
         <Bullet>Photos and contributions you submitted, including unpublished ones</Bullet>
       </Section>
 
@@ -367,25 +365,18 @@ function ReviewStep({
           <Stat label="Active vouchers" value={String(summary.activeVoucherCount)} />
         </View>
         <Text style={styles.bodyText}>
-          Your Akiba Pass stops working and unredeemed vouchers become unusable. We can&apos;t move Miles
-          or vouchers to another account, and they can&apos;t be restored. Having a balance won&apos;t
-          block your request.
+          Deletion closes your shared Akiba member account across connected Akiba services.
+          You lose access to account-bound Miles, Passes and vouchers, and linked wallet associations are removed.
+          Having a balance won&apos;t block your request.
         </Text>
       </Section>
 
       <Section title="What may remain">
         <Text style={styles.bodyText}>
-          Some records are kept with your name, email and other direct identifiers removed, where an
-          approved legal, settlement, fraud or audit purpose requires it. Access to those is restricted
-          and each is held only for its approved retention period.
-        </Text>
-      </Section>
-
-      <Section title="What Akiba cannot erase">
-        <Text style={styles.bodyText}>
-          Transactions already written to the Celo blockchain, and the public wallet addresses in them,
-          are permanent. No one — including Akiba — can delete or change them. We remove our own
-          off-chain link to your wallet where our retention plan allows it.
+          We keep minimal moderation evidence for 90 days, and reward, voucher, referral and security
+          evidence for 180 days after deletion is completed. We keep limited proof of deletion for
+          24 months. Your identity and contact details are removed from that evidence, access is
+          restricted, and records are deleted at expiry unless a specific legal hold applies.
         </Text>
       </Section>
 
@@ -395,6 +386,16 @@ function ReviewStep({
           unless we&apos;re legally required to hold data longer. We&apos;ll email {summary.maskedEmail}{' '}
           when it&apos;s done. You can&apos;t cancel the request yourself once you confirm it.
         </Text>
+        {summary.fulfilment === 'manual' ? (
+          // Said plainly rather than hidden: a person carries this out, so it
+          // is not instant, and the member should not be left wondering why
+          // they can still sign in afterwards.
+          <Text style={styles.bodyText}>
+            Our team reviews and processes this request, so deletion won&apos;t happen the moment you
+            confirm. Your unredeemed vouchers stop working straight away. You can still sign in while
+            the request waits for review; access stops when cleanup begins.
+          </Text>
+        ) : null}
       </Section>
 
       <View style={styles.actions}>
@@ -525,8 +526,8 @@ function ConfirmStep({
           size={22}
         />
         <Text style={styles.acknowledgeLabel}>
-          I understand that I will lose access to my Akiba Pass, active vouchers, and account-based
-          rewards.
+          I understand that my shared Akiba account will close and I will lose sign-in access,
+          my Akiba Pass, active vouchers, account-based rewards and linked wallet associations.
         </Text>
       </Button>
 

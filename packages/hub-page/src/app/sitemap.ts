@@ -5,7 +5,7 @@ import { listPublicMerchants } from "@/lib/merchants/queries";
 // fresh rather than serving a stale sitemap.
 export const dynamic = "force-dynamic";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://hub.akibamiles.com";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://pass.akibamiles.com";
 
 // Sane upper bound so a runaway directory can't produce a pathological
 // sitemap; raise (or paginate into sitemap indexes) once the network is

@@ -1,0 +1,18 @@
+import { afterEach,beforeEach,describe,expect,it,vi } from "vitest";
+const state=vi.hoisted(()=>({session:{adminUserId:'10000000-0000-4000-8000-000000000001',openAccess:false} as {adminUserId:string;openAccess:boolean}|null,auth:vi.fn(),rpc:vi.fn(),fetch:vi.fn()}));
+vi.mock('@/lib/auth',()=>({requireAdminSession:state.auth,adminIdForWrite:(s:{adminUserId:string;openAccess:boolean})=>s.openAccess?null:s.adminUserId}));
+vi.mock('@/lib/supabase',()=>({supabase:{rpc:state.rpc}}));
+const {POST}=await import('@/app/api/admin/account-deletions/[id]/route');
+const id='20000000-0000-4000-8000-000000000002';
+const req=(body:unknown,origin='http://localhost')=>new Request('http://localhost/api/admin/account-deletions/'+id,{method:'POST',headers:{origin,'Content-Type':'application/json'},body:JSON.stringify(body)});
+beforeEach(()=>{state.session={adminUserId:'10000000-0000-4000-8000-000000000001',openAccess:false};state.auth.mockReset().mockImplementation(()=>state.session);state.rpc.mockReset().mockResolvedValue({data:null,error:null});state.fetch.mockReset().mockResolvedValue(new Response(JSON.stringify({ok:true,verified:true}),{status:200}));vi.stubGlobal('fetch',state.fetch);vi.stubEnv('AKIBA_HUB_INTERNAL_URL','https://pass.akibamiles.com');vi.stubEnv('INTERNAL_WEBHOOK_SECRET','server-only-test-secret');});
+afterEach(()=>{vi.unstubAllGlobals();vi.unstubAllEnvs();});
+describe('admin deletion proxy',()=>{
+ it('requires deletion-specific write access',async()=>{state.session=null;expect((await POST(req({action:'assign'}),{params:{id}})).status).toBe(401);expect(state.auth).toHaveBeenCalledWith('deletions.write');expect(state.rpc).not.toHaveBeenCalled();});
+ it('rejects cross-origin and open-access writes',async()=>{expect((await POST(req({action:'assign'},'https://evil.example'),{params:{id}})).status).toBe(403);state.session!.openAccess=true;expect((await POST(req({action:'assign'}),{params:{id}})).status).toBe(403);});
+ it('requires explicit shared-account confirmation before forwarding',async()=>{expect((await POST(req({action:'run'}),{params:{id}})).status).toBe(422);expect(state.fetch).not.toHaveBeenCalled();});
+ it('assigns using only the authenticated operator',async()=>{expect((await POST(req({action:'assign',actorId:'forged'}),{params:{id}})).status).toBe(200);expect(state.rpc).toHaveBeenCalledWith('assign_admin_account_deletion',{p_request:id,p_actor:state.session!.adminUserId});});
+ it('forwards actor and bounded action server-to-server without exposing secrets',async()=>{const response=await POST(req({action:'run',confirmation:'DELETE SHARED ACCOUNT'}),{params:{id}});expect(response.status).toBe(200);const [url,init]=state.fetch.mock.calls[0];expect(String(url)).toBe('https://pass.akibamiles.com/api/internal/admin-account-deletion');expect(JSON.parse(init.body).actorId).toBe(state.session!.adminUserId);expect(await response.text()).not.toContain('server-only-test-secret');});
+ it('fails closed on missing service configuration',async()=>{vi.stubEnv('AKIBA_HUB_INTERNAL_URL','');expect((await POST(req({action:'inspect'}),{params:{id}})).status).toBe(503);expect(state.fetch).not.toHaveBeenCalled();});
+ it('reports uncertainty after a lost response instead of claiming failure or success',async()=>{state.fetch.mockRejectedValue(new Error('secret provider payload'));const response=await POST(req({action:'run',confirmation:'DELETE SHARED ACCOUNT'}),{params:{id}});expect(response.status).toBe(503);expect(await response.text()).not.toContain('secret provider payload');});
+});

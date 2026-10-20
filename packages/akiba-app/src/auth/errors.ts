@@ -16,13 +16,18 @@ type SupabaseLikeError = {
   message?: string;
 };
 
-export type AuthErrorContext = 'send' | 'verify';
+export type AuthErrorContext = 'send' | 'verify' | 'password';
 
 const OFFLINE = 'We couldn’t reach Akiba. Check your connection and try again.';
 const RATE_LIMITED = 'Too many attempts. Wait a minute, then request a new code.';
 const BAD_EMAIL = 'That email address doesn’t look right. Check it and try again.';
 const BAD_CODE = 'That code didn’t work. Check the 6 digits, or request a new one.';
 const EXPIRED_CODE = 'That code has expired. Request a new one to continue.';
+// Covers two cases Supabase reports identically: a wrong password, and an
+// account that has never set one (OTP-only members, which is most of them).
+// Naming the code route keeps the second case from being a dead end.
+const BAD_PASSWORD = 'That email and password didn’t match. You can sign in with a code instead.';
+const UNCONFIRMED = 'Confirm your email address first. Sign in with a code to finish setting up.';
 const GENERIC = 'Something went wrong. Please try again.';
 
 function asSupabaseError(error: unknown): SupabaseLikeError {
@@ -47,7 +52,12 @@ export function mapAuthError(error: unknown, context: AuthErrorContext): string 
 
   const cooldown = parseCooldownSeconds(error);
   if (cooldown !== null) {
-    return `Please wait ${cooldown} second${cooldown === 1 ? '' : 's'} before requesting another code.`;
+    const seconds = `${cooldown} second${cooldown === 1 ? '' : 's'}`;
+    // A password attempt is not requesting anything, so the OTP wording
+    // would be nonsense there.
+    return context === 'password'
+      ? `Please wait ${seconds} before trying again.`
+      : `Please wait ${seconds} before requesting another code.`;
   }
 
   switch (code) {
@@ -58,7 +68,9 @@ export function mapAuthError(error: unknown, context: AuthErrorContext): string 
     case 'email_address_invalid':
     case 'email_address_not_authorized':
     case 'validation_failed':
-      return context === 'send' ? BAD_EMAIL : BAD_CODE;
+      // Only the verify step is about the code; send and password are both
+      // judging the email the member typed.
+      return context === 'verify' ? BAD_CODE : BAD_EMAIL;
     case 'otp_expired':
       return EXPIRED_CODE;
     case 'otp_disabled':
@@ -66,7 +78,9 @@ export function mapAuthError(error: unknown, context: AuthErrorContext): string 
     case 'email_provider_disabled':
       return 'Email sign-in is temporarily unavailable. Please try again later.';
     case 'invalid_credentials':
-      return BAD_CODE;
+      return context === 'password' ? BAD_PASSWORD : BAD_CODE;
+    case 'email_not_confirmed':
+      return UNCONFIRMED;
     case 'user_banned':
       return 'This account can’t sign in right now. Contact support@akibamiles.com for help.';
     default:
@@ -74,8 +88,11 @@ export function mapAuthError(error: unknown, context: AuthErrorContext): string 
   }
 
   if (status === 429) return RATE_LIMITED;
-  if (status === 422 && context === 'send') return BAD_EMAIL;
-  if ((status === 400 || status === 401 || status === 403) && context === 'verify') return BAD_CODE;
+  if (status === 422 && context !== 'verify') return BAD_EMAIL;
+  if (status === 400 || status === 401 || status === 403) {
+    if (context === 'verify') return BAD_CODE;
+    if (context === 'password') return BAD_PASSWORD;
+  }
   if (typeof status === 'number' && status >= 500) return 'Akiba is having trouble right now. Please try again shortly.';
 
   return GENERIC;

@@ -56,6 +56,7 @@ vi.mock("@supabase/supabase-js", () => ({
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     rpc: async (name: string) => {
+      if (name === "account_deletion_preflight") return { data: [], error: null };
       if (name !== "create_account_deletion_challenge") throw new Error(`Unexpected rpc ${name}`);
       if (state.rpcError) return { data: null, error: state.rpcError };
       return {
@@ -101,6 +102,8 @@ vi.mock("@/lib/akiba/accountDeletionAvailability", () => ({
     state.accepting
       ? { acceptingRequests: true }
       : { acceptingRequests: false, reason: "submission_disabled" },
+  deletionFulfilmentMode: () => (state.accepting ? "automated" : "unavailable"),
+  isManualFulfilmentEnabled: () => false,
   isProcessingEnabled: () => state.accepting,
   isSubmissionEnabled: () => state.accepting,
 }));
@@ -110,6 +113,7 @@ vi.mock("@/lib/akiba/accountDeletionGuard", () => {
   return {
     DeletionLookupUnavailableError: MockDeletionLookupUnavailableError,
     findOpenDeletionRequest: async () => null,
+    findDeletionReceipt: async () => null,
   };
 });
 
@@ -245,6 +249,9 @@ describe("GET /api/v1/me/account-deletion-summary", () => {
       processingTargetDays: 14,
       onChainRecordsRemain: true,
       acceptingRequests: true,
+      // The app sets expectations from this: under "manual" a person does the
+      // work, which takes longer than the automated path.
+      fulfilment: "automated",
     });
     // Counts only (§7.1): no wallet address, voucher code, or ledger row.
     expect(JSON.stringify(body.data)).not.toContain("0xabc");

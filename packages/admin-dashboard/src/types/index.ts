@@ -241,6 +241,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, Set<string>> = {
     "leads.read", "leads.write",
     "orders.read", "orders.write",
     "users.read",
+    "deletions.read", "deletions.write",
     "audit.read",
     "incidents.read", "incidents.write",
     "referrals.read", "referrals.write",

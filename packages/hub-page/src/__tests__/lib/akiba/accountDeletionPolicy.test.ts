@@ -7,6 +7,7 @@ import {
   DELETION_INVENTORY,
   DELETION_POLICY_VERSION,
   InventoryNotApprovedError,
+  PENDING_DELETION_STATUSES,
   PROCESSING_TARGET_DAYS,
   assertInventoryApproved,
   executableInventoryRows,
@@ -42,7 +43,20 @@ describe("retention inventory", () => {
       if (!row.retention) continue;
       expect(row.retention.purpose).toMatch(/\S/);
       expect(row.retention.lawfulBasis).toMatch(/\S/);
-      expect(typeof row.retention.periodDays).toBe("number");
+      expect(row.retention.schedule.duration.count).toBeGreaterThanOrEqual(0);
+      expect(Number.isInteger(row.retention.schedule.duration.count)).toBe(true);
+      expect(["days", "months", "years"]).toContain(row.retention.schedule.duration.unit);
+      const schedule = row.retention.schedule;
+      if (schedule.startsAt === "record_event") {
+        expect(schedule.event).toMatch(/\S/);
+        expect(schedule.timestampField).toMatch(/\S/);
+      } else if (schedule.startsAt === "reporting_period_end") {
+        expect(schedule.calendarReference).toMatch(/\S/);
+        expect(schedule.timeZone).toMatch(/\S/);
+        expect(schedule.periodEndField).toMatch(/\S/);
+      } else {
+        expect(schedule.startsAt).toBe("deletion_completed");
+      }
       expect(row.retention.pseudonymizationMethod).toMatch(/\S/);
       expect(row.retention.processor).toMatch(/\S/);
       expect(row.retention.storageRegion).toMatch(/\S/);
@@ -133,5 +147,17 @@ describe("retention inventory", () => {
     for (const row of unapprovedInventoryRows()) {
       expect(row.notes).toMatch(/TBD/);
     }
+  });
+
+  it("keeps manual_review out of the statuses that lock an account", () => {
+    // The invariant the manual-fulfilment path rests on (BDR-003 §3.1).
+    // PENDING_DELETION_STATUSES drives the pending-account guard, which denies
+    // every authenticated /api/v1 route. Adding manual_review here would
+    // freeze members out of accounts for however long a human takes to get to
+    // the queue — reinstating exactly the bug accountDeletionAvailability.ts
+    // was written to close, and silently, because nothing else would fail.
+    expect(PENDING_DELETION_STATUSES).not.toContain("manual_review");
+    // Guards the assertion itself against the constant being emptied.
+    expect(PENDING_DELETION_STATUSES).toContain("requested");
   });
 });

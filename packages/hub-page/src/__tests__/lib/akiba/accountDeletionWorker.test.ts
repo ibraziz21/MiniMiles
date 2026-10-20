@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { IMPLEMENTED_DELETION_STEPS } from "@/lib/akiba/accountDeletionRetention";
 
 type Row = {
   id: string;
@@ -75,6 +76,7 @@ vi.mock("@/lib/supabase/admin", () => ({
     rpc: async (name: string, args: Record<string, unknown>) => {
       state.rpcCalls.push({ name, args });
       if (name === "claim_account_deletion_requests") return { data: state.claimed, error: null };
+      if (name === "finish_account_deletion_request") return { data: [{ ok: true }], error: null };
       if (name === "claim_account_deletion_completion_emails") {
         return { data: state.emailClaimable, error: null };
       }
@@ -83,12 +85,6 @@ vi.mock("@/lib/supabase/admin", () => ({
     from: (table: string) => ({
       select: () => ({
         eq: (column: string, value: string) => {
-          if (table === "merchant_visit_photos") {
-            return Promise.resolve({ data: state.photos, error: null });
-          }
-          if (table === "web_push_subscriptions") {
-            return Promise.resolve({ data: state.pushSubscriptions, error: null });
-          }
           if (table === "account_deletion_events") {
             return {
               eq: () =>
@@ -101,7 +97,12 @@ vi.mock("@/lib/supabase/admin", () => ({
             };
           }
           void column;
-          return Promise.resolve({ data: [], error: null });
+          const data = table === "merchant_visit_photos" ? state.photos :
+            table === "web_push_subscriptions" ? state.pushSubscriptions : [];
+          return { order: () => ({ range: (from: number,to: number) => Promise.resolve({
+            // Simulate a server cap smaller than the requested page.
+            data: data.slice(from,Math.min(to+1,from+2)),error:null,
+          }) }) };
         },
       }),
       delete: () => ({
@@ -166,9 +167,7 @@ const EXECUTABLE_ROWS = [
   { id: "saved_merchants", action: "delete" },
   { id: "profile_contact", action: "delete" },
   { id: "push_registrations", action: "delete" },
-  { id: "wallet_links", action: "unlink" },
   { id: "deletion_challenges", action: "delete" },
-  { id: "auth_identity", action: "delete" },
 ];
 
 function requestRow(overrides: Partial<Row> = {}): Row {
@@ -229,14 +228,36 @@ describe("account deletion worker", () => {
     // Supabase refuses to delete a user that still owns Storage objects, so
     // this ordering is a correctness requirement, not a preference.
     const storageStep = state.events.findIndex((e) => e.metadata.step === "member_photo_objects");
-    const authStep = state.events.findIndex((e) => e.metadata.step === "auth_identity");
     expect(storageStep).toBeGreaterThanOrEqual(0);
-    expect(authStep).toBeGreaterThan(storageStep);
+    expect(state.authDeletes).toHaveLength(0);
   });
 
-  it("soft-deletes the Auth user last", async () => {
+  it("removes every photo object across capped API pages", async () => {
+    state.photos=Array.from({length:5},(_,i)=>({private_source_key:`source-${i}`,
+      thumbnail_key:`thumb-${i}`,display_key:`display-${i}`}));
     await processAccountDeletionRequests();
-    expect(state.authDeletes).toEqual([{ userId: "u1", soft: true }]);
+    expect(state.storageRemovals.find((batch)=>batch.bucket==="discovery-visit-photos")?.keys).toHaveLength(5);
+    expect(state.storageRemovals.find((batch)=>batch.bucket==="discovery-visit-photos-derived")?.keys).toHaveLength(10);
+  });
+
+  it("refuses a step that is ordered but not implemented, before touching anything", async () => {
+    // Guard 2: a declared data class whose implementation is absent must fail
+    // loudly rather than be skipped, or the member is told their data is gone
+    // when a whole class of it remains.
+    //
+    // Until migration 105 this was auth_identity's genuine state. Every step
+    // is implemented now, so the guard is exercised by withdrawing one —
+    // which is also the realistic regression: a step added to the inventory
+    // and the order, but never registered.
+    state.executableRows=[...EXECUTABLE_ROWS,{id:"auth_identity",action:"delete"}];
+    IMPLEMENTED_DELETION_STEPS.delete("auth_identity");
+    try {
+      await expect(processAccountDeletionRequests()).rejects.toThrow(/auth_identity/);
+      expect(state.authDeletes).toEqual([]);
+      expect(state.rpcCalls).toEqual([]);
+    } finally {
+      IMPLEMENTED_DELETION_STEPS.add("auth_identity");
+    }
   });
 
   it("deletes push delivery rows before the subscriptions they reference", async () => {
@@ -255,12 +276,12 @@ describe("account deletion worker", () => {
     ]);
   });
 
-  it("deletes the username projection, not just the profile row", async () => {
+  it("removes the native profile while preserving shared username projections", async () => {
     await processAccountDeletionRequests();
     const tables = state.deletes.map((d) => `${d.table}:${d.column}=${d.value}`);
     expect(tables).toContain("hub_user_profiles:user_id=u1");
-    expect(tables).toContain("leaderboard_profiles:canonical_id=canonical-u1");
-    expect(tables).toContain("leaderboard_username_changes:canonical_id=canonical-u1");
+    expect(tables.some((table) => table.startsWith("leaderboard_profiles:"))).toBe(false);
+    expect(tables.some((table) => table.startsWith("leaderboard_username_changes:"))).toBe(false);
   });
 
   it("clears saves, preferences, devices, wallet links and challenges", async () => {
@@ -274,8 +295,6 @@ describe("account deletion worker", () => {
       "web_push_deliveries",
       "web_push_jobs",
       "web_push_subscriptions",
-      "hub_user_wallets",
-      "wallet_link_challenges",
       "account_deletion_challenges",
     ]) {
       expect(tables).toContain(table);
@@ -301,12 +320,10 @@ describe("account deletion worker", () => {
     // never a skip, so an account can't be reported deleted while a class
     // survives.
     state.executableRows = [...EXECUTABLE_ROWS, { id: "reward_ledger", action: "pseudonymize" }];
-    const summary = await processAccountDeletionRequests();
-
-    expect(summary).toMatchObject({ completed: 0, failed: 1 });
-    expect(summary.outcomes[0]).toMatchObject({ failureCode: "step_executor_missing" });
-    const finish = state.rpcCalls.find((c) => c.name === "finish_account_deletion_request");
-    expect(finish?.args).toMatchObject({ p_outcome: "failed", p_failure_code: "step_executor_missing" });
+    IMPLEMENTED_DELETION_STEPS.delete("reward_ledger");
+    try { await expect(processAccountDeletionRequests()).rejects.toThrow(/reward_ledger/); }
+    finally { IMPLEMENTED_DELETION_STEPS.add("reward_ledger"); }
+    expect(state.rpcCalls).toHaveLength(0);
     expect(state.authDeletes).toHaveLength(0);
   });
 

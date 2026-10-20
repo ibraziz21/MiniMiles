@@ -21,6 +21,7 @@ type Summary = {
   activeVoucherCount: number;
   linkedWalletCount: number;
   acceptingRequests: boolean;
+  fulfilment?: "automated" | "manual" | "unavailable";
 };
 
 type Receipt = {
@@ -244,6 +245,14 @@ export function AccountDeletionFlow({
             This is the last step. Processing takes up to {processingTargetDays} days and cannot be
             undone.
           </p>
+          <p className="mt-3 text-base leading-7 text-akiba-muted">
+            This closes your shared Akiba member account across connected Akiba services, including
+            sign-in access, account-bound rewards and linked wallet associations.
+          </p>
+          {summary?.fulfilment === "manual" && <p className="mt-3 text-base leading-7 text-akiba-muted">
+            Our team reviews and processes your request. Unredeemed vouchers stop working when you
+            confirm. You can still sign in while awaiting review; access stops when cleanup begins.
+          </p>}
           <ul className="mt-4 list-disc space-y-2 pl-5 text-base leading-7 text-akiba-muted">
             <li>
               AkibaMiles balance lost: <strong className="text-akiba-ink">{summary?.milesBalance ?? 0}</strong>
@@ -266,8 +275,8 @@ export function AccountDeletionFlow({
               type="checkbox"
             />
             <span>
-              I understand that I will lose access to my Akiba Pass, active vouchers, and account-based
-              rewards.
+              I understand that my shared Akiba account will close and I will lose sign-in access,
+              my Akiba Pass, active vouchers, account-based rewards and linked wallet associations.
             </span>
           </label>
 

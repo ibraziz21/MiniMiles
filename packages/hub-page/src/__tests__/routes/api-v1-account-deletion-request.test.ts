@@ -1,3 +1,4 @@
+vi.mock("@/lib/akiba/accountDeletionAdminConfig", () => ({ adminExecutionConfigBlockers: () => [] }));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type Actor = { userId: string; email: string | null; authMode: "cookie" | "bearer" } | null;
@@ -20,6 +21,7 @@ const state = vi.hoisted(() => ({
   signOutCalls: 0,
   nextRequestId: 1,
   accepting: true,
+  fulfilment: "automated" as "automated" | "manual" | "unavailable",
 }));
 
 vi.mock("@/lib/auth/requestActor", () => {
@@ -41,6 +43,11 @@ vi.mock("@/lib/akiba/accountDeletionAvailability", () => ({
     state.accepting
       ? { acceptingRequests: true }
       : { acceptingRequests: false, reason: "retention_inventory_unapproved", unapprovedRowIds: ["reward_ledger"] },
+  // Mirrors the real derivation: automated wins when the worker can run, and
+  // manual is only reachable once it cannot.
+  deletionFulfilmentMode: () =>
+    state.accepting ? "automated" : state.fulfilment === "manual" ? "manual" : "unavailable",
+  isManualFulfilmentEnabled: () => state.fulfilment === "manual",
   isProcessingEnabled: () => state.accepting,
   isSubmissionEnabled: () => state.accepting,
 }));
@@ -62,6 +69,7 @@ vi.mock("@/lib/akiba/accountDeletionGuard", () => {
   return {
     DeletionLookupUnavailableError: MockDeletionLookupUnavailableError,
     findOpenDeletionRequest: async (userId: string) => state.requests.get(userId) ?? null,
+    findDeletionReceipt: async (userId: string) => state.requests.get(userId) ?? null,
   };
 });
 
@@ -100,6 +108,8 @@ vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     rpc: async (name: string, args: Record<string, unknown>) => {
       rpcCalls.push({ name, args });
+      if (name === "admin_deletion_fulfilment_ready") return { data: true, error: null };
+      if (name === "account_deletion_preflight") return { data: [], error: null };
 
       if (name === "record_account_deletion_challenge_attempt") {
         const row = state.challenges.get(args.p_challenge_id as string);
@@ -117,7 +127,11 @@ vi.mock("@/lib/supabase/admin", () => ({
         return { data: [{ ok: true, error_code: null, attempts_remaining: 4 }], error: null };
       }
 
-      if (name === "create_account_deletion_request") {
+      if (
+        name === "create_account_deletion_request" ||
+        name === "create_manual_account_deletion_request"
+      ) {
+        const manual = name === "create_manual_account_deletion_request";
         const userId = args.p_hub_user_id as string;
         const existing = state.requests.get(userId);
         if (existing) {
@@ -142,7 +156,7 @@ vi.mock("@/lib/supabase/admin", () => ({
         challenge.consumed = true;
         const row = {
           id: `req-${state.nextRequestId++}`,
-          status: "requested",
+          status: manual ? "manual_review" : "requested",
           requested_at: "2026-10-10T00:00:00.000Z",
           target_completion_at: "2026-10-24T00:00:00.000Z",
         };
@@ -200,6 +214,7 @@ describe("POST /api/v1/me/account-deletion-request", () => {
     state.signOutCalls = 0;
     state.nextRequestId = 1;
     state.accepting = true;
+    state.fulfilment = "automated";
 
     state.challenges.set("chal-1", {
       hubUserId: "user-1",
@@ -338,6 +353,55 @@ describe("POST /api/v1/me/account-deletion-request", () => {
     const res = await POST(bearerReq({ otp: "123456" }));
     expect(res.status).toBe(400);
     expect((await res.json()).error.code).toBe("invalid_body");
+    expect(rpcCalls).toHaveLength(0);
+  });
+
+  it("accepts the request for a person to carry out when the worker is closed", async () => {
+    // The Play-critical path. The native-only scope decision keeps the
+    // automated pipeline shut, and Google still requires an in-app deletion
+    // path that works — so a verified request is recorded for human
+    // fulfilment rather than refused. See BDR-003.
+    state.accepting = false;
+    state.fulfilment = "manual";
+
+    const res = await POST(bearerReq(validBody()));
+    expect(res.status).toBe(202);
+    const body = await res.json();
+    expect(body.data).toMatchObject({
+      requestId: "req-1",
+      status: "manual_review",
+      alreadyRequested: false,
+    });
+
+    // Routed to the manual creator, which is the one that skips the
+    // preflight gate. The automated creator would have refused.
+    expect(rpcCalls.some((call) => call.name === "create_manual_account_deletion_request")).toBe(true);
+    expect(rpcCalls.some((call) => call.name === "create_account_deletion_request")).toBe(false);
+  });
+
+  it("returns the existing manual receipt on a retry instead of re-verifying", async () => {
+    // manual_review sits outside the access-blocking statuses, so the retry
+    // short-circuit has to use the receipt lookup. With the access guard it
+    // would miss, and the member would be sent back through a challenge whose
+    // code is already spent.
+    state.accepting = false;
+    state.fulfilment = "manual";
+    state.requests.set("user-1", {
+      id: "req-existing",
+      status: "manual_review",
+      requested_at: "2026-10-10T00:00:00.000Z",
+      target_completion_at: "2026-10-24T00:00:00.000Z",
+    });
+
+    const res = await POST(bearerReq(validBody()));
+    expect(res.status).toBe(202);
+    const body = await res.json();
+    expect(body.data).toMatchObject({
+      requestId: "req-existing",
+      status: "manual_review",
+      alreadyRequested: true,
+    });
+    // Nothing was created and no verification attempt was burned.
     expect(rpcCalls).toHaveLength(0);
   });
 

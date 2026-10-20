@@ -58,9 +58,9 @@ export default async function AccountDeletionPage() {
           </h1>
 
           <p className="mt-6 text-lg leading-8 text-akiba-muted">
-            This page deletes your <strong className="text-akiba-ink">Akiba Pass</strong> account with
+            This page requests deletion of your <strong className="text-akiba-ink">shared Akiba member</strong> account with
             Akiba Ecosystems Ltd — your sign-in, your profile and contact details, your Akiba Pass, your
-            saved places, and the personal data connected to them. You can do this here or in the Akiba
+            saved places, linked wallet associations and the personal data connected to them across connected Akiba services. You can do this here or in the Akiba
             Pass app; both go through the same verification and the same process.
           </p>
 

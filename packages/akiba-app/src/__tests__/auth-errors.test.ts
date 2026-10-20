@@ -84,3 +84,49 @@ describe('email validation', () => {
     expect(emailFieldError('member@example.com')).toBeNull();
   });
 });
+
+describe('mapAuthError — password sign-in', () => {
+  it('tells a member with no password set how to get in', () => {
+    // Supabase reports a wrong password and an account that never set one
+    // identically, and most members are OTP-only — so this message has to
+    // work for someone who has done nothing wrong.
+    const mapped = mapAuthError({ code: 'invalid_credentials', status: 400 }, 'password');
+    expect(mapped).toBe('That email and password didn’t match. You can sign in with a code instead.');
+  });
+
+  it('keeps the same code pointing at the 6 digits when verifying an OTP', () => {
+    // One code, two contexts: the message must not tell an OTP member about
+    // a password they never had.
+    expect(mapAuthError({ code: 'invalid_credentials' }, 'verify')).toContain('6 digits');
+  });
+
+  it.each([400, 401, 403])('maps HTTP %i to the password message, not the code one', (status) => {
+    expect(mapAuthError({ status }, 'password')).toContain('password didn’t match');
+  });
+
+  it('judges the email, not the code, when the address is rejected', () => {
+    for (const code of ['email_address_invalid', 'validation_failed'] as const) {
+      expect(mapAuthError({ code }, 'password')).toContain('email address doesn’t look right');
+    }
+    expect(mapAuthError({ status: 422 }, 'password')).toContain('email address doesn’t look right');
+  });
+
+  it('does not tell a password attempt to wait before requesting another code', () => {
+    // A password attempt requests nothing, so the OTP wording is nonsense.
+    const message = 'For security purposes, you can only request this after 20 seconds.';
+    expect(mapAuthError({ status: 429, message }, 'password')).toBe('Please wait 20 seconds before trying again.');
+    expect(mapAuthError({ status: 429, message }, 'send')).toContain('requesting another code');
+  });
+
+  it('routes an unconfirmed email to the code path rather than a dead end', () => {
+    expect(mapAuthError({ code: 'email_not_confirmed' }, 'password')).toContain('Sign in with a code');
+  });
+
+  it('still never leaks the raw server message', () => {
+    const mapped = mapAuthError(
+      { code: 'invalid_credentials', status: 400, message: 'AuthApiError: Invalid login credentials' },
+      'password',
+    );
+    expect(mapped).not.toContain('AuthApiError');
+  });
+});
