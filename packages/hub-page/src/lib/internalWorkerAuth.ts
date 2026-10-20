@@ -16,3 +16,9 @@ export function isInternalWorkerRequest(request: Request, allowCron = false): bo
   const bearer = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
   return safeEqual(bearer, process.env.CRON_SECRET ?? "");
 }
+
+/** Dedicated dashboard credential; cron and other worker credentials cannot substitute for it. */
+export function isDeletionAdminRequest(request: Request): boolean {
+  const expected = process.env.ACCOUNT_DELETION_ADMIN_SECRET?.trim() || process.env.INTERNAL_WEBHOOK_SECRET || "";
+  return safeEqual(request.headers.get("x-webhook-secret") ?? "", expected);
+}

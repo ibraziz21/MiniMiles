@@ -21,7 +21,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   // The cleanup and contact-decryption code lives only on Hub. Never forward
   // cookies, member tokens, ciphertext or provider secrets to the browser.
   const base = process.env.AKIBA_HUB_INTERNAL_URL?.trim();
-  const secret = process.env.INTERNAL_WEBHOOK_SECRET?.trim();
+  const secret = process.env.ACCOUNT_DELETION_ADMIN_SECRET?.trim() || process.env.INTERNAL_WEBHOOK_SECRET?.trim();
   if (!base || !secret) return reply({ error: "Deletion service is not configured." }, 503);
   let url: URL;
   try {

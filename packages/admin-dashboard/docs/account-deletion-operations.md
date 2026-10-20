@@ -16,7 +16,9 @@ Open-access development sessions cannot perform any operations.
    Old `.2` receipts require fresh verified shared-account consent; do not
    relabel their policy version in SQL. They must stay unprocessed meanwhile.
 4. Configure admin server-only `AKIBA_HUB_INTERNAL_URL` and
-   `INTERNAL_WEBHOOK_SECRET` to match Hub. Production requires HTTPS.
+   `ACCOUNT_DELETION_ADMIN_SECRET` to match Hub. Production requires HTTPS.
+   This dedicated server credential isolates deletion from other worker callers;
+   legacy deployments fall back to `INTERNAL_WEBHOOK_SECRET` only when it is unset.
 5. Configure Hub's contact encryption key, Resend provider/key/verified sender,
    `ACCOUNT_DELETION_EXPIRY_ENABLED=true` and its cron, and the independent
    `/api/internal/process-account-deletion-emails` cron credentials.

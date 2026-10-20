@@ -8,6 +8,7 @@ const request=(action='run',secret='test-only-secret')=>new Request('https://pas
 beforeEach(()=>{vi.stubEnv('INTERNAL_WEBHOOK_SECRET','test-only-secret');state.rpc.mockReset().mockImplementation(async(name:string)=>({data:name==='admin_deletion_blockers'?[]:null,error:null}));state.run.mockReset().mockResolvedValue({ok:true,verified:true});state.email.mockReset().mockResolvedValue(true);});
 afterEach(()=>vi.unstubAllEnvs());
 describe('internal operator deletion endpoint',()=>{
+ it('uses the dedicated credential exclusively when configured',async()=>{vi.stubEnv('ACCOUNT_DELETION_ADMIN_SECRET','dedicated-test-secret');expect((await POST(request('inspect'))).status).toBe(401);expect((await POST(request('inspect','dedicated-test-secret'))).status).toBe(200);expect(state.run).not.toHaveBeenCalled();});
  it('requires the server-to-server secret',async()=>{expect((await POST(request('run','wrong'))).status).toBe(401);expect(state.rpc).not.toHaveBeenCalled();expect(state.run).not.toHaveBeenCalled();});
  it('rechecks the named actor before any cleanup',async()=>{state.rpc.mockResolvedValue({data:null,error:{code:'42501'}});expect((await POST(request())).status).toBe(403);expect(state.run).not.toHaveBeenCalled();});
  it('passes only validated request and actor to the runner',async()=>{expect((await POST(request())).status).toBe(200);expect(state.run).toHaveBeenCalledWith(requestId,actorId,expect.any(Object));});
