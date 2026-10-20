@@ -98,3 +98,26 @@ contract is documented in its [idempotency guidance](https://resend.com/docs/das
 
 Production migrations, flags, credentials, retention/access review and the live
 Supabase/Storage/email staging rehearsal above remain deployment requirements.
+
+## Production activation — 20 October 2026
+
+- Migration 108 was applied by the operator; `admin_deletion_fulfilment_ready()`
+  returned true against the connected shared database.
+- Hub and dashboard were deployed with a dedicated matching
+  `ACCOUNT_DELETION_ADMIN_SECRET`, the dashboard Hub URL, contact encryption,
+  Resend configuration, admin execution, evidence expiry and manual fulfilment.
+  Submission was enabled only after a live authenticated inspection passed.
+- Production Hub deployment `mini-miles-hub-page-fzpo8csr8-ibraziz21s-projects.vercel.app`
+  was aliased to `pass.akibamiles.com`. Dashboard deployment
+  `akiba-admin-figl8n8c9-ibraziz21s-projects.vercel.app` was aliased to
+  `akiba-admin.vercel.app`. Connection fix: commit `e228e93`.
+- Live inspection of a deliberately nonexistent request returned HTTP 200 with
+  only `request_unavailable`; no configuration blockers remained and no cleanup
+  ran. The signed-in Pixel 10a displayed the review notice, **Continue** and
+  **Keep my account**, replacing the unavailable/support fallback.
+- Six Hub endpoint tests and eight dashboard proxy tests passed, as did both
+  packages' type checks, lint and production builds.
+- This verifies activation and request availability. No verification code or
+  deletion request was submitted for the signed-in member. Live disposable-account
+  erasure, Storage removal and actual completion-email delivery remain unverified;
+  retained financial exceptions still require the review described above.
