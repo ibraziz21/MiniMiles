@@ -15,6 +15,7 @@ import { TrackedLink } from "@/components/akiba/TrackedLink";
 import { VerifiedVisitPosts } from "@/components/merchants/VerifiedVisitPosts";
 import type {
   MemberVerifiedVisitSummary,
+  PublicCustomerPhoto,
   PublicMerchantMedia,
   PublicVerifiedVisit,
 } from "@/lib/merchants/types";
@@ -62,6 +63,7 @@ export function MerchantPhotoTabs({
   merchantId,
   merchantSlug,
   verifiedVisits,
+  approvedCustomerPhotos = [],
   communityFavoriteProduct,
   merchantMedia,
   memberVerifiedVisit,
@@ -78,6 +80,7 @@ export function MerchantPhotoTabs({
   merchantId: string;
   merchantSlug: string;
   verifiedVisits: PublicVerifiedVisit[];
+  approvedCustomerPhotos?: PublicCustomerPhoto[];
   communityFavoriteProduct: string | null;
   merchantMedia: PublicMerchantMedia[];
   memberVerifiedVisit: MemberVerifiedVisitSummary | null;
@@ -111,7 +114,13 @@ export function MerchantPhotoTabs({
   const [showAll, setShowAll] = useState(false);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
-  const photos = activeTab === "merchant" ? merchantMedia.map(toMerchantGalleryPhoto) : [];
+  // Approved photos remain public even when a newer visit replaces their
+  // contribution in the one-card-per-member deck.
+  const photos: GalleryPhoto[] = activeTab === "merchant"
+    ? merchantMedia.map(toMerchantGalleryPhoto)
+    : activeTab === "verified"
+      ? approvedCustomerPhotos.map((photo) => ({ ...photo, label: photo.itemLabel }))
+      : [];
   const visiblePhotos = showAll ? photos : photos.slice(0, INITIAL_PHOTO_COUNT);
   const viewerPhoto = viewerIndex == null ? null : photos[viewerIndex] ?? null;
   useEffect(() => {
@@ -417,6 +426,7 @@ export function MerchantPhotoTabs({
                 )}
 
                 <VerifiedVisitPosts
+                  approvedCustomerPhotos={approvedCustomerPhotos}
                   communityFavoriteProduct={communityFavoriteProduct}
                   initialHelpfulVisitIds={initialHelpfulVisitIds}
                   initialSaved={initialSaved}
@@ -429,11 +439,13 @@ export function MerchantPhotoTabs({
               </>
             )}
 
-            {activeTab === "merchant" && (
+            {(activeTab === "merchant" || (activeTab === "verified" && photos.length > 0)) && (
               <>
                 <div className="flex min-w-0 flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6 sm:px-0 md:py-4">
                   <p className="min-w-0 max-w-3xl text-[13px] leading-5 text-akiba-muted sm:text-sm sm:leading-6">
-                    Provided by {merchantName}. Product and business photos are not customer verification.
+                    {activeTab === "verified"
+                      ? "Approved photos shared by the community after verified visits."
+                      : `Provided by ${merchantName}. Product and business photos are not customer verification.`}
                   </p>
                   <p className="shrink-0 text-xs font-semibold tabular-nums text-akiba-ink sm:pt-0.5 sm:text-sm">
                     {photos.length} {photos.length === 1 ? "photo" : "photos"}
@@ -516,7 +528,7 @@ export function MerchantPhotoTabs({
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold sm:text-base">{merchantName}</p>
               <p className="text-xs text-white/65">
-                From the business
+                {activeTab === "verified" ? "From verified visits" : "From the business"}
               </p>
             </div>
             <button

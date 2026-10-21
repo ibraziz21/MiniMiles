@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { PublicVerifiedVisit } from "@/lib/merchants/types";
+import type { PublicCustomerPhoto, PublicVerifiedVisit } from "@/lib/merchants/types";
 import { track } from "@/lib/analytics/track";
 
 function passthroughLoader({ src }: ImageLoaderProps): string {
@@ -25,6 +25,7 @@ function passthroughLoader({ src }: ImageLoaderProps): string {
 const SWIPE_THRESHOLD = 54;
 
 export function VerifiedVisitPosts({
+  approvedCustomerPhotos = [],
   communityFavoriteProduct,
   initialHelpfulVisitIds,
   initialSaved,
@@ -34,6 +35,7 @@ export function VerifiedVisitPosts({
   merchantSlug,
   visits,
 }: {
+  approvedCustomerPhotos?: PublicCustomerPhoto[];
   communityFavoriteProduct: string | null;
   initialHelpfulVisitIds: string[];
   initialSaved: boolean;
@@ -62,7 +64,7 @@ export function VerifiedVisitPosts({
   const nextVisit = visitIndex < visits.length - 1 ? visits[visitIndex + 1] : null;
   const currentPhotos = currentVisit?.photos ?? [];
   const currentPhoto = currentPhotos[photoIndex] ?? null;
-  const summaryPhoto = visits.flatMap((visit) => visit.photos)[0] ?? null;
+  const summaryPhoto = approvedCustomerPhotos[0] ?? visits.flatMap((visit) => visit.photos)[0] ?? null;
   const exactCount = visits.length >= 5;
   const countCopy = exactCount ? `${visits.length} verified visits` : "New from verified visits";
   const progressCopy = exactCount ? `${visitIndex + 1} of ${visits.length}` : "Anonymous verified visit";

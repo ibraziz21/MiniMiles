@@ -1,0 +1,121 @@
+node_modules
+.pnpm-store/
+.next
+packages/*/.next
+.env
+packages/*/.env
+.env.*
+!.env.example
+!.env.template
+packages/*/.env.*
+!packages/*/.env.example
+!packages/*/.env.template
+
+# package-local dependencies and build output
+packages/*/node_modules
+packages/*/.next
+# Scratch output for verification builds (NEXT_DIST_DIR), so a release check
+# never has to clobber a running dev server's .next.
+packages/*/.next-*
+packages/*/out
+packages/*/build
+packages/*/.vercel
+packages/*/*.tsbuildinfo
+packages/*/next-env.d.ts
+
+# Local env variants; keep committed examples/templates.
+.env.local
+.env.*.local
+packages/*/.env.local
+packages/*/.env.*.local
+
+# IntelliJ project files
+*.iml
+*.ipr
+*.iws
+.idea
+
+*.gitkeep
+
+# eclipse project file
+.settings/
+.classpath
+.project
+
+# NetBeans specific
+nbproject/private/
+build/
+nbbuild/
+dist/
+nbdist/
+nbactions.xml
+nb-configuration.xml
+
+# Build outputs / generated framework files
+.next/
+out/
+coverage/
+*.tsbuildinfo
+packages/*/.next/
+packages/*/out/
+packages/*/coverage/
+
+# Hardhat / generated contract artifacts
+artifacts/
+cache/
+typechain/
+typechain-types/
+packages/*/artifacts/
+packages/*/cache/
+packages/*/typechain/
+packages/*/typechain-types/
+packages/*/ignition/deployments/
+
+usdtGraph
+cusdGraph
+akibamiles/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# OS
+.DS_Store
+
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+
+PROPOSAL.md
+
+# Ignore lock files
+yarn.lock
+package-lock.json
+packages/*/yarn.lock
+packages/*/package-lock.json
+.vercel
+
+# EAS builds only the standalone native app. Keep the workspace install inputs.
+/*
+!/.easignore
+!/.gitignore
+!/package.json
+!/pnpm-lock.yaml
+!/pnpm-workspace.yaml
+!/packages/
+/packages/*
+!/packages/akiba-app/
+/packages/akiba-app/android/
+/packages/akiba-app/ios/
+/packages/akiba-app/.expo/
+/packages/akiba-app/docs/
+/packages/akiba-app/store-assets/
+/packages/akiba-app/.maestro/
+/packages/akiba-app/.env*
+/packages/akiba-app/*-firebase-adminsdk-*.json
+/packages/akiba-app/akibamiles-*.json
+/packages/akiba-app/google-services-account*.json
+/packages/akiba-app/service-account*.json
