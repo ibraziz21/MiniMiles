@@ -320,6 +320,7 @@ export default async function MerchantPage({ params }: { params: { slug: string 
         merchantId={merchant.id}
         merchantSlug={merchant.slug}
         verifiedVisits={merchant.verifiedVisits}
+        approvedCustomerPhotos={merchant.approvedCustomerPhotos}
         communityFavoriteProduct={merchant.verifiedVisitFavoriteProduct}
         merchantMedia={merchant.merchantMedia}
         memberVerifiedVisit={memberVerifiedVisit}
