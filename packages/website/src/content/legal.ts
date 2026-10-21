@@ -78,7 +78,7 @@ export const privacyPolicy: LegalPage = {
     {
       title: "8. Your Rights",
       paragraphs: [
-        "You may request to view or update your data by contacting hello@akibamiles.com. To delete your whole account, you do not need to email us — see Section 9.",
+        "You may request to view or update your data by contacting hello.akibamiles@gmail.com. To delete your whole account, you do not need to email us — see Section 9.",
         "Under the Kenya Data Protection Act you may ask us to erase personal data we are no longer authorised or required to keep. Some records are instead kept in a pseudonymised, access-restricted form where a legal, accounting, settlement, fraud-prevention, or audit purpose requires it; that is retention with restricted processing, not continued ordinary use of your data. On-chain records (see Section 4) are outside our control and cannot be deleted by anyone.",
       ],
     },
@@ -92,7 +92,7 @@ export const privacyPolicy: LegalPage = {
         "For native-app activity, minimal moderation evidence is retained for 90 days after deletion completion. Minimal Miles, voucher, referral-reward and security evidence is retained for 180 days. Restricted proof of deletion is retained for 24 months. Direct member identity and contact details are removed from this evidence; a specific documented legal hold may extend retention of affected records only. Deletion closes your shared Akiba member account across the native app and connected Akiba services, removes linked sign-in and wallet associations, and ends access to account-bound Miles, Passes and vouchers. Merchant accounting records with a justified retention obligation are reviewed separately and are not silently erased.",
         "Transactions already written to the Celo blockchain, and the public wallet addresses in them, are permanent and public. Neither you nor Akiba can delete or change them. Deleting your Akiba account removes our own off-chain association with your wallet where our retention plan allows it; it does not and cannot remove anything from the blockchain itself.",
         "We aim to complete deletion within 14 calendar days of a verified request, unless we are legally required to hold data for longer, and we email your account address when processing finishes. You cannot cancel the request yourself once you confirm it. The version of this deletion notice shown when you confirm is 2026-10-19.3.",
-        "If you have lost access to your account email and cannot receive the verification code, contact hello@akibamiles.com and we will verify you another way.",
+        "If you have lost access to your account email and cannot receive the verification code, contact hello.akibamiles@gmail.com and we will verify you another way.",
       ],
     },
     {
@@ -109,7 +109,7 @@ export const privacyPolicy: LegalPage = {
     },
     {
       title: "12. Contact",
-      paragraphs: ["For questions or concerns, contact hello@akibamiles.com."],
+      paragraphs: ["For questions or concerns, contact hello.akibamiles@gmail.com."],
     },
   ],
 };
@@ -209,7 +209,7 @@ export const termsOfUse: LegalPage = {
     {
       title: "13. Contact",
       paragraphs: [
-        "If you have questions or concerns about these terms, contact hello@akibamiles.com.",
+        "If you have questions or concerns about these terms, contact hello.akibamiles@gmail.com.",
       ],
     },
   ],

@@ -152,7 +152,7 @@ EN = dict(
  note_p="Ask us anything now rather than after you've signed — including what Akiba won't do for you. We're building this network street by street, and it only works if the businesses on it know exactly what they're getting.",
  cta_h="Ready to join?",
  cta_p="We'll help you get your business live in less than a week.",
- contact=[("Website","merchant.akibamiles.com"),("Email","hello@akibamiles.com"),("Phone","")],
+ contact=[("Website","merchant.akibamiles.com"),("Email","hello.akibamiles@gmail.com"),("Phone","")],
  qr_l="Get started",
  f_l="Getting Started with Akiba", f_r="Akiba Business · Mombasa 2026",
 )
@@ -189,7 +189,7 @@ SW = dict(
  note_p="Tuulize chochote sasa badala ya baada ya ku-sign — pamoja na kile Akiba isichokifanya. Tunajenga network hii mtaa kwa mtaa, na inafanya kazi tu kama biashara zilizomo zinajua hasa zinachopata.",
  cta_h="Uko tayari kujiunga?",
  cta_p="Tutakusaidia biashara yako iwe live ndani ya wiki moja.",
- contact=[("Website","merchant.akibamiles.com"),("Email","hello@akibamiles.com"),("Simu","")],
+ contact=[("Website","merchant.akibamiles.com"),("Email","hello.akibamiles@gmail.com"),("Simu","")],
  qr_l="Anza hapa",
  f_l="Kuanza na Akiba", f_r="Akiba Business · Mombasa 2026",
 )

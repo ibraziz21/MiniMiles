@@ -402,7 +402,7 @@ function ReviewStep({
         {unavailable ? (
           <Text accessibilityLiveRegion="polite" accessibilityRole="alert" style={styles.errorBanner}>
             Deleting your account from the app isn&apos;t available just yet. Email
-            hello@akibamiles.com and we&apos;ll delete your account for you — you don&apos;t need to
+            hello.akibamiles@gmail.com and we&apos;ll delete your account for you — you don&apos;t need to
             explain why.
           </Text>
         ) : (

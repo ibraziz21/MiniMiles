@@ -49,7 +49,7 @@ function body(message: CompletionEmailMessage): string {
     "deletion notice and Privacy Policy.",
     "",
     "You do not need to do anything. If you did not request this, contact",
-    "hello@akibamiles.com with the reference above.",
+    "hello.akibamiles@gmail.com with the reference above.",
     "",
     "Akiba Ecosystems Ltd",
   ].join("\n");

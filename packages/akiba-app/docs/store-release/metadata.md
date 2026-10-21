@@ -58,7 +58,7 @@ Claims to re-verify against the binary before submission: "verified visits",
 | Privacy policy | `https://<production-host>/privacy-policy` |
 | Terms of use | `https://<production-host>/terms-of-use` |
 | Account deletion | `https://<production-host>/account-deletion` |
-| Support | `mailto:hello@akibamiles.com` |
+| Support | `mailto:hello.akibamiles@gmail.com` |
 | Marketing | **TBD** — Product |
 
 The account-deletion URL is the one Google Play requires in the data-deletion

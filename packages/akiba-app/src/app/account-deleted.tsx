@@ -91,7 +91,7 @@ export default function AccountDeletedScreen() {
           ) : null}
 
           <Text style={styles.body}>
-            Keep this reference if you need to contact hello@akibamiles.com about your request. You
+            Keep this reference if you need to contact hello.akibamiles@gmail.com about your request. You
             can&apos;t cancel it from the app.
           </Text>
 
