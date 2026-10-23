@@ -13,8 +13,12 @@
       "bundleIdentifier": "com.akibamiles.akiba",
       "buildNumber": "1",
       "associatedDomains": [
+        "applinks:pass.akibamiles.com",
         "applinks:pass.akibamiles.com"
-      ]
+      ],
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.akibamiles.akiba",
