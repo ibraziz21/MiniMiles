@@ -9,6 +9,7 @@
     "scheme": "akiba",
     "userInterfaceStyle": "light",
     "ios": {
+      "appleTeamId": "6DQJX4ZG84",
       "bundleIdentifier": "com.akibamiles.akiba",
       "buildNumber": "1",
       "associatedDomains": [
