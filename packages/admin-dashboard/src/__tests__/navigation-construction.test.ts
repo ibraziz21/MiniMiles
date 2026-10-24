@@ -80,15 +80,16 @@ describe("buildNav — navigation construction by role", () => {
     expect(routes).not.toContain("/finance/subscriptions");
   });
 
-  it("prioritizes Rewards and Finance on mobile and relegates Merchants to More", () => {
+  it("prioritizes Merchants and Vouchers on mobile", () => {
     const nav = buildNav("super_admin");
-    expect(nav.mobilePrimary.map((slot) => slot.id)).toEqual(["home", "queue", "rewards", "finance", "more"]);
-    expect(nav.mobileMore.map((node) => node.id)).toContain("more-merchants");
+    expect(nav.mobilePrimary.map((slot) => slot.id)).toEqual(["home", "queue", "merchants", "rewards", "more"]);
+    expect(nav.mobileMore.map((node) => node.id)).toContain("pass");
+    expect(nav.mobileMore.map((node) => node.id)).toContain("usage");
   });
 
   it("keeps all five mobile slots useful when a role cannot access Finance", () => {
     const nav = buildNav("ops_admin");
-    expect(nav.mobilePrimary.map((slot) => slot.id)).toEqual(["home", "queue", "rewards", "merchants", "more"]);
+    expect(nav.mobilePrimary.map((slot) => slot.id)).toEqual(["home", "queue", "merchants", "rewards", "more"]);
   });
 
   it("shows voucher reimbursements whenever the role can read them", () => {
@@ -99,14 +100,18 @@ describe("buildNav — navigation construction by role", () => {
   it("super_admin sees every desktop primary module", () => {
     const nav = buildNav("super_admin");
     expect(nav.desktopPrimary.map((node) => node.id)).toEqual([
-      "home",
-      "work",
-      "rewards",
-      "finance",
-      "merchants",
-      "insights",
-      "communications",
-      "system",
+      "home", "work", "merchants", "rewards", "usage", "pass", "finance", "communications", "system", "legacy",
     ]);
+  });
+});
+
+describe("current and legacy navigation", () => {
+  it("groups legacy tools without hiding Pass metrics or current usage", () => {
+    const nav = buildNav("super_admin");
+    const legacy = nav.desktopPrimary.find(node => node.id === "legacy")!;
+    expect(allRoutes([legacy])).toEqual(expect.arrayContaining(["/games/skill-games", "/insights/verified", "/insights/polls"]));
+    expect(allRoutes(nav.desktopPrimary.filter(node => node.id !== "legacy"))).not.toContain("/games/skill-games");
+    expect(allRoutes(nav.desktopPrimary.filter(node => node.id !== "legacy"))).not.toContain("/insights/verified");
+    expect(allRoutes(nav.mobileMore)).toEqual(expect.arrayContaining(["/usage", "/insights/pass", "/verified-visits", "/finance/subscriptions"]));
   });
 });

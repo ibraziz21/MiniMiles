@@ -75,7 +75,7 @@ export function AppShell({ children, adminName, adminRole }: AppShellProps) {
             id="main-content"
             ref={mainRef}
             tabIndex={-1}
-            className="min-w-0 flex-1 overflow-y-auto pb-20 outline-none lg:pb-0"
+            className="min-w-0 flex-1 overflow-y-auto pb-[calc(6.5rem+env(safe-area-inset-bottom))] outline-none lg:pb-0"
           >
             <div className="mx-auto w-full max-w-[1440px]">{children}</div>
           </main>

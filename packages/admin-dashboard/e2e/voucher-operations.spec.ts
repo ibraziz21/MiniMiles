@@ -7,7 +7,7 @@ test.describe("Reimbursable voucher operations", () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/vouchers");
 
-    const rewardsNav = page.getByRole("navigation", { name: "Rewards navigation" });
+    const rewardsNav = page.getByRole("navigation", { name: "Vouchers navigation" });
     const reimbursableGroup = rewardsNav.getByRole("button", { name: "Reimbursable vouchers" });
     if (await reimbursableGroup.getAttribute("aria-expanded") !== "true") await reimbursableGroup.click();
 

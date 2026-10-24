@@ -4,3 +4,6 @@
 node_modules/
 out/
 tsconfig.tsbuildinfo
+
+# Local rendered review and audit artifacts
+output/

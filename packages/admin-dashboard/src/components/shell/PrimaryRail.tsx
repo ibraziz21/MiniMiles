@@ -51,12 +51,12 @@ export function PrimaryRail({ modules, activeModuleId, adminName, adminRole }: P
                 href={module.targetRoute}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "flex min-h-[44px] w-full flex-col items-center justify-center gap-1 rounded-card px-1 py-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                  "flex min-h-[44px] w-full flex-col items-center justify-center gap-1 rounded-card px-1 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                   isActive ? "bg-primary/10 text-primary" : "text-ink-muted hover:bg-surface-subtle hover:text-ink",
                 )}
               >
                 <Icon className="h-5 w-5" aria-hidden="true" />
-                <span className="w-full truncate text-center leading-none">{module.label}</span>
+                <span className="w-full text-center leading-tight">{module.label}</span>
               </Link>
             </li>
           );

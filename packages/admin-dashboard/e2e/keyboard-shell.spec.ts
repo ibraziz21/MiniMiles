@@ -15,21 +15,21 @@ test.describe("Keyboard-only shell navigation", () => {
   test("primary rail items are reachable and operable by keyboard with visible focus", async ({ page }) => {
     await page.goto("/overview");
 
-    const financeLink = page.locator('nav[aria-label="Primary"]:visible').getByRole("link", { name: /finance/i });
-    await financeLink.focus();
-    await expect(financeLink).toBeFocused();
+    const merchantsLink = page.locator('nav[aria-label="Primary"]:visible').getByRole("link", { name: /merchants/i });
+    await merchantsLink.focus();
+    await expect(merchantsLink).toBeFocused();
 
     await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(/\/finance/);
+    await expect(page).toHaveURL(/\/merchants/);
   });
 
   test("client-side route changes move focus to the main landmark without breaking browser back", async ({ page }) => {
     await page.goto("/overview");
 
-    const financeLink = page.locator('nav[aria-label="Primary"]:visible').getByRole("link", { name: /finance/i });
-    await financeLink.click();
+    const merchantsLink = page.locator('nav[aria-label="Primary"]:visible').getByRole("link", { name: /merchants/i });
+    await merchantsLink.click();
 
-    await expect(page).toHaveURL(/\/finance/);
+    await expect(page).toHaveURL(/\/merchants/);
     await expect(page.locator("#main-content")).toBeFocused();
     await expect(page.locator("h1")).toHaveCount(1);
 

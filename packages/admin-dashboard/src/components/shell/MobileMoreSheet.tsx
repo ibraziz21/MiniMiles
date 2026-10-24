@@ -40,21 +40,11 @@ export function MobileMoreSheet({ open, onOpenChange, destinations, adminName, a
           <p className="truncate text-xs capitalize text-ink-muted">{adminRole.replace(/_/g, " ")}</p>
         </div>
         <ul className="divide-y divide-border">
-          {destinations.map((node) => {
-            const Icon = node.icon;
-            return (
-              <li key={node.id}>
-                <Link
-                  href={node.targetRoute}
-                  onClick={() => onOpenChange(false)}
-                  className="flex min-h-[44px] items-center gap-3 px-4 py-3 text-sm font-medium text-ink transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                >
-                  <Icon className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
-                  {node.label}
-                </Link>
-              </li>
-            );
-          })}
+          {destinations.map((node) => (
+            <li key={node.id}>
+              <MoreDestination node={node} onNavigate={() => onOpenChange(false)} />
+            </li>
+          ))}
         </ul>
         <button
           onClick={handleLogout}
@@ -66,4 +56,16 @@ export function MobileMoreSheet({ open, onOpenChange, destinations, adminName, a
       </SheetContent>
     </Sheet>
   );
+}
+
+function MoreDestination({ node, onNavigate }: { node: NavNode; onNavigate: () => void }) {
+  const Icon = node.icon;
+  const style = "flex min-h-12 w-full items-center gap-3 px-4 py-3 text-sm font-medium text-ink transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary";
+  if (node.children?.length) {
+    return <details>
+      <summary className={`${style} cursor-pointer`}><Icon className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" /><span>{node.label}</span><span className="ml-auto text-xs text-ink-muted">Expand</span></summary>
+      <ul className="ml-5 border-l border-border">{node.children.map(child => <li key={child.id}><MoreDestination node={child} onNavigate={onNavigate} /></li>)}</ul>
+    </details>;
+  }
+  return <Link href={node.targetRoute} onClick={onNavigate} className={style}><Icon className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />{node.label}</Link>;
 }

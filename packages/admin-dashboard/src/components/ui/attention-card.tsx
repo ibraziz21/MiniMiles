@@ -8,6 +8,7 @@ export interface AttentionItem {
   label: string;
   href: string;
   count: number;
+  unavailable?: boolean;
   /** Minutes since the oldest pending item in this source, if known. */
   oldestAgeMinutes?: number | null;
 }
@@ -26,7 +27,7 @@ interface AttentionCardProps {
 
 /** The one urgent-work surface spec §10.1/§10.2 asks every role to see before anything else — real counts only, never fabricated. */
 export function AttentionCard({ items, className }: AttentionCardProps) {
-  const withWork = items.filter((item) => item.count > 0);
+  const withWork = items.filter((item) => item.count > 0 || item.unavailable);
 
   if (withWork.length === 0) {
     return (
@@ -49,8 +50,8 @@ export function AttentionCard({ items, className }: AttentionCardProps) {
             <p className="text-xs text-ink-muted">Prioritized by age across your queues</p>
           </div>
         </div>
-        <span className="rounded-full bg-warning/10 px-2.5 py-1 text-xs font-semibold tabular-nums text-warning">
-          {withWork.reduce((sum, item) => sum + item.count, 0)} open
+        <span className="shrink-0 whitespace-nowrap rounded-full bg-warning/10 px-2.5 py-1 text-xs font-semibold tabular-nums text-ink">
+          {withWork.reduce((sum, item) => sum + item.count, 0)} pending
         </span>
       </div>
       <div className="divide-y divide-border">
@@ -61,8 +62,8 @@ export function AttentionCard({ items, className }: AttentionCardProps) {
             className="group flex min-h-[52px] items-center justify-between gap-3 px-4 py-3 transition-colors duration-200 hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary sm:px-5"
           >
             <span className="flex min-w-0 items-center gap-3 text-sm font-medium text-ink">
-              <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-warning/10 px-2 text-xs font-bold tabular-nums text-warning">{item.count}</span>
-              <span className="truncate">{item.label}</span>
+              <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-warning/10 px-2 text-xs font-bold tabular-nums text-ink">{item.unavailable ? "?" : item.count}</span>
+              <span className="truncate">{item.label}{item.unavailable ? " · unavailable" : ""}</span>
             </span>
             <span className="flex items-center gap-1 text-xs text-ink-muted">
               {typeof item.oldestAgeMinutes === "number" && `oldest ${formatAge(item.oldestAgeMinutes)}`}
