@@ -86,7 +86,7 @@ const MAP: Record<DeletionFailureCode, MappedDeletionError> = {
     status: 503,
     code: "DELETION_UNAVAILABLE",
     message:
-      "Account deletion isn't available in the app just yet. Email hello@akibamiles.com and we'll delete your account for you.",
+      "Account deletion isn't available in the app just yet. Email hello.akibamiles@gmail.com and we'll delete your account for you.",
     retryable: false,
   },
   storage_unavailable: {

@@ -39,6 +39,7 @@ import {
   TicketCheck,
   HandCoins,
   WalletCards,
+  Archive,
 } from "lucide-react";
 import type { AdminRole } from "@/types";
 import { hasPermission } from "@/types";
@@ -100,7 +101,7 @@ const DESKTOP_PRIMARY_MODULES: NavNode[] = [
   },
   {
     id: "work",
-    label: "Work",
+    label: "Queue",
     icon: ListChecks,
     targetRoute: "/ops-queue",
     // No single permission gate — the Unified Queue page itself is
@@ -109,7 +110,7 @@ const DESKTOP_PRIMARY_MODULES: NavNode[] = [
   },
   {
     id: "rewards",
-    label: "Rewards",
+    label: "Vouchers",
     icon: Tag,
     targetRoute: "/vouchers",
     children: [
@@ -161,25 +162,38 @@ const DESKTOP_PRIMARY_MODULES: NavNode[] = [
     targetRoute: "/merchants",
     children: [
       { id: "merchants-directory", label: "Directory", icon: Store, targetRoute: "/merchants", exact: true, permission: "merchants.read" },
-      { id: "merchants-profile-reviews", label: "Profile Reviews", icon: ClipboardCheck, targetRoute: "/directory-reviews", permission: "merchants.read" },
+      { id: "merchants-profile-reviews", label: "Merchant publishing", icon: ClipboardCheck, targetRoute: "/directory-reviews", permission: "merchants.read" },
       { id: "merchants-discovery-items", label: "Discovery Items", icon: Sparkles, targetRoute: "/discovery-items", permission: "discovery.read" },
-      { id: "merchants-discovery-photos", label: "Discovery Photos", icon: ImageIcon, targetRoute: "/discovery-photos", permission: "discovery.read" },
-      { id: "merchants-discovery-reports", label: "Content Reports", icon: ShieldCheck, targetRoute: "/discovery-reports", permission: "discovery.read" },
+      { id: "merchants-discovery-photos", label: "Image review", icon: ImageIcon, targetRoute: "/discovery-photos", permission: "discovery.read" },
+      { id: "merchants-discovery-reports", label: "Report reviews", icon: ShieldCheck, targetRoute: "/discovery-reports", permission: "discovery.read" },
+      { id: "merchants-visits", label: "Verified visits", icon: ClipboardCheck, targetRoute: "/verified-visits", permission: "discovery.read" },
       { id: "merchants-discovery-health", label: "Discovery Health", icon: Activity, targetRoute: "/verified-discovery-health", permission: "discovery.read" },
       { id: "merchants-leads", label: "Leads", icon: Inbox, targetRoute: "/leads", permission: "leads.read" },
     ],
   },
   {
-    id: "insights",
-    label: "Insights",
+    id: "usage",
+    label: "Akiba usage",
+    icon: Activity,
+    targetRoute: "/usage",
+    permission: "users.read",
+  },
+  {
+    id: "pass",
+    label: "Pass metrics",
     icon: BarChart2,
+    targetRoute: "/insights/pass",
+    permission: "users.read",
+  },
+  {
+    id: "legacy",
+    label: "Legacy",
+    icon: Archive,
     targetRoute: "/insights/polls",
-    // No own page at /insights — visibility is derived entirely from children.
     children: [
-      { id: "insights-polls", label: "Polls", icon: ClipboardList, targetRoute: "/insights/polls", permission: "polls.read" },
-      { id: "insights-pass", label: "Pass Analytics", icon: BarChart2, targetRoute: "/insights/pass", permission: "users.read" },
-      { id: "insights-verified", label: "Verified Reports", icon: ShieldCheck, targetRoute: "/insights/verified", permission: "insights.read" },
-      { id: "insights-skill-games", label: "Skill Games", icon: Gamepad2, targetRoute: "/games/skill-games", permission: "orders.read" },
+      { id: "legacy-polls", label: "Polls", icon: ClipboardList, targetRoute: "/insights/polls", permission: "polls.read" },
+      { id: "legacy-verified", label: "Verified insights", icon: ShieldCheck, targetRoute: "/insights/verified", permission: "insights.read" },
+      { id: "legacy-skill-games", label: "Skill games", icon: Gamepad2, targetRoute: "/games/skill-games", permission: "orders.read" },
     ],
   },
   {
@@ -205,20 +219,6 @@ const DESKTOP_PRIMARY_MODULES: NavNode[] = [
   },
 ];
 
-const MOBILE_MORE_DESTINATIONS: NavNode[] = [
-  { id: "more-deletions", label: "Account Deletions", icon: ShieldCheck, targetRoute: "/account-deletions", permission: "deletions.read" },
-  { id: "more-discovery-reports", label: "Content Reports", icon: ShieldCheck, targetRoute: "/discovery-reports", permission: "discovery.read" },
-  { id: "more-merchants", label: "Merchants", icon: Store, targetRoute: "/merchants", permission: "merchants.read" },
-  { id: "more-insights", label: "Insights", icon: BarChart2, targetRoute: "/insights/polls", permission: "polls.read" },
-  { id: "more-members", label: "Members", icon: Users, targetRoute: "/users", permission: "users.read" },
-  { id: "more-leads", label: "Leads", icon: Inbox, targetRoute: "/leads", permission: "leads.read" },
-  { id: "more-communications", label: "Communications", icon: BellRing, targetRoute: "/push-notifications", permission: "notifications.read" },
-  { id: "more-games", label: "Games", icon: Gamepad2, targetRoute: "/games/skill-games", permission: "orders.read" },
-  { id: "more-audit", label: "Audit", icon: ScrollText, targetRoute: "/audit-log", permission: "audit.read" },
-  { id: "more-team", label: "Team", icon: ShieldCheck, targetRoute: "/team", permission: "audit.read" },
-  { id: "more-settings", label: "Settings", icon: Settings, targetRoute: "/settings" },
-];
-
 function filterNode(node: NavNode, role: AdminRole): NavNode | null {
   if (BLOCKED_NAV_ROUTES.includes(node.targetRoute)) return null;
 
@@ -239,17 +239,15 @@ function filterNode(node: NavNode, role: AdminRole): NavNode | null {
 }
 
 export function buildNav(role: AdminRole): AdminNav {
+  const moduleOrder = ["home", "work", "merchants", "rewards", "usage", "pass", "finance", "communications", "system", "legacy"];
   const desktopPrimary = DESKTOP_PRIMARY_MODULES.map((node) =>
     filterNode(node, role),
-  ).filter((node): node is NavNode => node !== null);
-
-  const mobileMore = MOBILE_MORE_DESTINATIONS.map((node) =>
-    filterNode(node, role),
-  ).filter((node): node is NavNode => node !== null);
+  ).filter((node): node is NavNode => node !== null)
+    .sort((a, b) => moduleOrder.indexOf(a.id) - moduleOrder.indexOf(b.id));
 
   const moduleById = new Map(desktopPrimary.map((node) => [node.id, node]));
-  const preferredMobileModules = ["home", "work", "rewards", "finance"];
-  const fallbackMobileModules = ["merchants", "insights", "communications", "system"];
+  const preferredMobileModules = ["home", "work", "merchants", "rewards"];
+  const fallbackMobileModules = ["usage", "pass", "finance", "communications", "system", "legacy"];
   const mobileModules = [...preferredMobileModules, ...fallbackMobileModules]
     .map((id) => moduleById.get(id))
     .filter((node): node is NavNode => Boolean(node))
@@ -269,7 +267,7 @@ export function buildNav(role: AdminRole): AdminNav {
   return {
     desktopPrimary,
     mobilePrimary,
-    mobileMore,
+    mobileMore: desktopPrimary.filter((node) => node.id !== "home" && node.id !== "work"),
   };
 }
 

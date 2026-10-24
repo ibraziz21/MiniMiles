@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-const SUPPORT_EMAIL = "hello@akibamiles.com";
+const SUPPORT_EMAIL = "hello.akibamiles@gmail.com";
 
 export default async function AccountDeletionPage() {
   // Reading the session must never make this page fail. A Supabase outage

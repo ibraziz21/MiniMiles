@@ -15,7 +15,7 @@ test.describe("Command search", () => {
 
   test("/ opens the palette when not focused in a text field", async ({ page }) => {
     await page.goto("/overview");
-    await page.locator("body").click();
+    await page.getByRole("heading", { name: "Home", exact: true }).click();
     await page.keyboard.press("/");
 
     await expect(page.getByRole("dialog")).toBeVisible();

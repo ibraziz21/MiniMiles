@@ -73,8 +73,8 @@ export default function SettingsPage() {
 
       <SettingRow
         icon={<Envelope size={24} color="#238D9D" />}
-        label="hello@akibamiles.com"
-        onCopy={() => handleCopy('hello@akibamiles.com')}
+        label="hello.akibamiles@gmail.com"
+        onCopy={() => handleCopy('hello.akibamiles@gmail.com')}
       />
 
       <SettingRow

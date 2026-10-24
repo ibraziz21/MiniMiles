@@ -36,7 +36,7 @@ const TONE_ICON_CLASS: Record<NonNullable<MetricCardProps["tone"]>, string> = {
 export function MetricCard({ label, value, sub, tone = "neutral", tintCard = false, icon: Icon, href, className }: MetricCardProps) {
   const content = (
     <Card className={cn("h-full border-border bg-surface", tintCard && TONE_CARD_CLASS[tone], className)}>
-      <CardHeader className="flex-row items-center justify-between gap-2 pb-2">
+      <CardHeader className="flex-row items-center justify-between gap-2 p-4 pb-2 sm:p-6 sm:pb-2">
         <CardTitle className="text-sm font-medium text-ink-muted">{label}</CardTitle>
         {Icon && (
           <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-control", TONE_ICON_CLASS[tone])}>
@@ -44,8 +44,8 @@ export function MetricCard({ label, value, sub, tone = "neutral", tintCard = fal
           </span>
         )}
       </CardHeader>
-      <CardContent>
-        <p className={cn("text-2xl font-bold tabular-nums", TONE_CLASS[tone])}>{value}</p>
+      <CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
+        <p className={cn("break-words text-xl font-bold tabular-nums sm:text-2xl", TONE_CLASS[tone])}>{value}</p>
         {sub && <p className="mt-1 text-xs text-ink-muted">{sub}</p>}
       </CardContent>
     </Card>

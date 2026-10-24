@@ -4,22 +4,20 @@ import { PageHeader } from "@/components/shell/PageHeader";
 import { UnifiedQueueView } from "@/components/queue/UnifiedQueueView";
 import { getQueueItems } from "@/lib/unifiedQueue";
 
-// Permission is enforced per source inside getQueueItems(), not at the page
-// level — unlike the old single-source ops-queue page (which required
-// "incidents.read" for everyone), this page serves 7 different permission
-// domains at once, so a role with e.g. only finance.read and referrals.read
-// (no incidents.read) still sees their own permitted sources here.
 export default async function UnifiedQueuePage() {
   const session = await requireAdminSession();
   if (!session) redirect("/login");
 
-  const items = await getQueueItems(session.role);
+  let items: Awaited<ReturnType<typeof getQueueItems>> = [];
+  let failed = false;
+  try { items = await getQueueItems(session.role); } catch { failed = true; }
 
   return (
     <div>
-      <PageHeader title="Queue" subtitle="Everything waiting on admin action, across every source" />
+      <PageHeader title="Queue" subtitle="Merchant publishing, image review, report reviews and verified visits" />
       <div className="p-4 sm:p-6">
-        <UnifiedQueueView items={items} currentAdminId={session.adminUserId} />
+        {failed ? <p role="alert" className="rounded-card border border-danger/30 p-4 text-sm">The queue could not be loaded. <a href="/ops-queue" className="text-primary underline">Retry queue</a></p> : <UnifiedQueueView items={items} />}
+        <p className="mt-4 text-sm text-ink-muted">Shows up to 150 entries per type. Verified visits are automatically verified; publishing, images and reports require review. <a href="/verified-visits" className="text-primary underline">Browse verified visits</a></p>
       </div>
     </div>
   );

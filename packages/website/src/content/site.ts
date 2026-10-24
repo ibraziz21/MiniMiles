@@ -7,7 +7,7 @@ export const siteConfig = {
   passUrl: process.env.NEXT_PUBLIC_PASS_URL ?? "https://pass.akibamiles.com",
   merchantUrl: process.env.NEXT_PUBLIC_MERCHANT_URL ?? "https://merchant.akibamiles.com",
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.akibamiles.com",
-  email: "hello@akibamiles.com",
+  email: "hello.akibamiles@gmail.com",
   xUrl: "https://x.com/Akibamiles",
   telegramUrl: "https://t.me/+OkPgZhxDj8plNTA8",
 };
@@ -469,7 +469,7 @@ export const partnerContent = {
   form: {
     title: "Start the conversation",
     body: "Tell us whether you are a merchant or a project partner, and what you want to launch. We will come back within 2 business days with a clear path forward.",
-    email: "hello@akibamiles.com",
+    email: "hello.akibamiles@gmail.com",
   },
 };
 

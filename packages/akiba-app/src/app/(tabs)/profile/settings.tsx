@@ -23,7 +23,7 @@ type Editor = 'username' | 'phone' | 'location' | 'security' | null;
 function useHelpLinks() {
   const { legal } = useAppConfig();
   return [
-    { icon: 'external-link' as const, label: 'Contact support', description: 'hello@akibamiles.com', url: 'mailto:hello@akibamiles.com' },
+    { icon: 'external-link' as const, label: 'Contact support', description: 'hello.akibamiles@gmail.com', url: 'mailto:hello.akibamiles@gmail.com' },
     { icon: 'shield' as const, label: 'Privacy policy', url: legal.privacyUrl },
     { icon: 'shield' as const, label: 'Terms of use', url: legal.termsUrl },
   ];

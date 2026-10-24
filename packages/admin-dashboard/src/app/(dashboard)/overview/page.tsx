@@ -11,23 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDateTime, formatNumber } from "@/lib/utils";
 import { getQueueSourceSummaries } from "@/lib/queueSources";
-import { SLA_BREACH_MINUTES } from "@/lib/subscriptionPayments";
+import { getHomeMetrics } from "@/lib/overviewMetrics";
 import { hasPermission } from "@/types";
-import { Users, Store, Tag, ScrollText, AlertTriangle, ArrowRight, Landmark, Send, Sparkles } from "lucide-react";
-
-async function getHeadlineStats() {
-  const [usersRes, merchantsRes, vouchersRes] = await Promise.all([
-    supabase.from("akiba_users").select("id", { count: "exact", head: true }),
-    supabase.from("partners").select("id", { count: "exact", head: true }),
-    supabase.from("issued_vouchers").select("id", { count: "exact", head: true }),
-  ]);
-
-  return {
-    totalMembers: usersRes.count ?? 0,
-    totalMerchants: merchantsRes.count ?? 0,
-    vouchersIssued: vouchersRes.count ?? 0,
-  };
-}
+import { Users, Store, Tag, ScrollText, ArrowRight, Landmark, Send, Activity, Coins, UserPlus } from "lucide-react";
 
 interface RecentMerchant {
   id: string;
@@ -86,14 +72,15 @@ export default async function OverviewPage() {
   const session = await requireAdminSession();
   if (!session) redirect("/login");
 
-  const canSeeFinanceAlerts = hasPermission(session.role, "finance.read");
+  const canSeeUsers = hasPermission(session.role, "users.read");
+  const canSeeVouchers = hasPermission(session.role, "vouchers.read") || hasPermission(session.role, "voucher_funds.read");
   const canSeeActivity = hasPermission(session.role, "audit.read");
   const canSeeMerchants = hasPermission(session.role, "merchants.read");
   const canAllocate = hasPermission(session.role, "voucher_funds.write");
   const canIssue = hasPermission(session.role, "voucher_funds.grant");
 
   const [headline, queueSources, activity, recentMerchants] = await Promise.all([
-    getHeadlineStats(),
+    getHomeMetrics(session.role),
     getQueueSourceSummaries(session.role),
     canSeeActivity ? getRecentActivity() : Promise.resolve([]),
     canSeeMerchants ? getRecentMerchants() : Promise.resolve([]),
@@ -105,65 +92,53 @@ export default async function OverviewPage() {
     href: s.href,
     count: s.count,
     oldestAgeMinutes: s.oldestAgeMinutes,
+    unavailable: s.unavailable,
   }));
 
-  const subscriptionSource = queueSources.find((s) => s.id === "subscription_payments");
-  const subscriptionOverSla =
-    canSeeFinanceAlerts &&
-    subscriptionSource &&
-    (subscriptionSource.oldestAgeMinutes ?? 0) >= SLA_BREACH_MINUTES &&
-    subscriptionSource.count > 0;
+  const value = (metric: number | undefined) => metric === undefined ? "Unavailable" : formatNumber(metric);
+  const metrics = headline.metrics;
 
   return (
     <div>
-      <PageHeader title="Overview" subtitle="Today’s operational priorities" />
+      <PageHeader title="Home" subtitle="Pass growth, Akiba usage and voucher performance" />
 
       <div className="space-y-5 p-4 sm:p-6 lg:space-y-6">
-        <section className="relative overflow-hidden rounded-[18px] bg-primary-strong px-5 py-6 text-white shadow-[0_24px_60px_-32px_rgba(15,118,110,0.75)] sm:px-7 sm:py-7">
-          <div aria-hidden="true" className="absolute -right-12 -top-16 h-48 w-48 rounded-full border-[28px] border-white/5" />
-          <div aria-hidden="true" className="absolute -bottom-16 right-24 h-36 w-36 rounded-full border-[22px] border-white/5" />
-          <div className="relative max-w-2xl">
-            <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-teal-100">
-              <Sparkles className="h-4 w-4" aria-hidden="true" /> Operator workspace
+        <section aria-labelledby="performance-title" className="space-y-4">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 id="performance-title" className="text-xl font-semibold tracking-tight text-ink">Key performance indicators</h2>
+              <p className="mt-1 text-sm text-ink-muted">This week starts Monday, {new Date(headline.weekStart).toLocaleDateString("en-KE", { day: "numeric", month: "short", timeZone: "Africa/Nairobi" })}. All times EAT.</p>
             </div>
-            <h2 className="text-balance text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">Move the work that matters today.</h2>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-teal-50/85">Resolve urgent queues, allocate approved voucher funds, or issue a reimbursable voucher directly to an eligible member.</p>
-            {(canAllocate || canIssue) && (
-              <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-                {canAllocate && (
-                  <Button asChild size="lg" className="min-h-11 bg-white text-primary-strong hover:bg-teal-50">
-                    <Link href="/vouchers/funds"><Landmark className="h-4 w-4" aria-hidden="true" />Allocate voucher fund</Link>
-                  </Button>
-                )}
-                {canIssue && (
-                  <Button asChild size="lg" variant="outline" className="min-h-11 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white">
-                    <Link href="/vouchers/grants"><Send className="h-4 w-4" aria-hidden="true" />Issue voucher</Link>
-                  </Button>
-                )}
-              </div>
-            )}
+            <div className="flex flex-wrap gap-2">
+              {canSeeUsers && <Button asChild variant="outline" size="sm"><Link href="/usage">Akiba usage</Link></Button>}
+              {canSeeUsers && <Button asChild variant="outline" size="sm"><Link href="/insights/pass">Pass metrics</Link></Button>}
+            </div>
+          </div>
+          {headline.unavailable.length > 0 && <p role="status" className="rounded-control border border-warning/30 bg-warning/5 p-3 text-sm text-ink">Some metrics could not be loaded: {headline.unavailable.join(", ")}. <Link href="/overview" className="font-medium text-primary underline">Retry metrics</Link></p>}
+          <div className="grid gap-3 min-[375px]:grid-cols-2 xl:grid-cols-3">
+            {canSeeUsers && <>
+              <MetricCard label="Total Pass users" value={value(metrics.total_pass_users)} sub="All time · Akiba Pass signups" icon={Users} href="/insights/pass" />
+              <MetricCard label="New users this week" value={value(metrics.new_users_this_week)} sub="Pass signups · Monday to now" icon={UserPlus} href="/insights/pass" />
+              <MetricCard label="Average spend this week" value={metrics.weekly_average_spend === undefined ? "Unavailable" : `${formatNumber(metrics.weekly_average_spend)} miles`} sub="Weekly miles awarded ÷ distinct users awarded" icon={Activity} href="/usage" />
+              <MetricCard label="Total users awarded" value={value(metrics.total_users_awarded)} sub="All time · distinct merchant / purchase earners" icon={Users} href="/usage" />
+              <MetricCard label="Total miles awarded" value={value(metrics.total_miles_awarded)} sub="All time · merchant and purchase awards" icon={Coins} href="/usage" />
+            </>}
+            {canSeeVouchers && <MetricCard label="Vouchers redeemed" value={value(metrics.vouchers_redeemed)} sub="All time · completed redemptions" icon={Tag} href={hasPermission(session.role, "voucher_funds.read") ? "/vouchers/issued" : "/vouchers"} />}
           </div>
         </section>
+
+        {(canAllocate || canIssue) && <div className="flex flex-wrap items-center gap-3 border-y border-border py-3">
+          <span className="mr-auto text-sm font-medium text-ink">Voucher operations</span>
+          {canAllocate && <Button asChild variant="outline" size="sm"><Link href="/vouchers/funds"><Landmark className="h-4 w-4" aria-hidden="true" />Allocate voucher fund</Link></Button>}
+          {canIssue && <Button asChild size="sm"><Link href="/vouchers/grants"><Send className="h-4 w-4" aria-hidden="true" />Issue voucher</Link></Button>}
+        </div>}
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.75fr)]">
           <div className="space-y-5">
             <AttentionCard items={attentionItems} />
+            {hasPermission(session.role, "discovery.read") && <Button asChild variant="outline"><Link href="/verified-visits">Browse verified visits<ArrowRight className="h-4 w-4" aria-hidden="true" /></Link></Button>}
 
-            {subscriptionOverSla && subscriptionSource && (
-              <Card className="flex items-center gap-3 border-danger/25 bg-danger/[0.04] p-4 shadow-none">
-                <AlertTriangle className="h-5 w-5 shrink-0 text-danger" aria-hidden="true" />
-                <p className="text-sm text-ink">
-                  <strong>{subscriptionSource.count}</strong> subscription payment{subscriptionSource.count !== 1 ? "s" : ""} past review SLA.{" "}
-                  <Link href="/finance/subscriptions" className="font-semibold text-danger underline underline-offset-4">Review now</Link>
-                </p>
-              </Card>
-            )}
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              <MetricCard label="Members" value={formatNumber(headline.totalMembers)} icon={Users} href="/users" />
-              <MetricCard label="Merchants" value={formatNumber(headline.totalMerchants)} icon={Store} href="/merchants" />
-              <MetricCard label="Vouchers issued" value={formatNumber(headline.vouchersIssued)} icon={Tag} href="/vouchers" className="col-span-2 sm:col-span-1" />
-            </div>
           </div>
 
           {canSeeMerchants && (

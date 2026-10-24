@@ -5,6 +5,18 @@ Scope: `packages/admin-dashboard`
 Target: Mobile-first authenticated web application and installable PWA  
 Implementation stack: Next.js 14 App Router, React 18, Tailwind CSS 3, Radix UI, TanStack Query, Vitest
 
+## Current product priorities — 24 October 2026
+
+These requirements supersede the earlier Home, queue and navigation priorities below:
+
+- Home leads with Total Pass users, New users this week, Average spend this week, Total users awarded, Total miles awarded, and Vouchers redeemed.
+- Pass users/signups come from `hub_user_passes`. This week is Monday 00:00 through now in Africa/Nairobi. Awarded users are distinct canonical identities; miles are gross positive merchant/purchase ledger credits. Average spend is weekly miles awarded divided by weekly users awarded, expressed in miles per user. Other totals are all time. Legacy reward credits are excluded from usage.
+- Mobile primary navigation is Home, Queue, Merchants, Vouchers, More; inaccessible modules are filtered using existing permissions. More exposes every permitted module and child destination.
+- Desktop prioritizes Merchants, Vouchers, Akiba usage and Pass metrics. Polls, Verified insights and Skill games are grouped under Legacy, preserving their existing URLs and authorization.
+- Queue includes only Merchant publishing, Image review, Report reviews and Verified visits. Visits are automatically verified, browsable records rather than pending approvals; pending counts include only the other three sources.
+- Bottom navigation uses 72px targets, 24px icons, 12px labels, a filled active state and safe-area-aware content clearance.
+- Apply `supabase/migrations/109_admin_usage_metrics.sql` before deployment for usage aggregates. The function is service-role-only and aggregates in Postgres without API row-limit truncation. Failed sources show an explicit unavailable state.
+
 ## 1. Purpose
 
 Rebuild the admin console into a fast, accessible, mobile-first operational tool without changing the meaning of existing workflows.
