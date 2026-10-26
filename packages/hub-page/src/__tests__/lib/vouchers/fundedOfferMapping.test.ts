@@ -11,9 +11,10 @@
  * toFundedOffer is now the single mapper both loaders call, so these cases
  * cover both surfaces at once.
  */
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
 import {
   FUNDED_OFFER_TEMPLATE_COLUMNS,
+  fundedOffersForV1,
   toFundedOffer,
   type RawFundedPartner,
   type RawFundedTemplate,
@@ -143,6 +144,38 @@ describe("toFundedOffer", () => {
     ]) {
       expect(FUNDED_OFFER_TEMPLATE_COLUMNS).toContain(column);
     }
+  });
+});
+
+describe("fundedOffersForV1", () => {
+  const percent = map(percentTemplate)!;
+  const fixed = map(fixedTemplate)!;
+
+  afterEach(() => {
+    delete process.env.AKIBA_PERCENT_FUNDED_OFFERS_V1_ENABLED;
+  });
+
+  it("withholds percentage offers from the mobile contract by default", () => {
+    // A released build parses discountKes as a required number via
+    // schema.parse, and the schema covers the whole catalogue — so one
+    // percentage offer breaks the entire response, not one card.
+    expect(fundedOffersForV1([percent, fixed])).toEqual([fixed]);
+  });
+
+  it("serves them once the flag is on", () => {
+    process.env.AKIBA_PERCENT_FUNDED_OFFERS_V1_ENABLED = "true";
+    expect(fundedOffersForV1([percent, fixed])).toEqual([percent, fixed]);
+  });
+
+  it("never withholds flat offers", () => {
+    expect(fundedOffersForV1([fixed])).toEqual([fixed]);
+  });
+
+  it("leaves the mapper itself unfiltered, so the web pages still show everything", () => {
+    // The filter is applied by the v1 routes, not by the loaders the web
+    // pages call — that asymmetry is the whole point of launching on web
+    // first.
+    expect(map(percentTemplate)).not.toBeNull();
   });
 });
 

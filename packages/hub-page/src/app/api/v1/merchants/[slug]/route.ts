@@ -10,6 +10,7 @@
 import { apiSuccess, apiError } from "@/lib/api/v1/response";
 import { getPublicMerchant, DirectoryUnavailableError } from "@/lib/merchants/queries";
 import { getMerchantFundedOffers } from "@/lib/vouchers/merchantFundedOffers.server";
+import { fundedOffersForV1 } from "@/lib/vouchers/fundedOfferMapping";
 import { rankMerchantVouchers, rankMerchantFundedOffers } from "@/lib/merchants/voucherRanking";
 
 export async function GET(request: Request, { params }: { params: { slug: string } }) {
@@ -30,7 +31,7 @@ export async function GET(request: Request, { params }: { params: { slug: string
   }
 
   const { vouchers, ...merchantRest } = merchant;
-  const fundedOffers = await getMerchantFundedOffers(merchant.id);
+  const fundedOffers = fundedOffersForV1(await getMerchantFundedOffers(merchant.id));
 
   const response = apiSuccess(request, {
     merchant: merchantRest,

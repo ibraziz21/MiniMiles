@@ -14,6 +14,7 @@
  * column added to one and not the other is what produced that bug.
  */
 import type { FundedOffer } from "@/components/vouchers/FundedOfferCard";
+import { percentFundedOffersV1Flag } from "@/lib/featureFlags.server";
 
 /** Template columns every funded-offer surface needs. */
 export const FUNDED_OFFER_TEMPLATE_COLUMNS =
@@ -77,4 +78,27 @@ export function toFundedOffer(input: {
     claimEndsAt: input.claimEndsAt,
     merchant: { name: partner.name, slug: partner.slug, imageUrl: partner.image_url },
   };
+}
+
+/**
+ * Narrows a funded-offer list to what the /api/v1/* mobile contract can be
+ * served safely, for the three v1 routes only. The web pages call the loaders
+ * directly and always see everything.
+ *
+ * A released mobile build parses the funded-offer payload with
+ * `discountKes: z.number()` via `schema.parse`, which throws — and the schema
+ * covers the whole catalogue object, so one percentage offer (which carries
+ * `discountKes: null` by design) fails validation for the entire response and
+ * breaks the Rewards tab and merchant detail rather than hiding one card.
+ *
+ * Publishing an allocation reveals it to every surface at once, since the web
+ * page and the v1 routes share getFundedOffers(). This is therefore the only
+ * thing that makes "launch on web first" real.
+ *
+ * Remove this, and the flag, once the minimum supported build ships the
+ * widened contract.
+ */
+export function fundedOffersForV1(offers: FundedOffer[]): FundedOffer[] {
+  if (percentFundedOffersV1Flag().enabled) return offers;
+  return offers.filter((offer) => offer.voucherType !== "percent_off");
 }

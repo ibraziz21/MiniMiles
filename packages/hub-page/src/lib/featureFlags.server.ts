@@ -85,6 +85,34 @@ export function akibaFundedVouchersHubFlag(env: FlagEnvironment = process.env): 
 }
 
 /**
+ * Whether the /api/v1/* contract may serve percentage funded offers.
+ *
+ * Off by default, and deliberately not paired with required config: this is a
+ * *client compatibility* switch, not a flow kill switch. Released mobile
+ * builds validate the funded-offer payload with a Zod schema whose
+ * `discountKes` is a required number, using `schema.parse` — which throws. A
+ * percentage offer carries `discountKes: null` by design, so serving one to
+ * an older build fails validation for the WHOLE catalogue response and takes
+ * out the Rewards tab and merchant detail, not just one card.
+ *
+ * Publishing an allocation makes it visible to every surface at once — the
+ * web page and the v1 endpoints share getFundedOffers() — so "launch on web
+ * only" is not something the data model can express on its own. This flag is
+ * what makes it expressible: the web pages always show percentage offers,
+ * while v1 omits them until the app release carrying the widened contract is
+ * live, at which point this is switched on and removed.
+ *
+ * Turn on only once the minimum supported app build parses
+ * `discountKes: null`.
+ */
+export function percentFundedOffersV1Flag(env: FlagEnvironment = process.env): FeatureFlagResult {
+  if (!isTruthy(env.AKIBA_PERCENT_FUNDED_OFFERS_V1_ENABLED)) {
+    return { enabled: false, reason: "percentage funded offers are withheld from the v1 mobile contract" };
+  }
+  return { enabled: true, reason: null };
+}
+
+/**
  * Native-only destination switch for the Gifts tab
  * (AKIBA-MOB-001 §1 "Hide unfinished destinations such as Gifts through
  * feature flags"). Unlike the flags above this gates a *surface*, not a
@@ -103,6 +131,7 @@ export function getAllFeatureFlags(env: FlagEnvironment = process.env) {
     offlinePass: offlinePassFlag(env),
     hubQuestClaims: hubQuestClaimsFlag(env),
     akibaFundedVouchersHub: akibaFundedVouchersHubFlag(env),
+    percentFundedOffersV1: percentFundedOffersV1Flag(env),
     nativeGifts: nativeGiftsFlag(env),
   };
 }

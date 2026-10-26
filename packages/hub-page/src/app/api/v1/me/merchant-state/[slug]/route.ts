@@ -14,6 +14,7 @@ import {
   getMerchantFundedOffers,
   getClaimedMerchantFundedAllocationIds,
 } from "@/lib/vouchers/merchantFundedOffers.server";
+import { fundedOffersForV1 } from "@/lib/vouchers/fundedOfferMapping";
 
 export async function GET(request: Request, { params }: { params: { slug: string } }) {
   let actor;
@@ -47,7 +48,7 @@ export async function GET(request: Request, { params }: { params: { slug: string
     .filter((offer) => offer.reminderSet)
     .map((offer) => offer.id);
 
-  const fundedOffers = await getMerchantFundedOffers(merchantId);
+  const fundedOffers = fundedOffersForV1(await getMerchantFundedOffers(merchantId));
 
   const [balance, claimedFundedAllocationIds, saved, verifiedVisit, openContributionRequest, helpfulVisitIds] = await Promise.all([
     getSignedInBalance(actor.userId, actor.email),
