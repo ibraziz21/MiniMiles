@@ -14,6 +14,8 @@ import { getHomeFeed } from "@/lib/home/feed";
 import { listDirectoryCities } from "@/lib/merchants/queries";
 import { resolveHubProfile } from "@/lib/akiba/hubProfile";
 import { getNextDiscoveryContributionRequest } from "@/lib/akiba/discoveryContributions";
+import { getFundedOffers } from "@/lib/vouchers/catalogue.server";
+import { fundedOffersForV1 } from "@/lib/vouchers/fundedOfferMapping";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -44,11 +46,12 @@ export async function GET(request: Request) {
   const intent = searchParams.get("intent") ?? undefined;
   const actor = await optionalActor(request);
 
-  let feed, cities;
+  let feed, cities, fundedOffers;
   try {
-    [feed, cities] = await Promise.all([
+    [feed, cities, fundedOffers] = await Promise.all([
       getHomeFeed({ userId: actor?.userId ?? null, userEmail: actor?.email ?? null, lat, lng, intent }),
       listDirectoryCities().catch(() => []),
+      getFundedOffers().then(fundedOffersForV1).catch(() => []),
     ]);
   } catch {
     return apiError(request, "HOME_FEED_UNAVAILABLE", "The home feed is temporarily unavailable", 503, {
@@ -63,7 +66,7 @@ export async function GET(request: Request) {
       }
     : null;
 
-  const response = apiSuccess(request, { feed, cities, member });
+  const response = apiSuccess(request, { feed, cities, member, fundedOffers });
   response.headers.set("Cache-Control", "private, no-store");
   return response;
 }

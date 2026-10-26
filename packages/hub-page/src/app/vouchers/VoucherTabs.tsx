@@ -114,6 +114,13 @@ export function VoucherTabs({
     if (isTab(urlTab)) setTabState(urlTab);
   }, []);
 
+  useEffect(() => {
+    // The claim cards mount after the URL's tab has been restored. The
+    // browser's initial hash scroll runs before that, while they are absent.
+    if (tab !== "claimable" || !window.location.hash.startsWith("#funded-")) return;
+    document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: "start" });
+  }, [tab]);
+
   const setTab = useCallback((next: Tab) => {
     setTabState(next);
     const params = new URLSearchParams(window.location.search);

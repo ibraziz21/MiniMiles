@@ -17,6 +17,14 @@ These requirements supersede the earlier Home, queue and navigation priorities b
 - Bottom navigation uses 72px targets, 24px icons, 12px labels, a filled active state and safe-area-aware content clearance.
 - Apply `supabase/migrations/109_admin_usage_metrics.sql` before deployment for usage aggregates. The function is service-role-only and aggregates in Postgres without API row-limit truncation. Failed sources show an explicit unavailable state.
 
+### Miles-earned drill-down — 26 October 2026
+
+Clicking Home's Total miles awarded or Total users awarded opens the all-time merchant breakdown in Akiba usage. Weekly metrics open the same breakdown scoped to this week. Each merchant shows distinct earning users, total miles, miles per earner and estimated spend value; selecting View earners opens a paginated member breakdown with username (or canonical member ID), miles, award count, last-earned date and estimated spend value. Period and page remain in the URL, including links back to the merchant list.
+
+Estimated spend value is gross miles earned × KES 100, based on the product earning rule. It is inferred spend before reversals, not the cash value of miles or actual receipt value. Overall users are distinct across all merchants; merchant counts must not be summed as an overall distinct-user count. Awards without a merchant remain visible in an Unattributed merchant group. Existing `users.read` authorization applies to both levels.
+
+Apply `supabase/migrations/111_admin_earning_breakdown.sql` before deploying this drill-down. The service-role-only RPC aggregates before applying 25-row pagination so paging cannot truncate totals. Empty, unavailable and malformed merchant URL states are explicit.
+
 ## 1. Purpose
 
 Rebuild the admin console into a fast, accessible, mobile-first operational tool without changing the meaning of existing workflows.

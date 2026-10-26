@@ -1,3 +1,4 @@
+import { redemptionScheduleLabel } from "@/lib/redemptionSchedule";
 import { notFound, redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { hasPermission } from "@/types";
@@ -134,6 +135,7 @@ export default async function VoucherAllocationDetailPage({
                   : "—"
               }
             />
+            <Stat label="Use on" value={redemptionScheduleLabel(allocation.metadata?.redemption_schedule ?? null)} />
             <Stat label="Minimum purchase" value={`KES ${template?.minimum_spend_kes ?? 0}`} />
             <Stat label="Quantity" value={formatNumber(allocation.quantity_cap)} />
             <Stat label="Max exposure" value={formatMoney(minorToKes(allocation.authorized_budget_minor), "KES")} />

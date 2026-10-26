@@ -6,6 +6,8 @@ import { LocationOptIn } from "@/components/home/LocationOptIn";
 import { VoucherRail } from "@/components/home/VoucherRail";
 import { VerifiedDiscoverySpotlight } from "@/components/home/VerifiedDiscoverySpotlight";
 import { BusinessOfferRail } from "@/components/home/BusinessOfferRail";
+import { FundedVoucherSection } from "@/components/home/FundedVoucherSection";
+import { getFundedOffers } from "@/lib/vouchers/catalogue.server";
 import { getHomeFeed } from "@/lib/home/feed";
 import { listDirectoryCities } from "@/lib/merchants/queries";
 
@@ -14,9 +16,10 @@ import { listDirectoryCities } from "@/lib/merchants/queries";
 // separate marketing pitch. Sign-in is required only when a protected action
 // (e.g. acquiring a voucher) needs it.
 export async function VisitorLanding() {
-  const [feed, cities] = await Promise.all([
+  const [feed, cities, fundedOffers] = await Promise.all([
     getHomeFeed({ userId: null }),
     listDirectoryCities().catch(() => [] as string[]),
+    getFundedOffers().catch(() => []),
   ]);
 
   const forYou = feed.sections.find((s) => s.id === "for_you") ?? null;
@@ -34,6 +37,8 @@ export async function VisitorLanding() {
       <DiscoveryMasthead />
 
       <IntentShortcuts intents={feed.intents} title="What are you looking for?" />
+
+      <FundedVoucherSection offers={fundedOffers} />
 
       <BusinessOfferRail offers={feed.businessOffers} />
 

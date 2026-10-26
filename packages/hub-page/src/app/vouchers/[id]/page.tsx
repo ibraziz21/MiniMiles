@@ -78,6 +78,7 @@ export default async function VoucherDetailPage({
 
   const detail: DetailVoucher = {
     id: voucher.id,
+    redemptionSchedule: voucher.rules_snapshot?.redemption_schedule ?? null,
     code: voucher.code,
     status: voucher.status as DetailVoucher["status"],
     created_at: voucher.created_at,

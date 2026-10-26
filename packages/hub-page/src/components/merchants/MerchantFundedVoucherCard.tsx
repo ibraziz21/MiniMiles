@@ -31,6 +31,7 @@ export function MerchantFundedVoucherCard({
       <p className="mt-5 font-sterling text-2xl font-semibold leading-none text-akiba-ink">
         {fundedBenefitLabel(offer)}
       </p>
+      {offer.redemptionSchedule && <p className="mt-2 text-xs font-semibold text-akiba-tealDark">Use on {offer.redemptionSchedule.days.map((day) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][day]).join(", ")} ({offer.redemptionSchedule.timezone})</p>}
       <h3 className="mt-2 text-sm font-semibold leading-snug text-akiba-ink">{offer.title}</h3>
       <p className="mt-1 text-xs leading-5 text-akiba-muted">
         Spend at least KES {offer.minimumSpendKes.toLocaleString("en-KE")}
@@ -54,6 +55,8 @@ export function MerchantFundedVoucherCard({
           eligibilitySummary={offer.eligibilitySummary}
           merchantName={offer.merchant.name}
           claimEndsAt={offer.claimEndsAt}
+          claimStartsAt={offer.claimStartsAt}
+          claimsOpen={offer.claimsOpen}
         />
       </div>
     </article>

@@ -119,9 +119,9 @@ export default async function OverviewPage() {
             {canSeeUsers && <>
               <MetricCard label="Total Pass users" value={value(metrics.total_pass_users)} sub="All time · Akiba Pass signups" icon={Users} href="/insights/pass" />
               <MetricCard label="New users this week" value={value(metrics.new_users_this_week)} sub="Pass signups · Monday to now" icon={UserPlus} href="/insights/pass" />
-              <MetricCard label="Average spend this week" value={metrics.weekly_average_spend === undefined ? "Unavailable" : `${formatNumber(metrics.weekly_average_spend)} miles`} sub="Weekly miles awarded ÷ distinct users awarded" icon={Activity} href="/usage" />
-              <MetricCard label="Total users awarded" value={value(metrics.total_users_awarded)} sub="All time · distinct merchant / purchase earners" icon={Users} href="/usage" />
-              <MetricCard label="Total miles awarded" value={value(metrics.total_miles_awarded)} sub="All time · merchant and purchase awards" icon={Coins} href="/usage" />
+              <MetricCard label="Average spend this week" value={metrics.weekly_average_spend === undefined ? "Unavailable" : `${formatNumber(metrics.weekly_average_spend)} miles`} sub="Weekly miles awarded ÷ distinct users awarded" icon={Activity} href="/usage?period=week#earnings" />
+              <MetricCard label="Total users awarded" value={value(metrics.total_users_awarded)} sub="All time · distinct merchant / purchase earners" icon={Users} href="/usage?period=all#earnings" />
+              <MetricCard label="Total miles awarded" value={value(metrics.total_miles_awarded)} sub="All time · merchant and purchase awards" icon={Coins} href="/usage?period=all#earnings" />
             </>}
             {canSeeVouchers && <MetricCard label="Vouchers redeemed" value={value(metrics.vouchers_redeemed)} sub="All time · completed redemptions" icon={Tag} href={hasPermission(session.role, "voucher_funds.read") ? "/vouchers/issued" : "/vouchers"} />}
           </div>

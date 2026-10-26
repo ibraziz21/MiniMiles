@@ -1,3 +1,4 @@
+import { isRedemptionSchedule } from "@/lib/redemptionSchedule";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession, adminIdForWrite } from "@/lib/auth";
 import { fundedVoucherAdminGuard, fundedVoucherActorId } from "@/lib/voucherFundsAccess";
@@ -25,6 +26,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fun
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 
+  if (body.redemptionSchedule !== undefined && !isRedemptionSchedule(body.redemptionSchedule)) {
+    return NextResponse.json({ error: "Choose valid redemption days and timezone." }, { status: 400 });
+  }
+  if (body.redemptionSchedule) {
+    const { error: scheduleError } = await supabase.rpc("validate_funded_redemption_schedule", { p_schedule: body.redemptionSchedule });
+    if (scheduleError) {
+      console.error("[redemption schedule] Validation unavailable or failed", scheduleError.message);
+      return NextResponse.json({ error: "Redemption schedule could not be validated. Check the weekdays and timezone, or contact an administrator." }, { status: 503 });
+    }
+  }
   const merchantId = typeof body.merchantId === "string" ? body.merchantId : null;
   const title = textOrNull(body.title, 200);
   const voucherType = body.voucherType === "percent_off" ? "percent_off" : "fixed_off";
@@ -142,7 +153,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fun
     p_distribution_modes: distributionModes.length > 0 ? distributionModes : null,
     p_recycle_expired_inventory: Boolean(body.recycleExpiredInventory),
     p_eligibility_rule_set_id: eligibilityRuleSetId,
-    p_metadata: { notes: textOrNull(body.notes, 4000) },
+    p_metadata: { notes: textOrNull(body.notes, 4000), redemption_schedule: body.redemptionSchedule ?? null },
   });
 
   if (error) return rpcErrorResponse(error);

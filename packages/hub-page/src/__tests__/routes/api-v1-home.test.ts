@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 type Actor = { userId: string; email: string | null; authMode: "cookie" | "bearer" } | null;
 
@@ -6,6 +6,7 @@ const state = vi.hoisted(() => ({
   actor: null as Actor,
   feed: { rankingVersion: "v1", generatedAt: "2026-01-01T00:00:00Z", intents: [], sections: [], verifiedHighlights: [], rewards: null, nextReward: null } as Record<string, unknown>,
   feedShouldThrow: false,
+  fundedOffers: [] as Array<Record<string, unknown>>,
   cities: ["Nairobi"] as string[],
   displayName: "Member Name",
   nextContribution: null as Record<string, unknown> | null,
@@ -35,6 +36,10 @@ vi.mock("@/lib/akiba/discoveryContributions", () => ({
   getNextDiscoveryContributionRequest: (...args: unknown[]) => getNextDiscoveryContributionRequestMock(...args),
 }));
 
+vi.mock("@/lib/vouchers/catalogue.server", () => ({
+  getFundedOffers: async () => state.fundedOffers,
+}));
+
 const { GET } = await import("@/app/api/v1/home/route");
 
 function homeReq(query = "") {
@@ -42,10 +47,13 @@ function homeReq(query = "") {
 }
 
 describe("GET /api/v1/home", () => {
+  afterEach(() => vi.unstubAllEnvs());
   beforeEach(() => {
     vi.clearAllMocks();
     state.actor = null;
     state.feedShouldThrow = false;
+    state.fundedOffers = [];
+    vi.stubEnv("AKIBA_PERCENT_FUNDED_OFFERS_V1_ENABLED", "false");
 
     getHomeFeedMock.mockImplementation(async () => {
       if (state.feedShouldThrow) throw new Error("boom");
@@ -89,6 +97,15 @@ describe("GET /api/v1/home", () => {
     expect(getHomeFeedMock).toHaveBeenCalledWith(
       expect.objectContaining({ userId: "user-1", userEmail: "a@example.com" }),
     );
+  });
+
+  it("serves discovery promotions only when compatible with the native release", async () => {
+    state.fundedOffers = [{ allocationId: "arabica", voucherType: "percent_off", discountKes: null }];
+    const withheld = await (await GET(homeReq())).json();
+    expect(withheld.data.fundedOffers).toEqual([]);
+    vi.stubEnv("AKIBA_PERCENT_FUNDED_OFFERS_V1_ENABLED", "true");
+    const enabled = await (await GET(homeReq())).json();
+    expect(enabled.data.fundedOffers).toEqual(state.fundedOffers);
   });
 
   it("rejects out-of-range coordinates with 400", async () => {

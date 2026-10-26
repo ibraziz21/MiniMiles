@@ -1,0 +1,58 @@
+{
+  "status": "prepared_not_created_in_database",
+  "program": {
+    "name": "Arabica weekend acquisition — Kenya",
+    "sponsorshipLabel": "Funded by Akiba",
+    "countryCode": "KE",
+    "authorizedBudgetKes": 20000,
+    "startsAt": "2026-10-31T00:00:00+03:00",
+    "endsAt": "2026-11-30T00:00:00+03:00"
+  },
+  "eligibilityRuleSet": {
+    "mode": "all",
+    "rules": [
+      {
+        "type": "country_in",
+        "countries": [
+          "KE"
+        ]
+      },
+      {
+        "type": "profile_country_set"
+      },
+      {
+        "type": "pass_activated"
+      },
+      {
+        "type": "no_prior_merchant_redemption"
+      }
+    ],
+    "customerCopy": "For members whose profile country is Kenya, with an activated Akiba Pass and no previous voucher redemption at Arabica. Use only on Saturday or Sunday."
+  },
+  "allocation": {
+    "merchantId": "533d157a-7960-48eb-8caf-9a55a805a975",
+    "title": "10% off your bill at Arabica Coffee House",
+    "description": "Going to Arabica Coffee House this weekend? Claim 10% off your bill, up to KES 200.",
+    "voucherType": "percent_off",
+    "discountPercent": 10,
+    "maximumDiscountKes": 200,
+    "minimumSpendKes": 300,
+    "quantityCap": 100,
+    "authorizedBudgetKes": 20000,
+    "claimStartsAt": "2026-10-31T00:00:00+03:00",
+    "claimEndsAt": "2026-11-30T00:00:00+03:00",
+    "voucherValidityDays": 2,
+    "distributionModes": [
+      "self_claim"
+    ],
+    "recycleExpiredInventory": false,
+    "termsText": "10% off the actual bill, capped at KES 200. Minimum bill KES 300. One voucher per member. Redemption on Saturday and Sunday in Africa/Nairobi, 31 October–29 November 2026. Requires a Kenya profile country, an activated Akiba Pass, and no previous voucher redemption at Arabica. Receipt/POS reference required.",
+    "redemptionSchedule": {
+      "days": [
+        6,
+        0
+      ],
+      "timezone": "Africa/Nairobi"
+    }
+  }
+}

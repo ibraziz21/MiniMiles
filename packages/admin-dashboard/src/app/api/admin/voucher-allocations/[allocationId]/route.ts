@@ -1,3 +1,4 @@
+import { isRedemptionSchedule } from "@/lib/redemptionSchedule";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession, adminIdForWrite } from "@/lib/auth";
 import { writeAdminAuditLog } from "@/lib/audit";
@@ -6,6 +7,7 @@ import {
   VOUCHER_FUND_RPCS,
   OPEN_ACCESS_ACTOR_ID,
   DISTRIBUTION_MODES,
+  hasRequiredFundCountryRule,
   kesToMinor,
   textOrNull,
   positiveIntOrNull,
@@ -27,11 +29,53 @@ export async function PATCH(
     return NextResponse.json({ error: "expectedVersion is required" }, { status: 400 });
   }
 
+  if (body.redemptionSchedule !== undefined && !isRedemptionSchedule(body.redemptionSchedule)) {
+    return NextResponse.json({ error: "Choose valid redemption days and timezone." }, { status: 400 });
+  }
+  if (body.redemptionSchedule) {
+    const { error: scheduleError } = await supabase.rpc("validate_funded_redemption_schedule", { p_schedule: body.redemptionSchedule });
+    if (scheduleError) {
+      console.error("[redemption schedule] Validation unavailable or failed", scheduleError.message);
+      return NextResponse.json({ error: "Redemption schedule could not be validated. Check the weekdays and timezone, or contact an administrator." }, { status: 503 });
+    }
+  }
+  // Keep existing metadata, including schedules, when editing only notes.
+  let metadata: Record<string, unknown> | null = null;
+  if (body.notes !== undefined || body.redemptionSchedule !== undefined) {
+    const { data: current, error: readError } = await supabase.from("voucher_funding_allocations")
+      .select("metadata").eq("id", allocationId).single();
+    if (readError || !current) return NextResponse.json({ error: "Could not load allocation settings." }, { status: 404 });
+    const merged = { ...(current.metadata ?? {}) };
+    if (body.notes !== undefined) merged.notes = textOrNull(body.notes, 4000);
+    if (body.redemptionSchedule !== undefined) merged.redemption_schedule = body.redemptionSchedule;
+    metadata = merged;
+  }
+
   const distributionModes = Array.isArray(body.distributionModes)
     ? body.distributionModes.filter((m): m is string =>
         (DISTRIBUTION_MODES as readonly string[]).includes(m as string),
       )
     : null;
+
+  // A replacement policy must preserve the mandatory country gate.
+  if (typeof body.eligibilityRuleSetId === "string") {
+    const [{ data: allocation }, { data: ruleSet }] = await Promise.all([
+      supabase.from("voucher_funding_allocations")
+        .select("program_id, voucher_funding_programs(country_code)")
+        .eq("id", allocationId).single(),
+      supabase.from("voucher_eligibility_rule_sets")
+        .select("program_id, mode, rules")
+        .eq("id", body.eligibilityRuleSetId).single(),
+    ]);
+    const fund = allocation?.voucher_funding_programs as unknown as { country_code: string } | null;
+    if (!allocation || !fund?.country_code) {
+      return NextResponse.json({ error: "Allocation or fund not found." }, { status: 404 });
+    }
+    if (!ruleSet || ruleSet.program_id !== allocation.program_id ||
+        !hasRequiredFundCountryRule(ruleSet.mode, ruleSet.rules, fund.country_code)) {
+      return NextResponse.json({ error: "Eligibility must require every rule and match the fund country." }, { status: 400 });
+    }
+  }
 
   const actorId = adminIdForWrite(session) ?? OPEN_ACCESS_ACTOR_ID;
   const { data, error } = await supabase.rpc(VOUCHER_FUND_RPCS.updateAllocationDraft, {
@@ -60,7 +104,7 @@ export async function PATCH(
       typeof body.recycleExpiredInventory === "boolean" ? body.recycleExpiredInventory : null,
     p_eligibility_rule_set_id:
       typeof body.eligibilityRuleSetId === "string" ? body.eligibilityRuleSetId : null,
-    p_metadata: body.notes != null ? { notes: textOrNull(body.notes, 4000) } : null,
+    p_metadata: metadata,
   });
 
   if (error) return rpcErrorResponse(error);

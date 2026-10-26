@@ -32,7 +32,7 @@ export function FundedOfferCard({ offer, claimed }: FundedOfferCardProps) {
     </Card>
   );
 
-  if (claimed) return content;
+  if (claimed || (offer.claimsOpen === false && offer.claimStartsAt)) return content;
 
   return (
     <Button

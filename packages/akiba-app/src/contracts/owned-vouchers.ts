@@ -34,6 +34,7 @@ export const ownedVouchersListSchema = z.object({
 export type OwnedVouchersList = z.infer<typeof ownedVouchersListSchema>;
 
 export const voucherDetailSchema = z.object({
+  redemptionSchedule: z.object({ days: z.array(z.number().int().min(0).max(6)), timezone: z.string() }).nullable().optional(),
   id: z.string(),
   status: z.string(),
   title: z.string().nullable(),

@@ -302,6 +302,8 @@ const BAD_INPUT_CODES = new Set([
   "INVALID_MINIMUM_SPEND_KES",
   "INVALID_QUANTITY_CAP",
   "INVALID_CLAIM_WINDOW",
+  "INVALID_REDEMPTION_SCHEDULE",
+  "REDEMPTION_SCHEDULE_IMMUTABLE",
   "INVALID_VOUCHER_VALIDITY",
 ]);
 
@@ -334,6 +336,8 @@ export const VOUCHER_FUND_ERROR_MESSAGES: Record<string, string> = {
   INVALID_DISCOUNT_KES: "Discount value must be a positive KES amount.",
   INVALID_MINIMUM_SPEND_KES: "Minimum purchase must be at least the discount value.",
   INVALID_QUANTITY_CAP: "Quantity must be a positive integer.",
+  INVALID_REDEMPTION_SCHEDULE: "Choose valid redemption weekdays and timezone.",
+  REDEMPTION_SCHEDULE_IMMUTABLE: "Redemption days can only be changed on an unissued draft allocation.",
   INVALID_CLAIM_WINDOW: "Claim start must be before claim end.",
   INVALID_VOUCHER_VALIDITY: "Voucher validity after claim must be a positive duration.",
   AUTHORIZED_BUDGET_BELOW_COMMITMENT_FLOOR: "Authorized budget must cover quantity × discount value.",

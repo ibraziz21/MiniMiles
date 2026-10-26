@@ -72,6 +72,7 @@ const PLATFORM_STRICT = [
 ];
 const MINIMILES_MIGRATIONS = [
   "supabase/migrations/110_funded_percent_vouchers_weekend_claims.sql",
+  "supabase/migrations/112_funded_voucher_redemption_schedule.sql",
 ].map((p) => resolve(REPO_ROOT, p));
 
 let pool: pg.Pool;
@@ -165,6 +166,7 @@ async function createRuleSet(rules: unknown[], mode = "all"): Promise<string> {
 }
 
 type AllocationArgs = {
+  redemptionSchedule?: { days: number[]; timezone: string };
   voucherType?: "fixed_off" | "percent_off";
   discountKes?: number | null;
   discountPercent?: number | null;
@@ -186,7 +188,7 @@ async function createAllocation(args: AllocationArgs = {}) {
        p_voucher_validity_seconds => 172800,
        p_distribution_modes => ARRAY['self_claim']::text[],
        p_recycle_expired_inventory => false,
-       p_eligibility_rule_set_id => $8, p_metadata => '{}'::jsonb,
+       p_eligibility_rule_set_id => $8, p_metadata => $12::jsonb,
        p_voucher_type => $9, p_discount_percent => $10, p_maximum_discount_kes => $11
      )`,
     [
@@ -203,6 +205,7 @@ async function createAllocation(args: AllocationArgs = {}) {
       args.voucherType ?? "percent_off",
       "discountPercent" in args ? args.discountPercent : 10,
       "maximumDiscountKes" in args ? args.maximumDiscountKes : 200,
+      JSON.stringify(args.redemptionSchedule ? { redemption_schedule: args.redemptionSchedule } : {}),
     ],
   );
   const allocation = rows[0];
@@ -569,4 +572,71 @@ describe.skipIf(!PLATFORM_AVAILABLE)("funded percent vouchers + weekend claims",
       expect(second.error_code).toBe("ALREADY_CLAIMED");
     });
   });
+  describe("Arabica Kenya-only campaign boundary", () => {
+    it("reserves KES 20,000 for 100 vouchers capped at KES 200", async () => {
+      const allocation = await createAllocation({ quantityCap: 100, maximumDiscountKes: 200 });
+      expect(Number(allocation.authorized_budget_minor)).toBe(2_000_000);
+    });
+
+    it.each(["UG", "TZ", null])("rejects a %s profile despite caller-supplied KE", async (country) => {
+      const allocation = await createAllocation();
+      const member = await seedMember();
+      await pool.query("UPDATE hub_user_profiles SET country_code=$1 WHERE user_id=$2", [country, member.hubUserId]);
+      // claim() supplies KE as its country argument. The RPC must ignore it
+      // and check the authenticated member's persisted profile instead.
+      const result = await claim(allocation.id, member);
+      expect(result.ok).toBe(false);
+      expect(result.error_code).toBe(country === null ? "COUNTRY_PROFILE_REQUIRED" : "COUNTRY_NOT_ELIGIBLE");
+      const { rows } = await pool.query("SELECT count(*)::int AS n FROM voucher_claims WHERE allocation_id=$1", [allocation.id]);
+      expect(rows[0].n).toBe(0);
+    });
+  });
+
+  describe("independent redemption schedule", () => {
+    const weekend = { days: [6, 0], timezone: "Africa/Nairobi" };
+    it.each([
+      ["2026-10-30T20:59:59Z", false],
+      ["2026-10-30T21:00:00Z", true],
+      ["2026-11-01T20:59:59Z", true],
+      ["2026-11-01T21:00:00Z", false],
+    ])("evaluates the Nairobi calendar at %s", async (at, expected) => {
+      const { rows } = await pool.query("SELECT funded_redemption_day_allowed($1::jsonb,$2::timestamptz) AS allowed", [JSON.stringify(weekend), at]);
+      expect(rows[0].allowed).toBe(expected);
+    });
+    it("allows claiming now, snapshots the redemption days, and rejects forged redemption timestamps", async () => {
+      const today = await nairobiDayOfWeek();
+      const schedule = { days: [(today + 1) % 7], timezone: "Africa/Nairobi" };
+      const allocation = await createAllocation({ redemptionSchedule: schedule });
+      const result = await claim(allocation.id, await seedMember());
+      expect(result.ok).toBe(true); // today need not be a redemption day
+      const { rows } = await pool.query("SELECT rules_snapshot FROM issued_vouchers WHERE id=$1", [result.voucher_id]);
+      expect(rows[0].rules_snapshot.redemption_schedule).toEqual(schedule);
+      await expect(pool.query("INSERT INTO voucher_redemptions(issued_voucher_id,merchant_id,redeemed_at) VALUES($1,$2,'2026-10-31T12:00:00Z')", [result.voucher_id, MERCHANT_ID])).rejects.toThrow(/REDEMPTION_DAY_NOT_ALLOWED/);
+      const count = await pool.query("SELECT count(*)::int AS n FROM voucher_redemptions WHERE issued_voucher_id=$1", [result.voucher_id]);
+      expect(count.rows[0].n).toBe(0);
+      const voucher = await pool.query("SELECT status FROM issued_vouchers WHERE id=$1", [result.voucher_id]);
+      expect(voucher.rows[0].status).toBe("issued");
+    });
+    it("allows redemption on a configured day", async () => {
+      const allocation = await createAllocation({ redemptionSchedule: { days: [await nairobiDayOfWeek()], timezone: "Africa/Nairobi" } });
+      const result = await claim(allocation.id, await seedMember());
+      await expect(pool.query("INSERT INTO voucher_redemptions(issued_voucher_id,merchant_id) VALUES($1,$2)", [result.voucher_id, MERCHANT_ID])).resolves.toBeTruthy();
+    });
+    it("keeps vouchers without a schedule unrestricted", async () => {
+      const allocation = await createAllocation();
+      const result = await claim(allocation.id, await seedMember());
+      await expect(pool.query("INSERT INTO voucher_redemptions(issued_voucher_id,merchant_id) VALUES($1,$2)", [result.voucher_id, MERCHANT_ID])).resolves.toBeTruthy();
+    });
+    it.each([[[]], [[7]], [[0, 0]], [[1.5]]])("rejects malformed days %j at authoring", async (days) => {
+      await expect(createAllocation({ redemptionSchedule: { days, timezone: "Africa/Nairobi" } })).rejects.toThrow(/INVALID_REDEMPTION_SCHEDULE/);
+    });
+    it("refuses invalid timezones", async () => {
+      await expect(createAllocation({ redemptionSchedule: { days: [6, 0], timezone: "Mars/Olympus" } })).rejects.toThrow(/INVALID_REDEMPTION_SCHEDULE/);
+    });
+    it("cannot change published redemption terms", async () => {
+      const allocation = await createAllocation({ redemptionSchedule: weekend });
+      await expect(pool.query("UPDATE voucher_funding_allocations SET metadata='{}'::jsonb WHERE id=$1", [allocation.id])).rejects.toThrow(/REDEMPTION_SCHEDULE_IMMUTABLE/);
+    });
+  });
+
 });

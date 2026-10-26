@@ -101,6 +101,7 @@ function VoucherDetailContent({ detail }: { detail: VoucherDetail }) {
     <View style={styles.content}>
       <Card style={styles.card}>
         <Badge label={status} tone={status === 'issued' ? 'teal' : 'muted'} />
+        {detail.redemptionSchedule ? <Text style={styles.body}>Use on {detail.redemptionSchedule.days.map((day) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]).join(', ')} ({detail.redemptionSchedule.timezone})</Text> : null}
         {detail.merchantName ? <Text style={styles.body}>{detail.merchantName}</Text> : null}
         {detail.milesCost != null ? <MilesAmount amount={detail.milesCost} color={colors.teal} /> : null}
         {detail.discountPercent != null ? (

@@ -9,7 +9,7 @@ import { createApiClient } from '@/api';
 import { useAuth } from '@/auth';
 import { DiscoveryToolbar } from '@/components/discovery-toolbar';
 import { MerchantValueCard } from '@/components/merchant-card';
-import type { MobileHome } from '@/contracts';
+import { fundedBenefit, type FundedOffer, type MobileHome } from '@/contracts';
 import { ActivityIndicator, Icon, ScrollView, colors, fontFamily } from '@/design-system';
 import { merchantOfferAvailability } from '@/lib/merchant-offer-availability';
 
@@ -77,18 +77,45 @@ function HomeContent({ data }: { data: MobileHome }) {
   return (
     <View>
       <IntentShortcuts intents={data.feed.intents} />
+      <DiscoveryVouchers offers={data.fundedOffers} />
       <BusinessOffers offers={data.feed.businessOffers} />
       <VerifiedDiscovery highlights={data.feed.verifiedHighlights} />
 
       {sections.map((section) => <MerchantRail key={section.id} section={section} />)}
 
-      {sections.length === 0 && data.feed.verifiedHighlights.length === 0 && data.feed.businessOffers.length === 0 ? (
+      {data.fundedOffers.length === 0 && sections.length === 0 && data.feed.verifiedHighlights.length === 0 && data.feed.businessOffers.length === 0 ? (
         <View style={styles.emptyState}>
           <Icon name="shopping-bag" size={34} color={colors.line} />
           <Text style={styles.emptyTitle}>No places to show yet</Text>
           <Text style={styles.emptyBody}>Partner merchants will appear here as they become available.</Text>
         </View>
       ) : null}
+    </View>
+  );
+}
+
+function DiscoveryVouchers({ offers }: { offers: FundedOffer[] }) {
+  if (offers.length === 0) return null;
+  return (
+    <View style={styles.section}>
+      <SectionHeading title="A little extra for your next visit" />
+      {offers.slice(0, 4).map((offer) => {
+        const weekend = offer.redemptionSchedule?.days.length === 2 && offer.redemptionSchedule.days.includes(0) && offer.redemptionSchedule.days.includes(6);
+        return (
+          <Pressable
+            key={offer.allocationId}
+            accessibilityRole="link"
+            accessibilityLabel={`Going to ${offer.merchant.name}${weekend ? ' this weekend' : ''}? ${fundedBenefit(offer)}. Claim now`}
+            onPress={() => router.push({ pathname: '/vouchers', params: { tab: 'claim' } })}
+            style={({ pressed }) => [styles.voucherPromo, pressed && { opacity: 0.85 }]}>
+            <Text style={styles.voucherPromoNote}>On Akiba. No Miles needed.</Text>
+            <Text style={styles.voucherPromoTitle}>Going to {offer.merchant.name}{weekend ? ' this weekend' : ''}?</Text>
+            <Text style={styles.voucherPromoBenefit}>{fundedBenefit(offer)} on your bill</Text>
+            <Text style={styles.voucherPromoNote}>Minimum bill KES {offer.minimumSpendKes.toLocaleString('en-KE')}. {offer.eligibilitySummary ?? 'Eligibility requirements apply.'}</Text>
+            <Text style={styles.voucherPromoCta}>{offer.claimsOpen === false && offer.claimStartsAt ? `View offer · claims open ${new Date(offer.claimStartsAt).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', timeZone: 'Africa/Nairobi' })}` : 'Claim now ↗'}</Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
@@ -287,6 +314,11 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 }
 
 const styles = StyleSheet.create({
+  voucherPromo: { backgroundColor: colors.tint, borderColor: colors.line, borderWidth: 1, borderRadius: 24, padding: 22, marginTop: 12, gap: 12 },
+  voucherPromoNote: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 12, lineHeight: 18 },
+  voucherPromoTitle: { color: colors.ink, fontFamily: fontFamily.sans, fontSize: 24, fontWeight: '600', lineHeight: 30 },
+  voucherPromoBenefit: { color: colors.tealDark, fontFamily: fontFamily.sans, fontSize: 18, fontWeight: '600', lineHeight: 25 },
+  voucherPromoCta: { color: colors.white, backgroundColor: colors.tealDark, borderRadius: 12, paddingHorizontal: 16, paddingBottom: 14, fontFamily: fontFamily.sans, fontSize: 14, fontWeight: '600', minHeight: 44, paddingTop: 14 },
   screen: { backgroundColor: colors.paper },
   page: { paddingBottom: 28, paddingTop: 12 },
   contentShell: { alignSelf: 'center', maxWidth: 840, width: '100%' },

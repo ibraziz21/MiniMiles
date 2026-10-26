@@ -7,6 +7,8 @@ import { LocationOptIn } from "@/components/home/LocationOptIn";
 import { VoucherRail } from "@/components/home/VoucherRail";
 import { VerifiedDiscoverySpotlight } from "@/components/home/VerifiedDiscoverySpotlight";
 import { BusinessOfferRail } from "@/components/home/BusinessOfferRail";
+import { FundedVoucherSection } from "@/components/home/FundedVoucherSection";
+import { getFundedOffers } from "@/lib/vouchers/catalogue.server";
 import { resolveHubProfile } from "@/lib/akiba/hubProfile";
 import { getHomeFeed } from "@/lib/home/feed";
 import { listDirectoryCities } from "@/lib/merchants/queries";
@@ -24,11 +26,12 @@ function daysUntilLabel(expiresAt: string): string {
 export async function MemberHome({ user }: { user: User }) {
   const email = user.email ?? null;
 
-  const [{ displayName }, feed, cities, nextContribution] = await Promise.all([
+  const [{ displayName }, feed, cities, nextContribution, fundedOffers] = await Promise.all([
     resolveHubProfile({ userId: user.id, email }),
     getHomeFeed({ userId: user.id, userEmail: email }),
     listDirectoryCities().catch(() => [] as string[]),
     getNextDiscoveryContributionRequest(user.id).catch(() => null),
+    getFundedOffers().catch(() => []),
   ]);
 
   // displayName falls back to the raw email (resolveHubProfile) when the
@@ -90,6 +93,8 @@ export async function MemberHome({ user }: { user: User }) {
           <span className="shrink-0 font-semibold text-akiba-teal">Add visit →</span>
         </TrackedLink>
       )}
+
+      <FundedVoucherSection offers={fundedOffers} />
 
       <BusinessOfferRail offers={feed.businessOffers} />
 

@@ -17,7 +17,7 @@ export default async function EditVoucherAllocationPage({
   const { data: allocation } = await supabase
     .from("voucher_funding_allocations")
     .select(
-      "id, version, state, quantity_cap, authorized_budget_minor, claim_starts_at, claim_ends_at, voucher_validity_seconds, distribution_modes, recycle_expired_inventory, program_id, spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, description, terms_text, voucher_type, discount_kes, discount_percent, maximum_discount_kes, minimum_spend_kes), partners(name), voucher_funding_programs(country_code)",
+      "id, version, state, metadata, quantity_cap, authorized_budget_minor, claim_starts_at, claim_ends_at, voucher_validity_seconds, distribution_modes, recycle_expired_inventory, program_id, spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, description, terms_text, voucher_type, discount_kes, discount_percent, maximum_discount_kes, minimum_spend_kes), partners(name), voucher_funding_programs(country_code), voucher_eligibility_rule_sets(mode, rules, customer_copy)",
     )
     .eq("id", allocationId)
     .single();
@@ -35,6 +35,11 @@ export default async function EditVoucherAllocationPage({
     maximum_discount_kes: number | null;
     minimum_spend_kes: number;
   } | null;
+  const ruleSet = allocation.voucher_eligibility_rule_sets as unknown as {
+    mode: string;
+    rules: Record<string, unknown>[];
+    customer_copy: string | null;
+  } | null;
   const merchant = allocation.partners as unknown as { name: string } | null;
   const fund = allocation.voucher_funding_programs as unknown as { country_code: string } | null;
 
@@ -46,6 +51,10 @@ export default async function EditVoucherAllocationPage({
         fundCountryCode={fund?.country_code ?? "KE"}
         merchants={[]}
         initial={{
+          redemptionSchedule: allocation.metadata?.redemption_schedule ?? null,
+          eligibilityRules: ruleSet?.rules ?? [],
+          eligibilityMode: ruleSet?.mode ?? null,
+          eligibilityCustomerCopy: ruleSet?.customer_copy ?? "",
           id: allocation.id,
           version: allocation.version,
           merchantName: merchant?.name ?? "",

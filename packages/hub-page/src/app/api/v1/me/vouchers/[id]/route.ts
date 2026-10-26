@@ -63,6 +63,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
   const response = apiSuccess(request, {
     id: voucher.id,
+    redemptionSchedule: voucher.rules_snapshot?.redemption_schedule ?? null,
     status: resolveOwnedVoucherStatus(voucher.status, voucher.expires_at),
     title: merged?.title ?? null,
     voucherType: merged?.voucherType ?? null,
