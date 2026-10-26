@@ -1,8 +1,9 @@
 // GET /api/v1/vouchers/funded/:allocationId/eligibility → POST .../claim —
 // funded-offer claim confirm screen. allocationId/title/merchantName/
-// discountKes/minimumSpendKes are passed as route params by the caller
+// benefit/minimumSpendKes are passed as route params by the caller
 // (FundedOfferCard) since the eligibility response carries no display
-// metadata.
+// metadata. `benefit` arrives pre-formatted by fundedBenefit() rather than as
+// a raw amount, because a percentage offer has no single KES figure to pass.
 import { useCallback, useEffect, useState } from 'react';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 
@@ -42,11 +43,11 @@ const REQUIREMENT_COPY: Record<string, string> = {
 };
 
 export default function FundedOfferClaimScreen() {
-  const { allocationId, title, merchantName, discountKes, minimumSpendKes } = useLocalSearchParams<{
+  const { allocationId, title, merchantName, benefit, minimumSpendKes } = useLocalSearchParams<{
     allocationId: string;
     title?: string;
     merchantName?: string;
-    discountKes?: string;
+    benefit?: string;
     minimumSpendKes?: string;
   }>();
   const { accessToken } = useAuth();
@@ -152,9 +153,9 @@ export default function FundedOfferClaimScreen() {
                 </Text>
               ) : null}
               {merchantName ? <Text style={styles.body}>{merchantName}</Text> : null}
-              {discountKes && minimumSpendKes ? (
+              {benefit && minimumSpendKes ? (
                 <Text style={styles.meta}>
-                  KES {Number(discountKes).toLocaleString('en-KE')} off orders over KES{' '}
+                  {benefit} on orders over KES{' '}
                   {Number(minimumSpendKes).toLocaleString('en-KE')}
                 </Text>
               ) : null}

@@ -4,13 +4,37 @@ import { ClaimOfferButton } from "@/components/vouchers/ClaimOfferButton";
 export type FundedOffer = {
   allocationId: string;
   title: string;
-  discountKes: number;
+  /**
+   * `voucherType` decides which benefit fields are populated. A percentage
+   * offer stores no flat amount at all (the authoring RPC writes
+   * discount_kes = NULL deliberately, so there is never a stale second answer
+   * to "what is this worth?"), so `discountKes` is null for those.
+   */
+  voucherType: "fixed_off" | "percent_off";
+  discountKes: number | null;
+  discountPercent: number | null;
+  maximumDiscountKes: number | null;
   minimumSpendKes: number;
   terms: string | null;
   eligibilitySummary: string | null;
   claimEndsAt: string;
   merchant: { name: string; slug: string; imageUrl: string | null };
 };
+
+/**
+ * The one place a funded offer's benefit is turned into words. Shared by the
+ * vouchers grid and the merchant page so a percentage offer cannot read as a
+ * flat discount on one surface and not the other.
+ */
+export function fundedBenefitLabel(offer: FundedOffer): string {
+  if (offer.voucherType === "percent_off") {
+    const percent = offer.discountPercent ?? 0;
+    return offer.maximumDiscountKes != null
+      ? `${percent}% off, up to KES ${offer.maximumDiscountKes.toLocaleString("en-KE")}`
+      : `${percent}% off`;
+  }
+  return `KES ${(offer.discountKes ?? 0).toLocaleString("en-KE")} off`;
+}
 
 /**
  * Akiba-funded voucher offer — free, eligibility-gated, never Miles-priced
@@ -59,7 +83,7 @@ export function FundedOfferCard({
           </span>
         </div>
         <p className="mt-5 font-sterling text-2xl font-bold leading-none text-akiba-ink">
-          KES {offer.discountKes.toLocaleString("en-KE")} off
+          {fundedBenefitLabel(offer)}
         </p>
       </div>
 

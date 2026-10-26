@@ -47,6 +47,7 @@ export {
   voucherTemplateSchema,
   type VoucherTemplate,
   fundedOfferSchema,
+  fundedBenefit,
   type FundedOffer,
   voucherCatalogueSchema,
   type VoucherCatalogue,

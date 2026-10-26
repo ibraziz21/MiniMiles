@@ -1,6 +1,6 @@
 import { CalendarClock, Sparkles } from "lucide-react";
 import { ClaimOfferButton } from "@/components/vouchers/ClaimOfferButton";
-import type { FundedOffer } from "@/components/vouchers/FundedOfferCard";
+import { fundedBenefitLabel, type FundedOffer } from "@/components/vouchers/FundedOfferCard";
 
 export function MerchantFundedVoucherCard({
   offer,
@@ -29,7 +29,7 @@ export function MerchantFundedVoucherCard({
       </div>
 
       <p className="mt-5 font-sterling text-2xl font-semibold leading-none text-akiba-ink">
-        KES {offer.discountKes.toLocaleString("en-KE")} off
+        {fundedBenefitLabel(offer)}
       </p>
       <h3 className="mt-2 text-sm font-semibold leading-snug text-akiba-ink">{offer.title}</h3>
       <p className="mt-1 text-xs leading-5 text-akiba-muted">

@@ -10,6 +10,9 @@ import {
   ELIGIBILITY_RULE_LABELS,
   ELIGIBILITY_RULE_WARNINGS,
   VERIFIED_ACTIVITY_TEMPLATE_KEYS,
+  WEEKDAY_LABELS,
+  WEEKEND_DAYS,
+  CLAIM_DAY_TIMEZONE,
   DISTRIBUTION_MODES,
   DISTRIBUTION_MODE_LABELS,
   type EligibilityRuleType,
@@ -30,7 +33,10 @@ export interface AllocationFormInitial {
   title: string;
   description: string;
   termsText: string;
+  voucherType: "fixed_off" | "percent_off";
   discountKes: number;
+  discountPercent: number | null;
+  maximumDiscountKes: number | null;
   minimumSpendKes: number;
   quantityCap: number;
   authorizedBudgetKes: number;
@@ -62,7 +68,20 @@ export function AllocationForm({
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [termsText, setTermsText] = useState(initial?.termsText ?? "");
+  // Fixed after creation: switching the benefit shape would change what every
+  // already-issued voucher's snapshot means, so the edit form shows it
+  // read-only and the PATCH route does not send it.
+  const [voucherType, setVoucherType] = useState<"fixed_off" | "percent_off">(
+    initial?.voucherType ?? "fixed_off",
+  );
+  const isPercent = voucherType === "percent_off";
   const [discountKes, setDiscountKes] = useState(initial ? String(initial.discountKes) : "500");
+  const [discountPercent, setDiscountPercent] = useState(
+    initial?.discountPercent != null ? String(initial.discountPercent) : "10",
+  );
+  const [maximumDiscountKes, setMaximumDiscountKes] = useState(
+    initial?.maximumDiscountKes != null ? String(initial.maximumDiscountKes) : "200",
+  );
   const [minimumSpendKes, setMinimumSpendKes] = useState(initial ? String(initial.minimumSpendKes) : "1500");
   const [quantityCap, setQuantityCap] = useState(initial ? String(initial.quantityCap) : "10");
   const [authorizedBudgetKes, setAuthorizedBudgetKes] = useState(
@@ -85,12 +104,18 @@ export function AllocationForm({
   const [minAccountAgeDays, setMinAccountAgeDays] = useState("7");
   const [verifiedActivityKey, setVerifiedActivityKey] = useState<string>(VERIFIED_ACTIVITY_TEMPLATE_KEYS[0]);
   const [cooldownDays, setCooldownDays] = useState("30");
+  const [claimDays, setClaimDays] = useState<number[]>([...WEEKEND_DAYS]);
   const [customerCopy, setCustomerCopy] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const floorBudget = Number(quantityCap || 0) * Number(discountKes || 0);
+  // The commitment floor is quantity × the WORST CASE per voucher. For a
+  // percentage benefit that worst case is the cap, not the expected discount —
+  // the fund reserves the ceiling at claim time and releases the unused part
+  // when the till reports the real basket.
+  const perVoucherCeiling = isPercent ? Number(maximumDiscountKes || 0) : Number(discountKes || 0);
+  const floorBudget = Number(quantityCap || 0) * perVoucherCeiling;
 
   const filteredMerchants = useMemo(() => {
     const q = merchantFilter.trim().toLowerCase();
@@ -137,7 +162,23 @@ export function AllocationForm({
       // Phase 1 item 6).
       rules.push({ type: "fund_claim_cooldown", days: Number(cooldownDays) });
     }
+    if (selectedRules.claim_day_of_week) {
+      // `days` is a weekday list (0=Sunday … 6=Saturday), and the timezone is
+      // sent explicitly: "Saturday" is a local-calendar claim, and a Nairobi
+      // Saturday opens at 21:00 UTC on Friday.
+      rules.push({
+        type: "claim_day_of_week",
+        days: [...claimDays].sort((a, b) => a - b),
+        timezone: CLAIM_DAY_TIMEZONE,
+      });
+    }
     return rules;
+  }
+
+  function toggleClaimDay(day: number) {
+    setClaimDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day],
+    );
   }
 
   function isValidBoundedDays(value: string, maxDays: number): boolean {
@@ -157,6 +198,26 @@ export function AllocationForm({
     if (selectedRules.minimum_account_age_days && !isValidBoundedDays(minAccountAgeDays, 3650)) {
       setError("Minimum account age must be a whole number of days between 1 and 3650.");
       return;
+    }
+    if (selectedRules.claim_day_of_week && claimDays.length === 0) {
+      setError("Select at least one day of the week the voucher can be claimed on.");
+      return;
+    }
+    if (isPercent) {
+      const percent = Number(discountPercent);
+      if (!Number.isFinite(percent) || percent <= 0 || percent > 100) {
+        setError("Discount percent must be between 0 and 100.");
+        return;
+      }
+      const cap = Number(maximumDiscountKes);
+      if (!Number.isFinite(cap) || cap <= 0) {
+        setError("A percentage benefit needs a maximum discount in KES.");
+        return;
+      }
+      if (Number(minimumSpendKes) <= cap) {
+        setError("Minimum purchase must be greater than the maximum discount.");
+        return;
+      }
     }
 
     setBusy(true);
@@ -182,7 +243,9 @@ export function AllocationForm({
       title,
       description,
       termsText,
-      discountKes: Number(discountKes),
+      discountKes: isPercent ? undefined : Number(discountKes),
+      discountPercent: isPercent ? Number(discountPercent) : undefined,
+      maximumDiscountKes: isPercent ? Number(maximumDiscountKes) : undefined,
       minimumSpendKes: Number(minimumSpendKes),
       quantityCap: Number(quantityCap),
       authorizedBudgetKes: authorizedBudgetKes ? Number(authorizedBudgetKes) : undefined,
@@ -205,6 +268,7 @@ export function AllocationForm({
       });
     } else {
       body.merchantId = merchantId;
+      body.voucherType = voucherType;
       res = await fetch(`/api/admin/voucher-funds/${fundId}/allocations`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -271,17 +335,96 @@ export function AllocationForm({
               className="flex w-full rounded-card border border-border bg-surface px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </Field>
-          <div className="grid grid-cols-3 gap-4">
-            <Field label="Discount (KES)">
-              <Input required type="number" min="1" step="0.01" value={discountKes} onChange={(e) => setDiscountKes(e.target.value)} />
-            </Field>
-            <Field label="Minimum purchase (KES)">
-              <Input required type="number" min="1" step="0.01" value={minimumSpendKes} onChange={(e) => setMinimumSpendKes(e.target.value)} />
-            </Field>
-            <Field label="Quantity">
-              <Input required type="number" min="1" step="1" value={quantityCap} onChange={(e) => setQuantityCap(e.target.value)} />
-            </Field>
-          </div>
+          <fieldset>
+            <legend className="mb-1.5 block text-sm font-medium text-ink">Benefit type</legend>
+            {isEdit ? (
+              <p className="text-sm text-ink-muted">
+                {isPercent ? "Percentage off" : "Flat KES off"}{" "}
+                <span className="text-ink-muted">(fixed after creation)</span>
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2 sm:flex-row sm:gap-4">
+                {(
+                  [
+                    ["fixed_off", "Flat KES off"],
+                    ["percent_off", "Percentage off"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <label key={value} className="flex items-center gap-2 text-sm text-ink">
+                    <input
+                      type="radio"
+                      name="voucherType"
+                      value={value}
+                      checked={voucherType === value}
+                      onChange={() => setVoucherType(value)}
+                      className="h-4 w-4 accent-primary"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </fieldset>
+          {isPercent ? (
+            <>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <Field label="Discount (%)">
+                  <Input
+                    required
+                    type="number"
+                    min="1"
+                    max="100"
+                    step="0.01"
+                    value={discountPercent}
+                    onChange={(e) => setDiscountPercent(e.target.value)}
+                  />
+                </Field>
+                <Field label="Maximum discount (KES)">
+                  <Input
+                    required
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    value={maximumDiscountKes}
+                    onChange={(e) => setMaximumDiscountKes(e.target.value)}
+                  />
+                </Field>
+                <Field label="Quantity">
+                  <Input required type="number" min="1" step="1" value={quantityCap} onChange={(e) => setQuantityCap(e.target.value)} />
+                </Field>
+              </div>
+              <Field label="Minimum purchase (KES)">
+                <Input required type="number" min="1" step="0.01" value={minimumSpendKes} onChange={(e) => setMinimumSpendKes(e.target.value)} />
+              </Field>
+              <p className="rounded-card border border-border bg-slate-50 px-3 py-2 text-sm text-ink">
+                Akiba reimburses the discount the till actually applies, up to{" "}
+                <strong>KES {Number(maximumDiscountKes || 0).toLocaleString()}</strong> per voucher —
+                the cap binds at a basket of{" "}
+                <strong>
+                  KES{" "}
+                  {Number(discountPercent) > 0
+                    ? Math.round(
+                        (Number(maximumDiscountKes || 0) * 100) / Number(discountPercent),
+                      ).toLocaleString()
+                    : "—"}
+                </strong>
+                . The budget floor below reserves the cap for every voucher, so actual spend is
+                usually lower. Minimum purchase must exceed the cap.
+              </p>
+            </>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <Field label="Discount (KES)">
+                <Input required type="number" min="1" step="0.01" value={discountKes} onChange={(e) => setDiscountKes(e.target.value)} />
+              </Field>
+              <Field label="Minimum purchase (KES)">
+                <Input required type="number" min="1" step="0.01" value={minimumSpendKes} onChange={(e) => setMinimumSpendKes(e.target.value)} />
+              </Field>
+              <Field label="Quantity">
+                <Input required type="number" min="1" step="1" value={quantityCap} onChange={(e) => setQuantityCap(e.target.value)} />
+              </Field>
+            </div>
+          )}
           <Field label={`Authorized budget (KES) — floor is ${floorBudget.toLocaleString()}`}>
             <Input
               type="number"
@@ -371,6 +514,27 @@ export function AllocationForm({
                     value={cooldownDays}
                     onChange={(e) => setCooldownDays(e.target.value)}
                   />
+                )}
+                {type === "claim_day_of_week" && (
+                  <fieldset className="mt-2">
+                    <legend className="sr-only">Days the voucher can be claimed</legend>
+                    <div className="flex flex-wrap gap-x-4 gap-y-2">
+                      {WEEKDAY_LABELS.map((label, day) => (
+                        <label key={label} className="flex items-center gap-1.5 text-sm text-ink">
+                          <input
+                            type="checkbox"
+                            checked={claimDays.includes(day)}
+                            onChange={() => toggleClaimDay(day)}
+                          />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                    <p className="mt-1.5 text-xs text-ink-muted">
+                      Evaluated in {CLAIM_DAY_TIMEZONE}. Lets one allocation span a whole run while
+                      only being claimable on these days — no new allocation per weekend.
+                    </p>
+                  </fieldset>
                 )}
               </RuleRow>
             ))}

@@ -17,7 +17,7 @@ export default async function EditVoucherAllocationPage({
   const { data: allocation } = await supabase
     .from("voucher_funding_allocations")
     .select(
-      "id, version, state, quantity_cap, authorized_budget_minor, claim_starts_at, claim_ends_at, voucher_validity_seconds, distribution_modes, recycle_expired_inventory, program_id, spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, description, terms_text, discount_kes, minimum_spend_kes), partners(name), voucher_funding_programs(country_code)",
+      "id, version, state, quantity_cap, authorized_budget_minor, claim_starts_at, claim_ends_at, voucher_validity_seconds, distribution_modes, recycle_expired_inventory, program_id, spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, description, terms_text, voucher_type, discount_kes, discount_percent, maximum_discount_kes, minimum_spend_kes), partners(name), voucher_funding_programs(country_code)",
     )
     .eq("id", allocationId)
     .single();
@@ -29,7 +29,10 @@ export default async function EditVoucherAllocationPage({
     title: string;
     description: string | null;
     terms_text: string | null;
-    discount_kes: number;
+    voucher_type: "fixed_off" | "percent_off";
+    discount_kes: number | null;
+    discount_percent: number | null;
+    maximum_discount_kes: number | null;
     minimum_spend_kes: number;
   } | null;
   const merchant = allocation.partners as unknown as { name: string } | null;
@@ -49,7 +52,10 @@ export default async function EditVoucherAllocationPage({
           title: template?.title ?? "",
           description: template?.description ?? "",
           termsText: template?.terms_text ?? "",
+          voucherType: template?.voucher_type ?? "fixed_off",
           discountKes: template?.discount_kes ?? 0,
+          discountPercent: template?.discount_percent ?? null,
+          maximumDiscountKes: template?.maximum_discount_kes ?? null,
           minimumSpendKes: template?.minimum_spend_kes ?? 0,
           quantityCap: allocation.quantity_cap,
           authorizedBudgetKes: minorToKes(allocation.authorized_budget_minor),

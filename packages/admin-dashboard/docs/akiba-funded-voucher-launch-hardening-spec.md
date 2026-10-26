@@ -112,11 +112,36 @@ Add server-side flags with production defaults of `false`:
 |---|---|
 | Admin reimbursable vouchers | Always available to roles with `voucher_funds.*`; no deployment feature flag |
 | `AKIBA_FUNDED_VOUCHERS_HUB_ENABLED` | Shows funded offers and permits Hub claim proxy calls |
+| `AKIBA_PERCENT_FUNDED_OFFERS_V1_ENABLED` | Permits percentage funded offers in the `/api/v1/*` mobile contract. See below |
 | Admin voucher reimbursements | Always available to roles with `voucher_settlements.*`; no deployment feature flag |
 
 Read-only detail pages may remain accessible to authorized operators when a
 mutation flag is off. Mutation APIs must enforce flags server-side; hiding a
 button is not sufficient.
+
+### `AKIBA_PERCENT_FUNDED_OFFERS_V1_ENABLED` — client compatibility, not a kill switch
+
+This one gates a *contract*, not a flow, and is the only reason a
+"launch on web first" is possible for a percentage offer.
+
+Publishing an allocation reveals it to every surface at once: the Hub's
+`/vouchers` page and the three `/api/v1/*` routes
+(`vouchers`, `merchants/:slug`, `me/merchant-state/:slug`) all read the same
+`getFundedOffers()`. There is no per-surface visibility in the data model.
+
+Released mobile builds validate the funded-offer payload with a Zod schema
+whose `discountKes` is a required number, through `schema.parse`, which
+throws. A percentage offer carries `discountKes: null` by design (the
+authoring RPC stores no flat amount, so there is never a contradictory second
+answer to what the voucher is worth). Because the schema covers the whole
+catalogue object, one percentage offer fails validation for the entire
+response — taking out the Rewards tab and merchant detail, not merely hiding
+one card.
+
+While the flag is off, `fundedOffersForV1()` omits percentage offers from
+those three routes only; the web pages are unaffected. Turn it on once the
+minimum supported app build parses `discountKes: null`, then delete the flag
+and the filter.
 
 Funded-voucher mutations must refuse to start when `ADMIN_OPEN_ACCESS=true` in
 production. A real `admin_users.id` is required for every economic mutation;

@@ -41,7 +41,13 @@ export async function PATCH(
     p_title: textOrNull(body.title, 200),
     p_description: textOrNull(body.description, 2000),
     p_terms_text: textOrNull(body.termsText, 4000),
+    // The template's stored voucher_type decides which of these the RPC reads;
+    // a draft edit retunes the benefit but never switches its shape, so the
+    // benefit type is deliberately not a parameter here.
     p_discount_kes: body.discountKes == null ? null : Number(body.discountKes),
+    p_discount_percent: body.discountPercent == null ? null : Number(body.discountPercent),
+    p_maximum_discount_kes:
+      body.maximumDiscountKes == null ? null : Number(body.maximumDiscountKes),
     p_minimum_spend_kes: body.minimumSpendKes == null ? null : Number(body.minimumSpendKes),
     p_quantity_cap: body.quantityCap == null ? null : positiveIntOrNull(body.quantityCap),
     p_authorized_budget_minor: body.authorizedBudgetKes == null ? null : kesToMinor(body.authorizedBudgetKes),
