@@ -32,6 +32,7 @@ export type DetailVoucher = {
   acquisition_source: string | null;
   sponsor: string | null;
   program_name: string | null;
+  redemptionSchedule?: { days: number[]; timezone: string } | null;
   template: {
     title: string;
     voucher_type: VoucherType;
@@ -330,6 +331,7 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
         {/* Body */}
         <div className="space-y-2 px-5 py-5 text-sm text-akiba-muted">
           {t && <p className="text-base font-medium text-akiba-ink">{t.title}</p>}
+          {voucher.redemptionSchedule && <p className="font-semibold text-akiba-tealDark">Use on {voucher.redemptionSchedule.days.map((day) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][day]).join(", ")} ({voucher.redemptionSchedule.timezone})</p>}
           {t?.applicable_category && (
             <p>
               On:{" "}

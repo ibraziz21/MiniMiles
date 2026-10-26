@@ -12,6 +12,8 @@ import {
 type RawFundedAllocation = {
   id: string;
   claim_ends_at: string;
+  claim_starts_at: string;
+  metadata?: { redemption_schedule?: { days: number[]; timezone: string } | null };
   spend_voucher_templates: RawFundedTemplate | RawFundedTemplate[] | null;
   partners: RawFundedPartner | RawFundedPartner[] | null;
   voucher_eligibility_rule_sets:
@@ -33,14 +35,13 @@ export async function getMerchantFundedOffers(merchantId: string): Promise<Funde
   const { data, error } = await admin
     .from("voucher_funding_allocations")
     .select(`
-      id, claim_ends_at,
+      id, metadata, claim_starts_at, claim_ends_at,
       spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey ( ${FUNDED_OFFER_TEMPLATE_COLUMNS} ),
       partners ( id, name, slug, image_url, status ),
       voucher_eligibility_rule_sets ( customer_copy )
     `)
     .eq("merchant_id", merchantId)
-    .eq("state", "active")
-    .lte("claim_starts_at", nowIso)
+    .in("state", ["active", "scheduled"])
     .gt("claim_ends_at", nowIso)
     .order("claim_ends_at", { ascending: true });
 
@@ -61,7 +62,12 @@ export async function getMerchantFundedOffers(merchantId: string): Promise<Funde
       partner: merchant,
       eligibilitySummary: ruleSet?.customer_copy ?? null,
     });
-    if (offer) offers.push(offer);
+    if (offer) {
+      offer.redemptionSchedule = row.metadata?.redemption_schedule ?? null;
+      offer.claimStartsAt = row.claim_starts_at;
+      offer.claimsOpen = row.claim_starts_at <= nowIso;
+      offers.push(offer);
+    }
   }
   return offers;
 }

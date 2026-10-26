@@ -18,6 +18,10 @@ export type FundedOffer = {
   terms: string | null;
   eligibilitySummary: string | null;
   claimEndsAt: string;
+  claimStartsAt?: string;
+  claimsOpen?: boolean;
+  redemptionSchedule?: { days: number[]; timezone: string } | null;
+  claimDays?: number[];
   merchant: { name: string; slug: string; imageUrl: string | null };
 };
 
@@ -59,7 +63,7 @@ export function FundedOfferCard({
     : null;
 
   return (
-    <article className={`group flex min-h-[320px] flex-col overflow-hidden rounded-3xl border bg-white transition hover:-translate-y-0.5 hover:shadow-soft ${alreadyClaimed ? "border-akiba-line opacity-75" : "border-emerald-200"}`}>
+    <article id={`funded-${offer.allocationId}`} className={`group scroll-mt-24 flex min-h-[320px] flex-col overflow-hidden rounded-3xl border bg-white transition hover:-translate-y-0.5 hover:shadow-soft ${alreadyClaimed ? "border-akiba-line opacity-75" : "border-emerald-200"}`}>
       <div className="relative border-b border-dashed border-emerald-200 bg-gradient-to-br from-emerald-50 to-white px-4 pb-5 pt-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -92,6 +96,7 @@ export function FundedOfferCard({
         <p className="mt-1.5 text-xs">
           Minimum purchase <span className="font-semibold text-akiba-ink">KES {offer.minimumSpendKes.toLocaleString("en-KE")}</span>
         </p>
+        {offer.redemptionSchedule && <p className="mt-2 text-xs font-semibold text-akiba-tealDark">Use on {offer.redemptionSchedule.days.map((day) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][day]).join(", ")} ({offer.redemptionSchedule.timezone})</p>}
         {offer.eligibilitySummary && <p className="mt-2 rounded-xl bg-akiba-card px-3 py-2 text-xs">{offer.eligibilitySummary}</p>}
         {claimEndsLabel && (
           <p className="mt-2 flex items-center gap-1.5 text-[11px] text-akiba-muted/80">
@@ -111,6 +116,8 @@ export function FundedOfferCard({
             eligibilitySummary={offer.eligibilitySummary}
             merchantName={offer.merchant.name}
             claimEndsAt={offer.claimEndsAt}
+            claimStartsAt={offer.claimStartsAt}
+            claimsOpen={offer.claimsOpen}
           />
         </div>
       </div>

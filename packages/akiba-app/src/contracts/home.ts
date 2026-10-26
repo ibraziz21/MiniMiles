@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { merchantValueSummarySchema } from './merchants';
 import { merchantOfferFeedItemSchema } from './merchant-offers';
+import { fundedOfferSchema } from './vouchers';
 
 // Source: hub-page's GET /api/v1/home (src/app/api/v1/home/route.ts) —
 // `feed` passes through hub-page's HomeFeedResponse unchanged, `cities` and
@@ -61,6 +62,7 @@ const homeFeedSchema = z.object({
 });
 
 export const mobileHomeSchema = z.object({
+  fundedOffers: z.array(fundedOfferSchema).default([]),
   feed: homeFeedSchema,
   cities: z.array(z.string()),
   member: z

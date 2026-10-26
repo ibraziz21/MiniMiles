@@ -1,5 +1,7 @@
 "use client";
 
+import type { RedemptionSchedule } from "@/lib/redemptionSchedule";
+
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +17,7 @@ import {
   CLAIM_DAY_TIMEZONE,
   DISTRIBUTION_MODES,
   DISTRIBUTION_MODE_LABELS,
+  isValidEligibilityRule,
   type EligibilityRuleType,
 } from "@/lib/voucherFunds";
 import { AlertTriangle } from "lucide-react";
@@ -45,6 +48,10 @@ export interface AllocationFormInitial {
   voucherValidityDays: number;
   distributionModes: string[];
   recycleExpiredInventory: boolean;
+  redemptionSchedule?: RedemptionSchedule | null;
+  eligibilityRules?: Record<string, unknown>[];
+  eligibilityMode?: string | null;
+  eligibilityCustomerCopy?: string;
 }
 
 // Merchant + benefit + eligibility + distribution + funding review, combined
@@ -96,16 +103,33 @@ export function AllocationForm({
     initial?.distributionModes ?? ["self_claim"],
   );
   const [recycleExpiredInventory, setRecycleExpiredInventory] = useState(initial?.recycleExpiredInventory ?? false);
-  const [selectedRules, setSelectedRules] = useState<Record<string, boolean>>({
+  const savedRules = initial?.eligibilityRules ?? [];
+  const savedRule = (type: string) => savedRules.find((rule) => rule.type === type);
+  const [selectedRules, setSelectedRules] = useState<Record<string, boolean>>(() => ({
+    ...(isEdit
+      ? Object.fromEntries(savedRules.map((rule) => [String(rule.type), true]))
+      : { pass_activated: true }),
     country_in: true,
-    pass_activated: true,
     profile_country_set: true,
+  }));
+  const [minAccountAgeDays, setMinAccountAgeDays] = useState(String(savedRule("minimum_account_age_days")?.days ?? 7));
+  const [verifiedActivityKey, setVerifiedActivityKey] = useState(String(savedRule("verified_activity_completed")?.templateKey ?? VERIFIED_ACTIVITY_TEMPLATE_KEYS[0]));
+  const [cooldownDays, setCooldownDays] = useState(String(savedRule("fund_claim_cooldown")?.days ?? 30));
+  const [claimDays, setClaimDays] = useState<number[]>(() => {
+    const days = savedRule("claim_day_of_week")?.days;
+    return Array.isArray(days) ? days as number[] : [...WEEKEND_DAYS];
   });
-  const [minAccountAgeDays, setMinAccountAgeDays] = useState("7");
-  const [verifiedActivityKey, setVerifiedActivityKey] = useState<string>(VERIFIED_ACTIVITY_TEMPLATE_KEYS[0]);
-  const [cooldownDays, setCooldownDays] = useState("30");
-  const [claimDays, setClaimDays] = useState<number[]>([...WEEKEND_DAYS]);
-  const [customerCopy, setCustomerCopy] = useState("");
+  const claimTimezone = String(savedRule("claim_day_of_week")?.timezone ?? CLAIM_DAY_TIMEZONE);
+  const [customerCopy, setCustomerCopy] = useState(initial?.eligibilityCustomerCopy ?? "");
+  // Never silently discard a legacy rule or change an ANY policy to ALL.
+  const unsupportedSavedPolicy = isEdit && (
+    (initial?.eligibilityMode != null && initial.eligibilityMode !== "all") ||
+    savedRules.some((rule) => !isValidEligibilityRule(rule)) ||
+    new Set(savedRules.map((rule) => rule.type)).size !== savedRules.length
+  );
+  const [restrictRedemption, setRestrictRedemption] = useState(Boolean(initial?.redemptionSchedule));
+  const [redemptionDays, setRedemptionDays] = useState<number[]>(initial?.redemptionSchedule?.days ?? [...WEEKEND_DAYS]);
+  const redemptionTimezone = initial?.redemptionSchedule?.timezone ?? CLAIM_DAY_TIMEZONE;
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -169,7 +193,7 @@ export function AllocationForm({
       rules.push({
         type: "claim_day_of_week",
         days: [...claimDays].sort((a, b) => a - b),
-        timezone: CLAIM_DAY_TIMEZONE,
+        timezone: claimTimezone,
       });
     }
     return rules;
@@ -190,6 +214,14 @@ export function AllocationForm({
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (restrictRedemption && redemptionDays.length === 0) {
+      setError("Select at least one day on which this voucher can be redeemed.");
+      return;
+    }
+    if (unsupportedSavedPolicy) {
+      setError("This allocation has a legacy or unsupported eligibility policy. It must be reviewed before editing; no saved rules have been changed.");
+      return;
+    }
 
     if (selectedRules.fund_claim_cooldown && !isValidBoundedDays(cooldownDays, 365)) {
       setError("Cooldown must be a whole number of days between 1 and 365.");
@@ -224,7 +256,7 @@ export function AllocationForm({
 
     let eligibilityRuleSetId: string | undefined;
     const rules = buildRules();
-    if (rules.length > 0 && !isEdit) {
+    if (rules.length > 0) {
       const ruleRes = await fetch(`/api/admin/voucher-funds/${fundId}/eligibility-rule-sets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -243,6 +275,7 @@ export function AllocationForm({
       title,
       description,
       termsText,
+      redemptionSchedule: restrictRedemption ? { days: [...redemptionDays].sort((a, b) => a - b), timezone: redemptionTimezone } : null,
       discountKes: isPercent ? undefined : Number(discountKes),
       discountPercent: isPercent ? Number(discountPercent) : undefined,
       maximumDiscountKes: isPercent ? Number(maximumDiscountKes) : undefined,
@@ -446,10 +479,9 @@ export function AllocationForm({
         </CardContent>
       </Card>
 
-      {!isEdit && (
-        <Card>
+      <Card>
           <CardHeader>
-            <CardTitle>Eligibility</CardTitle>
+            <CardTitle>Eligibility to claim</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="rounded-card border border-teal-100 bg-teal-50 px-3 py-2 text-sm text-teal-900">
@@ -531,8 +563,7 @@ export function AllocationForm({
                       ))}
                     </div>
                     <p className="mt-1.5 text-xs text-ink-muted">
-                      Evaluated in {CLAIM_DAY_TIMEZONE}. Lets one allocation span a whole run while
-                      only being claimable on these days — no new allocation per weekend.
+                      Evaluated in {claimTimezone}. These days restrict when members can claim; they do not restrict when a voucher can be redeemed.
                     </p>
                   </fieldset>
                 )}
@@ -543,7 +574,32 @@ export function AllocationForm({
             </Field>
           </CardContent>
         </Card>
-      )}
+
+      <Card>
+        <CardHeader><CardTitle>Redemption schedule</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <label className="flex min-h-11 items-center gap-2 text-sm">
+            <input type="checkbox" checked={restrictRedemption} onChange={(event) => setRestrictRedemption(event.target.checked)} />
+            Restrict which days the voucher can be used
+          </label>
+          {restrictRedemption && (
+            <fieldset>
+              <legend className="mb-2 text-sm font-medium">Allowed redemption days</legend>
+              <div className="flex flex-wrap gap-3">
+                {WEEKDAY_LABELS.map((label, day) => (
+                  <label key={label} className="flex min-h-11 items-center gap-2 text-sm">
+                    <input type="checkbox" checked={redemptionDays.includes(day)} onChange={() => setRedemptionDays((days) => days.includes(day) ? days.filter((value) => value !== day) : [...days, day])} />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+          <p className="text-sm text-ink-muted">
+            {restrictRedemption ? `Enforced at merchant checkout in ${redemptionTimezone}.` : "Vouchers can be used on any day while valid."} To allow claims now and use only on weekends, select Sat and Sun here and leave the claim-day eligibility rule unselected.
+          </p>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

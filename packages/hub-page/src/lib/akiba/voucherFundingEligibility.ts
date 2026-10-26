@@ -23,6 +23,13 @@ export const REQUIREMENT_COPY: Record<string, { text: string; href?: string; cta
   first_funded_voucher: { text: "Limited to members who haven't claimed an Akiba-funded voucher before" },
   no_prior_merchant_redemption: { text: "Limited to new customers of this merchant" },
   fund_claim_cooldown: { text: "You've claimed an Akiba-funded voucher recently — check back later" },
+  // Discovery does not filter on the day — getFundedOffers() gates only on
+  // allocation state and the claim window — so a weekend-only offer is
+  // visible midweek and a member can reach this. Deliberately does not name
+  // the days: the rule's day list is configurable and this copy map is keyed
+  // by rule type with no access to it, so the specific days belong in the
+  // rule set's customer_copy, which renders on the same card.
+  claim_day_of_week: { text: "Not available today — this offer only runs on certain days" },
 };
 
 export function requirementCopy(type: string): { text: string; href?: string; cta?: string } {

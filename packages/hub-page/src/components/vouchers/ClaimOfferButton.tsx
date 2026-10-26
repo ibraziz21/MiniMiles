@@ -25,6 +25,8 @@ export function ClaimOfferButton({
   eligibilitySummary,
   merchantName,
   claimEndsAt,
+  claimStartsAt,
+  claimsOpen = true,
 }: {
   allocationId: string;
   isSignedIn: boolean;
@@ -32,6 +34,8 @@ export function ClaimOfferButton({
   eligibilitySummary?: string | null;
   merchantName?: string | null;
   claimEndsAt?: string | null;
+  claimStartsAt?: string;
+  claimsOpen?: boolean;
 }) {
   const router = useRouter();
   type Status = "idle" | "checking" | "eligible" | "ineligible" | "already_claimed" | "claiming" | "claimed" | "error";
@@ -129,6 +133,10 @@ export function ClaimOfferButton({
 
   if (status === "already_claimed") {
     return <a href="/vouchers?tab=active" className="flex w-full items-center justify-center gap-1.5 rounded-full bg-akiba-card py-2.5 text-sm font-semibold text-akiba-muted">Already claimed — view in My vouchers</a>;
+  }
+
+  if (!claimsOpen && claimStartsAt) {
+    return <p className="rounded-xl bg-akiba-tint px-4 py-3 text-center text-sm font-semibold text-akiba-tealDark">Claims open {new Date(claimStartsAt).toLocaleDateString("en-KE", { day: "numeric", month: "short", timeZone: "Africa/Nairobi" })}</p>;
   }
 
   const rules: EligibilityRuleView[] = status === "ineligible"
