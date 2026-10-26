@@ -7,6 +7,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { HIDDEN_PARTNER_FILTER, isHiddenPartner } from "@/lib/akiba/hidden-partners";
 import { akibaFundedVouchersHubFlag } from "@/lib/featureFlags.server";
 import type { FundedOffer } from "@/components/vouchers/FundedOfferCard";
+import {
+  FUNDED_OFFER_TEMPLATE_COLUMNS,
+  toFundedOffer,
+  type RawFundedPartner,
+  type RawFundedTemplate,
+} from "@/lib/vouchers/fundedOfferMapping";
 import type { LoyaltyOffer } from "@/components/vouchers/LoyaltyVoucherCard";
 
 export type VoucherTemplate = {
@@ -63,14 +69,8 @@ export async function getAllTemplates(hubUserId: string | null): Promise<Voucher
 type RawFundedAllocation = {
   id: string;
   claim_ends_at: string;
-  spend_voucher_templates:
-    | { title: string; description: string | null; terms_text: string | null; discount_kes: number | null; minimum_spend_kes: number | null }
-    | Array<{ title: string; description: string | null; terms_text: string | null; discount_kes: number | null; minimum_spend_kes: number | null }>
-    | null;
-  partners:
-    | { id: string; name: string; slug: string; image_url: string | null; status: string }
-    | Array<{ id: string; name: string; slug: string; image_url: string | null; status: string }>
-    | null;
+  spend_voucher_templates: RawFundedTemplate | RawFundedTemplate[] | null;
+  partners: RawFundedPartner | RawFundedPartner[] | null;
   voucher_eligibility_rule_sets:
     | { customer_copy: string | null }
     | Array<{ customer_copy: string | null }>
@@ -103,7 +103,7 @@ export async function getFundedOffers(): Promise<FundedOffer[]> {
     .from("voucher_funding_allocations")
     .select(`
       id, claim_ends_at,
-      spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey ( title, description, terms_text, discount_kes, minimum_spend_kes ),
+      spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey ( ${FUNDED_OFFER_TEMPLATE_COLUMNS} ),
       partners ( id, name, slug, image_url, status ),
       voucher_eligibility_rule_sets ( customer_copy )
     `)
@@ -119,24 +119,20 @@ export async function getFundedOffers(): Promise<FundedOffer[]> {
   const rows = (data ?? []) as unknown as RawFundedAllocation[];
   const offers: FundedOffer[] = [];
   for (const row of rows) {
-    const template = one(row.spend_voucher_templates);
     const merchant = one(row.partners);
     const ruleSet = one(row.voucher_eligibility_rule_sets);
-    if (!template || !merchant) continue;
+    if (!merchant) continue;
     if (merchant.status !== "active") continue;
     if (isHiddenPartner(merchant.id)) continue;
-    if (template.discount_kes == null || template.minimum_spend_kes == null) continue;
 
-    offers.push({
+    const offer = toFundedOffer({
       allocationId: row.id,
-      title: template.title,
-      discountKes: template.discount_kes,
-      minimumSpendKes: template.minimum_spend_kes,
-      terms: template.terms_text,
-      eligibilitySummary: ruleSet?.customer_copy ?? null,
       claimEndsAt: row.claim_ends_at,
-      merchant: { name: merchant.name, slug: merchant.slug, imageUrl: merchant.image_url },
+      template: one(row.spend_voucher_templates),
+      partner: merchant,
+      eligibilitySummary: ruleSet?.customer_copy ?? null,
     });
+    if (offer) offers.push(offer);
   }
   return offers;
 }

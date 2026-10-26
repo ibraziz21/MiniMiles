@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { hasPermission } from "@/types";
 import { supabase } from "@/lib/supabase";
-import { minorToKes } from "@/lib/voucherFunds";
+import { ALLOCATION_BENEFIT_COLUMNS, allocationBenefitLabel, minorToKes } from "@/lib/voucherFunds";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { DetailHeader } from "@/components/shell/DetailHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,7 +34,14 @@ interface AllocationRow {
   authorized_budget_minor: number;
   claim_starts_at: string;
   claim_ends_at: string;
-  spend_voucher_templates: { title: string; discount_kes: number; minimum_spend_kes: number } | null;
+  spend_voucher_templates: {
+    title: string;
+    voucher_type: string | null;
+    discount_kes: number | null;
+    discount_percent: number | null;
+    maximum_discount_kes: number | null;
+    minimum_spend_kes: number;
+  } | null;
   partners: { name: string } | null;
 }
 
@@ -59,7 +66,7 @@ export default async function VoucherFundDetailPage({ params }: { params: Promis
       supabase
         .from("voucher_funding_allocations")
         .select(
-          "id, state, quantity_cap, max_reimbursement_minor, authorized_budget_minor, claim_starts_at, claim_ends_at, spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, discount_kes, minimum_spend_kes), partners(name)",
+          `id, state, quantity_cap, max_reimbursement_minor, authorized_budget_minor, claim_starts_at, claim_ends_at, spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, ${ALLOCATION_BENEFIT_COLUMNS}, minimum_spend_kes), partners(name)`,
         )
         .eq("program_id", fundId)
         .order("created_at", { ascending: false }),
@@ -211,7 +218,15 @@ export default async function VoucherFundDetailPage({ params }: { params: Promis
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-ink">{allocation.partners?.name ?? "Unknown merchant"}</p>
                     <p className="text-xs text-ink-muted">
-                      {allocation.spend_voucher_templates?.title} · KES {allocation.spend_voucher_templates?.discount_kes} off
+                      {allocation.spend_voucher_templates?.title} ·{" "}
+                      {allocation.spend_voucher_templates
+                        ? allocationBenefitLabel({
+                            voucherType: allocation.spend_voucher_templates.voucher_type,
+                            discountKes: allocation.spend_voucher_templates.discount_kes,
+                            discountPercent: allocation.spend_voucher_templates.discount_percent,
+                            maximumDiscountKes: allocation.spend_voucher_templates.maximum_discount_kes,
+                          })
+                        : "—"}
                       · min KES {allocation.spend_voucher_templates?.minimum_spend_kes}
                     </p>
                   </div>

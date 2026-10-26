@@ -95,6 +95,7 @@ export const ELIGIBILITY_RULE_TYPES = [
   "first_funded_voucher",
   "no_prior_merchant_redemption",
   "fund_claim_cooldown",
+  "claim_day_of_week",
   "not_blocked",
 ] as const;
 export type EligibilityRuleType = (typeof ELIGIBILITY_RULE_TYPES)[number];
@@ -108,8 +109,46 @@ export const ELIGIBILITY_RULE_LABELS: Record<EligibilityRuleType, string> = {
   first_funded_voucher: "First Akiba-funded voucher, ever (any fund)",
   no_prior_merchant_redemption: "No previous redemption at this merchant",
   fund_claim_cooldown: "Claim cooldown since their last claim (any fund)",
+  claim_day_of_week: "Claimable only on certain days of the week",
   not_blocked: "Member is not blocked or under manual review",
 };
+
+/**
+ * How a funded allocation's benefit is stated anywhere in the Admin
+ * Dashboard — the allocation summary, the fund's allocation list, and the
+ * issue-voucher confirmation.
+ *
+ * One function because each of those three read `discount_kes` directly and
+ * fell back to 0, so a percentage allocation displayed as "KES 0" — including
+ * on the confirmation screen an operator reads before handing a voucher to a
+ * member. Mirrors hub-page's fundedBenefitLabel and the mobile app's
+ * fundedBenefit.
+ */
+export function allocationBenefitLabel(benefit: {
+  voucherType: string | null;
+  discountKes: number | null;
+  discountPercent: number | null;
+  maximumDiscountKes: number | null;
+}): string {
+  if (benefit.voucherType === "percent_off") {
+    const percent = benefit.discountPercent ?? 0;
+    return benefit.maximumDiscountKes != null
+      ? `${percent}% off, up to KES ${benefit.maximumDiscountKes.toLocaleString("en-KE")}`
+      : `${percent}% off`;
+  }
+  return `KES ${(benefit.discountKes ?? 0).toLocaleString("en-KE")} off`;
+}
+
+/** Template columns allocationBenefitLabel needs, for a Supabase select. */
+export const ALLOCATION_BENEFIT_COLUMNS =
+  "voucher_type, discount_kes, discount_percent, maximum_discount_kes";
+
+/** Sunday-first, matching EXTRACT(DOW) and merchant_default_offers.days_of_week. */
+export const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+export const WEEKEND_DAYS = [6, 0] as const;
+/** The only timezone funded offers run in today; sent explicitly so the rule
+ *  never depends on a server default. */
+export const CLAIM_DAY_TIMEZONE = "Africa/Nairobi";
 
 // Runtime caveats worth surfacing next to the rule picker — read directly
 // from the evaluator (Akiba-Platform packages/api/lib/voucherFunding/eligibility.ts),
@@ -187,6 +226,26 @@ export function isValidEligibilityRule(rule: unknown): rule is { type: Eligibili
     !isValidBoundedPositiveInteger((rule as Record<string, unknown>).days, MAX_ACCOUNT_AGE_DAYS)
   ) {
     return false;
+  }
+  // `days` here is a weekday list, not a duration: 0=Sunday … 6=Saturday,
+  // matching EXTRACT(DOW). The database validates this too (migration 110,
+  // INVALID_CLAIM_DAY_OF_WEEK_DAYS); rejecting it here turns a 500-shaped RPC
+  // failure into a readable form error.
+  if (type === "claim_day_of_week") {
+    const days = (rule as Record<string, unknown>).days;
+    if (
+      !Array.isArray(days) ||
+      days.length === 0 ||
+      days.length > 7 ||
+      new Set(days).size !== days.length ||
+      !days.every(
+        (day) => typeof day === "number" && Number.isInteger(day) && day >= 0 && day <= 6,
+      )
+    ) {
+      return false;
+    }
+    const timezone = (rule as Record<string, unknown>).timezone;
+    if (timezone !== undefined && typeof timezone !== "string") return false;
   }
   return true;
 }

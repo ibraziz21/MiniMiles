@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { hasPermission } from "@/types";
 import { supabase } from "@/lib/supabase";
-import { minorToKes } from "@/lib/voucherFunds";
+import { ALLOCATION_BENEFIT_COLUMNS, allocationBenefitLabel, minorToKes } from "@/lib/voucherFunds";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { DetailHeader } from "@/components/shell/DetailHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,7 +36,7 @@ export default async function VoucherAllocationDetailPage({
     supabase
       .from("voucher_funding_allocations")
       .select(
-        "*, spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, description, discount_kes, minimum_spend_kes, terms_text, active, lifecycle_state), partners(name, country)",
+        `*, spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, description, ${ALLOCATION_BENEFIT_COLUMNS}, minimum_spend_kes, terms_text, active, lifecycle_state), partners(name, country)`,
       )
       .eq("id", allocationId)
       .single(),
@@ -89,7 +89,10 @@ export default async function VoucherAllocationDetailPage({
   const template = allocation.spend_voucher_templates as {
     title: string;
     description: string | null;
-    discount_kes: number;
+    voucher_type: string | null;
+    discount_kes: number | null;
+    discount_percent: number | null;
+    maximum_discount_kes: number | null;
     minimum_spend_kes: number;
     terms_text: string | null;
     active: boolean;
@@ -118,7 +121,19 @@ export default async function VoucherAllocationDetailPage({
             <CardTitle>Summary</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Stat label="Discount" value={`KES ${template?.discount_kes ?? 0}`} />
+            <Stat
+              label="Benefit"
+              value={
+                template
+                  ? allocationBenefitLabel({
+                      voucherType: template.voucher_type,
+                      discountKes: template.discount_kes,
+                      discountPercent: template.discount_percent,
+                      maximumDiscountKes: template.maximum_discount_kes,
+                    })
+                  : "—"
+              }
+            />
             <Stat label="Minimum purchase" value={`KES ${template?.minimum_spend_kes ?? 0}`} />
             <Stat label="Quantity" value={formatNumber(allocation.quantity_cap)} />
             <Stat label="Max exposure" value={formatMoney(minorToKes(allocation.authorized_budget_minor), "KES")} />

@@ -27,7 +27,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fun
 
   const merchantId = typeof body.merchantId === "string" ? body.merchantId : null;
   const title = textOrNull(body.title, 200);
+  const voucherType = body.voucherType === "percent_off" ? "percent_off" : "fixed_off";
+  const isPercent = voucherType === "percent_off";
   const discountKes = typeof body.discountKes === "number" ? body.discountKes : Number(body.discountKes);
+  const discountPercent =
+    typeof body.discountPercent === "number" ? body.discountPercent : Number(body.discountPercent);
+  const maximumDiscountKes =
+    typeof body.maximumDiscountKes === "number"
+      ? body.maximumDiscountKes
+      : Number(body.maximumDiscountKes);
   const minimumSpendKes =
     typeof body.minimumSpendKes === "number" ? body.minimumSpendKes : Number(body.minimumSpendKes);
   const quantityCap = positiveIntOrNull(body.quantityCap);
@@ -37,11 +45,36 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fun
 
   if (!merchantId) return NextResponse.json({ error: "Select a merchant." }, { status: 400 });
   if (!title) return NextResponse.json({ error: "A customer-facing voucher title is required." }, { status: 400 });
-  if (!Number.isFinite(discountKes) || discountKes <= 0) {
-    return NextResponse.json({ error: "Discount value must be a positive KES amount." }, { status: 400 });
-  }
-  if (!Number.isFinite(minimumSpendKes) || minimumSpendKes < discountKes) {
-    return NextResponse.json({ error: "Minimum purchase must be at least the discount value." }, { status: 400 });
+
+  // Percentage benefits are reimbursed at the realised discount, but the fund
+  // has to reserve a bounded amount per voucher before the claim — so the cap
+  // is mandatory, and it is what the ceiling is derived from. The till also
+  // refuses an uncapped percentage outright.
+  if (isPercent) {
+    if (!Number.isFinite(discountPercent) || discountPercent <= 0 || discountPercent > 100) {
+      return NextResponse.json({ error: "Discount percent must be between 0 and 100." }, { status: 400 });
+    }
+    if (!Number.isFinite(maximumDiscountKes) || maximumDiscountKes <= 0) {
+      return NextResponse.json(
+        { error: "A maximum discount (KES) is required for a percentage benefit." },
+        { status: 400 },
+      );
+    }
+    // Strictly greater, so a basket at exactly the minimum can never net to
+    // zero and be rejected at the counter.
+    if (!Number.isFinite(minimumSpendKes) || minimumSpendKes <= maximumDiscountKes) {
+      return NextResponse.json(
+        { error: "Minimum purchase must be greater than the maximum discount." },
+        { status: 400 },
+      );
+    }
+  } else {
+    if (!Number.isFinite(discountKes) || discountKes <= 0) {
+      return NextResponse.json({ error: "Discount value must be a positive KES amount." }, { status: 400 });
+    }
+    if (!Number.isFinite(minimumSpendKes) || minimumSpendKes < discountKes) {
+      return NextResponse.json({ error: "Minimum purchase must be at least the discount value." }, { status: 400 });
+    }
   }
   if (!quantityCap) return NextResponse.json({ error: "Quantity must be a positive integer." }, { status: 400 });
   if (!claimStartsAt || !claimEndsAt) {
@@ -95,7 +128,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fun
     p_actor_id: actorId,
     p_title: title,
     p_description: textOrNull(body.description, 2000),
-    p_discount_kes: discountKes,
+    p_voucher_type: voucherType,
+    p_discount_kes: isPercent ? null : discountKes,
+    p_discount_percent: isPercent ? discountPercent : null,
+    p_maximum_discount_kes: isPercent ? maximumDiscountKes : null,
     p_minimum_spend_kes: minimumSpendKes,
     p_terms_text: textOrNull(body.termsText, 4000),
     p_quantity_cap: quantityCap,
@@ -116,7 +152,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fun
     action: "voucher_allocation.created",
     targetType: "voucher_funding_allocation",
     targetId: data.id,
-    metadata: { program_id: fundId, merchant_id: merchantId, quantity_cap: quantityCap, discount_kes: discountKes },
+    metadata: {
+      program_id: fundId,
+      merchant_id: merchantId,
+      quantity_cap: quantityCap,
+      voucher_type: voucherType,
+      ...(isPercent
+        ? { discount_percent: discountPercent, maximum_discount_kes: maximumDiscountKes }
+        : { discount_kes: discountKes }),
+    },
   });
 
   return NextResponse.json({ ok: true, data });

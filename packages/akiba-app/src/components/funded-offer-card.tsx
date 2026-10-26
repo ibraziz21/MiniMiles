@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { Badge, Button, Card, IconChip, StyleSheet, Text, View, colors, fontFamily, spacing, typography } from '@/design-system';
+import { fundedBenefit } from '@/contracts';
 import type { FundedOffer } from '@/contracts';
 
 type FundedOfferCardProps = {
@@ -17,7 +18,7 @@ export function FundedOfferCard({ offer, claimed }: FundedOfferCardProps) {
           <IconChip name="gift" />
           <Badge label={claimed ? 'Claimed' : 'Free'} tone={claimed ? 'muted' : 'teal'} />
         </View>
-        <Text style={styles.price}>KES {offer.discountKes.toLocaleString('en-KE')} off</Text>
+        <Text style={styles.price}>{fundedBenefit(offer)}</Text>
       </LinearGradient>
       <View style={styles.body}>
         <Text style={styles.title} numberOfLines={2}>
@@ -42,7 +43,7 @@ export function FundedOfferCard({ offer, claimed }: FundedOfferCardProps) {
             allocationId: offer.allocationId,
             title: offer.title,
             merchantName: offer.merchant.name,
-            discountKes: String(offer.discountKes),
+            benefit: fundedBenefit(offer),
             minimumSpendKes: String(offer.minimumSpendKes),
           },
         })

@@ -32,7 +32,15 @@ export type VoucherTemplate = z.infer<typeof voucherTemplateSchema>;
 export const fundedOfferSchema = z.object({
   allocationId: z.string(),
   title: z.string(),
-  discountKes: z.number(),
+  // voucherType decides which benefit field is populated. A percentage offer
+  // carries no flat amount — hub-page sends discountKes: null for those,
+  // because the authoring RPC stores no KES figure on a percentage template.
+  // Defaulted so a response from a hub-page deploy that predates percentage
+  // offers still parses as the flat offer it is.
+  voucherType: z.enum(['fixed_off', 'percent_off']).default('fixed_off'),
+  discountKes: z.number().nullable().default(null),
+  discountPercent: z.number().nullable().default(null),
+  maximumDiscountKes: z.number().nullable().default(null),
   minimumSpendKes: z.number(),
   terms: z.string().nullable(),
   eligibilitySummary: z.string().nullable(),
@@ -41,6 +49,22 @@ export const fundedOfferSchema = z.object({
 });
 
 export type FundedOffer = z.infer<typeof fundedOfferSchema>;
+
+/**
+ * Lives with the contract rather than on a screen because both the Rewards
+ * tab and the merchant detail screen render funded offers, and a percentage
+ * offer must not read as a flat discount on one of them. Mirrors hub-page's
+ * fundedBenefitLabel.
+ */
+export function fundedBenefit(offer: FundedOffer): string {
+  if (offer.voucherType === 'percent_off') {
+    const percent = offer.discountPercent ?? 0;
+    return offer.maximumDiscountKes != null
+      ? `${percent}% off, up to KES ${offer.maximumDiscountKes.toLocaleString('en-KE')}`
+      : `${percent}% off`;
+  }
+  return `KES ${(offer.discountKes ?? 0).toLocaleString('en-KE')} off`;
+}
 
 export const voucherCatalogueSchema = z.object({
   templates: z.array(voucherTemplateSchema),

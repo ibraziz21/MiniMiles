@@ -12,7 +12,9 @@ export interface GrantAllocationOption {
   fundName: string;
   merchantName: string;
   title: string;
-  discountKes: number;
+  /** Pre-formatted by allocationBenefitLabel — a percentage allocation has no
+   *  single KES amount to render here. */
+  benefitLabel: string;
   minimumSpendKes: number;
   maximumReimbursementMinor: number;
   currency: string;
@@ -259,7 +261,7 @@ export function IssueVoucherFlow({ allocations }: { allocations: GrantAllocation
             <dl className="mt-4 space-y-3 text-sm">
               <div className="flex justify-between gap-3"><dt className="text-ink-muted">Recipient</dt><dd className="max-w-[60%] truncate font-medium text-ink">{member ? `@${member.username}` : "Not selected"}</dd></div>
               <div className="flex justify-between gap-3"><dt className="text-ink-muted">Merchant</dt><dd className="max-w-[60%] text-right font-medium text-ink">{allocation?.merchantName ?? "Not selected"}</dd></div>
-              <div className="flex justify-between gap-3"><dt className="text-ink-muted">Benefit</dt><dd className="font-medium text-ink">{allocation ? formatMoney(allocation.discountKes, allocation.currency) : "—"}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-ink-muted">Benefit</dt><dd className="font-medium text-ink">{allocation ? allocation.benefitLabel : "—"}</dd></div>
               <div className="flex justify-between gap-3"><dt className="text-ink-muted">Max reimbursement</dt><dd className="font-medium text-ink">{allocation ? formatMoney(minorToMajor(allocation.maximumReimbursementMinor), allocation.currency) : "—"}</dd></div>
               <div className="flex justify-between gap-3"><dt className="text-ink-muted">Allocation closes</dt><dd className="font-medium text-ink">{allocation ? new Date(allocation.expiresAt).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" }) : "—"}</dd></div>
             </dl>
