@@ -1,3 +1,4 @@
+import { FundedDiscoveryUnavailable } from "@/lib/vouchers/fundedDiscovery";
 // Voucher catalogue reads — extracted from src/app/vouchers/page.tsx so the
 // web page and the /api/v1/vouchers* routes call the same loaders instead
 // of each reimplementing these queries (hub-mobile-app-migration-plan.md:
@@ -7,6 +8,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { HIDDEN_PARTNER_FILTER, isHiddenPartner } from "@/lib/akiba/hidden-partners";
 import { akibaFundedVouchersHubFlag } from "@/lib/featureFlags.server";
 import type { FundedOffer } from "@/components/vouchers/FundedOfferCard";
+import { resolveAllocationParticipants } from "@/lib/vouchers/fundedOfferMerchants.server";
+import type { MerchantSummary } from "@/components/vouchers/FundedOfferCard";
 import {
   FUNDED_OFFER_TEMPLATE_COLUMNS,
   toFundedOffer,
@@ -69,6 +72,7 @@ export async function getAllTemplates(hubUserId: string | null): Promise<Voucher
 type RawFundedAllocation = {
   id: string;
   claim_ends_at: string;
+  voucher_validity_seconds?: number | null;
   claim_starts_at: string;
   metadata?: { redemption_schedule?: { days: number[]; timezone: string } | null };
   spend_voucher_templates: RawFundedTemplate | RawFundedTemplate[] | null;
@@ -104,20 +108,34 @@ export async function getFundedOffers(): Promise<FundedOffer[]> {
   const { data, error } = await admin
     .from("voucher_funding_allocations")
     .select(`
-      id, metadata, claim_starts_at, claim_ends_at,
+      id, metadata, claim_starts_at, claim_ends_at, voucher_validity_seconds,
       spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey ( ${FUNDED_OFFER_TEMPLATE_COLUMNS} ),
-      partners ( id, name, slug, image_url, status ),
+      partners!voucher_funding_allocations_merchant_id_fkey ( id, name, slug, image_url, status ),
       voucher_eligibility_rule_sets ( customer_copy, rules )
     `)
     .in("state", ["active", "scheduled"])
     .gt("claim_ends_at", nowIso);
 
-  if (error) {
-    console.error("[vouchers] funded offers query failed:", error.message);
-    return [];
+  if (error || !Array.isArray(data)) {
+    throw new FundedDiscoveryUnavailable("allocations");
   }
 
   const rows = (data ?? []) as unknown as RawFundedAllocation[];
+
+  // Participants resolved in one batch for the whole page, never per offer.
+  const primaries = new Map<string, MerchantSummary>();
+  for (const row of rows) {
+    const merchant = one(row.partners);
+    if (!merchant || merchant.status !== "active" || isHiddenPartner(merchant.id)) continue;
+    primaries.set(row.id, {
+      id: merchant.id,
+      name: merchant.name,
+      slug: merchant.slug,
+      imageUrl: merchant.image_url,
+    });
+  }
+  const participants = await resolveAllocationParticipants(primaries);
+
   const offers: FundedOffer[] = [];
   for (const row of rows) {
     const merchant = one(row.partners);
@@ -129,9 +147,11 @@ export async function getFundedOffers(): Promise<FundedOffer[]> {
     const offer = toFundedOffer({
       allocationId: row.id,
       claimEndsAt: row.claim_ends_at,
+      voucherValiditySeconds: row.voucher_validity_seconds ?? null,
       template: one(row.spend_voucher_templates),
       partner: merchant,
       eligibilitySummary: ruleSet?.customer_copy ?? null,
+      participants: participants.get(row.id) ?? null,
     });
     if (offer) {
       offer.redemptionSchedule = row.metadata?.redemption_schedule ?? null;

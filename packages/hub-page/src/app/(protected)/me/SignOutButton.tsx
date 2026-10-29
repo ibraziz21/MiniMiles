@@ -1,14 +1,12 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { clearPrivateNavigationCaches } from "@/lib/privateNavigationCache";
 import { createClient } from "@/lib/supabase/client";
 import { cleanupPushBeforeLogout } from "@/lib/push/browser";
 import { LogOut } from "lucide-react";
 import { SettingsRow } from "@/components/akiba/SettingsRow";
 
 export function SignOutButton() {
-  const router = useRouter();
-
   async function signOut() {
     // Must run while the old session is still authenticated -- otherwise the
     // DELETE call 401s and the subscription lingers, leaking push to the
@@ -23,9 +21,10 @@ export function SignOutButton() {
     await fetch("/api/auth/clear-referral-attribution", { method: "POST" }).catch(() => {});
 
     const supabase = createClient();
+    await clearPrivateNavigationCaches();
     await supabase.auth.signOut();
-    router.push("/");
-    router.refresh();
+    // Discard the client router's authenticated HTML/RSC state as well.
+    window.location.replace("/");
   }
 
   return (

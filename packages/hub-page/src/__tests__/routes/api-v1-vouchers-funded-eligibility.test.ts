@@ -39,6 +39,17 @@ vi.mock("@/lib/auth/requestActor", () => {
     },
   };
 });
+// The route's client-compatibility guard, driven per test. Its own
+// fail-closed logic is covered in the mapping and integration tests; here we
+// assert the ROUTE refuses correctly and never reaches issuance.
+const support = vi.hoisted(() => ({
+  value: { supported: true } as
+    | { supported: true }
+    | { supported: false; kind: "unsupported_shape" | "unavailable"; reason: string },
+}));
+vi.mock("@/lib/vouchers/fundedOfferMerchants.server", () => ({
+  v1ClaimSupport: vi.fn(async () => support.value),
+}));
 vi.mock("@/lib/akiba/fundedVoucherCountryEligibility", () => ({
   evaluateFundedVoucherCountryEligibility: async () => state.countryEligibility,
 }));
@@ -65,6 +76,7 @@ function callRoute(allocationId = "alloc-1") {
 describe("GET /api/v1/vouchers/funded/:allocationId/eligibility", () => {
   beforeEach(() => {
     mockFetch.mockReset();
+    support.value = { supported: true };
     state.actor = null;
     state.username = "amina";
     state.countryEligibility = { ok: true, eligible: true, fundCountry: "KE", memberCountry: "KE" };
@@ -145,5 +157,33 @@ describe("GET /api/v1/vouchers/funded/:allocationId/eligibility", () => {
 
     const res = await callRoute();
     expect(res.status).toBe(502);
+  });
+
+  it("refuses an offer shape this client cannot render", async () => {
+    state.actor = { userId: "user-1", email: "a@example.com", authMode: "bearer", accessToken: "token-abc" };
+    support.value = {
+      supported: false,
+      kind: "unsupported_shape",
+      reason: "percentage_offer_unsupported",
+    };
+
+    const res = await callRoute();
+    const body = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(body.error.code).toBe("OFFER_NOT_SUPPORTED");
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("reports unavailability when the shape cannot be resolved", async () => {
+    state.actor = { userId: "user-1", email: "a@example.com", authMode: "bearer", accessToken: "token-abc" };
+    support.value = { supported: false, kind: "unavailable", reason: "voucher_type_unknown" };
+
+    const res = await callRoute();
+    const body = await res.json();
+
+    expect(res.status).toBe(503);
+    expect(body.error.code).toBe("SERVICE_UNAVAILABLE");
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });

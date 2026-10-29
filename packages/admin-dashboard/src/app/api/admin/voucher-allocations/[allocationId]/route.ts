@@ -11,6 +11,7 @@ import {
   kesToMinor,
   textOrNull,
   positiveIntOrNull,
+  parseMerchantIds,
   rpcErrorResponse,
 } from "@/lib/voucherFunds";
 
@@ -27,6 +28,23 @@ export async function PATCH(
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body || typeof body.expectedVersion !== "number") {
     return NextResponse.json({ error: "expectedVersion is required" }, { status: 400 });
+  }
+
+  // Three distinct cases, and the difference matters: an absent key means the
+  // request is not about membership and the persisted set must survive, while
+  // an explicit [] is the operator removing every extra merchant. Collapsing
+  // them would make clearing impossible or make every unrelated edit wipe the
+  // set. `null` is sent for "preserve" because that is what the RPC reads.
+  let additionalMerchantIds: string[] | null = null;
+  if ("additionalMerchantIds" in body) {
+    const parsed = parseMerchantIds(body.additionalMerchantIds);
+    if (!parsed) {
+      return NextResponse.json(
+        { error: "additionalMerchantIds must be an array of merchant IDs." },
+        { status: 400 },
+      );
+    }
+    additionalMerchantIds = parsed;
   }
 
   if (body.redemptionSchedule !== undefined && !isRedemptionSchedule(body.redemptionSchedule)) {
@@ -78,10 +96,11 @@ export async function PATCH(
   }
 
   const actorId = adminIdForWrite(session) ?? OPEN_ACCESS_ACTOR_ID;
-  const { data, error } = await supabase.rpc(VOUCHER_FUND_RPCS.updateAllocationDraft, {
+  const { data, error } = await supabase.rpc(VOUCHER_FUND_RPCS.updateAllocationDraftWithMerchants, {
     p_allocation_id: allocationId,
     p_actor_id: actorId,
     p_expected_version: body.expectedVersion,
+    p_additional_merchant_ids: additionalMerchantIds,
     p_title: textOrNull(body.title, 200),
     p_description: textOrNull(body.description, 2000),
     p_terms_text: textOrNull(body.termsText, 4000),

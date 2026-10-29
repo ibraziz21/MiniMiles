@@ -1,0 +1,282 @@
+[
+  {
+    "repo": "platform",
+    "file": "114_high_cpu_query_indexes.sql",
+    "error": "relation \"public.minipoint_mint_jobs\" does not exist"
+  },
+  {
+    "repo": "platform",
+    "file": "137_retire_claw_channel.sql",
+    "error": "relation \"public.voucher_program_channel_allocations\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "001_voucher_platform_phase1.sql",
+    "error": "relation \"merchant_transactions\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "002_voucher_platform_phase1_hardening.sql",
+    "error": "column \"recovery_state\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "003_voucher_programs_phase2.sql",
+    "error": "relation \"voucher_programs\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "004_voucher_asset_qr_redemption.sql",
+    "error": "relation \"voucher_events\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "005_voucher_settlement_phase4.sql",
+    "error": "relation \"voucher_programs\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "006_voucher_payout_execution_phase5.sql",
+    "error": "relation \"merchant_settlement_batches\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "007_voucher_payout_hardening.sql",
+    "error": "relation \"merchant_payout_destinations\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "009_skill_game_settlement_jobs.sql",
+    "error": "relation \"public.skill_game_sessions\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "031_hub_order_legacy_columns.sql",
+    "error": "relation \"reconciliation_incidents\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "032_order_lifecycle_backbone.sql",
+    "error": "type \"tx_status\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "034_fulfillment_jobs.sql",
+    "error": "relation \"merchant_transactions\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "035_refund_pipeline.sql",
+    "error": "relation \"voucher_events\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "036_disputes_notifications_reconciliation.sql",
+    "error": "relation \"merchant_transactions\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "037_reward_accrue_release.sql",
+    "error": "relation \"merchant_transactions\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "039_refund_repairs.sql",
+    "error": "relation \"order_cancellation_compensations\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "040_durable_reward_jobs.sql",
+    "error": "relation \"merchant_transactions\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "042_reconciliation_qualification.sql",
+    "error": "relation \"merchant_transactions\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "043_recovery_refund_atomicity.sql",
+    "error": "relation \"reconciliation_incidents\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "044_internal_event_outbox.sql",
+    "error": "relation \"merchant_transactions\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "045_weekly_leaderboard_channel.sql",
+    "error": "relation \"voucher_program_channel_allocations\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "046_hub_miles_spend_intents.sql",
+    "error": "relation \"voucher_programs\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "047_web_push_notifications.sql",
+    "error": "function fn_touch_updated_at() does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "049_hub_quest_catalog.sql",
+    "error": "relation \"internal_event_jobs\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "051_verified_wallet_linking.sql",
+    "error": "relation \"hub_user_wallets\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "052_hub_quest_event_worker_leases.sql",
+    "error": "relation \"internal_event_jobs\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "053_referral_system.sql",
+    "error": "relation \"merchant_transactions\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "055_referral_admin_actions.sql",
+    "error": "relation \"referral_reward_jobs\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "056_referral_reversal_delivery.sql",
+    "error": "relation \"referral_reward_jobs\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "057_referral_notifications.sql",
+    "error": "relation \"referral_clicks\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "058_referral_reconciliation_views.sql",
+    "error": "relation \"referral_program_versions\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "059_referral_risk_scoring.sql",
+    "error": "relation \"referral_clicks\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "060_referral_launch_hardening.sql",
+    "error": "relation \"referral_program_versions\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "062_web_push_campaigns.sql",
+    "error": "relation \"notification_outbox\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "063_hub_walletless_skill_games.sql",
+    "error": "relation \"public.skill_game_server_sessions\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "064_hub_skill_game_reward_delivery.sql",
+    "error": "relation \"public.skill_game_sessions\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "065_skill_game_leaderboard_foundation.sql",
+    "error": "relation \"skill_game_sessions\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "068_skill_game_dormant_prize_schema.sql",
+    "error": "relation \"voucher_programs\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "069_earnings_notifications.sql",
+    "error": "relation \"hub_notification_preferences\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "070_skill_game_mastery_economy.sql",
+    "error": "function fn_touch_updated_at() does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "071_skill_game_mastery_finalize.sql",
+    "error": "relation \"public.skill_game_sessions\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "073_hub_profile_identity_fields.sql",
+    "error": "relation \"hub_user_profiles\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "075_admin_funded_voucher_member_details.sql",
+    "error": "relation \"public.hub_user_profiles\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "087_arabica_verified_discovery_pilot.sql",
+    "error": "column \"contributions_enabled\" of relation \"merchant_discovery_settings\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "090_verified_discovery_hardening.sql",
+    "error": "column s.structured_proof_enabled does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "091_verified_discovery_projection_queue.sql",
+    "error": "function eligible_public_merchant_visit_photos(uuid) does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "092_verified_discovery_suppression_and_indexes.sql",
+    "error": "relation \"discovery_moderation_audit_events\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "093_verified_discovery_final_hardening.sql",
+    "error": "type \"merchant_discovery_projection_jobs\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "094_funded_voucher_profile_country_eligibility.sql",
+    "error": "relation \"public.hub_user_profiles\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "095_voucher_username_identity_foundation.sql",
+    "error": "relation \"public.voucher_purchase_quotes\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "100_verified_visit_browsing_actions.sql",
+    "error": "relation \"eligible_public_discovery_contributions\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "101_native_push_devices.sql",
+    "error": "function fn_touch_updated_at() does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "102_push_job_immediate_dispatch.sql",
+    "error": "relation \"web_push_jobs\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "103_account_deletion_evidence.sql",
+    "error": "relation \"public.hub_referrals\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "108_admin_account_deletion_fulfilment.sql",
+    "error": "relation \"public.admin_users\" does not exist"
+  }
+]

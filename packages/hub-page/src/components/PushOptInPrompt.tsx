@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { BellRing, Loader2, Sparkles, Store, X } from "lucide-react";
+import { BellRing, Loader2, Store, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import {
   isPushSupported,
@@ -196,7 +196,6 @@ export function PushOptInPrompt() {
               <BellRing className="h-7 w-7" />
             </div>
             <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/75">
-              <Sparkles className="h-3.5 w-3.5" />
                 You&apos;re Early...
             </div>
             <h2 id="push-opt-in-title" className="font-sterling text-3xl font-semibold leading-tight">

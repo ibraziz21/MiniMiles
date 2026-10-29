@@ -168,14 +168,14 @@ export function ClaimLoyaltyVoucherButton({
 
   if (status === "claimed") {
     return (
-      <a href={voucherId ? `/vouchers/${voucherId}` : "/vouchers?tab=active"} className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-full bg-akiba-tint px-4 py-2.5 text-sm font-semibold text-akiba-teal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus-visible:ring-offset-2">
+      <a href={voucherId ? `/vouchers/${voucherId}` : "/vouchers?tab=active"} className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-full bg-akiba-tint px-4 py-2.5 text-sm font-semibold text-akiba-tealAccessible focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-tealAccessible focus-visible:ring-offset-2">
         <CheckCircle2 className="h-4 w-4" /> Claimed — view voucher
       </a>
     );
   }
 
   if (status === "already_claimed") {
-    return <a href="/vouchers?tab=active" className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-full bg-akiba-card px-4 py-2.5 text-sm font-semibold text-akiba-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus-visible:ring-offset-2">Already claimed — view in My vouchers</a>;
+    return <a href="/vouchers?tab=active" className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-full bg-akiba-card px-4 py-2.5 text-sm font-semibold text-akiba-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-tealAccessible focus-visible:ring-offset-2">Already claimed — view in My vouchers</a>;
   }
 
   const idleLabel = !isSignedIn
@@ -193,10 +193,10 @@ export function ClaimLoyaltyVoucherButton({
         onClick={handleStartClaim}
         disabled={status === "checking" || status === "claiming"}
         className={clsx(
-          "flex min-h-11 w-full items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus-visible:ring-offset-2",
+          "flex min-h-11 w-full items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-tealAccessible focus-visible:ring-offset-2",
           status === "checking" || status === "claiming"
-            ? "cursor-not-allowed bg-akiba-teal/60 text-white"
-            : "bg-akiba-teal text-white hover:bg-akiba-teal/90 active:scale-[0.98]",
+            ? "cursor-not-allowed bg-akiba-card text-akiba-muted"
+            : "bg-akiba-tealAccessible text-white hover:bg-akiba-tealAccessibleHover active:scale-[0.98]",
         )}
       >
         {status === "checking" ? (

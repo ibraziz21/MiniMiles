@@ -1,6 +1,10 @@
 "use client";
 
-import { useId, type ReactNode } from "react";
+import type { CustomerVoucherEntitlement } from "@/lib/vouchers/customerEntitlement";
+import { entitlementBenefit } from "@/lib/vouchers/customerEntitlement";
+import { VoucherEntitlementSummary } from "./VoucherEntitlementSummary";
+
+import { useId, type ReactNode, type RefObject } from "react";
 import { Check, CircleAlert, Loader2, ShieldCheck, X } from "lucide-react";
 import { useDialogA11y } from "@/hooks/useDialogA11y";
 import type { VoucherClaimFriction, VoucherUsePlan } from "@/lib/vouchers/claimIntent";
@@ -26,6 +30,9 @@ export function VoucherEligibilityModal({
   error,
   eligibilitySummary,
   merchantName,
+  entitlement,
+  successHref,
+  returnFocusRef,
   expiryLabel,
   friction,
   intentConfirmed,
@@ -38,11 +45,14 @@ export function VoucherEligibilityModal({
   onClose,
 }: {
   open: boolean;
-  state: "checking" | "eligible" | "ineligible" | "submitting" | "error";
+  state: "checking" | "eligible" | "ineligible" | "submitting" | "error" | "success";
   rules: EligibilityRuleView[];
   error?: string | null;
   eligibilitySummary?: string | null;
   merchantName?: string | null;
+  entitlement?: CustomerVoucherEntitlement;
+  successHref?: string;
+  returnFocusRef?: RefObject<HTMLElement>;
   expiryLabel?: string | null;
   friction?: VoucherClaimFriction | null;
   intentConfirmed: boolean;
@@ -56,7 +66,7 @@ export function VoucherEligibilityModal({
 }) {
   const titleId = useId();
   const close = state === "submitting" ? undefined : onClose;
-  const dialogRef = useDialogA11y<HTMLDivElement>(open, close);
+  const dialogRef = useDialogA11y<HTMLDivElement>(open, close, returnFocusRef);
   if (!open) return null;
 
   const eligible = state === "eligible" || state === "submitting";
@@ -68,21 +78,22 @@ export function VoucherEligibilityModal({
   return (
     <div
       className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/45 px-0 backdrop-blur-[2px] sm:items-center sm:px-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
     >
-      {close && <button type="button" className="absolute inset-0" onClick={close} aria-label="Dismiss" />}
+      {close && <button type="button" className="absolute inset-0" tabIndex={-1} aria-hidden="true" onClick={close} aria-label="Dismiss" />}
       <div
         ref={dialogRef}
-        tabIndex={-1}
-        className="relative max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-[2rem] bg-white px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-5 shadow-2xl focus:outline-none sm:rounded-[2rem] sm:p-6"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-busy={state === "submitting"}
+        tabIndex={state === "submitting" ? 0 : -1}
+        className="relative max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-[2rem] bg-white px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-5 shadow-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-akiba-tealAccessible sm:rounded-[2rem] sm:p-6"
       >
         {close && (
           <button
             type="button"
             onClick={close}
-            className="absolute right-4 top-4 flex min-h-11 min-w-11 items-center justify-center rounded-full text-akiba-muted transition hover:bg-akiba-card hover:text-akiba-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
+            className="absolute right-4 top-4 flex min-h-11 min-w-11 items-center justify-center rounded-full text-akiba-muted transition hover:bg-akiba-card hover:text-akiba-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-tealAccessible"
             aria-label="Close eligibility check"
           >
             <X className="h-4 w-4" />
@@ -90,31 +101,37 @@ export function VoucherEligibilityModal({
         )}
 
         <div className="pr-10">
-          <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-akiba-tint text-akiba-teal">
-            {state === "checking" ? <Loader2 className="h-5 w-5 animate-spin" /> : eligible ? <ShieldCheck className="h-5 w-5" /> : <CircleAlert className="h-5 w-5" />}
+          <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-akiba-tint text-akiba-tealAccessible">
+            {state === "checking" ? <Loader2 className="h-5 w-5 animate-spin" /> : state === "success" ? <Check className="h-5 w-5" aria-hidden="true" /> : eligible ? <ShieldCheck className="h-5 w-5" /> : <CircleAlert className="h-5 w-5" />}
           </span>
-          <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.18em] text-akiba-teal">Before claiming</p>
-          <h3 id={titleId} className="mt-1 font-sterling text-2xl font-bold text-akiba-ink">
-            {state === "checking" ? "Checking your eligibility" : eligible ? "You qualify for this voucher" : "Eligibility check"}
+          <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.18em] text-akiba-tealAccessible">{state === "success" ? "Added to My vouchers" : "Before claiming"}</p>
+          <h3 aria-live="polite" id={titleId} className="mt-1 font-sterling text-2xl font-bold text-akiba-ink">
+            {state === "success" ? "Voucher claimed" : state === "submitting" ? "Claiming your voucher" : state === "checking" ? "Checking your eligibility" : eligible ? "You qualify for this voucher" : "Eligibility check"}
           </h3>
-          {merchantName && <p className="mt-1 text-sm text-akiba-muted">Redeemable at {merchantName}{expiryLabel ? ` · use by ${expiryLabel}` : ""}</p>}
+          {!entitlement && merchantName && <p className="mt-1 text-sm text-akiba-muted">At {merchantName}{expiryLabel ? ` · Claim by ${expiryLabel}` : ""}</p>}
         </div>
 
-        {state === "checking" ? (
+        {entitlement && <section className="mt-4 space-y-3" aria-label="Voucher details">
+          <p className="font-semibold text-akiba-ink">{entitlementBenefit(entitlement)}</p>
+          <VoucherEntitlementSummary entitlement={entitlement} interactive={state !== "submitting"} />
+        </section>}
+        {state === "success" ? (
+          <a href={successHref ?? "/vouchers?tab=active"} className="mt-5 flex min-h-12 items-center justify-center rounded-full bg-akiba-tealAccessible px-4 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-tealAccessible focus-visible:ring-offset-2">View voucher</a>
+        ) : state === "checking" ? (
           <div className="mt-6 rounded-2xl bg-akiba-card px-4 py-5 text-sm text-akiba-muted">We’re checking the voucher rules and your account.</div>
         ) : state === "error" ? (
           <div role="alert" className="mt-6 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error ?? "We couldn’t check this voucher right now. Please try again."}</div>
         ) : (
           <>
             {eligibilitySummary && <p className="mt-5 rounded-2xl bg-akiba-card px-4 py-3 text-sm text-akiba-ink">{eligibilitySummary}</p>}
-            <div className="mt-5 space-y-2" aria-label="Voucher eligibility rules">
+            <div className="mt-5 space-y-2" role="list" aria-label="Voucher eligibility rules">
               {rules.map((rule) => (
-                <div key={rule.label} className="flex items-start gap-3 rounded-xl border border-akiba-line px-3.5 py-3">
+                <div key={rule.label} role="listitem" className="flex items-start gap-3 rounded-xl border border-akiba-line px-3.5 py-3">
                   <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${rule.passed ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800"}`}>
                     {rule.passed ? <Check className="h-3.5 w-3.5" /> : <CircleAlert className="h-3.5 w-3.5" />}
                   </span>
                   <span className="min-w-0 flex-1 text-sm text-akiba-ink">{rule.label}</span>
-                  {!rule.passed && rule.href && <a href={rule.href} className="shrink-0 text-xs font-semibold text-akiba-teal underline">{rule.cta ?? "Update"}</a>}
+                  {!rule.passed && rule.href && <a href={rule.href} className="inline-flex min-h-11 shrink-0 items-center rounded-lg px-2 text-xs font-semibold text-akiba-tealAccessible underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-tealAccessible">{rule.cta ?? "Update"}</a>}
                 </div>
               ))}
             </div>
@@ -131,7 +148,7 @@ export function VoucherEligibilityModal({
                       value={usePlan}
                       onChange={(event) => onUsePlanChange(event.target.value as VoucherUsePlan | "")}
                       disabled={state === "submitting"}
-                      className="mt-1.5 min-h-11 w-full rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-sm text-akiba-ink focus:border-akiba-teal focus:outline-none focus:ring-2 focus:ring-akiba-teal/20"
+                      className="mt-1.5 min-h-11 w-full rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-sm text-akiba-ink focus:border-akiba-tealAccessible focus:outline-none focus:ring-2 focus:ring-akiba-tealAccessible/20"
                     >
                       <option value="">Select a plan</option>
                       {USE_PLAN_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -139,13 +156,13 @@ export function VoucherEligibilityModal({
                   </div>
                 )}
 
-                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-akiba-line p-4 transition hover:border-akiba-teal/30">
+                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-akiba-line p-4 transition hover:border-akiba-tealAccessible/30">
                   <input
                     type="checkbox"
                     checked={intentConfirmed}
                     onChange={(event) => onIntentConfirmedChange(event.target.checked)}
                     disabled={state === "submitting"}
-                    className="mt-0.5 h-4 w-4 rounded border-akiba-line text-akiba-teal focus:ring-akiba-teal"
+                    className="mt-0.5 h-4 w-4 rounded border-akiba-line text-akiba-tealAccessible focus:ring-akiba-tealAccessible"
                   />
                   <span className="text-sm leading-relaxed text-akiba-ink">I intend to use this voucher before it expires and understand it cannot be transferred.</span>
                 </label>
@@ -154,7 +171,7 @@ export function VoucherEligibilityModal({
                   type="button"
                   onClick={onConfirm}
                   disabled={!canConfirm}
-                  className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-akiba-teal px-4 py-3 text-sm font-semibold text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-akiba-teal/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus-visible:ring-offset-2"
+                  className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-akiba-tealAccessible px-4 py-3 text-sm font-semibold text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-akiba-card disabled:text-akiba-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-tealAccessible focus-visible:ring-offset-2"
                 >
                   {state === "submitting" ? <><Loader2 className="h-4 w-4 animate-spin" /> Processing…</> : confirmLabel}
                 </button>
@@ -164,8 +181,8 @@ export function VoucherEligibilityModal({
         )}
 
         {close && (
-          <button type="button" onClick={close} className="mt-2 min-h-11 w-full px-4 py-2 text-sm font-medium text-akiba-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal">
-            {state === "ineligible" || state === "error" ? "Close" : "Cancel"}
+          <button type="button" onClick={close} className="mt-2 min-h-11 w-full px-4 py-2 text-sm font-medium text-akiba-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-tealAccessible">
+            {state === "ineligible" || state === "error" || state === "success" ? "Close" : "Cancel"}
           </button>
         )}
       </div>

@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/utils";
 import { AddMerchantNote } from "@/components/merchants/AddMerchantNote";
+import { RemoveMerchantControl } from "@/components/merchants/RemoveMerchantControl";
 import { GrantTrialControl } from "@/components/merchants/GrantTrialControl";
 import { ShieldCheck, ScrollText } from "lucide-react";
 import { hasPermission } from "@/types";
@@ -78,6 +79,8 @@ export default async function MerchantDetailPage({ params }: { params: { id: str
       <PageHeader title={partner.name} subtitle="Merchant detail" />
       <div className="space-y-6 p-4 sm:p-6">
         <DetailHeader backHref="/merchants" backLabel="Back to merchants" title={partner.name} subtitle={partner.country ?? undefined} />
+
+        {partner.status === "archived" ? <Badge variant="secondary">Archived merchant</Badge> : canManageMerchants ? <RemoveMerchantControl id={params.id} name={partner.name} /> : null}
 
         <Tabs defaultValue="overview">
           <TabsList>

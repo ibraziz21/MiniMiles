@@ -11,6 +11,7 @@ import {
   kesToMinor,
   textOrNull,
   positiveIntOrNull,
+  parseMerchantIds,
   rpcErrorResponse,
 } from "@/lib/voucherFunds";
 
@@ -37,6 +38,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fun
     }
   }
   const merchantId = typeof body.merchantId === "string" ? body.merchantId : null;
+  // Merchants beyond the primary where this allocation's vouchers may be
+  // redeemed (BDR-006). The RPC below re-checks each one is active and in the
+  // fund's country, so this only filters the obviously malformed.
+  const additionalMerchantIds = parseMerchantIds(body.additionalMerchantIds ?? []);
   const title = textOrNull(body.title, 200);
   const voucherType = body.voucherType === "percent_off" ? "percent_off" : "fixed_off";
   const isPercent = voucherType === "percent_off";
@@ -55,6 +60,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fun
   const claimEndsAt = typeof body.claimEndsAt === "string" ? body.claimEndsAt : null;
 
   if (!merchantId) return NextResponse.json({ error: "Select a merchant." }, { status: 400 });
+  if (!additionalMerchantIds) {
+    return NextResponse.json(
+      { error: "additionalMerchantIds must be an array of merchant IDs." },
+      { status: 400 },
+    );
+  }
   if (!title) return NextResponse.json({ error: "A customer-facing voucher title is required." }, { status: 400 });
 
   // Percentage benefits are reimbursed at the realised discount, but the fund
@@ -133,9 +144,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fun
   }
 
   const actorId = fundedVoucherActorId(session);
-  const { data, error } = await supabase.rpc(VOUCHER_FUND_RPCS.createAllocation, {
+  const { data, error } = await supabase.rpc(VOUCHER_FUND_RPCS.createAllocationWithMerchants, {
     p_program_id: fundId,
     p_merchant_id: merchantId,
+    p_additional_merchant_ids: additionalMerchantIds,
     p_actor_id: actorId,
     p_title: title,
     p_description: textOrNull(body.description, 2000),
@@ -168,6 +180,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fun
       merchant_id: merchantId,
       quantity_cap: quantityCap,
       voucher_type: voucherType,
+      additional_merchant_ids: additionalMerchantIds,
       ...(isPercent
         ? { discount_percent: discountPercent, maximum_discount_kes: maximumDiscountKes }
         : { discount_kes: discountKes }),

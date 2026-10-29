@@ -13,8 +13,12 @@
  * Keeping the select fragment next to the validity check is the point: a
  * column added to one and not the other is what produced that bug.
  */
-import type { FundedOffer } from "@/components/vouchers/FundedOfferCard";
-import { percentFundedOffersV1Flag } from "@/lib/featureFlags.server";
+import type { FundedOffer, MerchantSummary } from "@/components/vouchers/FundedOfferCard";
+import { isMultiMerchantOffer, offerMerchants } from "@/components/vouchers/FundedOfferCard";
+import {
+  multiMerchantFundedOffersV1Flag,
+  percentFundedOffersV1Flag,
+} from "@/lib/featureFlags.server";
 
 /** Template columns every funded-offer surface needs. */
 export const FUNDED_OFFER_TEMPLATE_COLUMNS =
@@ -50,12 +54,20 @@ export type RawFundedPartner = {
 export function toFundedOffer(input: {
   allocationId: string;
   claimEndsAt: string;
+  voucherValiditySeconds?: number | null;
   template: RawFundedTemplate | null;
   partner: RawFundedPartner | null;
   eligibilitySummary: string | null;
+  /**
+   * The resolved participant list, primary first. `null` means the set could
+   * not be fully resolved — the offer is withheld rather than advertised with
+   * a shorter list (BDR-006 / launch spec rule 7).
+   */
+  participants: MerchantSummary[] | null;
 }): FundedOffer | null {
-  const { template, partner } = input;
+  const { template, partner, participants } = input;
   if (!template || !partner) return null;
+  if (!participants || participants.length === 0) return null;
   if (template.minimum_spend_kes == null) return null;
 
   const isPercent = template.voucher_type === "percent_off";
@@ -76,7 +88,9 @@ export function toFundedOffer(input: {
     terms: template.terms_text,
     eligibilitySummary: input.eligibilitySummary,
     claimEndsAt: input.claimEndsAt,
+    voucherValiditySeconds: input.voucherValiditySeconds ?? null,
     merchant: { name: partner.name, slug: partner.slug, imageUrl: partner.image_url },
+    merchants: participants,
   };
 }
 
@@ -99,6 +113,26 @@ export function toFundedOffer(input: {
  * widened contract.
  */
 export function fundedOffersForV1(offers: FundedOffer[]): FundedOffer[] {
-  if (percentFundedOffersV1Flag().enabled) return offers;
-  return offers.filter((offer) => offer.voucherType !== "percent_off");
+  // Each shape is gated by its own flag and the two compose. The previous
+  // `if (percentEnabled) return offers` short-circuit meant enabling
+  // percentage offers also released every other unsupported shape, which is
+  // exactly the kind of coupling that makes a compatibility gate useless.
+  const percentAllowed = percentFundedOffersV1Flag().enabled;
+  const multiMerchantAllowed = multiMerchantFundedOffersV1Flag().enabled;
+
+  return offers.filter((offer) => {
+    // Neither `merchants` nor `merchant`: the participant scope is unknown,
+    // so the offer cannot be described honestly to any client. A legacy
+    // offer carrying a valid `merchant` is fine — it really was
+    // single-merchant — but one carrying neither is malformed, not legacy.
+    if (offerMerchants(offer).length === 0) return false;
+    if (!percentAllowed && offer.voucherType === "percent_off") return false;
+    if (!multiMerchantAllowed && isMultiMerchantOffer(offer)) return false;
+    return true;
+  });
+}
+
+/** Whether a v1 client may be served this allocation at all. */
+export function allocationSupportedByV1(offer: FundedOffer): boolean {
+  return fundedOffersForV1([offer]).length === 1;
 }

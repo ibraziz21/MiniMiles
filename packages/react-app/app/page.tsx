@@ -3,6 +3,7 @@
 
 import ReferFab from "@/components/refer-fab";
 import DailyChallenges from "@/components/daily-challenge";
+import HomeCtaCards from "@/components/home-cta-cards";
 import AppHeader from "@/components/app-header";
 import ProfileCtaCard from "@/components/profile-cta-card";
 import { RaffleCard } from "@/components/raffle-card";
@@ -32,6 +33,7 @@ import {
   docking, camera, washmachine, chair, usdtround,
 } from "@/lib/img";
 import { akibaMilesSymbol } from "@/lib/svg";
+import { DAILY_CHALLENGES_ENABLED } from "@/lib/featureFlags";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import posthog from "posthog-js";
 import {
@@ -386,23 +388,31 @@ const refreshMilesBalanceSoon = useCallback(() => {
         />
       )}
 
-      {/* Daily challenges — the daily check-in lives here, promoted near the top */}
-      <div className="mx-4 mt-6 gap-1">
-        <div className="flex justify-between items-center my-2">
-          <h3 className="text-lg font-medium">Daily challenges</h3>
-          <Link href="/earn">
-            <span className="text-sm text-[#238D9D] hover:underline font-medium">
-              See All ›
-            </span>
-          </Link>
+      {/* Primary CTAs — Pass App, then Games (Farkle before Skill Games).
+          Took over the slot daily challenges held, now that MiniPay-activity
+          earning is being retired. */}
+      <HomeCtaCards showPass={Boolean(campaign?.merchant || featuredRaffle)} />
+
+      {/* Daily challenges — deprecated, hidden app-wide behind the flag while
+          the quests/DB rows are still live (lib/featureFlags.ts). */}
+      {DAILY_CHALLENGES_ENABLED && (
+        <div className="mx-4 mt-6 gap-1">
+          <div className="flex justify-between items-center my-2">
+            <h3 className="text-lg font-medium">Daily challenges</h3>
+            <Link href="/earn">
+              <span className="text-sm text-[#238D9D] hover:underline font-medium">
+                See All ›
+              </span>
+            </Link>
+          </div>
+          <p className="text-gray-500">
+            Completed a challenge? Click & claim Miles
+          </p>
+          <div className="flex gap-3 overflow-x-auto">
+            <DailyChallenges />
+          </div>
         </div>
-        <p className="text-gray-500">
-          Completed a challenge? Click & claim Miles
-        </p>
-        <div className="flex gap-3 overflow-x-auto">
-          <DailyChallenges />
-        </div>
-      </div>
+      )}
 
       {/* Value pulse — unredeemed vouchers + weekly rank, hidden when neither applies */}
       <ValuePulseStrip />

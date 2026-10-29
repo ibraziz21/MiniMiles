@@ -20,6 +20,7 @@ import { useAuth } from '@/auth';
 import { createApiClient } from '@/api';
 import { ProfileButton } from '@/components/profile-button';
 import type { MobilePass, PassPresentation } from '@/contracts';
+import { isScreenshotModeEnabled } from '@/fixtures/screenshot-commerce';
 
 type ScreenState =
   | { status: 'loading' }
@@ -36,6 +37,7 @@ const QR_DARK = '#0D3349';
 const QR_LIGHT = '#FFFFFF';
 
 export default function PassScreen() {
+  const screenshotMode = isScreenshotModeEnabled();
   const { accessToken } = useAuth();
   const [state, setState] = useState<ScreenState>({ status: 'loading' });
   const [presentation, setPresentation] = useState<PresentationState>({ status: 'loading' });
@@ -133,10 +135,10 @@ export default function PassScreen() {
           </Card>
         ) : state.status === 'ready' && presentation.status === 'ready' ? (
           <Card style={styles.card}>
-            <Text style={styles.title}>{state.data.displayName}</Text>
-            <Text style={styles.body}>{state.data.email}</Text>
+            <Text style={styles.title}>{screenshotMode ? 'Amani Kamau' : state.data.displayName}</Text>
+            <Text style={styles.body}>{screenshotMode ? 'amani@example.com' : state.data.email}</Text>
             <View style={styles.qrWrap}>
-              <QRCode value={presentation.data.token} size={220} color={QR_DARK} backgroundColor={QR_LIGHT} ecl="M" />
+              <QRCode value={screenshotMode ? 'AKIBA-SCREENSHOT-SAMPLE-NOT-VALID-FOR-REDEMPTION' : presentation.data.token} size={220} color={QR_DARK} backgroundColor={QR_LIGHT} ecl="M" />
             </View>
             <Text style={styles.liveLabel}>LIVE PASS</Text>
             <Text style={styles.hint}>Show this at participating merchants to earn AkibaMiles. It refreshes automatically.</Text>

@@ -16,6 +16,9 @@ const config: Config = {
           // hand-copied as a raw hex (`hover:bg-[#1E7E8D]`) into 14
           // independent files; same value, now one name.
           tealDark: "#1E7E8D",
+          // Normal-size action/link text passes 4.5:1 on white, card and tint.
+          tealAccessible: "#176A76",
+          tealAccessibleHover: "#125560",
           ink: "#0D0E0C",
           muted: "#504C4C",
           paper: "#FCFCFC",

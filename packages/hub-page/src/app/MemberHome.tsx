@@ -1,3 +1,5 @@
+import { fundedDiscoveryResult } from "@/lib/vouchers/fundedDiscovery";
+import { FundedDiscoveryNotice } from "@/components/vouchers/FundedDiscoveryNotice";
 import { TrackedLink } from "@/components/akiba/TrackedLink";
 import { HomeViewTracker } from "@/components/akiba/HomeViewTracker";
 import { DiscoveryMasthead } from "@/components/home/DiscoveryMasthead";
@@ -31,7 +33,7 @@ export async function MemberHome({ user }: { user: User }) {
     getHomeFeed({ userId: user.id, userEmail: email }),
     listDirectoryCities().catch(() => [] as string[]),
     getNextDiscoveryContributionRequest(user.id).catch(() => null),
-    getFundedOffers().catch(() => []),
+    fundedDiscoveryResult(getFundedOffers),
   ]);
 
   // displayName falls back to the raw email (resolveHubProfile) when the
@@ -94,7 +96,8 @@ export async function MemberHome({ user }: { user: User }) {
         </TrackedLink>
       )}
 
-      <FundedVoucherSection offers={fundedOffers} />
+      {fundedOffers.unavailable && <FundedDiscoveryNotice />}
+      <FundedVoucherSection offers={fundedOffers.offers} />
 
       <BusinessOfferRail offers={feed.businessOffers} />
 

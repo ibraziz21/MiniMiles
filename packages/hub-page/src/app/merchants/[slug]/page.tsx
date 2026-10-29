@@ -1,3 +1,5 @@
+import { fundedDiscoveryResult } from "@/lib/vouchers/fundedDiscovery";
+import { FundedDiscoveryNotice } from "@/components/vouchers/FundedDiscoveryNotice";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getPublicMerchant, DirectoryUnavailableError } from "@/lib/merchants/queries";
@@ -135,7 +137,8 @@ export default async function MerchantPage({ params }: { params: { slug: string 
   if (!merchant) notFound();
 
   const isSignedIn = !!userId;
-  const fundedOffers = await getMerchantFundedOffers(merchant.id);
+  const fundedResult = await fundedDiscoveryResult(() => getMerchantFundedOffers(merchant.id));
+  const fundedOffers = fundedResult.offers;
   const rankedMilesVouchers = rankMerchantVouchers(merchant.vouchers, balance);
   const claimedFundedAllocationIds = await getClaimedMerchantFundedAllocationIds(
     fundedOffers.map((offer) => offer.allocationId),
@@ -160,6 +163,7 @@ export default async function MerchantPage({ params }: { params: { slug: string 
 
   return (
     <main className="mx-auto max-w-7xl px-4 pb-6 pt-4 sm:px-6 sm:py-6 lg:px-8">
+      {fundedResult.unavailable && <FundedDiscoveryNotice href={`/merchants/${params.slug}`} />}
       <MerchantViewTracker
         merchantId={merchant.id}
         hasVouchers={totalVoucherCount > 0}

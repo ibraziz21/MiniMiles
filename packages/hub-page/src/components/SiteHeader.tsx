@@ -21,15 +21,16 @@ export async function SiteHeader() {
           {user ? (
             <a
               href="/me"
+              aria-label={`Open profile for ${user.email ?? "your account"}`}
               className="flex min-h-11 items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-white/20 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
             >
-              <User className="h-4 w-4" />
+              <User className="h-4 w-4" aria-hidden="true" />
               <span className="hidden max-w-[120px] truncate sm:block">{user.email}</span>
             </a>
           ) : (
             <a
               href="/login"
-              className="inline-flex min-h-11 items-center rounded-full bg-akiba-teal px-4 text-sm font-semibold text-white no-underline transition hover:bg-akiba-tealDark active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className="inline-flex min-h-11 items-center rounded-full bg-akiba-tealAccessible px-4 text-sm font-semibold text-white no-underline transition hover:bg-akiba-tealAccessibleHover active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
               Sign in
             </a>

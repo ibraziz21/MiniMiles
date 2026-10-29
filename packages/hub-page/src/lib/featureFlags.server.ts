@@ -113,6 +113,28 @@ export function percentFundedOffersV1Flag(env: FlagEnvironment = process.env): F
 }
 
 /**
+ * Whether the /api/v1/* contract may serve multi-merchant funded offers.
+ *
+ * Independent of the percentage flag: a released build can be taught one
+ * shape without the other, and the two must gate separately or enabling
+ * either silently releases both.
+ *
+ * Off by default. A released build models a funded offer as belonging to one
+ * merchant, so it would advertise a voucher usable at six stalls as usable at
+ * one — wrong in the member's hand, and wrong in a way that sends them to the
+ * only merchant the app named.
+ *
+ * Turn on only once the minimum supported build renders the full participant
+ * list, then delete the flag and its filter.
+ */
+export function multiMerchantFundedOffersV1Flag(env: FlagEnvironment = process.env): FeatureFlagResult {
+  if (!isTruthy(env.MULTI_MERCHANT_FUNDED_OFFERS_V1_ENABLED)) {
+    return { enabled: false, reason: "multi-merchant funded offers are withheld from the v1 mobile contract" };
+  }
+  return { enabled: true, reason: null };
+}
+
+/**
  * Native-only destination switch for the Gifts tab
  * (AKIBA-MOB-001 §1 "Hide unfinished destinations such as Gifts through
  * feature flags"). Unlike the flags above this gates a *surface*, not a
@@ -132,6 +154,7 @@ export function getAllFeatureFlags(env: FlagEnvironment = process.env) {
     hubQuestClaims: hubQuestClaimsFlag(env),
     akibaFundedVouchersHub: akibaFundedVouchersHubFlag(env),
     percentFundedOffersV1: percentFundedOffersV1Flag(env),
+    multiMerchantFundedOffersV1: multiMerchantFundedOffersV1Flag(env),
     nativeGifts: nativeGiftsFlag(env),
   };
 }

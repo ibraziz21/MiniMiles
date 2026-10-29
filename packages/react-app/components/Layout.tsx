@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { ArrowLeft } from '@phosphor-icons/react';
 import { safeMerchantQuestReturnTo } from '@/lib/merchantQuestJourney';
 import { AkibaEvolvingAnnouncement } from './AkibaEvolvingAnnouncement';
+import { DailyChallengesDeprecatedAnnouncement } from './DailyChallengesDeprecatedAnnouncement';
 
 interface Props { children: ReactNode }
 
@@ -117,6 +118,10 @@ const LayoutContent: FC<Props> = ({ children }) => {
       {/* One-time, app-wide product-direction announcement — not gated to
           MiniPay since it's app content, not chrome. */}
       {!isOnboarding && !isClaim && <AkibaEvolvingAnnouncement />}
+
+      {/* Daily-challenge deprecation notice — self-sequences behind the
+          announcement above so only one sheet is ever open. */}
+      {!isOnboarding && !isClaim && <DailyChallengesDeprecatedAnnouncement />}
     </div>
   );
 };

@@ -3,6 +3,10 @@ node_modules
 .next
 packages/*/.next
 .env
+# Local schema exports and verification artifacts may contain private definitions.
+/.verification/
+/output/playwright/
+/output/verification/
 packages/*/.env
 .env.*
 !.env.example

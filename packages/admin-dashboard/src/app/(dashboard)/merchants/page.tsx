@@ -1,3 +1,4 @@
+import { hasPermission } from "@/types";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { redirect } from "next/navigation";
@@ -6,7 +7,7 @@ import { MerchantsListView } from "@/components/merchants/MerchantsListView";
 
 async function getMerchants() {
   const [partnersRes, subscriptionsRes, vouchersRes, teamRes] = await Promise.all([
-    supabase.from("partners").select("id, slug, name, country, image_url").order("name"),
+    supabase.from("partners").select("id, slug, name, country, image_url, status").order("name"),
     supabase
       .from("partner_subscriptions")
       .select("partner_id, plan, status, created_at")
@@ -54,9 +55,9 @@ export default async function MerchantsPage() {
 
   return (
     <div>
-      <PageHeader title="Merchants" subtitle={`${merchants.length} merchant${merchants.length !== 1 ? "s" : ""} registered`} />
+      <PageHeader title="Merchants" subtitle={`${merchants.filter((m) => m.status !== "archived").length} merchants · ${merchants.filter((m) => m.status === "archived").length} archived`} />
       <div className="p-4 sm:p-6">
-        <MerchantsListView merchants={merchants} />
+        <MerchantsListView merchants={merchants} canManage={hasPermission(session.role, "merchants.write")} />
       </div>
     </div>
   );

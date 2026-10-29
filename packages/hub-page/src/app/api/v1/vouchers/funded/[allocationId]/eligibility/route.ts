@@ -11,6 +11,7 @@ import { getServerEnv } from "@/lib/env.server";
 import { evaluateFundedVoucherCountryEligibility } from "@/lib/akiba/fundedVoucherCountryEligibility";
 import { getVoucherClaimFriction } from "@/lib/vouchers/claimIntent";
 import { akibaFundedVouchersHubFlag } from "@/lib/featureFlags.server";
+import { v1ClaimSupport } from "@/lib/vouchers/fundedOfferMerchants.server";
 import { getActiveUsernameForHubUser } from "@/lib/akiba/voucherUsername";
 
 export async function GET(request: Request, { params }: { params: { allocationId: string } }) {
@@ -25,6 +26,7 @@ export async function GET(request: Request, { params }: { params: { allocationId
 
   const { allocationId } = params;
 
+
   let actor;
   try {
     actor = await requireActor(request);
@@ -33,6 +35,37 @@ export async function GET(request: Request, { params }: { params: { allocationId
       return apiError(request, error.code, error.message, error.status);
     }
     throw error;
+  }
+
+  // Catalogue filtering is not protection on its own: a client holding this
+  // allocation id can post straight here. An unsupported shape is refused
+  // before issuance, not merely hidden from discovery. Placed after auth and
+  // the mutation guard so an unauthenticated or malformed request still gets
+  // its own status rather than a capability error.
+  const support = await v1ClaimSupport(allocationId);
+  if (!support.supported) {
+    console.warn("[funded offer] refused v1 request", {
+      allocationId,
+      kind: support.kind,
+      reason: support.reason,
+    });
+    // Two different failures, and conflating them misleads the member:
+    // "update your app" is only true when the shape is known and this build
+    // cannot render it. An unresolved shape is unavailability, and retryable.
+    return support.kind === "unsupported_shape"
+      ? apiError(
+          request,
+          "OFFER_NOT_SUPPORTED",
+          "This offer is not available in this version of the app. Please update to continue.",
+          409,
+        )
+      : apiError(
+          request,
+          "SERVICE_UNAVAILABLE",
+          "This offer is not currently available.",
+          503,
+          { retryable: true },
+        );
   }
 
   const claimFriction = await getVoucherClaimFriction(actor.userId);

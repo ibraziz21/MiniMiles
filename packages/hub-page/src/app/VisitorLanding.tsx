@@ -1,3 +1,5 @@
+import { fundedDiscoveryResult } from "@/lib/vouchers/fundedDiscovery";
+import { FundedDiscoveryNotice } from "@/components/vouchers/FundedDiscoveryNotice";
 import { HomeViewTracker } from "@/components/akiba/HomeViewTracker";
 import { DiscoveryMasthead } from "@/components/home/DiscoveryMasthead";
 import { IntentShortcuts } from "@/components/home/IntentShortcuts";
@@ -19,7 +21,7 @@ export async function VisitorLanding() {
   const [feed, cities, fundedOffers] = await Promise.all([
     getHomeFeed({ userId: null }),
     listDirectoryCities().catch(() => [] as string[]),
-    getFundedOffers().catch(() => []),
+    fundedDiscoveryResult(getFundedOffers),
   ]);
 
   const forYou = feed.sections.find((s) => s.id === "for_you") ?? null;
@@ -38,7 +40,8 @@ export async function VisitorLanding() {
 
       <IntentShortcuts intents={feed.intents} title="What are you looking for?" />
 
-      <FundedVoucherSection offers={fundedOffers} />
+      {fundedOffers.unavailable && <FundedDiscoveryNotice />}
+      <FundedVoucherSection offers={fundedOffers.offers} />
 
       <BusinessOfferRail offers={feed.businessOffers} />
 

@@ -30,29 +30,45 @@
  * the Platform half is reported as skipped rather than silently passing.
  */
 import { describe, it, expect } from "vitest";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readdirSync, readFileSync } from "fs";
 import { resolve } from "path";
 
 const REPO_ROOT = resolve(__dirname, "../../../..");
 const PLATFORM_ROOT = resolve(REPO_ROOT, "../Akiba-Platform");
 const PLATFORM_AVAILABLE = existsSync(PLATFORM_ROOT);
 
-const MIGRATION_110 = resolve(
-  REPO_ROOT,
-  "supabase/migrations/110_funded_percent_vouchers_weekend_claims.sql",
-);
 const ADMIN_RULE_TYPES = resolve(
   REPO_ROOT,
   "packages/admin-dashboard/src/lib/voucherFunds.ts",
-);
-const PLATFORM_AUTHORING_RPC = resolve(
-  PLATFORM_ROOT,
-  "supabase/migrations/152_claim_day_of_week_rule_authoring.sql",
 );
 const PLATFORM_API_EVALUATOR = resolve(
   PLATFORM_ROOT,
   "packages/api/lib/voucherFunding/eligibility.ts",
 );
+
+/**
+ * The migration that currently defines a function, resolved by scanning
+ * rather than hardcoded.
+ *
+ * These functions get superseded — 111 replaced two of 110's, and 152
+ * replaced 148's authoring RPC — and a guard pinned to a filename quietly
+ * starts checking a dead copy the moment that happens, which is the exact
+ * failure mode this whole file exists to prevent. Within one repository the
+ * numeric prefix is the apply order, so the highest-numbered definition wins.
+ * (Across repositories it is not: see docs/BDR-005.)
+ */
+function latestDefinitionOf(migrationsDir: string, functionName: string): string {
+  const needle = `CREATE OR REPLACE FUNCTION ${functionName}`;
+  const matches = readdirSync(migrationsDir)
+    .filter((name) => name.endsWith(".sql"))
+    .filter((name) => readFileSync(resolve(migrationsDir, name), "utf8").includes(needle))
+    .sort();
+  expect(matches.length, `no migration defines ${functionName}`).toBeGreaterThan(0);
+  return resolve(migrationsDir, matches[matches.length - 1]);
+}
+
+const MINIMILES_MIGRATIONS = resolve(REPO_ROOT, "supabase/migrations");
+const PLATFORM_MIGRATIONS = resolve(PLATFORM_ROOT, "supabase/migrations");
 
 /**
  * Rule types an evaluator may handle without being authorable. These are
@@ -106,27 +122,35 @@ function adminRuleTypes(source: string): string[] {
   return [...match![1].matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
 }
 
-const migration110 = read(MIGRATION_110);
+const liveClaimRpc = read(
+  latestDefinitionOf(MINIMILES_MIGRATIONS, "claim_akiba_funded_voucher_atomic"),
+);
+const liveRowTrigger = read(
+  latestDefinitionOf(MINIMILES_MIGRATIONS, "validate_funded_voucher_rule_set_row"),
+);
+const liveAuditTrigger = read(
+  latestDefinitionOf(MINIMILES_MIGRATIONS, "enforce_funded_voucher_claim_eligibility_audit"),
+);
 
 /** (2) — the authoring allow-list that defines what is creatable at all. */
 const allowList = sqlAllowList(
-  functionBody(migration110, "validate_funded_voucher_rule_set_row"),
+  functionBody(liveRowTrigger, "validate_funded_voucher_rule_set_row"),
   "validate_funded_voucher_rule_set_row",
 );
 
 /** The evaluators that must understand everything authorable. */
 const evaluators: Array<{ label: string; handled: string[] }> = [
   {
-    label: "claim RPC (MiniMiles 110)",
+    label: "claim RPC (live MiniMiles migration)",
     handled: sqlHandledTypes(
-      functionBody(migration110, "claim_akiba_funded_voucher_atomic"),
+      functionBody(liveClaimRpc, "claim_akiba_funded_voucher_atomic"),
       "v_rule_type",
     ),
   },
   {
-    label: "claim-insert audit trigger (MiniMiles 110)",
+    label: "claim-insert audit trigger (live MiniMiles migration)",
     handled: sqlHandledTypes(
-      functionBody(migration110, "enforce_funded_voucher_claim_eligibility_audit"),
+      functionBody(liveAuditTrigger, "enforce_funded_voucher_claim_eligibility_audit"),
       "v_type",
     ),
   },
@@ -199,7 +223,10 @@ describe("funded eligibility rule vocabulary", () => {
       // so a type missing here cannot be created even though the row trigger
       // would have accepted it.
       const platformAllowList = sqlAllowList(
-        functionBody(read(PLATFORM_AUTHORING_RPC), "create_voucher_eligibility_rule_set_atomic"),
+        functionBody(
+          read(latestDefinitionOf(PLATFORM_MIGRATIONS, "create_voucher_eligibility_rule_set_atomic")),
+          "create_voucher_eligibility_rule_set_atomic",
+        ),
         "create_voucher_eligibility_rule_set_atomic",
       );
       expect([...platformAllowList].sort()).toEqual([...allowList].sort());

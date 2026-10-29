@@ -69,6 +69,9 @@ export async function POST(request: Request) {
       if (batch.created_by === actorId && session.role !== "super_admin") return NextResponse.json({ error: "A different Finance operator must record payment for this batch." }, { status: 409 });
     }
     const { data, error } = await supabase.rpc("transition_voucher_reimbursement_batch_atomic", { p_batch_id: batchId, p_action: transition, p_actor_id: actorId, p_payment_reference: paymentReference || null, p_payment_evidence_ref: paymentEvidenceRef || null, p_reason: reason || null }).single();
+    if (error?.code === "40001" || error?.code === "40P01") {
+      return NextResponse.json({ error: messageForRpcError({ message: "SETTLEMENT_RETRY_REQUIRED" }), code: "SETTLEMENT_RETRY_REQUIRED" }, { status: 409 });
+    }
     if (error) return NextResponse.json({ error: messageForRpcError(error), code: parseRpcErrorCode(error) }, { status: 409 });
     const auditAction = transition === "submit" ? "submitted" : transition === "pay" ? "paid" : "cancelled";
     await writeAdminAuditLog({ adminUserId: adminIdForWrite(session), action: `voucher_reimbursement_batch.${auditAction}`, targetType: "voucher_reimbursement_batch", targetId: batchId, metadata: { merchant_id: batch.merchant_id, total_amount_minor: batch.total_amount_minor } });

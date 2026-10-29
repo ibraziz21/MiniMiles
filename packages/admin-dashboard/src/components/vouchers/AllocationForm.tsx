@@ -2,6 +2,7 @@
 
 import type { RedemptionSchedule } from "@/lib/redemptionSchedule";
 
+import { toNairobiDateTimeInput, fromNairobiDateTimeInput } from "@/lib/voucherFundDates";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +38,9 @@ export interface AllocationFormInitial {
   description: string;
   termsText: string;
   voucherType: "fixed_off" | "percent_off";
+  additionalMerchantIds?: string[];
+  /** The primary merchant's id, so it can be excluded from the extras list. */
+  merchantPartnerId?: string;
   discountKes: number;
   discountPercent: number | null;
   maximumDiscountKes: number | null;
@@ -71,7 +75,13 @@ export function AllocationForm({
   const router = useRouter();
   const isEdit = Boolean(initial);
   const [merchantFilter, setMerchantFilter] = useState("");
-  const [merchantId, setMerchantId] = useState("");
+  const [merchantId, setMerchantId] = useState(initial?.merchantPartnerId ?? "");
+  // Additional merchants where this allocation's vouchers may be redeemed
+  // (BDR-006). Editable while the allocation is draft — this page only loads
+  // for drafts — and fixed once it is submitted for approval.
+  const [additionalMerchantIds, setAdditionalMerchantIds] = useState<string[]>(
+    initial?.additionalMerchantIds ?? [],
+  );
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [termsText, setTermsText] = useState(initial?.termsText ?? "");
@@ -94,8 +104,8 @@ export function AllocationForm({
   const [authorizedBudgetKes, setAuthorizedBudgetKes] = useState(
     initial ? String(initial.authorizedBudgetKes) : "",
   );
-  const [claimStartsAt, setClaimStartsAt] = useState(initial?.claimStartsAt.slice(0, 16) ?? "");
-  const [claimEndsAt, setClaimEndsAt] = useState(initial?.claimEndsAt.slice(0, 16) ?? "");
+  const [claimStartsAt, setClaimStartsAt] = useState(initial ? toNairobiDateTimeInput(initial.claimStartsAt) : "");
+  const [claimEndsAt, setClaimEndsAt] = useState(initial ? toNairobiDateTimeInput(initial.claimEndsAt) : "");
   const [voucherValidityDays, setVoucherValidityDays] = useState(
     initial ? String(initial.voucherValidityDays) : "14",
   );
@@ -129,6 +139,8 @@ export function AllocationForm({
   );
   const [restrictRedemption, setRestrictRedemption] = useState(Boolean(initial?.redemptionSchedule));
   const [redemptionDays, setRedemptionDays] = useState<number[]>(initial?.redemptionSchedule?.days ?? [...WEEKEND_DAYS]);
+  const [redemptionStartDate, setRedemptionStartDate] = useState(initial?.redemptionSchedule?.startDate ?? "");
+  const [redemptionEndDate, setRedemptionEndDate] = useState(initial?.redemptionSchedule?.endDate ?? "");
   const redemptionTimezone = initial?.redemptionSchedule?.timezone ?? CLAIM_DAY_TIMEZONE;
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -148,6 +160,12 @@ export function AllocationForm({
       (m) => m.name.toLowerCase().includes(q) || m.country?.toLowerCase().includes(q),
     );
   }, [merchants, merchantFilter]);
+
+  function toggleAdditionalMerchant(id: string) {
+    setAdditionalMerchantIds((prev) =>
+      prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id],
+    );
+  }
 
   function toggleMode(mode: string) {
     setDistributionModes((prev) => (prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode]));
@@ -252,6 +270,9 @@ export function AllocationForm({
       }
     }
 
+    if (restrictRedemption && (redemptionStartDate || redemptionEndDate) && (!redemptionStartDate || !redemptionEndDate || redemptionStartDate > redemptionEndDate)) {
+      setError("Choose both event dates, with the end on or after the start."); return;
+    }
     setBusy(true);
 
     let eligibilityRuleSetId: string | undefined;
@@ -275,15 +296,15 @@ export function AllocationForm({
       title,
       description,
       termsText,
-      redemptionSchedule: restrictRedemption ? { days: [...redemptionDays].sort((a, b) => a - b), timezone: redemptionTimezone } : null,
+      redemptionSchedule: restrictRedemption ? { days: [...redemptionDays].sort((a, b) => a - b), timezone: redemptionTimezone, ...(redemptionStartDate || redemptionEndDate ? { startDate: redemptionStartDate, endDate: redemptionEndDate } : {}) } : null,
       discountKes: isPercent ? undefined : Number(discountKes),
       discountPercent: isPercent ? Number(discountPercent) : undefined,
       maximumDiscountKes: isPercent ? Number(maximumDiscountKes) : undefined,
       minimumSpendKes: Number(minimumSpendKes),
       quantityCap: Number(quantityCap),
       authorizedBudgetKes: authorizedBudgetKes ? Number(authorizedBudgetKes) : undefined,
-      claimStartsAt: new Date(claimStartsAt).toISOString(),
-      claimEndsAt: new Date(claimEndsAt).toISOString(),
+      claimStartsAt: fromNairobiDateTimeInput(claimStartsAt),
+      claimEndsAt: fromNairobiDateTimeInput(claimEndsAt),
       voucherValidityDays: Number(voucherValidityDays),
       distributionModes,
       recycleExpiredInventory,
@@ -294,6 +315,10 @@ export function AllocationForm({
     let res;
     if (isEdit) {
       body.expectedVersion = initial!.version;
+      // Always sent on a draft edit: the form shows the persisted set, so the
+      // array it holds IS the intended one, including empty. Omitting the key
+      // means "don't touch membership", which is not what a submit means.
+      body.additionalMerchantIds = additionalMerchantIds;
       res = await fetch(`/api/admin/voucher-allocations/${initial!.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -302,6 +327,7 @@ export function AllocationForm({
     } else {
       body.merchantId = merchantId;
       body.voucherType = voucherType;
+      body.additionalMerchantIds = additionalMerchantIds;
       res = await fetch(`/api/admin/voucher-funds/${fundId}/allocations`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -343,6 +369,7 @@ export function AllocationForm({
                 </option>
               ))}
             </select>
+
           </CardContent>
         </Card>
       )}
@@ -351,6 +378,52 @@ export function AllocationForm({
           Merchant: <span className="font-medium text-ink">{initial!.merchantName}</span> (fixed after creation)
         </p>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Also redeemable at</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <fieldset>
+            <legend className="sr-only">Additional merchants</legend>
+            {isEdit && (
+              <Input
+                className="mb-2"
+                placeholder="Search merchants by name or country"
+                value={merchantFilter}
+                onChange={(e) => setMerchantFilter(e.target.value)}
+              />
+            )}
+              <p className="mb-2 text-xs text-ink-muted">
+                One voucher, usable at any merchant ticked here or the one above — the member
+                spends it once, wherever they go first. Leave empty for a single-merchant offer.
+                Fixed once the allocation leaves draft.
+              </p>
+              <div className="max-h-56 space-y-1.5 overflow-y-auto">
+                {filteredMerchants
+                  .filter((m) => m.id !== merchantId && m.status === "active")
+                  .map((m) => (
+                    <label key={m.id} className="flex items-center gap-2 text-sm text-ink">
+                      <input
+                        type="checkbox"
+                        checked={additionalMerchantIds.includes(m.id)}
+                        onChange={() => toggleAdditionalMerchant(m.id)}
+                        className="h-4 w-4 accent-primary"
+                      />
+                      <span className="truncate">
+                        {m.name} <span className="text-ink-muted">· {m.country ?? "—"}</span>
+                      </span>
+                    </label>
+                  ))}
+              </div>
+              {additionalMerchantIds.length > 0 && (
+                <p className="mt-2 text-xs font-medium text-ink">
+                  Redeemable at {additionalMerchantIds.length + 1} merchants in total.
+                </p>
+              )}
+            </fieldset>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -585,6 +658,10 @@ export function AllocationForm({
           {restrictRedemption && (
             <fieldset>
               <legend className="mb-2 text-sm font-medium">Allowed redemption days</legend>
+              <div className="mb-3 grid gap-3 sm:grid-cols-2">
+                <Field label="Event starts (optional)"><Input type="date" value={redemptionStartDate} onChange={e => setRedemptionStartDate(e.target.value)} required={!!redemptionEndDate} /></Field>
+                <Field label="Event ends (optional)"><Input type="date" value={redemptionEndDate} onChange={e => setRedemptionEndDate(e.target.value)} required={!!redemptionStartDate} min={redemptionStartDate || undefined} /></Field>
+              </div>
               <div className="flex flex-wrap gap-3">
                 {WEEKDAY_LABELS.map((label, day) => (
                   <label key={label} className="flex min-h-11 items-center gap-2 text-sm">
@@ -615,10 +692,10 @@ export function AllocationForm({
             ))}
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Claim window starts">
+            <Field label="Claim window starts (Africa/Nairobi)">
               <Input required type="datetime-local" value={claimStartsAt} onChange={(e) => setClaimStartsAt(e.target.value)} />
             </Field>
-            <Field label="Claim window ends">
+            <Field label="Claim window ends (Africa/Nairobi)">
               <Input required type="datetime-local" value={claimEndsAt} onChange={(e) => setClaimEndsAt(e.target.value)} />
             </Field>
           </div>

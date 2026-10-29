@@ -9,7 +9,6 @@ import {
   ChevronRight,
   Images,
   Share2,
-  Sparkles,
   ThumbsUp,
   X,
 } from "lucide-react";
@@ -253,9 +252,7 @@ export function VerifiedVisitPosts({
               alt={summaryPhoto.altText}
               className="object-cover transition-transform duration-500 group-hover:scale-[1.02] motion-reduce:transform-none"
             />
-          ) : (
-            <Sparkles className="absolute bottom-7 right-7 h-16 w-16 text-akiba-teal/25" strokeWidth={1.2} aria-hidden="true" />
-          )}
+          ) : null}
           <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold text-akiba-teal shadow-sm backdrop-blur-sm">
             <BadgeCheck className="h-4 w-4" aria-hidden="true" /> Community verified
           </span>

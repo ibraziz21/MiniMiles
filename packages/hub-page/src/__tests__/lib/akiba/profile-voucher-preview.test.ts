@@ -63,6 +63,10 @@ describe("profile owned-voucher preview", () => {
     })).resolves.toEqual({
       totalCount: 3,
       items: [{
+        entitlement: expect.objectContaining({
+          title: "Lunch reward", voucherType: "percent_off", discountPercent: 20,
+          merchantCount: 1, timing: { kind: "issued", expiresAt: "2026-11-20T00:00:00Z" },
+        }),
         id: "voucher-1",
         status: "issued",
         title: "Lunch reward",

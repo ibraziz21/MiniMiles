@@ -74,7 +74,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ServiceWorkerRegister />
         <PushResubscribe />
         <SiteHeader />
-        <div className="pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0">{children}</div>
+        <div className="pb-[calc(6rem+env(safe-area-inset-bottom))] sm:pb-0">{children}</div>
         <BottomNav />
         <InstallPrompt />
         <PushOptInPrompt />

@@ -6,7 +6,10 @@ const state = vi.hoisted(() => ({
   actor: null as Actor,
   merchant: null as { id: string; verifiedVisits: Array<{ id: string }> } | null,
   shouldThrowUnavailable: false,
-  fundedOffers: [{ allocationId: "alloc-1" }, { allocationId: "alloc-2" }] as Array<{ allocationId: string }>,
+  fundedOffers: [
+    { allocationId: "alloc-1", merchant: { name: "Arabica Coffee House", slug: "arabica", imageUrl: null }, merchants: [{ id: "p1", name: "Arabica Coffee House", slug: "arabica", imageUrl: null }] },
+    { allocationId: "alloc-2", merchant: { name: "Arabica Coffee House", slug: "arabica", imageUrl: null }, merchants: [{ id: "p1", name: "Arabica Coffee House", slug: "arabica", imageUrl: null }] },
+  ] as Array<Record<string, unknown>>,
   claimedByUser: new Map<string, Set<string>>(),
   savedByUser: new Map<string, boolean>(),
   helpfulByUser: new Map<string, string[]>(),
@@ -74,7 +77,10 @@ describe("GET /api/v1/me/merchant-state/[slug]", () => {
     state.actor = null;
     state.merchant = { id: "m1", verifiedVisits: [{ id: "visit-1" }, { id: "visit-2" }] };
     state.shouldThrowUnavailable = false;
-    state.fundedOffers = [{ allocationId: "alloc-1" }, { allocationId: "alloc-2" }];
+    state.fundedOffers = [
+      { allocationId: "alloc-1", merchant: { name: "Arabica Coffee House", slug: "arabica", imageUrl: null }, merchants: [{ id: "p1", name: "Arabica Coffee House", slug: "arabica", imageUrl: null }] },
+      { allocationId: "alloc-2", merchant: { name: "Arabica Coffee House", slug: "arabica", imageUrl: null }, merchants: [{ id: "p1", name: "Arabica Coffee House", slug: "arabica", imageUrl: null }] },
+    ];
     state.claimedByUser = new Map();
     state.savedByUser = new Map();
     state.helpfulByUser = new Map();

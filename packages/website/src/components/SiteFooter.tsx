@@ -59,6 +59,9 @@ export function SiteFooter() {
         <div>
           <h2 className="font-sterling text-lg font-medium text-akiba-ink">Connect</h2>
           <div className="mt-4 flex flex-col gap-3">
+            <Link href="/support" className="text-sm text-akiba-muted no-underline hover:text-akiba-teal">
+              App support
+            </Link>
             <a
               href={siteConfig.xUrl}
               className="inline-flex items-center gap-2 text-sm text-akiba-muted no-underline hover:text-akiba-teal"

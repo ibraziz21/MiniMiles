@@ -1,3 +1,4 @@
+import { FundedDiscoveryUnavailable } from "@/lib/vouchers/fundedDiscovery";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getAllTemplatesMock = vi.fn();
@@ -26,7 +27,9 @@ describe("GET /api/v1/vouchers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getAllTemplatesMock.mockResolvedValue([{ id: "t1" }]);
-    getFundedOffersMock.mockResolvedValue([{ allocationId: "a1" }]);
+    getFundedOffersMock.mockResolvedValue([
+      { allocationId: "a1", merchant: { name: "Arabica Coffee House", slug: "arabica", imageUrl: null }, merchants: [{ id: "p1", name: "Arabica Coffee House", slug: "arabica", imageUrl: null }] },
+    ]);
   });
 
   it("resolves templates/fundedOffers with no actor identity", async () => {
@@ -46,7 +49,15 @@ describe("GET /api/v1/vouchers", () => {
     const res = await GET(req());
     const body = await res.json();
     expect(res.status).toBe(200);
-    expect(body.data).toEqual({ templates: [{ id: "t1" }], fundedOffers: [{ allocationId: "a1" }] });
+    expect(body.data).toEqual({ templates: [{ id: "t1" }], fundedOffers: [{ allocationId: "a1", merchant: { name: "Arabica Coffee House", slug: "arabica", imageUrl: null }, merchants: [{ id: "p1", name: "Arabica Coffee House", slug: "arabica", imageUrl: null }] }] });
+  });
+
+  it("returns retryable 503 rather than a cacheable empty catalogue on discovery failure", async () => {
+    getFundedOffersMock.mockRejectedValue(new FundedDiscoveryUnavailable("memberships", ["a1"]));
+    const response = await GET(req());
+    expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).not.toContain("public");
+    expect((await response.json()).error).toMatchObject({ code: "SERVICE_UNAVAILABLE", retryable: true });
   });
 
   it("is publicly cacheable", async () => {

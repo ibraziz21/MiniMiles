@@ -1,5 +1,6 @@
 "use client";
 
+import { toNairobiDateTimeInput, fromNairobiDateTimeInput } from "@/lib/voucherFundDates";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,8 +32,8 @@ export function FundForm({ initial }: { initial?: FundFormInitial }) {
   const [authorizedBudgetKes, setAuthorizedBudgetKes] = useState(
     initial ? String(initial.authorizedBudgetKes) : "",
   );
-  const [startsAt, setStartsAt] = useState(initial?.startsAt.slice(0, 16) ?? "");
-  const [endsAt, setEndsAt] = useState(initial?.endsAt.slice(0, 16) ?? "");
+  const [startsAt, setStartsAt] = useState(initial ? toNairobiDateTimeInput(initial.startsAt) : "");
+  const [endsAt, setEndsAt] = useState(initial ? toNairobiDateTimeInput(initial.endsAt) : "");
   const [costCenterReference, setCostCenterReference] = useState(initial?.costCenterReference ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -48,8 +49,8 @@ export function FundForm({ initial }: { initial?: FundFormInitial }) {
       sponsorshipLabel,
       countryCode,
       authorizedBudgetKes: Number(authorizedBudgetKes),
-      startsAt: new Date(startsAt).toISOString(),
-      endsAt: new Date(endsAt).toISOString(),
+      startsAt: fromNairobiDateTimeInput(startsAt),
+      endsAt: fromNairobiDateTimeInput(endsAt),
       costCenterReference,
       notes,
     };

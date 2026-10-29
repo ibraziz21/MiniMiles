@@ -3,7 +3,7 @@
 // match, or legacy user_address match via linked wallets) — queried directly
 // server-side here rather than round-tripping through that API route.
 import { createAdminClient } from "@/lib/supabase/admin";
-import { dealLabel } from "@/lib/akiba/deals";
+import { entitlementFromIssued, entitlementBenefit, type CustomerVoucherEntitlement } from "@/lib/vouchers/customerEntitlement";
 
 const EXPIRING_SOON_DAYS = 7;
 
@@ -44,6 +44,7 @@ export type VoucherStripSummary = {
 };
 
 export type OwnedVoucherPreview = {
+  entitlement: CustomerVoucherEntitlement;
   id: string;
   status: "issued" | "pending" | "claiming";
   title: string;
@@ -65,9 +66,15 @@ type PreviewTemplate = {
   discount_cusd: number | null;
   discount_kes: number | null;
   retail_value_cusd: number | null;
+  retail_value_kes?: number | null;
+  maximum_discount_kes?: number | null;
+  minimum_spend_kes?: number | null;
+  terms_text?: string | null;
+  applicable_category?: string | null;
+  linked_product_id?: string | null;
   partners:
-    | { name: string; image_url: string | null }
-    | Array<{ name: string; image_url: string | null }>
+    | { id?: string; slug?: string; name: string; image_url: string | null }
+    | Array<{ id?: string; slug?: string; name: string; image_url: string | null }>
     | null;
 };
 
@@ -107,8 +114,8 @@ export async function getOwnedVoucherPreviews(opts: {
       `id, status, expires_at, rules_snapshot,
        spend_voucher_templates (
          title, voucher_type, discount_percent, discount_cusd, discount_kes,
-         retail_value_cusd,
-         partners ( name, image_url )
+         retail_value_cusd, retail_value_kes, maximum_discount_kes, minimum_spend_kes, terms_text, applicable_category, linked_product_id,
+         partners ( id, slug, name, image_url )
        )`,
       { count: "exact" },
     )
@@ -134,22 +141,12 @@ export async function getOwnedVoucherPreviews(opts: {
     const merchant = template
       ? (Array.isArray(template.partners) ? template.partners[0] ?? null : template.partners)
       : null;
-    const valueSource = template ?? row.rules_snapshot;
-    const canFormatValue = valueSource?.voucher_type != null;
-
+    const entitlement = entitlementFromIssued({ template, snapshot: row.rules_snapshot, expiresAt: row.expires_at,
+      merchants: [], primaryMerchant: merchant ? { id: merchant.id ?? "", slug: merchant.slug ?? "", name: merchant.name, imageUrl: merchant.image_url } : null });
     return {
-      id: row.id,
-      status: row.status,
-      title: template?.title ?? row.rules_snapshot?.title ?? "Akiba voucher",
-      valueLabel: canFormatValue
-        ? dealLabel({
-            voucher_type: valueSource.voucher_type!,
-            discount_percent: valueSource.discount_percent ?? null,
-            discount_cusd: valueSource.discount_cusd ?? null,
-            discount_kes: valueSource.discount_kes ?? null,
-            retail_value_cusd: valueSource.retail_value_cusd ?? null,
-          })
-        : "Voucher",
+      entitlement,
+      id: row.id, status: row.status, title: entitlement.title,
+      valueLabel: entitlementBenefit(entitlement),
       merchantName: merchant?.name ?? "Akiba reward",
       merchantLogoUrl: merchant?.image_url ?? null,
       expiresAt: row.expires_at,

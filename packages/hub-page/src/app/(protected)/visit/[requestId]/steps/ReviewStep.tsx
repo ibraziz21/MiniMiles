@@ -36,7 +36,7 @@ export function ReviewStep({
           <div>
             <dt className="font-medium text-akiba-ink">Picks</dt>
             <dd className="text-akiba-muted">
-              {items.map((item) => `${item.rawLabel}${item.isRecommended ? " ★" : ""}`).join(", ")}
+              {items.map((item) => `${item.rawLabel}${item.isRecommended ? " (recommended)" : ""}`).join(", ")}
             </dd>
           </div>
         )}

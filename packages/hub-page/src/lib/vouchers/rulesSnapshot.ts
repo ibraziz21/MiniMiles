@@ -17,6 +17,11 @@ export type RulesSnapshotInputTemplate = {
   discount_kes: number | null;
   applicable_category: string | null;
   retail_value_cusd: number | null;
+  retail_value_kes?: number | null;
+  maximum_discount_kes?: number | null;
+  minimum_spend_kes?: number | null;
+  terms_text?: string | null;
+  linked_product_id?: string | null;
 };
 
 export type RulesSnapshotResult = {
@@ -27,6 +32,11 @@ export type RulesSnapshotResult = {
   discountKes: number | null;
   applicableCategory: string | null;
   retailValueCusd: number | null;
+  retailValueKes: number | null;
+  maximumDiscountKes: number | null;
+  minimumSpendKes: number | null;
+  terms: string | null;
+  linkedProductId: string | null;
 };
 
 function snapshotHas(snapshot: Record<string, unknown> | null, key: string): boolean {
@@ -73,6 +83,30 @@ export function applyImmutableRulesSnapshot(
         ? snapshot.applicable_category
         : null
       : template.applicable_category,
+    maximumDiscountKes: snapshotNumber(snapshot, "maximum_discount_kes", template.maximum_discount_kes ?? null),
+    minimumSpendKes: snapshotNumber(snapshot, "minimum_spend_kes", template.minimum_spend_kes ?? null),
+    terms: snapshotHas(snapshot, "terms_text") ? typeof snapshot?.terms_text === "string" ? snapshot.terms_text : null : template.terms_text ?? null,
+    linkedProductId: snapshotHas(snapshot, "linked_product_id") ? typeof snapshot?.linked_product_id === "string" ? snapshot.linked_product_id : null : template.linked_product_id ?? null,
+    retailValueKes: snapshotNumber(snapshot, "retail_value_kes", template.retail_value_kes ?? null),
     retailValueCusd: snapshotNumber(snapshot, "retail_value_cusd", template.retail_value_cusd),
   };
+}
+
+/**
+ * Participant merchant IDs recorded on an issued voucher.
+ *
+ * Read from the snapshot and nowhere else. The allocation's current set is
+ * explicitly the wrong source for an issued voucher: it may have been edited,
+ * and the voucher was judged against what was named when it was claimed
+ * (BDR-006 §4.2). Returns [] for a legacy voucher that carries no set, which
+ * callers read as "single-merchant, use the template's partner".
+ */
+export function snapshotParticipantIds(rulesSnapshot: unknown): string[] {
+  const snapshot =
+    rulesSnapshot && typeof rulesSnapshot === "object" && !Array.isArray(rulesSnapshot)
+      ? (rulesSnapshot as Record<string, unknown>)
+      : null;
+  const ids = snapshot?.eligible_merchant_ids;
+  if (!Array.isArray(ids)) return [];
+  return ids.filter((id): id is string => typeof id === "string" && id.length > 0);
 }

@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import type { CustomerVoucherEntitlement } from "@/lib/vouchers/customerEntitlement";
+import { entitlementDates } from "@/lib/vouchers/customerEntitlement";
+
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import clsx from "clsx";
 import { requirementCopy, type EligibilityPreview } from "@/lib/akiba/voucherFundingEligibility";
 import { VoucherEligibilityModal, type EligibilityRuleView } from "@/components/vouchers/VoucherEligibilityModal";
@@ -23,8 +26,7 @@ export function ClaimOfferButton({
   isSignedIn,
   alreadyClaimed,
   eligibilitySummary,
-  merchantName,
-  claimEndsAt,
+  entitlement,
   claimStartsAt,
   claimsOpen = true,
 }: {
@@ -32,8 +34,7 @@ export function ClaimOfferButton({
   isSignedIn: boolean;
   alreadyClaimed: boolean;
   eligibilitySummary?: string | null;
-  merchantName?: string | null;
-  claimEndsAt?: string | null;
+  entitlement: CustomerVoucherEntitlement;
   claimStartsAt?: string;
   claimsOpen?: boolean;
 }) {
@@ -47,96 +48,64 @@ export function ClaimOfferButton({
   const [intentConfirmed, setIntentConfirmed] = useState(false);
   const [usePlan, setUsePlan] = useState<VoucherUsePlan | "">("");
 
-  const modalOpen = ["checking", "eligible", "ineligible", "claiming", "error"].includes(status);
-  const expiryDate = claimEndsAt ? new Date(claimEndsAt) : null;
-  const expiryLabel = expiryDate && Number.isFinite(expiryDate.getTime())
-    ? expiryDate.toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" })
-    : null;
+  const [committedExpiry, setCommittedExpiry] = useState<string | null>(null);
+  const [successDismissed, setSuccessDismissed] = useState(false);
+  const triggerRef = useRef<HTMLAnchorElement | HTMLButtonElement | null>(null);
+  const requestEpoch = useRef(0);
+  useEffect(() => () => { requestEpoch.current += 1; }, []);
+  const modalOpen = ["checking", "eligible", "ineligible", "claiming", "error"].includes(status) || (status === "claimed" && !successDismissed);
+  const displayedEntitlement: CustomerVoucherEntitlement = status === "claimed"
+    ? { ...entitlement, timing: { kind: "issued", expiresAt: committedExpiry } } : entitlement;
 
   function closeModal() {
     if (status === "claiming") return;
-    setStatus("idle");
-    setError(null);
-    setRequirements([]);
-    setIntentConfirmed(false);
-    setUsePlan("");
+    requestEpoch.current += 1;
+    if (status === "claimed") { setSuccessDismissed(true); return; }
+    setStatus("idle"); setError(null); setRequirements([]);
+    setIntentConfirmed(false); setUsePlan("");
   }
 
   async function handleStartClaim() {
-    if (!isSignedIn) {
-      router.push("/login");
-      return;
-    }
-
-    setStatus("checking");
-    setError(null);
-    setRequirements([]);
-    setIntentConfirmed(false);
-    setUsePlan("");
-
+    if (!isSignedIn) { router.push("/login"); return; }
+    const epoch = ++requestEpoch.current;
+    setStatus("checking"); setError(null); setRequirements([]);
+    setIntentConfirmed(false); setUsePlan("");
     try {
       const res = await fetch(`/api/voucher-funding/${allocationId}/eligibility`, { cache: "no-store" });
-      const data = (await res.json()) as Partial<EligibilityPreview> & { error?: string };
-      if (!res.ok) {
-        setStatus("error");
-        setError(claimErrorMessage(res.status, undefined, data.error));
-        return;
-      }
-      if (data.alreadyClaimed) {
-        setStatus("already_claimed");
-        return;
-      }
+      const data = await res.json() as Partial<EligibilityPreview> & { error?: string };
+      if (epoch !== requestEpoch.current) return;
+      if (!res.ok) { setError(claimErrorMessage(res.status, undefined, data.error)); setStatus("error"); return; }
+      if (data.alreadyClaimed) { setStatus("already_claimed"); return; }
       setFriction(data.claimFriction ?? null);
-      if (data.eligible) {
-        setStatus("eligible");
-      } else {
-        setRequirements(Array.isArray(data.requirementsRemaining) ? data.requirementsRemaining : []);
-        setStatus("ineligible");
-      }
+      setRequirements(Array.isArray(data.requirementsRemaining) ? data.requirementsRemaining : []);
+      setStatus(data.eligible ? "eligible" : "ineligible");
     } catch {
-      setStatus("error");
-      setError("Could not check eligibility right now. Please try again.");
+      if (epoch !== requestEpoch.current) return;
+      setStatus("error"); setError("Could not check eligibility right now. Please try again.");
     }
   }
 
   async function handleClaim() {
-    setStatus("claiming");
-    setError(null);
-
+    setStatus("claiming"); setError(null);
     try {
       const res = await fetch(`/api/voucher-funding/${allocationId}/claim`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ intent_confirmed: intentConfirmed, use_plan: usePlan || null }),
       });
-      const data = (await res.json()) as { voucherId?: string; error?: string; code?: string };
-      if (!res.ok) {
-        setStatus("error");
-        setError(claimErrorMessage(res.status, data.code, data.error));
-        return;
-      }
-      setVoucherId(data.voucherId ?? null);
-      setStatus("claimed");
+      const data = await res.json() as { voucherId?: string; expiresAt?: string; error?: string; code?: string };
+      if (!res.ok) { setStatus("error"); setError(claimErrorMessage(res.status, data.code, data.error)); return; }
+      setVoucherId(data.voucherId ?? null); setCommittedExpiry(data.expiresAt ?? null); setStatus("claimed");
     } catch {
-      setStatus("error");
-      setError("Something went wrong. Please try again.");
+      setStatus("error"); setError("Something went wrong. Please try again.");
     }
   }
 
-  if (status === "claimed") {
-    return (
-      <a href={voucherId ? `/vouchers/${voucherId}` : "/vouchers?tab=active"} className="flex w-full items-center justify-center gap-1.5 rounded-full bg-akiba-tint py-2.5 text-sm font-semibold text-akiba-teal">
-        <CheckCircle2 className="h-4 w-4" /> Claimed — view voucher
-      </a>
-    );
-  }
-
   if (status === "already_claimed") {
-    return <a href="/vouchers?tab=active" className="flex w-full items-center justify-center gap-1.5 rounded-full bg-akiba-card py-2.5 text-sm font-semibold text-akiba-muted">Already claimed — view in My vouchers</a>;
+    return <a ref={(node) => { triggerRef.current = node; }} href="/vouchers?tab=active" className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-full bg-akiba-card py-2.5 text-sm font-semibold text-akiba-muted">Already claimed — view in My vouchers</a>;
   }
 
   if (!claimsOpen && claimStartsAt) {
-    return <p className="rounded-xl bg-akiba-tint px-4 py-3 text-center text-sm font-semibold text-akiba-tealDark">Claims open {new Date(claimStartsAt).toLocaleDateString("en-KE", { day: "numeric", month: "short", timeZone: "Africa/Nairobi" })}</p>;
+    return <p className="rounded-xl bg-akiba-tint px-4 py-3 text-center text-sm font-semibold text-akiba-tealAccessible">Claims open {new Date(claimStartsAt).toLocaleDateString("en-KE", { day: "numeric", month: "short", timeZone: "Africa/Nairobi" })}</p>;
   }
 
   const rules: EligibilityRuleView[] = status === "ineligible"
@@ -152,28 +121,33 @@ export function ClaimOfferButton({
 
   return (
     <div>
-      <button
+      {status === "claimed" ? <div>
+        <a ref={(node) => { triggerRef.current = node; }} href={voucherId ? `/vouchers/${voucherId}` : "/vouchers?tab=active"} className="flex min-h-11 w-full items-center justify-center rounded-full bg-akiba-tint px-4 text-sm font-semibold text-akiba-tealAccessible">Claimed — view voucher</a>
+        <p role="status" className="mt-2 text-xs text-akiba-muted">{entitlementDates(displayedEntitlement)[0]}</p>
+      </div> : <button
+        ref={(node) => { triggerRef.current = node; }}
         type="button"
         onClick={handleStartClaim}
         disabled={status === "checking" || status === "claiming"}
         className={clsx(
-          "flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus-visible:ring-offset-2",
+          "flex w-full items-center justify-center gap-2 min-h-11 rounded-full py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-tealAccessible focus-visible:ring-offset-2",
           status === "checking" || status === "claiming"
-            ? "cursor-not-allowed bg-akiba-teal/60 text-white"
-            : "bg-akiba-teal text-white hover:bg-akiba-teal/90 active:scale-[0.98]",
+            ? "cursor-not-allowed bg-akiba-card text-akiba-muted"
+            : "bg-akiba-tealAccessible text-white hover:bg-akiba-tealAccessibleHover active:scale-[0.98]",
         )}
       >
         {status === "checking" ? <><Loader2 className="h-4 w-4 animate-spin" /> Checking…</> : status === "claiming" ? <><Loader2 className="h-4 w-4 animate-spin" /> Claiming…</> : !isSignedIn ? "Sign in to claim" : "Check eligibility & claim"}
-      </button>
+      </button>}
 
       <VoucherEligibilityModal
         open={modalOpen}
-        state={status === "checking" ? "checking" : status === "eligible" ? "eligible" : status === "ineligible" ? "ineligible" : status === "claiming" ? "submitting" : "error"}
+        state={status === "claimed" ? "success" : status === "checking" ? "checking" : status === "eligible" ? "eligible" : status === "ineligible" ? "ineligible" : status === "claiming" ? "submitting" : "error"}
         rules={rules}
         error={error}
         eligibilitySummary={eligibilitySummary}
-        merchantName={merchantName}
-        expiryLabel={expiryLabel}
+        entitlement={displayedEntitlement}
+        successHref={voucherId ? `/vouchers/${voucherId}` : "/vouchers?tab=active"}
+        returnFocusRef={triggerRef}
         friction={friction}
         intentConfirmed={intentConfirmed}
         usePlan={usePlan}

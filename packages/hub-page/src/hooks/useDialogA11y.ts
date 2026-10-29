@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 
 const FOCUSABLE_SELECTOR =
-  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  'summary, a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
  * Shared behavior for hand-rolled dialogs/sheets — every overlay in this app
@@ -17,8 +17,10 @@ const FOCUSABLE_SELECTOR =
  *
  * Attach the returned ref to the dialog's outer content element.
  */
-export function useDialogA11y<T extends HTMLElement>(open: boolean, onClose?: () => void) {
+export function useDialogA11y<T extends HTMLElement>(open: boolean, onClose?: () => void, returnFocusRef?: { readonly current: HTMLElement | null }) {
   const containerRef = useRef<T>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -33,22 +35,28 @@ export function useDialogA11y<T extends HTMLElement>(open: boolean, onClose?: ()
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        if (onClose) {
-          event.stopPropagation();
-          onClose();
-        }
+        event.preventDefault();
+        event.stopPropagation();
+        closeRef.current?.();
         return;
       }
       if (event.key !== "Tab" || !container) return;
 
       const nodes = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-        (el) => el.offsetParent !== null,
+        (el) => el.offsetParent !== null && !el.matches(":disabled") && !el.closest("[inert]"),
       );
-      if (nodes.length === 0) return;
+      if (nodes.length === 0) {
+        event.preventDefault();
+        container.focus();
+        return;
+      }
       const first = nodes[0];
       const last = nodes[nodes.length - 1];
 
-      if (event.shiftKey && document.activeElement === first) {
+      if (!container.contains(document.activeElement) || document.activeElement === container) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && document.activeElement === last) {
@@ -57,11 +65,20 @@ export function useDialogA11y<T extends HTMLElement>(open: boolean, onClose?: ()
       }
     }
 
+    // State transitions can remove/disable the focused control without
+    // changing `open`. Retain focus inside the dialog even before Tab.
+    const observer = new MutationObserver(() => {
+      const active = document.activeElement;
+      if (container && (!container.contains(active) || active?.matches(":disabled"))) container.focus();
+    });
+    if (container) observer.observe(container, { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled", "hidden"] });
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", onKeyDown);
-      triggerElement?.focus?.();
+      observer.disconnect();
+      const target = returnFocusRef?.current ?? triggerElement;
+      if (target?.isConnected) target.focus();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);

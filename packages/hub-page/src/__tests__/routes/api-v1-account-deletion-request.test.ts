@@ -414,7 +414,7 @@ describe("POST /api/v1/me/account-deletion-request", () => {
     expect(res.status).toBe(503);
     const body = await res.json();
     expect(body.error.code).toBe("DELETION_UNAVAILABLE");
-    expect(body.error.message).toMatch(/hello@akibamiles\.com/);
+    expect(body.error.message).toContain("hello.akibamiles@gmail.com");
     expect(rpcCalls.some((call) => call.name === "create_account_deletion_request")).toBe(false);
     expect(state.challenges.get("chal-1")?.attempts).toBe(0);
   });

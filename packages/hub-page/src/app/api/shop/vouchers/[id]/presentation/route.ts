@@ -1,3 +1,4 @@
+import { entitlementFromIssued } from "@/lib/vouchers/customerEntitlement";
 /**
  * POST   /api/shop/vouchers/[id]/presentation  → mint a short-lived QR token
  * DELETE /api/shop/vouchers/[id]/presentation  → revoke the live QR token
@@ -8,6 +9,8 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { snapshotParticipantIds } from "@/lib/vouchers/rulesSnapshot";
+import { resolveSnapshotParticipants } from "@/lib/vouchers/fundedOfferMerchants.server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -75,13 +78,41 @@ export async function POST(
   const row = Array.isArray(data) ? data[0] : null;
   if (!row?.ok) return jsonNoStore({ error: "Voucher cannot be presented" }, 409);
 
+  // Where this voucher may actually be presented, read from its own snapshot.
+  // The RPC returns a single merchant_name, which is the primary — on a
+  // multi-merchant voucher that alone would tell the member to go to the one
+  // merchant the QR screen happened to name.
+  const { data: snapshotRow, error: snapshotError } = await admin
+    .from("issued_vouchers")
+    .select(`rules_snapshot, expires_at,
+      spend_voucher_templates(title, voucher_type, discount_percent, discount_cusd, discount_kes,
+        maximum_discount_kes, minimum_spend_kes, terms_text, applicable_category, linked_product_id,
+        retail_value_cusd, retail_value_kes, partners(id,name,slug,image_url))`)
+    .eq("id", voucherId)
+    .maybeSingle();
+  if (snapshotError || !snapshotRow) return jsonNoStore({ error: "Voucher details are unavailable. Try again." }, 503);
+  const template = Array.isArray(snapshotRow.spend_voucher_templates) ? snapshotRow.spend_voucher_templates[0] : snapshotRow.spend_voucher_templates;
+  const primary = Array.isArray(template?.partners) ? template.partners[0] : template?.partners;
+  const participants = await resolveSnapshotParticipants(
+    snapshotParticipantIds(snapshotRow?.rules_snapshot),
+  );
+
   // Return raw token once — never cache
   return jsonNoStore({
     token: rawToken, expires_at: expiresAt, token_version: row.token_version,
+    entitlement: entitlementFromIssued({ snapshot: snapshotRow?.rules_snapshot, expiresAt: snapshotRow?.expires_at ?? null,
+      template: template ?? { title: row.offer_title, voucher_type: row.voucher_type, discount_percent: row.discount_percent,
+        discount_cusd: row.discount_cusd, applicable_category: row.applicable_category },
+      merchants: participants.merchants,
+      primaryMerchant: primary ? { ...primary, imageUrl: primary.image_url } : row.merchant_name ? { id: row.merchant_id, name: row.merchant_name, slug: "", imageUrl: null } : null,
+    }),
     offer_title: row.offer_title, voucher_type: row.voucher_type,
     merchant_name: row.merchant_name, discount_percent: row.discount_percent,
     discount_cusd: row.discount_cusd, applicable_category: row.applicable_category,
     merchant_id: row.merchant_id,
+    participant_merchants: participants.merchants,
+    participant_count: participants.count,
+    participants_incomplete: participants.incomplete,
   });
 }
 
