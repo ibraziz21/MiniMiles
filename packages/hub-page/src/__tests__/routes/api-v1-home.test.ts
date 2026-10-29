@@ -100,7 +100,7 @@ describe("GET /api/v1/home", () => {
   });
 
   it("serves discovery promotions only when compatible with the native release", async () => {
-    state.fundedOffers = [{ allocationId: "arabica", voucherType: "percent_off", discountKes: null }];
+    state.fundedOffers = [{ allocationId: "arabica", voucherType: "percent_off", discountKes: null, merchant: { name: "Arabica Coffee House", slug: "arabica", imageUrl: null }, merchants: [{ id: "p1", name: "Arabica Coffee House", slug: "arabica", imageUrl: null }] }];
     const withheld = await (await GET(homeReq())).json();
     expect(withheld.data.fundedOffers).toEqual([]);
     vi.stubEnv("AKIBA_PERCENT_FUNDED_OFFERS_V1_ENABLED", "true");

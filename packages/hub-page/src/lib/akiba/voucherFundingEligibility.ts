@@ -20,9 +20,9 @@ export const REQUIREMENT_COPY: Record<string, { text: string; href?: string; cta
   username_required: { text: "Choose an Akiba username to claim this offer.", href: "/me", cta: "Choose username" },
   minimum_account_age_days: { text: "Your account needs to be a little older for this offer" },
   verified_activity_completed: { text: "Complete a qualifying activity first" },
-  first_funded_voucher: { text: "Limited to members who haven't claimed an Akiba-funded voucher before" },
+  first_funded_voucher: { text: "For first-time free voucher claims" },
   no_prior_merchant_redemption: { text: "Limited to new customers of this merchant" },
-  fund_claim_cooldown: { text: "You've claimed an Akiba-funded voucher recently — check back later" },
+  fund_claim_cooldown: { text: "You've claimed a free voucher recently. Try again later." },
   // Discovery does not filter on the day — getFundedOffers() gates only on
   // allocation state and the claim window — so a weekend-only offer is
   // visible midweek and a member can reach this. Deliberately does not name

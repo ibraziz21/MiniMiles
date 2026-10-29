@@ -1,102 +1,85 @@
 /**
- * Akiba Pass service worker.
- *
- * Goal: the Akiba Pass QR on /me must render at the till even with no signal.
- *
- * Strategy:
- *  - Navigations (HTML): network-first with cache fallback. Every successful
- *    page load refreshes the cache, so offline shows the last good version
- *    (including the user's pass ID → QR renders from bundled JS).
- *  - Static assets (/_next/static, fonts, icons): cache-first — immutable.
- *  - Everything else (API calls, auth): network only, never cached.
+ * Public assets only. Never persist HTML, RSC, API responses or session data.
+ * An offline navigation receives a neutral page, never a previous user's Pass.
+ * Account-bound offline Pass storage requires a separate security design.
  */
-const PAGE_CACHE = "akiba-pages-v1";
-const ASSET_CACHE = "akiba-assets-v1";
-const OFFLINE_PATHS = ["/me", "/"];
+const ASSET_CACHE = "akiba-public-assets-v2";
+
+async function purgeLegacyCaches() {
+  const keys = await caches.keys();
+  await Promise.all(keys
+    .filter((key) => key.startsWith("akiba-") && key !== ASSET_CACHE)
+    .map((key) => caches.delete(key)));
+}
 
 self.addEventListener("install", (event) => {
-  self.skipWaiting();
+  event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    (async () => {
-      const keys = await caches.keys();
-      await Promise.all(
-        keys
-          .filter((k) => k !== PAGE_CACHE && k !== ASSET_CACHE)
-          .map((k) => caches.delete(k)),
-      );
-      await self.clients.claim();
-    })(),
-  );
+  event.waitUntil((async () => {
+    // Includes akiba-pages-v1 and the old asset cache, whose permissive URL
+    // classifier could also have stored HTML. Do not search other caches.
+    await purgeLegacyCaches();
+    await self.clients.claim();
+  })());
 });
 
-function isStaticAsset(url) {
-  return (
-    url.pathname.startsWith("/_next/static/") ||
-    url.pathname.startsWith("/fonts/") ||
-    url.pathname.startsWith("/icons/") ||
-    url.pathname === "/logo.svg" ||
-    url.pathname.endsWith(".woff") ||
-    url.pathname.endsWith(".woff2")
-  );
+function isPublicAsset(url) {
+  return url.pathname.startsWith("/_next/static/") ||
+    (/^\/(fonts|icons)\/.+\.(woff2?|ttf|otf|png|svg|ico|webp)$/.test(url.pathname)) ||
+    url.pathname === "/logo.svg";
+}
+
+function cacheableAsset(response) {
+  return response.ok && !response.redirected &&
+    !/private|no-store/i.test(response.headers.get("Cache-Control") || "") &&
+    /^(text\/css|(?:text|application)\/(?:javascript|x-javascript)|image\/|font\/|application\/(?:font|x-font|vnd.ms-fontobject|octet-stream))/.test(response.headers.get("Content-Type") || "");
 }
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
-
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // Never touch API or auth routes
-  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/auth/")) return;
-
-  // Static assets: cache-first
-  if (isStaticAsset(url)) {
-    event.respondWith(
-      (async () => {
-        const cached = await caches.match(request);
-        if (cached) return cached;
-        const response = await fetch(request);
-        if (response.ok) {
-          const cache = await caches.open(ASSET_CACHE);
-          cache.put(request, response.clone());
-        }
-        return response;
-      })(),
-    );
+  // Check mode before asset URLs: navigating to /icons/... is still HTML.
+  if (request.mode === "navigate") {
+    event.respondWith((async () => {
+      await purgeLegacyCaches();
+      try {
+        // Avoid the browser HTTP cache as well as Cache Storage.
+        return await fetch(request, { cache: "no-store" });
+      } catch {
+        return new Response(
+          "<!doctype html><html lang='en'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Offline | Akiba</title><body style='font-family:sans-serif;text-align:center;padding:40px'><h1>You're offline</h1><p>Reconnect to open Akiba.</p></body></html>",
+          { status: 503, headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "no-store",
+            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+          } },
+        );
+      }
+    })());
     return;
   }
 
-  // Page navigations: network-first, cache fallback
-  if (request.mode === "navigate") {
-    event.respondWith(
-      (async () => {
-        try {
-          const response = await fetch(request);
-          if (response.ok) {
-            const cache = await caches.open(PAGE_CACHE);
-            cache.put(request, response.clone());
-          }
-          return response;
-        } catch {
-          const cached = await caches.match(request);
-          if (cached) return cached;
-          // Last resort: any cached offline-capable page
-          for (const path of OFFLINE_PATHS) {
-            const fallback = await caches.match(path);
-            if (fallback) return fallback;
-          }
-          return new Response(
-            "<html><body style='font-family:sans-serif;text-align:center;padding:40px'><h2>You're offline</h2><p>Reconnect to load Akiba Pass.</p></body></html>",
-            { status: 503, headers: { "Content-Type": "text/html" } },
-          );
-        }
-      })(),
-    );
-  }
+  // RSC/prefetch payloads and all API/auth requests stay network-only, even
+  // if a crafted URL looks like an asset. Never use a global caches.match.
+  if (request.headers.has("RSC") || request.headers.has("Next-Router-Prefetch") ||
+      url.pathname.startsWith("/api/") || url.pathname.startsWith("/auth/") ||
+      !isPublicAsset(url)) return;
+
+  event.respondWith((async () => {
+    const cache = await caches.open(ASSET_CACHE);
+    const cached = await cache.match(request);
+    if (cached && cacheableAsset(cached)) return cached;
+    if (cached) await cache.delete(request);
+    // Public assets must not vary by the signed-in account.
+    const response = await fetch(request, { credentials: "omit" });
+    if (cacheableAsset(response)) await cache.put(request, response.clone());
+    return response;
+  })());
 });
 
 // ── Web Push (web-push-notifications-spec.md §9) ───────────────────────────

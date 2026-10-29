@@ -1,3 +1,5 @@
+import { entitlementFromIssued, type CustomerVoucherEntitlement } from "./customerEntitlement";
+import type { VoucherTypeLabel } from "./rulesSnapshot";
 // Member-owned voucher listing with status filtering and cursor pagination
 // — genuinely new capability (hub-mobile-app-migration-plan.md: "Replace
 // raw join rows with stable voucher summaries"). No existing route does
@@ -9,6 +11,9 @@
 // already use.
 import { createHash } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { snapshotParticipantIds } from "@/lib/vouchers/rulesSnapshot";
+import { resolveSnapshotParticipants } from "@/lib/vouchers/fundedOfferMerchants.server";
+import type { MerchantSummary } from "@/components/vouchers/FundedOfferCard";
 import { resolveOwnedVoucherStatus } from "@/lib/vouchers/ownedVoucherStatus";
 
 export class InvalidOwnedVoucherCursorError extends Error {
@@ -39,6 +44,7 @@ const STATUS_DB_VALUES: Record<OwnedVoucherStatusFilter, string[]> = {
 };
 
 export type OwnedVoucherSummary = {
+  entitlement: CustomerVoucherEntitlement;
   id: string;
   status: string;
   title: string;
@@ -50,6 +56,21 @@ export type OwnedVoucherSummary = {
   merchantName: string | null;
   merchantSlug: string | null;
   merchantLogoUrl: string | null;
+  /**
+   * Every merchant this voucher may be redeemed at, from its claim-time
+   * snapshot — not the allocation's current set, which may have been edited
+   * since (BDR-006 §4.2). Empty for a legacy single-merchant voucher, whose
+   * merchant is the merchantName/Slug above.
+   */
+  participantMerchants: MerchantSummary[];
+  /**
+   * How many merchants the snapshot named. Always the snapshot's count, even
+   * when a profile could not be resolved, so an archived partner cannot
+   * shrink the entitlement on screen.
+   */
+  participantCount: number;
+  /** True when at least one named merchant's details could not be loaded. */
+  participantsIncomplete: boolean;
   programName: string | null;
   createdAt: string;
   expiresAt: string | null;
@@ -95,11 +116,18 @@ function one<T>(value: T | T[] | null | undefined): T | null {
 
 type RawTemplate = {
   title: string;
-  voucher_type: string;
+  voucher_type: VoucherTypeLabel;
   miles_cost: number;
   discount_percent: number | null;
   discount_cusd: number | null;
+  discount_kes?: number | null;
+  maximum_discount_kes?: number | null;
+  minimum_spend_kes?: number | null;
+  terms_text?: string | null;
+  applicable_category?: string | null;
+  linked_product_id?: string | null;
   retail_value_cusd: number | null;
+  retail_value_kes?: number | null;
   partners:
     | { name: string; slug: string; image_url: string | null }
     | Array<{ name: string; slug: string; image_url: string | null }>
@@ -112,6 +140,8 @@ type RawOwnedVoucherRow = {
   created_at: string;
   expires_at: string | null;
   redeemed_at: string | null;
+  voucher_redemptions?: { merchant_id: string | null }[];
+  rules_snapshot?: unknown;
   spend_voucher_templates: RawTemplate | RawTemplate[] | null;
   voucher_programs: { name: string } | Array<{ name: string }> | null;
 };
@@ -132,11 +162,12 @@ export async function listOwnedVouchers(params: {
   let query = admin
     .from("issued_vouchers")
     .select(`
-      id, status, created_at, expires_at, redeemed_at,
+      id, status, created_at, expires_at, redeemed_at, rules_snapshot,
       spend_voucher_templates (
-        title, voucher_type, miles_cost, discount_percent, discount_cusd, retail_value_cusd,
+        title, voucher_type, miles_cost, discount_percent, discount_cusd, discount_kes, maximum_discount_kes, minimum_spend_kes, terms_text, applicable_category, linked_product_id, retail_value_cusd, retail_value_kes,
         partners ( name, slug, image_url )
       ),
+      voucher_redemptions ( merchant_id ),
       voucher_programs ( name )
     `)
     .order("created_at", { ascending: false })
@@ -179,18 +210,50 @@ export async function listOwnedVouchers(params: {
   const hasMore = rows.length > limit;
   const page = hasMore ? rows.slice(0, limit) : rows;
 
+  // Participants resolved in one batch across the page, from each voucher's
+  // own snapshot.
+  const participantIdsByVoucher = new Map<string, string[]>();
+  for (const row of page) {
+    const ids = snapshotParticipantIds((row as { rules_snapshot?: unknown }).rules_snapshot);
+    if (ids.length > 0) participantIdsByVoucher.set(row.id, ids);
+  }
+  const allParticipantIds = [...new Set([
+    ...[...participantIdsByVoucher.values()].flat(),
+    ...page.filter((row) => row.status === "redeemed")
+      .flatMap((row) => row.voucher_redemptions ?? [])
+      .flatMap((redemption) => redemption.merchant_id ? [redemption.merchant_id] : []),
+  ])];
+  const participantLookup = await resolveSnapshotParticipants(allParticipantIds);
+  const participantById = new Map(participantLookup.merchants.map((m) => [m.id, m]));
+
   const vouchers = page.map((row): OwnedVoucherSummary => {
     const tpl = one(row.spend_voucher_templates);
-    const partner = one(tpl?.partners);
+    const redeemedMerchantId = one(row.voucher_redemptions)?.merchant_id;
+    const redeemedMerchant = redeemedMerchantId ? participantById.get(redeemedMerchantId) : null;
+    // A primary merchant is not evidence of where a redeemed voucher was used.
+    const partner = row.status === "redeemed"
+      ? redeemedMerchant ? { ...redeemedMerchant, image_url: redeemedMerchant.imageUrl } : null
+      : one(tpl?.partners);
     const program = one(row.voucher_programs);
+    const participantIds = participantIdsByVoucher.get(row.id) ?? [];
+    const participantMerchants = participantIds
+      .map((id) => participantById.get(id))
+      .filter((m): m is MerchantSummary => !!m);
+    const primary = one(tpl?.partners);
+    const entitlement = entitlementFromIssued({ template: tpl, snapshot: row.rules_snapshot, expiresAt: row.expires_at,
+      merchants: participantMerchants, primaryMerchant: primary ? { id: "", ...primary, imageUrl: primary.image_url } : null });
     return {
+      entitlement,
+      participantMerchants,
+      participantCount: participantIds.length,
+      participantsIncomplete: participantMerchants.length !== participantIds.length,
       id: row.id,
       status: resolveOwnedVoucherStatus(row.status, row.expires_at),
-      title: tpl?.title ?? "Voucher",
-      voucherType: tpl?.voucher_type ?? "free",
+      title: entitlement.title,
+      voucherType: entitlement.voucherType,
       milesCost: tpl?.miles_cost ?? 0,
-      discountPercent: tpl?.discount_percent ?? null,
-      discountCusd: tpl?.discount_cusd ?? null,
+      discountPercent: entitlement.discountPercent,
+      discountCusd: entitlement.discountCusd,
       retailValueCusd: tpl?.retail_value_cusd ?? null,
       merchantName: partner?.name ?? null,
       merchantSlug: partner?.slug ?? null,

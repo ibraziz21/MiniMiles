@@ -58,13 +58,13 @@ export function NavLinks({ dark = false }: { dark?: boolean }) {
             href={href}
             onClick={() => track("primary_nav_tap", { destination: key, surface: "desktop" })}
             className={clsx(
-              "relative px-1 py-0.5 text-sm font-medium transition-colors",
+              "relative inline-flex min-h-11 items-center rounded-lg px-2 py-0.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-tealAccessible focus-visible:ring-offset-2",
               dark
                 ? active
-                  ? "text-white after:absolute after:inset-x-0 after:-bottom-0.5 after:h-[2px] after:rounded-full after:bg-akiba-teal after:content-['']"
+                  ? "text-white after:absolute after:inset-x-0 after:-bottom-0.5 after:h-[2px] after:rounded-full after:bg-akiba-tealAccessible after:content-['']"
                   : "text-white/50 hover:text-white"
                 : active
-                ? "text-akiba-teal after:absolute after:inset-x-0 after:-bottom-0.5 after:h-[2px] after:rounded-full after:bg-akiba-teal after:content-['']"
+                ? "text-akiba-tealAccessible after:absolute after:inset-x-0 after:-bottom-0.5 after:h-[2px] after:rounded-full after:bg-akiba-tealAccessible after:content-['']"
                 : "text-akiba-muted hover:text-akiba-ink"
             )}
           >
@@ -79,12 +79,12 @@ export function NavLinks({ dark = false }: { dark?: boolean }) {
         href="/pass"
         onClick={() => track("pass_nav_tap")}
         className={clsx(
-          "flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold transition-colors",
+          "flex min-h-11 items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold transition-colors",
           path === "/pass" || path.startsWith("/pass/")
-            ? "bg-akiba-teal text-white"
+            ? "bg-akiba-tealAccessible text-white"
             : dark
             ? "bg-white/10 text-white hover:bg-white/20"
-            : "bg-akiba-tint text-akiba-teal hover:bg-akiba-teal/15"
+            : "bg-akiba-tint text-akiba-tealAccessible hover:bg-akiba-tealAccessible/15"
         )}
       >
         <QrCode className="h-4 w-4" />
@@ -121,7 +121,7 @@ function NavItem({
       aria-current={active ? "page" : undefined}
       className={clsx(
         "flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 transition-colors active:bg-akiba-card/70",
-        active ? "text-akiba-teal" : "text-akiba-muted"
+        active ? "text-akiba-tealAccessible" : "text-akiba-muted"
       )}
     >
       <span className={clsx("flex h-8 min-w-10 items-center justify-center rounded-xl transition-colors", active && "bg-akiba-tint") }>
@@ -171,12 +171,12 @@ export function BottomNav() {
             aria-label="Show your Akiba Pass"
             className={clsx(
               "-mt-8 flex h-14 w-14 items-center justify-center rounded-full shadow-lg ring-4 ring-white transition-transform active:scale-95",
-              passActive ? "bg-akiba-teal" : "bg-akiba-ink"
+              passActive ? "bg-akiba-tealAccessible" : "bg-akiba-ink"
             )}
           >
             <QrCode className="h-6 w-6 text-white" aria-hidden="true" />
           </a>
-          <span className={clsx("mt-1 text-[10px] font-semibold tracking-wide", passActive ? "text-akiba-teal" : "text-akiba-muted")}>
+          <span className={clsx("mt-1 text-[10px] font-semibold tracking-wide", passActive ? "text-akiba-tealAccessible" : "text-akiba-muted")}>
             Pass
           </span>
         </div>

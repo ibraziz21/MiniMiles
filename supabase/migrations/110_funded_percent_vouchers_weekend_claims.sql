@@ -40,11 +40,16 @@
 --
 -- WHERE THIS FUNCTION LIVES: claim_akiba_funded_voucher_atomic is defined in
 -- BOTH repositories against the same Postgres project — Akiba-Platform
--- 118/126/147/148 and MiniMiles 098. MiniMiles 098 is the live definition
--- (committed 2026-10-14, after Platform 148 on 2026-10-04, and it carries
--- 148's hardening forward), which is why this migration continues the chain
--- here rather than in Akiba-Platform. Changing the Platform copy instead
--- would apply cleanly and silently do nothing. See docs/BDR-005.
+-- 118/126/147/148 and MiniMiles 098. This migration continues the chain here
+-- because MiniMiles 098 was authored last and carries 148's hardening
+-- forward, so it is the successor rather than a fork; changing the Platform
+-- copy instead could apply cleanly and silently do nothing.
+--
+-- That reasoning is from authoring order, NOT from any database. Before
+-- relying on it in an environment, read what is actually installed:
+--   SELECT pg_get_functiondef(oid) FROM pg_proc
+--    WHERE proname='claim_akiba_funded_voucher_atomic';
+-- See docs/BDR-005.
 --
 -- The function remains executable only by service_role.
 

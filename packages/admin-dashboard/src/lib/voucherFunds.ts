@@ -24,6 +24,14 @@ export const VOUCHER_FUND_RPCS = {
   createAllocation: "create_voucher_funding_allocation_atomic",
   updateAllocationDraft: "update_voucher_funding_allocation_draft_atomic",
   transitionAllocation: "transition_voucher_funding_allocation_atomic",
+  setAllocationMerchants: "set_voucher_allocation_merchants_atomic",
+  // One transaction for allocation + template + membership + audit (155). The
+  // single-step createAllocation/updateAllocationDraft above remain for
+  // callers with nothing to say about membership.
+  createAllocationWithMerchants: "create_voucher_funding_allocation_with_merchants_atomic",
+  updateAllocationDraftWithMerchants: "update_voucher_funding_allocation_draft_with_merchants_atomic",
+  allocationAdditionalMerchants: "voucher_allocation_additional_merchants",
+  allocationMerchantReadiness: "voucher_allocation_merchant_readiness",
 } as const;
 
 export const VOUCHER_FUND_VIEWS = {
@@ -142,6 +150,48 @@ export function allocationBenefitLabel(benefit: {
 /** Template columns allocationBenefitLabel needs, for a Supabase select. */
 export const ALLOCATION_BENEFIT_COLUMNS =
   "voucher_type, discount_kes, discount_percent, maximum_discount_kes";
+
+/**
+ * Merchant IDs arrive from a form and go into a UUID[] RPC parameter, where a
+ * malformed value surfaces as a Postgres cast error rather than a usable
+ * message. Rejecting the shape here keeps that a 400 the operator can read.
+ */
+/** One participating merchant's ability to honour an allocation (156). */
+export type MerchantReadiness = {
+  partner_id: string;
+  merchant_name: string;
+  is_primary: boolean;
+  partner_active: boolean;
+  country_ok: boolean;
+  subscription_ok: boolean;
+  payout_destination_ready: boolean;
+  ready: boolean;
+  reason: string | null;
+};
+
+/**
+ * Turns the database's readiness rows into the sentence an operator reads.
+ *
+ * The database already refuses an unready publish — this exists so the
+ * refusal names merchants rather than surfacing a raw Postgres message, and
+ * so the detail page can warn before anyone clicks.
+ */
+export function describeUnreadyMerchants(rows: MerchantReadiness[]): string | null {
+  const unready = rows.filter((row) => !row.ready);
+  if (unready.length === 0) return null;
+  return unready
+    .map((row) => `${row.merchant_name}: ${row.reason ?? "not ready"}`)
+    .join("; ");
+}
+
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Deduplicated, shape-checked merchant IDs, or null if any is malformed. */
+export function parseMerchantIds(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  if (!value.every((id): id is string => typeof id === "string" && UUID_RE.test(id))) return null;
+  return [...new Set(value)];
+}
 
 /** Sunday-first, matching EXTRACT(DOW) and merchant_default_offers.days_of_week. */
 export const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
@@ -346,6 +396,10 @@ export const VOUCHER_FUND_ERROR_MESSAGES: Record<string, string> = {
   UNSUPPORTED_ELIGIBILITY_RULE_TYPE: "One or more eligibility rules are unsupported.",
   RULE_SET_REQUIRES_AT_LEAST_ONE_RULE: "Select at least one eligibility rule.",
   INVALID_RULE_SET_MODE: "Eligibility mode must be “all” or “any”.",
+  BATCH_PAYABLES_CHANGED: "This batch no longer matches the amounts owed. Cancel it and create a new batch from the current payables. If payment was already sent, reconcile it before creating another payment.",
+  SETTLEMENT_RETRY_REQUIRED: "Settlement data changed while this action was running. Reload and try again.",
+  PAID_BATCH_IS_IMMUTABLE: "Recorded payment amounts and merchant cannot be changed.",
+  BATCH_HAS_NO_ITEMS: "This batch has no payable items.",
   VERIFIED_ACTIVITY_RULE_REQUIRES_TEMPLATE_KEY: "Select a qualifying activity for the verified-activity rule.",
 };
 

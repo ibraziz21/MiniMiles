@@ -25,6 +25,7 @@ import {
   readStartedMerchantQuestIds,
 } from "@/lib/merchantQuestJourney";
 import type { MerchantQuestStatusState } from "@/lib/merchantDiscoveryQuests";
+import { DAILY_CHALLENGES_ENABLED } from "@/lib/featureFlags";
 import { useMerchantQuestStatus } from "@/lib/useMerchantQuestStatus";
 
 export default function EarnPage() {
@@ -323,11 +324,17 @@ export default function EarnPage() {
 
         {/* -- ACTIVE tab --------------------------─ */}
         <TabsContent value="active">
-          <div className=" mt-6 gap-1">
-            <h3 className="text-lg font-medium mt-6 mb-2">Daily challenges</h3>
-            <p className="text-gray-500">Completed a challenge? Click & claim Miles</p>
-          </div>
-          <DailyChallenges showCompleted={false} />
+          {/* Daily challenges — deprecated, hidden behind the flag while the
+              quests/DB rows are still live (lib/featureFlags.ts). */}
+          {DAILY_CHALLENGES_ENABLED && (
+            <>
+              <div className=" mt-6 gap-1">
+                <h3 className="text-lg font-medium mt-6 mb-2">Daily challenges</h3>
+                <p className="text-gray-500">Completed a challenge? Click & claim Miles</p>
+              </div>
+              <DailyChallenges showCompleted={false} />
+            </>
+          )}
           <MerchantDiscoveryQuests
             openPopup={openQuest}
             enabled={merchantQuestsEnabled}
@@ -345,8 +352,12 @@ export default function EarnPage() {
         </TabsContent>
 
         <TabsContent value="completed">
-          <h3 className="text-lg font-medium mt-6 mb-2">Daily challenges completed today</h3>
-          <DailyChallenges showCompleted={true} />
+          {DAILY_CHALLENGES_ENABLED && (
+            <>
+              <h3 className="text-lg font-medium mt-6 mb-2">Daily challenges completed today</h3>
+              <DailyChallenges showCompleted={true} />
+            </>
+          )}
           <MerchantDiscoveryQuests
             openPopup={openQuest}
             showCompleted

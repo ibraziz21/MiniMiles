@@ -81,7 +81,7 @@ export async function POST(request: Request) {
     }),
     supabase
       .from("voucher_funding_allocations")
-      .select("program_id, partners(name), voucher_funding_programs(name)")
+      .select("program_id, partners!voucher_funding_allocations_merchant_id_fkey(name), voucher_funding_programs(name)")
       .eq("id", allocationId)
       .maybeSingle(),
   ]);

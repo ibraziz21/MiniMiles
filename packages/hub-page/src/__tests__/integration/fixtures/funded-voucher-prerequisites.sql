@@ -117,6 +117,17 @@ CREATE TABLE IF NOT EXISTS verifications (
   created_at   timestamptz NOT NULL DEFAULT now()
 );
 
+-- Read by publication readiness (156) and by the till's own subscription
+-- gate. Status vocabulary from Akiba-Platform 048; 'trialing' is the default
+-- there, so a row created without payment already satisfies the till.
+CREATE TABLE IF NOT EXISTS partner_subscriptions (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  partner_id uuid NOT NULL,
+  status     text NOT NULL DEFAULT 'trialing'
+             CHECK (status IN ('trialing','active','past_due','canceled','paused')),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS events (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   event_type text NOT NULL,

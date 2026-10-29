@@ -1,3 +1,4 @@
+import { FundedDiscoveryUnavailable } from "@/lib/vouchers/fundedDiscovery";
 // GET /api/v1/me/merchant-state/:slug — self-only overlay for the merchant
 // detail screen (hub-mobile-app-migration-plan.md: "keep saved/claimed/
 // visit state in the self-only overlay. Never expose another user's claim
@@ -17,6 +18,7 @@ import {
 import { fundedOffersForV1 } from "@/lib/vouchers/fundedOfferMapping";
 
 export async function GET(request: Request, { params }: { params: { slug: string } }) {
+  try {
   let actor;
   try {
     actor = await requireActor(request);
@@ -74,4 +76,12 @@ export async function GET(request: Request, { params }: { params: { slug: string
   });
   response.headers.set("Cache-Control", "private, no-store");
   return response;
+  } catch (error) {
+    if (error instanceof FundedDiscoveryUnavailable) {
+      const response = apiError(request, "SERVICE_UNAVAILABLE", "Free offers are temporarily unavailable", 503, { retryable: true });
+      response.headers.set("Cache-Control", "private, no-store");
+      return response;
+    }
+    throw error;
+  }
 }

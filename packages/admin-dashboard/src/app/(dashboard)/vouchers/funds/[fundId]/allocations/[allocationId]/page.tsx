@@ -3,7 +3,14 @@ import { notFound, redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { hasPermission } from "@/types";
 import { supabase } from "@/lib/supabase";
-import { ALLOCATION_BENEFIT_COLUMNS, allocationBenefitLabel, minorToKes } from "@/lib/voucherFunds";
+import {
+  ALLOCATION_BENEFIT_COLUMNS,
+  VOUCHER_FUND_RPCS,
+  allocationBenefitLabel,
+  describeUnreadyMerchants,
+  minorToKes,
+  type MerchantReadiness,
+} from "@/lib/voucherFunds";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { DetailHeader } from "@/components/shell/DetailHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,11 +40,11 @@ export default async function VoucherAllocationDetailPage({
   if (!session) redirect("/login");
   const { fundId, allocationId } = await params;
 
-  const [{ data: allocation }, { data: availability }, { data: issuedVouchers }] = await Promise.all([
+  const [{ data: allocation, error: allocationError }, { data: availability }, { data: issuedVouchers }] = await Promise.all([
     supabase
       .from("voucher_funding_allocations")
       .select(
-        `*, spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, description, ${ALLOCATION_BENEFIT_COLUMNS}, minimum_spend_kes, terms_text, active, lifecycle_state), partners(name, country)`,
+        `*, spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, description, ${ALLOCATION_BENEFIT_COLUMNS}, minimum_spend_kes, terms_text, active, lifecycle_state), partners!voucher_funding_allocations_merchant_id_fkey(name, country)`,
       )
       .eq("id", allocationId)
       .single(),
@@ -50,6 +57,7 @@ export default async function VoucherAllocationDetailPage({
       .limit(200),
   ]);
 
+  if (allocationError && allocationError.code !== "PGRST116") throw new Error("Allocation details are temporarily unavailable");
   if (!allocation || allocation.program_id !== fundId) notFound();
 
   const memberDetailsByVoucher = await getVoucherMemberDetails(
@@ -101,6 +109,16 @@ export default async function VoucherAllocationDetailPage({
   } | null;
   const merchant = allocation.partners as { name: string; country: string | null } | null;
 
+  // Participating merchants and whether each could honour the offer. Shown
+  // before anyone clicks publish — the database refuses an unready publish,
+  // but discovering that at the click is a worse experience than seeing it.
+  const { data: readinessRows } = await supabase.rpc(
+    VOUCHER_FUND_RPCS.allocationMerchantReadiness,
+    { p_allocation_id: allocationId },
+  );
+  const readiness = (readinessRows ?? []) as MerchantReadiness[];
+  const unreadyDescription = describeUnreadyMerchants(readiness);
+
   const canWrite = hasPermission(session.role, "voucher_funds.write");
   const canApprove = hasPermission(session.role, "voucher_funds.approve");
   const canPublish = hasPermission(session.role, "voucher_funds.publish");
@@ -116,6 +134,48 @@ export default async function VoucherAllocationDetailPage({
           subtitle={template?.title ?? undefined}
           badges={<Badge variant={STATE_VARIANT[allocation.state] ?? "secondary"}>{allocation.state.replaceAll("_", " ")}</Badge>}
         />
+
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              Participating merchants{readiness.length > 1 ? ` (${readiness.length})` : ""}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {unreadyDescription && (
+              <p className="rounded-card border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                <strong>Cannot publish yet.</strong> {unreadyDescription}
+              </p>
+            )}
+            {readiness.length === 0 && (
+              <p className="text-sm text-ink-muted">No participating merchants resolved.</p>
+            )}
+            {readiness.map((merchant) => (
+              <div
+                key={merchant.partner_id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-card border border-border px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-ink">
+                    {merchant.merchant_name}
+                    {merchant.is_primary && (
+                      <span className="ml-2 text-xs font-normal text-ink-muted">primary</span>
+                    )}
+                  </p>
+                  {merchant.reason && <p className="text-xs text-amber-800">{merchant.reason}</p>}
+                  {merchant.ready && !merchant.payout_destination_ready && (
+                    // Advisory only: settlement allows a payable before a
+                    // destination is on file.
+                    <p className="text-xs text-ink-muted">No payout destination on file yet</p>
+                  )}
+                </div>
+                <Badge variant={merchant.ready ? "secondary" : "destructive"}>
+                  {merchant.ready ? "Ready" : "Not ready"}
+                </Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>

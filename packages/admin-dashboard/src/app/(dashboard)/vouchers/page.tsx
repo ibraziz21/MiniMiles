@@ -68,7 +68,7 @@ async function getRewardsDashboard(canReadFunds: boolean) {
     supabase.from("v_voucher_funding_program_budget").select("program_id, available_budget_minor, committed_minor"),
     supabase
       .from("voucher_funding_allocations")
-      .select("id, program_id, state, partners(name), voucher_funding_programs(name)")
+      .select("id, program_id, state, partners!voucher_funding_allocations_merchant_id_fkey(name), voucher_funding_programs(name)")
       .in("state", ["draft", "pending_approval", "approved", "paused"])
       .order("updated_at", { ascending: false })
       .limit(6),

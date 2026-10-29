@@ -1,4 +1,6 @@
-import { CalendarClock, CheckCircle2, ShoppingBag, Sparkles } from "lucide-react";
+import { entitlementFromOffer, entitlementBenefit } from "@/lib/vouchers/customerEntitlement";
+import { VoucherEntitlementSummary } from "./VoucherEntitlementSummary";
+import { CheckCircle2, ShoppingBag } from "lucide-react";
 import { ClaimOfferButton } from "@/components/vouchers/ClaimOfferButton";
 
 export type FundedOffer = {
@@ -18,12 +20,67 @@ export type FundedOffer = {
   terms: string | null;
   eligibilitySummary: string | null;
   claimEndsAt: string;
+  voucherValiditySeconds?: number | null;
   claimStartsAt?: string;
   claimsOpen?: boolean;
-  redemptionSchedule?: { days: number[]; timezone: string } | null;
+  redemptionSchedule?: { days: number[]; timezone: string; startDate?: string; endDate?: string } | null;
   claimDays?: number[];
   merchant: { name: string; slug: string; imageUrl: string | null };
+  /**
+   * Every merchant this voucher may be redeemed at, primary first, then the
+   * rest by name. Always populated — a single-merchant offer carries one
+   * entry — so no consumer needs a special case, and multi-merchant status is
+   * read from the authoritative set rather than inferred from how many
+   * profiles happened to load (BDR-006).
+   */
+  merchants: MerchantSummary[];
 };
+
+export type MerchantSummary = {
+  id: string;
+  name: string;
+  slug: string;
+  imageUrl: string | null;
+};
+
+/**
+ * The participant list, tolerating a payload that predates the field.
+ *
+ * `merchants` is required on the type and every loader populates it, but a
+ * serialized offer from an older deploy will not have it. Falling back to
+ * `[merchant]` is the documented legacy behaviour: such an offer genuinely
+ * was single-merchant, since nothing could produce a multi-merchant one
+ * before this field existed. Reading `.length` off undefined instead would
+ * take down a whole catalogue response.
+ */
+export function offerMerchants(offer: FundedOffer): MerchantSummary[] {
+  if (Array.isArray(offer.merchants) && offer.merchants.length > 0) return offer.merchants;
+  if (!offer.merchant) return [];
+  return [{ id: "", name: offer.merchant.name, slug: offer.merchant.slug, imageUrl: offer.merchant.imageUrl }];
+}
+
+/** A voucher usable at more than one merchant. */
+export function isMultiMerchantOffer(offer: FundedOffer): boolean {
+  return offerMerchants(offer).length > 1;
+}
+
+/** Compatibility export for callers adopting the shared entitlement summary. */
+export function FundedOfferParticipants({
+  offer,
+  className = "",
+}: {
+  offer: FundedOffer;
+  className?: string;
+}) {
+  return <VoucherEntitlementSummary entitlement={entitlementFromOffer(offer)} />;
+}
+
+/** Where a funded offer can be spent, in words. */
+export function fundedMerchantLabel(offer: FundedOffer): string {
+  const merchants = offerMerchants(offer);
+  if (merchants.length <= 1) return offer.merchant.name;
+  return `Use once at any of ${merchants.length} merchants`;
+}
 
 /**
  * The one place a funded offer's benefit is turned into words. Shared by the
@@ -31,20 +88,14 @@ export type FundedOffer = {
  * flat discount on one surface and not the other.
  */
 export function fundedBenefitLabel(offer: FundedOffer): string {
-  if (offer.voucherType === "percent_off") {
-    const percent = offer.discountPercent ?? 0;
-    return offer.maximumDiscountKes != null
-      ? `${percent}% off, up to KES ${offer.maximumDiscountKes.toLocaleString("en-KE")}`
-      : `${percent}% off`;
-  }
-  return `KES ${(offer.discountKes ?? 0).toLocaleString("en-KE")} off`;
+  return entitlementBenefit(entitlementFromOffer(offer));
 }
 
 /**
  * Akiba-funded voucher offer — free, eligibility-gated, never Miles-priced
  * (akiba-funded-voucher-admin-spec.md §7.3 "must never infer voucher value
  * from a Miles price"). Visually distinct from the Miles catalog's
- * AvailableCard via the "Funded by Akiba" badge (§12.1), but shares its
+ * AvailableCard via its free-offer styling, but shares its
  * merchant-header layout for a consistent grid on the same page.
  */
 export function FundedOfferCard({
@@ -57,14 +108,11 @@ export function FundedOfferCard({
   /** Computed server-side, straight from voucher_claims — see getClaimedAllocationIds. */
   alreadyClaimed: boolean;
 }) {
-  const claimEnds = new Date(offer.claimEndsAt);
-  const claimEndsLabel = Number.isFinite(claimEnds.getTime())
-    ? claimEnds.toLocaleDateString("en-KE", { day: "numeric", month: "short" })
-    : null;
+  const entitlement = entitlementFromOffer(offer);
 
   return (
-    <article id={`funded-${offer.allocationId}`} className={`group scroll-mt-24 flex min-h-[320px] flex-col overflow-hidden rounded-3xl border bg-white transition hover:-translate-y-0.5 hover:shadow-soft ${alreadyClaimed ? "border-akiba-line opacity-75" : "border-emerald-200"}`}>
-      <div className="relative border-b border-dashed border-emerald-200 bg-gradient-to-br from-emerald-50 to-white px-4 pb-5 pt-4">
+    <article id={`funded-${offer.allocationId}`} className={`group scroll-mt-24 flex min-h-[320px] flex-col overflow-hidden rounded-3xl border bg-white transition hover:-translate-y-0.5 hover:shadow-soft ${alreadyClaimed ? "border-akiba-line" : "border-emerald-200"}`}>
+      <div className="relative border-b border-dashed border-emerald-200 bg-emerald-50 px-4 pb-5 pt-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-chip">
@@ -77,12 +125,9 @@ export function FundedOfferCard({
             </div>
             <div className="min-w-0">
               <p className="truncate text-xs font-medium text-akiba-muted">{offer.merchant.name}</p>
-              <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
-                <Sparkles className="h-3 w-3" aria-hidden="true" /> Funded by Akiba
-              </span>
             </div>
           </div>
-          <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${alreadyClaimed ? "bg-akiba-card text-akiba-muted" : "bg-emerald-600 text-white"}`}>
+          <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${alreadyClaimed ? "bg-akiba-card text-akiba-muted" : "bg-emerald-700 text-white"}`}>
             {alreadyClaimed ? "Claimed" : "Free"}
           </span>
         </div>
@@ -93,16 +138,8 @@ export function FundedOfferCard({
 
       <div className="flex flex-1 flex-col px-4 py-4 text-sm text-akiba-muted">
         <h3 className="font-semibold leading-snug text-akiba-ink">{offer.title}</h3>
-        <p className="mt-1.5 text-xs">
-          Minimum purchase <span className="font-semibold text-akiba-ink">KES {offer.minimumSpendKes.toLocaleString("en-KE")}</span>
-        </p>
-        {offer.redemptionSchedule && <p className="mt-2 text-xs font-semibold text-akiba-tealDark">Use on {offer.redemptionSchedule.days.map((day) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][day]).join(", ")} ({offer.redemptionSchedule.timezone})</p>}
+        <div className="mt-2"><VoucherEntitlementSummary entitlement={entitlement} /></div>
         {offer.eligibilitySummary && <p className="mt-2 rounded-xl bg-akiba-card px-3 py-2 text-xs">{offer.eligibilitySummary}</p>}
-        {claimEndsLabel && (
-          <p className="mt-2 flex items-center gap-1.5 text-[11px] text-akiba-muted/80">
-            <CalendarClock className="h-3.5 w-3.5" /> Claim by {claimEndsLabel}
-          </p>
-        )}
         <div className="mt-auto pt-4">
           {alreadyClaimed && (
             <p className="mb-2 flex items-center justify-center gap-1.5 text-xs font-medium text-emerald-700">
@@ -114,8 +151,7 @@ export function FundedOfferCard({
             isSignedIn={isSignedIn}
             alreadyClaimed={alreadyClaimed}
             eligibilitySummary={offer.eligibilitySummary}
-            merchantName={offer.merchant.name}
-            claimEndsAt={offer.claimEndsAt}
+            entitlement={entitlement}
             claimStartsAt={offer.claimStartsAt}
             claimsOpen={offer.claimsOpen}
           />
@@ -124,7 +160,7 @@ export function FundedOfferCard({
 
       <a
         href={`/merchants/${offer.merchant.slug}`}
-        className="flex items-center justify-center border-t border-akiba-line bg-akiba-card/70 py-2.5 text-xs font-semibold text-akiba-muted transition hover:bg-emerald-50 hover:text-emerald-700"
+        className="flex min-h-11 items-center justify-center border-t border-akiba-line bg-akiba-card/70 py-2.5 text-xs font-semibold text-akiba-muted transition hover:bg-emerald-50 hover:text-emerald-700"
       >
         View merchant
       </a>

@@ -51,7 +51,7 @@ export async function GET(request: Request) {
     [feed, cities, fundedOffers] = await Promise.all([
       getHomeFeed({ userId: actor?.userId ?? null, userEmail: actor?.email ?? null, lat, lng, intent }),
       listDirectoryCities().catch(() => []),
-      getFundedOffers().then(fundedOffersForV1).catch(() => []),
+      getFundedOffers().then(fundedOffersForV1),
     ]);
   } catch {
     return apiError(request, "HOME_FEED_UNAVAILABLE", "The home feed is temporarily unavailable", 503, {

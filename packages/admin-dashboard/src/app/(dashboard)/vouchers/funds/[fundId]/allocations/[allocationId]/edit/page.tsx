@@ -3,7 +3,7 @@ import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { minorToKes } from "@/lib/voucherFunds";
 import { PageHeader } from "@/components/shell/PageHeader";
-import { AllocationForm } from "@/components/vouchers/AllocationForm";
+import { AllocationForm, type MerchantOption } from "@/components/vouchers/AllocationForm";
 
 export default async function EditVoucherAllocationPage({
   params,
@@ -14,16 +14,30 @@ export default async function EditVoucherAllocationPage({
   if (!session) redirect("/login");
   const { fundId, allocationId } = await params;
 
-  const { data: allocation } = await supabase
+  const { data: allocation, error: allocationError } = await supabase
     .from("voucher_funding_allocations")
     .select(
-      "id, version, state, metadata, quantity_cap, authorized_budget_minor, claim_starts_at, claim_ends_at, voucher_validity_seconds, distribution_modes, recycle_expired_inventory, program_id, spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, description, terms_text, voucher_type, discount_kes, discount_percent, maximum_discount_kes, minimum_spend_kes), partners(name), voucher_funding_programs(country_code), voucher_eligibility_rule_sets(mode, rules, customer_copy)",
+      "id, version, state, metadata, merchant_id, quantity_cap, authorized_budget_minor, claim_starts_at, claim_ends_at, voucher_validity_seconds, distribution_modes, recycle_expired_inventory, program_id, spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, description, terms_text, voucher_type, discount_kes, discount_percent, maximum_discount_kes, minimum_spend_kes), partners!voucher_funding_allocations_merchant_id_fkey(name), voucher_funding_programs(country_code), voucher_eligibility_rule_sets(mode, rules, customer_copy)",
     )
     .eq("id", allocationId)
     .single();
 
+  if (allocationError && allocationError.code !== "PGRST116") throw new Error("Allocation details are temporarily unavailable");
   if (!allocation || allocation.program_id !== fundId) notFound();
   if (allocation.state !== "draft") redirect(`/vouchers/funds/${fundId}/allocations/${allocationId}`);
+
+  // Membership is editable while the allocation is draft, so the form needs
+  // the persisted set and the merchant options to render it. Reading what was
+  // saved, not what the operator last typed.
+  const [{ data: additionalMerchants, error: membershipError }, { data: partners, error: partnersError }] = await Promise.all([
+    supabase
+      .from("voucher_allocation_merchants")
+      .select("partner_id")
+      .eq("allocation_id", allocationId),
+    supabase.from("partners").select("id, name, country, status").order("name"),
+  ]);
+
+  if (membershipError || partnersError) throw new Error("Allocation merchants are temporarily unavailable");
 
   const template = allocation.spend_voucher_templates as unknown as {
     title: string;
@@ -49,7 +63,7 @@ export default async function EditVoucherAllocationPage({
       <AllocationForm
         fundId={fundId}
         fundCountryCode={fund?.country_code ?? "KE"}
-        merchants={[]}
+        merchants={(partners ?? []) as MerchantOption[]}
         initial={{
           redemptionSchedule: allocation.metadata?.redemption_schedule ?? null,
           eligibilityRules: ruleSet?.rules ?? [],
@@ -58,10 +72,12 @@ export default async function EditVoucherAllocationPage({
           id: allocation.id,
           version: allocation.version,
           merchantName: merchant?.name ?? "",
+          merchantPartnerId: allocation.merchant_id as string,
           title: template?.title ?? "",
           description: template?.description ?? "",
           termsText: template?.terms_text ?? "",
           voucherType: template?.voucher_type ?? "fixed_off",
+          additionalMerchantIds: (additionalMerchants ?? []).map((row) => row.partner_id as string),
           discountKes: template?.discount_kes ?? 0,
           discountPercent: template?.discount_percent ?? null,
           maximumDiscountKes: template?.maximum_discount_kes ?? null,

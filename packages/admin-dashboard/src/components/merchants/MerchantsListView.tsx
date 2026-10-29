@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { RemoveMerchantControl } from "./RemoveMerchantControl";
 import { Store, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -9,6 +10,7 @@ import { formatNumber } from "@/lib/utils";
 
 export interface MerchantRow {
   id: string;
+  status: string;
   name: string;
   country: string | null;
   image_url: string | null;
@@ -43,16 +45,17 @@ function MerchantAvatar({ merchant }: { merchant: MerchantRow }) {
   );
 }
 
-export function MerchantsListView({ merchants }: { merchants: MerchantRow[] }) {
+export function MerchantsListView({ merchants, canManage = false }: { merchants: MerchantRow[]; canManage?: boolean }) {
   const [search, setSearch] = useState("");
+  const [view, setView] = useState("current");
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return merchants;
-    return merchants.filter(
-      (m) => m.name.toLowerCase().includes(q) || m.country?.toLowerCase().includes(q),
+    return merchants.filter((m) =>
+      (view === "archived" ? m.status === "archived" : m.status !== "archived")
+      && (!q || m.name.toLowerCase().includes(q) || m.country?.toLowerCase().includes(q)),
     );
-  }, [merchants, search]);
+  }, [merchants, search, view]);
 
   return (
     <div className="space-y-4">
@@ -68,15 +71,22 @@ export function MerchantsListView({ merchants }: { merchants: MerchantRow[] }) {
         />
       </div>
 
+      <label className="flex items-center gap-2 text-sm">Show
+        <select className="min-h-[44px] rounded-control border border-border bg-surface px-3" value={view} onChange={(e) => setView(e.target.value)}>
+          <option value="current">Current merchants</option>
+          <option value="archived">Archived merchants</option>
+        </select>
+      </label>
+
       {filtered.length === 0 ? (
-        <EmptyState message="No merchants match these filters. Clear the search to see all merchants." isHealthy={false} />
+        <EmptyState message="No merchants match these filters. Try another search or merchant view." isHealthy={false} />
       ) : (
         <>
           {/* Mobile: cards, single primary action (spec §10.3) */}
           <div className="space-y-3 lg:hidden">
             {filtered.map((m) => (
+              <div key={m.id} className="rounded-card border border-border bg-surface">
               <Link
-                key={m.id}
                 href={`/merchants/${m.id}`}
                 className="flex items-center gap-3 rounded-card border border-border bg-surface p-4 transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
@@ -89,6 +99,8 @@ export function MerchantsListView({ merchants }: { merchants: MerchantRow[] }) {
                   </div>
                 </div>
               </Link>
+              {canManage && m.status !== "archived" ? <div className="px-4 pb-4"><RemoveMerchantControl id={m.id} name={m.name} /></div> : null}
+              </div>
             ))}
           </div>
 
@@ -103,6 +115,7 @@ export function MerchantsListView({ merchants }: { merchants: MerchantRow[] }) {
                     <th className="px-4 py-3 text-right">Voucher Types</th>
                     <th className="px-4 py-3 text-right">Active</th>
                     <th className="px-4 py-3 text-right">Team</th>
+                    {canManage ? <th className="px-4 py-3 text-right">Actions</th> : null}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -121,6 +134,7 @@ export function MerchantsListView({ merchants }: { merchants: MerchantRow[] }) {
                       <td className="px-4 py-3 text-right font-mono tabular-nums text-ink-muted">{formatNumber(m.voucher_types)}</td>
                       <td className="px-4 py-3 text-right font-mono tabular-nums text-ink-muted">{formatNumber(m.active_voucher_types)}</td>
                       <td className="px-4 py-3 text-right text-ink-muted">{m.team_count}</td>
+                      {canManage ? <td className="px-4 py-3 text-right">{m.status !== "archived" ? <RemoveMerchantControl id={m.id} name={m.name} /> : <Badge variant="secondary">Archived</Badge>}</td> : null}
                     </tr>
                   ))}
                 </tbody>

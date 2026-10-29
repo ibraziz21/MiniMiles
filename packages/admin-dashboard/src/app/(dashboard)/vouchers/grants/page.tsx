@@ -9,7 +9,7 @@ async function getGrantableAllocations(): Promise<GrantAllocationOption[]> {
   const [{ data: allocations }, { data: availability }] = await Promise.all([
     supabase
       .from("voucher_funding_allocations")
-      .select(`id, program_id, state, distribution_modes, claim_ends_at, max_reimbursement_minor, partners(name), voucher_funding_programs(name, currency), spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, ${ALLOCATION_BENEFIT_COLUMNS}, minimum_spend_kes)`)
+      .select(`id, program_id, state, distribution_modes, claim_ends_at, max_reimbursement_minor, partners!voucher_funding_allocations_merchant_id_fkey(name), voucher_funding_programs(name, currency), spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, ${ALLOCATION_BENEFIT_COLUMNS}, minimum_spend_kes)`)
       .in("state", ["active", "scheduled"])
       .contains("distribution_modes", ["internal_grant"])
       .order("claim_ends_at", { ascending: true }),

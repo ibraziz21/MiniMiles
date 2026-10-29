@@ -75,7 +75,7 @@ function QualificationProgressBar({ outcome }: { outcome: LoyaltyQualificationOu
       className="h-1.5 w-full overflow-hidden rounded-full bg-akiba-line"
     >
       <div
-        className={`h-full rounded-full motion-safe:transition-[width] motion-safe:duration-500 ${outcome.satisfied ? "bg-emerald-500" : "bg-akiba-teal"}`}
+        className={`h-full rounded-full motion-safe:transition-[width] motion-safe:duration-500 ${outcome.satisfied ? "bg-emerald-500" : "bg-akiba-tealAccessible"}`}
         style={{ width: `${outcome.satisfied ? 100 : percent}%` }}
       />
     </div>
@@ -104,8 +104,8 @@ export function LoyaltyVoucherCard({
     : null;
 
   return (
-    <article className={`group flex min-h-[320px] flex-col overflow-hidden rounded-3xl border bg-white transition hover:-translate-y-0.5 hover:shadow-soft focus-within:border-akiba-teal/40 ${offer.alreadyClaimed || locked ? "border-akiba-line" : "border-akiba-teal/20"} ${offer.alreadyClaimed ? "opacity-75" : ""}`}>
-      <div className={`relative border-b border-dashed px-4 pb-5 pt-4 ${locked ? "border-akiba-line bg-akiba-card/60" : "border-akiba-teal/20 bg-gradient-to-br from-akiba-tint to-white"}`}>
+    <article className={`group flex min-h-[320px] flex-col overflow-hidden rounded-3xl border bg-white transition hover:-translate-y-0.5 hover:shadow-soft focus-within:border-akiba-tealAccessible/40 ${offer.alreadyClaimed || locked ? "border-akiba-line" : "border-akiba-tealAccessible/20"} `}>
+      <div className={`relative border-b border-dashed px-4 pb-5 pt-4 ${locked ? "border-akiba-line bg-akiba-card/60" : "border-akiba-tealAccessible/20 bg-gradient-to-br from-akiba-tint to-white"}`}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-akiba-line bg-white shadow-chip">
@@ -118,13 +118,13 @@ export function LoyaltyVoucherCard({
             </div>
             <div className="min-w-0">
               <p className="truncate text-xs font-medium text-akiba-muted">{offer.merchant.name}</p>
-              <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-akiba-teal">
+              <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-akiba-tealAccessible">
                 {locked ? <Lock className="h-3 w-3" aria-hidden="true" /> : <BadgeCheck className="h-3 w-3" aria-hidden="true" />}
                 {offer.accessPolicy === "loyalty_qualified" ? "Loyalty reward" : "Reward"}
               </span>
             </div>
           </div>
-          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${offer.alreadyClaimed || locked ? "bg-akiba-card text-akiba-muted" : offer.acquisitionMode === "free" ? "bg-akiba-teal text-white" : "bg-akiba-ink text-white"}`}>
+          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${offer.alreadyClaimed || locked ? "bg-akiba-card text-akiba-muted" : offer.acquisitionMode === "free" ? "bg-akiba-tealAccessible text-white" : "bg-akiba-ink text-white"}`}>
             {offer.alreadyClaimed ? "Claimed" : locked ? "Locked" : offer.acquisitionMode === "free" ? "Free" : "Available"}
           </span>
         </div>
@@ -148,12 +148,12 @@ export function LoyaltyVoucherCard({
                 <QualificationProgressBar outcome={outcome} />
               </div>
             ))}
-            <p className="text-[10px] text-akiba-muted/75">Progress is based on purchases recorded with Akiba.</p>
+            <p className="text-[10px] text-akiba-muted">Progress is based on purchases recorded with Akiba.</p>
           </div>
         )}
 
         {endsLabel && (
-          <p className="mt-2 flex items-center gap-1.5 text-[11px] text-akiba-muted/80">
+          <p className="mt-2 flex items-center gap-1.5 text-[11px] text-akiba-muted">
             <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" /> Claim by {endsLabel}
           </p>
         )}
@@ -186,7 +186,7 @@ export function LoyaltyVoucherCard({
 
       <a
         href={`/merchants/${offer.merchant.slug}`}
-        className="flex min-h-11 items-center justify-center border-t border-akiba-line bg-akiba-card/70 px-4 py-2.5 text-xs font-semibold text-akiba-muted transition hover:bg-akiba-tint hover:text-akiba-teal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-akiba-teal"
+        className="flex min-h-11 items-center justify-center border-t border-akiba-line bg-akiba-card/70 px-4 py-2.5 text-xs font-semibold text-akiba-muted transition hover:bg-akiba-tint hover:text-akiba-tealAccessible focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-akiba-tealAccessible"
       >
         View merchant
       </a>

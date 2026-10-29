@@ -28,11 +28,22 @@ from commit dates.
 | Akiba-Platform | 118, 126, 147, 148 | 2026-10-04 |
 | MiniMiles | 098 | 2026-10-14 |
 
-Both run against the same database. The live definition is therefore MiniMiles
-098 — ten days later, and its own header states it is "a forward-only
-replacement for the Platform phase-one claim function". It also carries 148's
-hardening (identity pairing, idempotency-conflict detection, country policy,
-reservation ledger) forward, so it is a successor rather than a fork.
+Both run against the same database. MiniMiles 098 was authored later and its
+own header states it is "a forward-only replacement for the Platform
+phase-one claim function"; it also carries 148's hardening (identity pairing,
+idempotency-conflict detection, country policy, reservation ledger) forward,
+so it is a successor rather than a fork.
+
+**The dates above are commit dates — authoring order, not apply order.** They
+are the reason to believe MiniMiles owns this function, not proof of it. Which
+definition is actually live in a given environment must be read from that
+database:
+
+```sql
+SELECT pg_get_functiondef(oid)
+  FROM pg_proc
+ WHERE proname = 'claim_akiba_funded_voucher_atomic';
+```
 
 The two eligibility trigger functions were only ever defined in Akiba-Platform
 149, and they both independently enumerate the rule-type vocabulary:

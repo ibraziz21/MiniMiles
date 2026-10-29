@@ -1,5 +1,9 @@
 "use client";
 
+import { FundedDiscoveryNotice } from "@/components/vouchers/FundedDiscoveryNotice";
+import { entitlementBenefit, type CustomerVoucherEntitlement } from "@/lib/vouchers/customerEntitlement";
+import { VoucherEntitlementFacts } from "@/components/vouchers/VoucherEntitlementSummary";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -15,7 +19,6 @@ import {
   QrCode,
   RotateCw,
   ShoppingBag,
-  Sparkles,
   Tag,
   TicketCheck,
   WalletCards,
@@ -53,11 +56,15 @@ const SOURCE_LABELS: Record<string, string> = {
   giveaway: "Giveaway reward",
   merchant_grant: "Gift from merchant",
   akiba_grant: "Gift from Akiba",
+  akiba_funded_claim: "Free offer",
+  akiba_funded_grant: "Gift",
+  akiba_funded_auto_award: "Reward",
   loyalty_free_claim: "Loyalty reward",
   loyalty_miles_purchase: "Loyalty reward",
 };
 
 type IssuedVoucher = {
+  entitlement: CustomerVoucherEntitlement;
   id: string;
   code: string;
   status: "issued" | "redeemed" | "expired" | "void" | "pending" | "claiming";
@@ -66,6 +73,7 @@ type IssuedVoucher = {
   redeemed_at: string | null;
   acquisition_source?: string | null;
   sponsor?: string | null;
+  participantCount?: number;
   voucher_programs?: { name: string } | null;
   spend_voucher_templates: VoucherTemplate | null;
 };
@@ -92,6 +100,7 @@ export function VoucherTabs({
   claimedAllocationIds,
   isSignedIn,
   questMode = false,
+  fundedUnavailable = false,
 }: {
   templates: VoucherTemplate[];
   fundedOffers: FundedOffer[];
@@ -99,6 +108,7 @@ export function VoucherTabs({
   claimedAllocationIds: string[];
   isSignedIn: boolean;
   questMode?: boolean;
+  fundedUnavailable?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -216,7 +226,7 @@ export function VoucherTabs({
           selected={primaryTab === "claim"}
           icon={<Gift className="h-5 w-5" />}
           title="Claim free offers"
-          description={freeLoyaltyOffers.length > 0 ? "No Miles needed" : "Funded by Akiba"}
+          description="No Miles needed"
           badge={unclaimedOfferCount > 0 ? String(unclaimedOfferCount) : undefined}
           onClick={() => selectPrimary("claim")}
         />
@@ -243,7 +253,7 @@ export function VoucherTabs({
               title="My vouchers"
               description="Everything you own, ready when you need it."
               action={active.length === 0 && loaded ? (
-                <button type="button" onClick={() => setTab("available")} className="inline-flex items-center gap-1 text-sm font-semibold text-akiba-teal hover:text-akiba-tealDark">
+                <button type="button" onClick={() => setTab("available")} className="inline-flex items-center gap-1 text-sm font-semibold text-akiba-tealAccessible hover:text-akiba-tealAccessible">
                   Browse rewards <ArrowRight className="h-4 w-4" />
                 </button>
               ) : undefined}
@@ -270,7 +280,7 @@ export function VoucherTabs({
                 subtitle={tab === "active" ? "Claim a free offer or use your Miles to get your first voucher." : "Your voucher history will appear here."}
                 action={tab === "active" ? (
                   <div className="mt-5 flex flex-wrap justify-center gap-2">
-                    {(fundedOffers.length > 0 || freeLoyaltyOffers.length > 0) && <button type="button" onClick={() => setTab("claimable")} className="rounded-full border border-akiba-teal/25 bg-akiba-tint px-4 py-2 text-sm font-semibold text-akiba-teal">Claim free offer</button>}
+                    {(fundedOffers.length > 0 || freeLoyaltyOffers.length > 0) && <button type="button" onClick={() => setTab("claimable")} className="rounded-full border border-akiba-tealAccessible/25 bg-akiba-tint px-4 py-2 text-sm font-semibold text-akiba-tealAccessible">Claim free offer</button>}
                     <button type="button" onClick={() => setTab("available")} className="rounded-full bg-akiba-ink px-4 py-2 text-sm font-semibold text-white">Shop with Miles</button>
                   </div>
                 ) : undefined}
@@ -288,13 +298,13 @@ export function VoucherTabs({
             <SectionHeading
               eyebrow="No Miles needed"
               title="Claim free offers"
-              description={freeLoyaltyOffers.length > 0
-                ? "Free vouchers you can claim — funded by Akiba or by the merchant, depending on the offer."
-                : "If you qualify, Akiba covers the voucher value and reimburses the merchant."}
+              description="Choose an offer to claim."
             />
+            {fundedUnavailable && <FundedDiscoveryNotice />}
             {fundedOffers.length === 0 && freeLoyaltyOffers.length === 0 ? (
+              fundedUnavailable ? null :
               <EmptyState
-                icon={<Sparkles className="h-7 w-7" />}
+                icon={<Gift className="h-7 w-7" />}
                 title="No free offers right now"
                 subtitle="New free offers will appear here when they become available."
                 action={<button type="button" onClick={() => setTab("available")} className="mt-5 rounded-full bg-akiba-ink px-4 py-2 text-sm font-semibold text-white">Shop with Miles instead</button>}
@@ -302,8 +312,7 @@ export function VoucherTabs({
             ) : (
               <>
                 <div className="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-950">
-                  <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
-                  <p><span className="font-semibold">How it works:</span> Choose an offer and we’ll confirm its availability and any requirements, then add it straight to My vouchers. You never pay Miles for these offers.</p>
+                  <p><span className="font-semibold">How it works:</span> Claim an offer, then find it in My vouchers. No Miles needed.</p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {sortedFundedOffers.map((offer) => (
@@ -338,8 +347,8 @@ export function VoucherTabs({
               />
             ) : (
               <>
-                <div className="mb-5 flex items-start gap-3 rounded-2xl border border-akiba-teal/15 bg-akiba-tint/70 px-4 py-3 text-sm text-akiba-ink">
-                  <WalletCards className="mt-0.5 h-4 w-4 shrink-0 text-akiba-teal" />
+                <div className="mb-5 flex items-start gap-3 rounded-2xl border border-akiba-tealAccessible/15 bg-akiba-tint/70 px-4 py-3 text-sm text-akiba-ink">
+                  <WalletCards className="mt-0.5 h-4 w-4 shrink-0 text-akiba-tealAccessible" />
                   <p>Choose a reward, review the Miles price, then confirm. Your balance is only charged after confirmation.</p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -386,23 +395,23 @@ function HubTab({
       onClick={onClick}
       className={clsx(
         "group flex min-w-0 items-center gap-3 rounded-2xl border px-3.5 py-3 text-left transition sm:items-start sm:px-4 sm:py-4",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus-visible:ring-offset-2",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-tealAccessible focus-visible:ring-offset-2",
         selected
           ? "border-akiba-ink bg-akiba-ink text-white shadow-soft"
-          : "border-akiba-line bg-white text-akiba-ink hover:border-akiba-teal/40 hover:shadow-chip",
+          : "border-akiba-line bg-white text-akiba-ink hover:border-akiba-tealAccessible/40 hover:shadow-chip",
       )}
     >
-      <span className={clsx("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition", selected ? "bg-white/15 text-white" : "bg-akiba-tint text-akiba-teal")}>
+      <span className={clsx("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition", selected ? "bg-white/15 text-white" : "bg-akiba-tint text-akiba-tealAccessible")}>
         {icon}
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
           <span className="truncate text-sm font-semibold sm:text-base">{title}</span>
-          {badge && <span className={clsx("rounded-full px-2 py-0.5 text-[10px] font-bold", selected ? "bg-akiba-teal text-white" : "bg-akiba-tint text-akiba-teal")}>{badge}</span>}
+          {badge && <span className={clsx("rounded-full px-2 py-0.5 text-[10px] font-bold", selected ? "bg-akiba-tealAccessible text-white" : "bg-akiba-tint text-akiba-tealAccessible")}>{badge}</span>}
         </span>
         <span className={clsx("mt-0.5 block truncate text-xs", selected ? "text-white/65" : "text-akiba-muted")}>{description}</span>
       </span>
-      <ChevronRight className={clsx("mt-2 h-4 w-4 shrink-0 transition sm:mt-3", selected ? "text-white/70" : "text-akiba-line group-hover:translate-x-0.5 group-hover:text-akiba-teal")} />
+      <ChevronRight className={clsx("mt-2 h-4 w-4 shrink-0 transition sm:mt-3", selected ? "text-white/70" : "text-akiba-line group-hover:translate-x-0.5 group-hover:text-akiba-tealAccessible")} />
     </button>
   );
 }
@@ -411,7 +420,7 @@ function SectionHeading({ eyebrow, title, description, action }: { eyebrow: stri
   return (
     <div className="mb-5 flex items-end justify-between gap-4 sm:mb-6">
       <div>
-        <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-akiba-teal">{eyebrow}</p>
+        <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-akiba-tealAccessible">{eyebrow}</p>
         <h2 className="font-sterling text-2xl font-semibold text-akiba-ink sm:text-3xl">{title}</h2>
         <p className="mt-1 max-w-2xl text-sm text-akiba-muted">{description}</p>
       </div>
@@ -429,13 +438,13 @@ function StatusTab({ selected, onClick, icon, label, count }: { selected: boolea
       onClick={onClick}
       className={clsx(
         "flex flex-1 items-center justify-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-semibold transition sm:flex-none sm:px-4 sm:text-sm",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-tealAccessible",
         selected ? "bg-white text-akiba-ink shadow-chip" : "text-akiba-muted hover:text-akiba-ink",
       )}
     >
       <span className="hidden sm:block">{icon}</span>
       {label}
-      {count !== undefined && <span className={clsx("rounded-full px-1.5 py-0.5 text-[10px]", selected ? "bg-akiba-tint text-akiba-teal" : "bg-white text-akiba-muted")}>{count}</span>}
+      {count !== undefined && <span className={clsx("rounded-full px-1.5 py-0.5 text-[10px]", selected ? "bg-akiba-tint text-akiba-tealAccessible" : "bg-white text-akiba-muted")}>{count}</span>}
     </button>
   );
 }
@@ -458,7 +467,7 @@ function SignInState() {
       <div className="relative mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-white"><TicketCheck className="h-7 w-7" /></div>
       <h3 className="relative mt-4 font-sterling text-2xl font-semibold text-white">Your vouchers live here</h3>
       <p className="relative mx-auto mt-2 max-w-sm text-sm text-white/65">Sign in to see vouchers you own, open their QR codes, and check your redemption history.</p>
-      <a href="/login" className="relative mt-6 inline-flex items-center gap-2 rounded-full bg-akiba-teal px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-akiba-tealDark">
+      <a href="/login" className="relative mt-6 inline-flex items-center gap-2 rounded-full bg-akiba-tealAccessible px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-akiba-tealDark">
         Sign in to continue <ArrowRight className="h-4 w-4" />
       </a>
     </div>
@@ -510,17 +519,17 @@ function AvailableCard({ template: t, isSignedIn, questMode }: { template: Vouch
   const [interacted, setInteracted] = useState(false);
 
   return (
-    <article className="group flex min-h-[300px] flex-col overflow-hidden rounded-3xl border border-akiba-line bg-white transition hover:-translate-y-0.5 hover:border-akiba-teal/30 hover:shadow-soft">
+    <article className="group flex min-h-[300px] flex-col overflow-hidden rounded-3xl border border-akiba-line bg-white transition hover:-translate-y-0.5 hover:border-akiba-tealAccessible/30 hover:shadow-soft">
       <div className="relative border-b border-dashed border-akiba-line bg-gradient-to-br from-akiba-tint to-white px-4 pb-5 pt-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <MerchantMark imageUrl={merchant?.image_url} name={merchant?.name ?? "Akiba merchant"} />
             <div className="min-w-0">
               <p className="truncate text-xs font-medium text-akiba-muted">{merchant?.name ?? "All merchants"}</p>
-              <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-akiba-teal"><WalletCards className="h-3 w-3" /> Miles reward</span>
+              <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-akiba-tealAccessible"><WalletCards className="h-3 w-3" /> Miles reward</span>
             </div>
           </div>
-          <span className="rounded-full border border-akiba-teal/15 bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-akiba-teal">Available</span>
+          <span className="rounded-full border border-akiba-tealAccessible/15 bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-akiba-tealAccessible">Available</span>
         </div>
         <p className="mt-5 font-sterling text-2xl font-bold leading-none text-akiba-ink">{dealLabel(t)}</p>
       </div>
@@ -535,7 +544,7 @@ function AvailableCard({ template: t, isSignedIn, questMode }: { template: Vouch
           </div>
           <GetVoucherButton templateId={t.id} milesCost={t.miles_cost} isSignedIn={isSignedIn} onInteract={questMode ? () => setInteracted(true) : undefined} />
           {questMode && interacted && (
-            <p className="mt-2 flex items-center justify-center gap-1.5 text-xs font-medium text-akiba-teal"><CheckCircle2 className="h-3.5 w-3.5" /> Quest progress saved — <a href="/quests" className="underline">go to Quests</a></p>
+            <p className="mt-2 flex items-center justify-center gap-1.5 text-xs font-medium text-akiba-tealAccessible"><CheckCircle2 className="h-3.5 w-3.5" /> Quest progress saved — <a href="/quests" className="underline">go to Quests</a></p>
           )}
         </div>
       </div>
@@ -547,7 +556,7 @@ function AvailableCard({ template: t, isSignedIn, questMode }: { template: Vouch
             recordDealViewProof(t.id);
             if (questMode) setInteracted(true);
           }}
-          className="flex items-center justify-center gap-1.5 border-t border-akiba-line bg-akiba-card/70 py-2.5 text-xs font-semibold text-akiba-muted transition hover:bg-akiba-tint hover:text-akiba-teal"
+          className="flex items-center justify-center gap-1.5 border-t border-akiba-line bg-akiba-card/70 py-2.5 text-xs font-semibold text-akiba-muted transition hover:bg-akiba-tint hover:text-akiba-tealAccessible"
         >
           <ExternalLink className="h-3 w-3" /> View merchant
         </a>
@@ -566,38 +575,38 @@ function IssuedCard({ voucher: v }: { voucher: IssuedVoucher }) {
     <a
       href={`/vouchers/${v.id}`}
       className={clsx(
-        "group relative flex min-h-[250px] flex-col overflow-hidden rounded-3xl border bg-white transition hover:-translate-y-0.5 hover:shadow-soft",
-        v.status === "expired" ? "border-akiba-line opacity-65" : "border-akiba-teal/20",
+        "group relative flex min-h-[250px] flex-col overflow-hidden rounded-3xl border bg-white transition hover:-translate-y-0.5 hover:shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-tealAccessible focus-visible:ring-offset-2",
+        v.status === "expired" ? "border-akiba-line" : "border-akiba-tealAccessible/20",
       )}
     >
-      <span className={clsx("absolute inset-y-0 left-0 w-1.5", isReady ? "bg-akiba-teal" : isProcessing ? "bg-amber-400" : "bg-akiba-line")} />
+      <span className={clsx("absolute inset-y-0 left-0 w-1.5", isReady ? "bg-akiba-tealAccessible" : isProcessing ? "bg-amber-400" : "bg-akiba-line")} />
       <div className="flex items-start justify-between gap-3 px-5 pb-4 pt-5">
         <div className="flex min-w-0 items-center gap-3">
           <MerchantMark imageUrl={merchant?.image_url} name={merchant?.name ?? "Akiba merchant"} />
           <div className="min-w-0">
-            <p className="truncate text-xs text-akiba-muted">{merchant?.name ?? "All merchants"}</p>
-            <p className="mt-0.5 font-sterling text-xl font-bold text-akiba-ink">{template ? dealLabel(template) : "Voucher"}</p>
+            <p className="truncate text-xs text-akiba-muted">{merchant?.name ?? (v.status === "redeemed" ? "Merchant details unavailable" : "Akiba reward")}</p>
+            <p className="mt-0.5 font-sterling text-xl font-bold text-akiba-ink">{entitlementBenefit(v.entitlement)}</p>
           </div>
         </div>
         <span className={clsx(
           "shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide",
-          isReady ? "bg-akiba-tint text-akiba-teal" : isProcessing ? "bg-amber-50 text-amber-700" : v.status === "redeemed" ? "bg-emerald-50 text-emerald-700" : "bg-akiba-card text-akiba-muted",
+          isReady ? "bg-akiba-tint text-akiba-tealAccessible" : isProcessing ? "bg-amber-50 text-amber-700" : v.status === "redeemed" ? "bg-emerald-50 text-emerald-700" : "bg-akiba-card text-akiba-muted",
         )}>
           {isProcessing ? "Processing" : isReady ? "Ready" : v.status === "redeemed" ? "Used" : v.status}
         </span>
       </div>
 
       <div className="flex-1 border-t border-dashed border-akiba-line px-5 py-4">
-        {template && <h3 className="text-sm font-semibold text-akiba-ink">{template.title}</h3>}
+        <h3 className="text-sm font-semibold text-akiba-ink">{v.entitlement.title}</h3>
+        <div className="mt-2"><VoucherEntitlementFacts entitlement={v.entitlement} /></div>
         <div className="mt-2 space-y-1 text-xs text-akiba-muted">
-          {v.expires_at && <p className="flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5" /> Expires {new Date(v.expires_at).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" })}</p>}
           {v.redeemed_at && <p>Used {new Date(v.redeemed_at).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" })}</p>}
-          {v.acquisition_source && <p className="text-akiba-muted/75">{SOURCE_LABELS[v.acquisition_source] ?? v.acquisition_source}{v.voucher_programs?.name ? ` · ${v.voucher_programs.name}` : ""}</p>}
-          {v.sponsor && <p className="font-medium text-purple-600">Sponsored by {v.sponsor}</p>}
+          {v.acquisition_source && <p className="text-akiba-muted">{SOURCE_LABELS[v.acquisition_source] ?? v.acquisition_source}{v.voucher_programs?.name ? ` · ${v.voucher_programs.name}` : ""}</p>}
+
         </div>
       </div>
 
-      <div className={clsx("mt-auto flex items-center justify-between border-t px-5 py-3 text-xs font-semibold", isReady ? "border-akiba-teal/15 bg-akiba-tint text-akiba-teal" : "border-akiba-line bg-akiba-card/70 text-akiba-muted")}>
+      <div className={clsx("mt-auto flex items-center justify-between border-t px-5 py-3 text-xs font-semibold", isReady ? "border-akiba-tealAccessible/15 bg-akiba-tint text-akiba-tealAccessible" : "border-akiba-line bg-akiba-card/70 text-akiba-muted")}>
         <span className="flex items-center gap-1.5">
           {isReady ? <><QrCode className="h-4 w-4" /> Open voucher &amp; QR</> : isProcessing ? <><Loader2 className="h-4 w-4 animate-spin" /> Preparing your voucher</> : "View voucher details"}
         </span>

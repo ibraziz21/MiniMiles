@@ -46,6 +46,14 @@ vi.mock("@/lib/supabase/admin", () => ({
   }),
 }));
 
+vi.mock("@/lib/vouchers/fundedOfferMerchants.server", () => ({
+  resolveSnapshotParticipants: async (ids: string[]) => ({
+    merchants: ids.filter((id) => id === "secondary").map((id) => ({
+      id, name: "Secondary trader", slug: "secondary", imageUrl: "/secondary.png",
+    })),
+  }),
+}));
+
 const { GET } = await import("@/app/api/v1/me/vouchers/[id]/route");
 
 function req(id: string) {
@@ -90,6 +98,30 @@ describe("GET /api/v1/me/vouchers/[id]", () => {
     getLinkedWalletAddressesMock.mockResolvedValue([]);
     userOwnsVoucherMock.mockImplementation(async (_id: string, userId: string) => state.ownsByUser.get(userId) ?? false);
     maybeSingleMock.mockImplementation(async () => ({ data: state.voucherRow, error: null }));
+  });
+
+  it("serves redeemed multi-merchant history with the actual redeeming merchant", async () => {
+    state.actor = { userId: "user-a", email: "a@example.com", authMode: "bearer" };
+    state.ownsByUser.set("user-a", true);
+    state.voucherRow = baseVoucher({
+      status: "redeemed", voucher_redemptions: [{ merchant_id: "secondary" }],
+      rules_snapshot: { eligible_merchant_ids: ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"] },
+    });
+    const { req: r, params } = req("v1");
+    const res = await GET(r, { params });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data).toMatchObject({ merchantName: "Secondary trader", merchantSlug: "secondary", participantCount: 2 });
+    expect(body.data.participantMerchants).toEqual([]);
+  });
+
+  it("leaves redeemed merchant unknown when its profile cannot be resolved", async () => {
+    state.actor = { userId: "user-a", email: "a@example.com", authMode: "bearer" };
+    state.ownsByUser.set("user-a", true);
+    state.voucherRow = baseVoucher({ status: "redeemed", voucher_redemptions: [{ merchant_id: "missing" }] });
+    const { req: r, params } = req("v1");
+    const body = await (await GET(r, { params })).json();
+    expect(body.data).toMatchObject({ merchantName: null, merchantSlug: null, merchantLogoUrl: null });
   });
 
   it("returns 401 when unauthenticated", async () => {

@@ -1,3 +1,4 @@
+import { FundedDiscoveryUnavailable } from "@/lib/vouchers/fundedDiscovery";
 // GET /api/v1/merchants/:slug — the public half of the
 // merchant detail screen (hub-mobile-app-migration-plan.md "Merchant
 // detail `/merchants/[slug]`"). Always resolves with no actor identity
@@ -14,6 +15,7 @@ import { fundedOffersForV1 } from "@/lib/vouchers/fundedOfferMapping";
 import { rankMerchantVouchers, rankMerchantFundedOffers } from "@/lib/merchants/voucherRanking";
 
 export async function GET(request: Request, { params }: { params: { slug: string } }) {
+  try {
   let merchant;
   try {
     merchant = await getPublicMerchant(params.slug, null);
@@ -40,4 +42,12 @@ export async function GET(request: Request, { params }: { params: { slug: string
   });
   response.headers.set("Cache-Control", "private, no-store");
   return response;
+  } catch (error) {
+    if (error instanceof FundedDiscoveryUnavailable) {
+      const response = apiError(request, "SERVICE_UNAVAILABLE", "Free offers are temporarily unavailable", 503, { retryable: true });
+      response.headers.set("Cache-Control", "private, no-store");
+      return response;
+    }
+    throw error;
+  }
 }

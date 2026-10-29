@@ -33,7 +33,9 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    ".next-deletion-verify/types/**/*.ts"
+    ".next-deletion-verify/types/**/*.ts",
+    ".next-verification/types/**/*.ts",
+    ".next-release-verification/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

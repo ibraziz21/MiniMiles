@@ -1,5 +1,6 @@
+import { entitlementConditions, entitlementDates, entitlementScope } from "@/lib/vouchers/customerEntitlement";
 import Link from "next/link";
-import { ArrowRight, ChevronRight, Clock3, TicketCheck } from "lucide-react";
+import { ArrowRight, ChevronRight, TicketCheck } from "lucide-react";
 import type { OwnedVoucherPreviewResult } from "@/lib/akiba/myVouchers";
 
 export function MyVouchersSection({ preview }: { preview: OwnedVoucherPreviewResult }) {
@@ -21,7 +22,7 @@ export function MyVouchersSection({ preview }: { preview: OwnedVoucherPreviewRes
         {totalCount > 0 && (
           <Link
             href="/vouchers?tab=active"
-            className="-mb-1 -mr-2 flex min-h-11 shrink-0 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-akiba-teal transition hover:bg-akiba-tint hover:text-akiba-tealDark active:bg-akiba-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
+            className="-mb-1 -mr-2 flex min-h-11 shrink-0 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-akiba-tealAccessible transition hover:bg-akiba-tint hover:text-akiba-tealAccessible active:bg-akiba-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
           >
             View all <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
           </Link>
@@ -70,15 +71,13 @@ export function MyVouchersSection({ preview }: { preview: OwnedVoucherPreviewRes
                       {isReady ? "Ready" : "Preparing"}
                     </span>
                   </span>
-                  <span className="mt-1 block truncate font-sterling text-lg font-semibold leading-tight text-akiba-ink">
+                  <span className="mt-1 block font-sterling text-lg font-semibold leading-tight text-akiba-ink">
                     {voucher.valueLabel}
                   </span>
                   <span className="mt-0.5 block truncate text-xs text-akiba-muted">{voucher.title}</span>
-                  {voucher.expiresAt && (
-                    <span className="mt-1.5 flex items-center gap-1 text-[11px] text-akiba-muted">
-                      <Clock3 className="h-3 w-3" aria-hidden="true" /> Expires {formatVoucherDate(voucher.expiresAt)}
-                    </span>
-                  )}
+                  <span className="mt-1 block text-xs leading-relaxed text-akiba-muted">{entitlementConditions(voucher.entitlement).join(" · ")}</span>
+                  <span className="mt-1 block text-xs text-akiba-muted">{entitlementScope(voucher.entitlement)}</span>
+                  <span className="mt-1 block text-xs text-akiba-muted">{entitlementDates(voucher.entitlement)[0]}</span>
                 </span>
                 <ChevronRight className="h-4 w-4 shrink-0 text-akiba-line transition group-hover:translate-x-0.5 group-hover:text-akiba-teal" aria-hidden="true" />
               </Link>
@@ -90,6 +89,3 @@ export function MyVouchersSection({ preview }: { preview: OwnedVoucherPreviewRes
   );
 }
 
-function formatVoucherDate(value: string): string {
-  return new Date(value).toLocaleDateString("en-KE", { day: "numeric", month: "short" });
-}

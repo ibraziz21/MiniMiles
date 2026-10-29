@@ -18,14 +18,22 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, ShoppingBag, QrCode, X, Loader2, Clock } from "lucide-react";
 import clsx from "clsx";
 import { track } from "@/lib/analytics/track";
-import { dealLabel } from "@/lib/akiba/deals";
+import { entitlementBenefit, type CustomerVoucherEntitlement } from "@/lib/vouchers/customerEntitlement";
+import { VoucherEntitlementSummary, VoucherEntitlementFacts } from "@/components/vouchers/VoucherEntitlementSummary";
 
 export type VoucherType = "free" | "percent_off" | "fixed_off";
 
 export type DetailVoucher = {
+  entitlement: CustomerVoucherEntitlement;
+  /** Snapshot participants, resolved. See page.tsx. */
+  participantMerchants?: Array<{ id: string; name: string; slug: string; imageUrl: string | null }>;
+  /** How many merchants the snapshot named — not how many profiles resolved. */
+  participantCount?: number;
+  /** True when a named merchant's details could not be loaded. */
+  participantsIncomplete?: boolean;
   id: string;
   code: string;
-  status: "issued" | "redeemed" | "expired" | "void" | "pending" | "claiming";
+  status: "issued" | "redeemed" | "expired" | "void" | "revoked" | "pending" | "claiming";
   created_at: string;
   expires_at: string | null;
   redeemed_at: string | null;
@@ -52,9 +60,13 @@ const SOURCE_LABELS: Record<string, string> = {
   giveaway:       "Giveaway",
   merchant_grant: "Merchant Gift",
   akiba_grant:    "Akiba Gift",
+  akiba_funded_claim: "Free offer",
+  akiba_funded_grant: "Gift",
+  akiba_funded_auto_award: "Reward",
 };
 
 type PresentationResponse = {
+  entitlement?: CustomerVoucherEntitlement;
   token: string;
   expires_at: string;
 };
@@ -64,6 +76,7 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
   const searchParams = useSearchParams();
   const t = voucher.template;
   const merchant = t?.partner;
+  const [entitlement, setEntitlement] = useState(voucher.entitlement);
 
   const [showQr, setShowQr] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -75,6 +88,15 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
   const [processingTerminal, setProcessingTerminal] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const qrTriggerRef = useRef<HTMLButtonElement>(null);
+  const qrCloseRef = useRef<HTMLButtonElement>(null);
+  const wasQrOpen = useRef(false);
+  useEffect(() => {
+    const target = showQr ? qrCloseRef.current : wasQrOpen.current ? qrTriggerRef.current : null;
+    target?.focus({ preventScroll: true });
+    target?.scrollIntoView({ block: "center", behavior: "instant" });
+    wasQrOpen.current = showQr;
+  }, [showQr]);
   const showQrRef = useRef(false);
   const presentingRef = useRef(false);
   const reopenPendingRef = useRef(false);
@@ -83,7 +105,7 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
   const statusColors: Record<string, string> = {
     pending:  "bg-amber-50 text-amber-700",
     claiming: "bg-amber-50 text-amber-700",
-    issued:   "bg-akiba-tint text-akiba-teal",
+    issued:   "bg-akiba-tint text-akiba-tealAccessible",
     redeemed: "bg-green-50 text-green-700",
     expired:  "bg-akiba-card text-akiba-muted",
     void:     "bg-red-50 text-red-600",
@@ -180,6 +202,9 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
         return;
       }
 
+      // During a rolling deploy an older endpoint may omit the new field;
+      // the page already carries this voucher's immutable entitlement.
+      if (data.entitlement) setEntitlement(data.entitlement);
       const expiryMs = new Date(data.expires_at).getTime();
       setExpiresAt(expiryMs);
       setSecondsLeft(Math.max(0, Math.round((expiryMs - Date.now()) / 1000)));
@@ -287,7 +312,7 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
       <button
         type="button"
         onClick={() => router.push("/vouchers")}
-        className="mb-4 text-sm font-medium text-akiba-muted hover:text-akiba-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
+        className="mb-4 inline-flex min-h-11 items-center text-sm font-medium text-akiba-muted hover:text-akiba-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-tealAccessible"
       >
         ← Back to vouchers
       </button>
@@ -296,7 +321,7 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
         className={clsx(
           "overflow-hidden rounded-3xl border bg-white shadow-sm",
           currentStatus === "expired" || currentStatus === "void"
-            ? "border-akiba-line opacity-70"
+            ? "border-akiba-line"
             : "border-akiba-line"
         )}
       >
@@ -312,8 +337,8 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs text-akiba-muted">{merchant?.name ?? "All merchants"}</p>
-            <p className="font-sterling text-xl font-bold text-akiba-teal">
-              {t ? dealLabel(t) : "Voucher"}
+            <p className="font-sterling text-xl font-bold text-akiba-tealAccessible">
+              {entitlementBenefit(entitlement)}
             </p>
           </div>
           <span
@@ -330,25 +355,16 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
 
         {/* Body */}
         <div className="space-y-2 px-5 py-5 text-sm text-akiba-muted">
-          {t && <p className="text-base font-medium text-akiba-ink">{t.title}</p>}
-          {voucher.redemptionSchedule && <p className="font-semibold text-akiba-tealDark">Use on {voucher.redemptionSchedule.days.map((day) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][day]).join(", ")} ({voucher.redemptionSchedule.timezone})</p>}
-          {t?.applicable_category && (
-            <p>
-              On:{" "}
-              <span className="font-medium capitalize text-akiba-ink">
-                {t.applicable_category}
-              </span>
-            </p>
-          )}
-          {voucher.expires_at && <p>Expires: {new Date(voucher.expires_at).toLocaleString("en-KE")}</p>}
+          <p className="text-base font-medium text-akiba-ink">{entitlement.title}</p>
+          <VoucherEntitlementSummary entitlement={entitlement} />
           {voucher.redeemed_at && <p>Used: {new Date(voucher.redeemed_at).toLocaleString("en-KE")}</p>}
           {voucher.acquisition_source && (
-            <p className="text-akiba-muted/70">
+            <p className="text-akiba-muted">
               {SOURCE_LABELS[voucher.acquisition_source] ?? voucher.acquisition_source}
               {voucher.program_name ? ` · ${voucher.program_name}` : ""}
             </p>
           )}
-          {voucher.sponsor && <p className="text-purple-500">Sponsored by {voucher.sponsor}</p>}
+
         </div>
 
         {/* QR area */}
@@ -359,7 +375,7 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
                 <div className="flex flex-col items-center gap-2">
                   {processingTerminal
                     ? <AlertTriangle className="h-5 w-5 text-amber-600" />
-                    : <Loader2 className="h-5 w-5 animate-spin text-akiba-teal" />}
+                    : <Loader2 className="h-5 w-5 animate-spin text-akiba-tealAccessible" />}
                   {!processingTerminal && (
                     <p>Your Miles transaction is processing. This page updates automatically.</p>
                   )}
@@ -376,18 +392,28 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
           ) : !showQr ? (
             <button
               type="button"
+              ref={qrTriggerRef}
+              onFocus={(event) => {
+                if (event.currentTarget.matches(":focus-visible")) {
+                  event.currentTarget.scrollIntoView({ block: "center", behavior: "instant" });
+                }
+              }}
               onClick={openQr}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-akiba-teal py-3 text-sm font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
+              className="flex w-full items-center justify-center gap-2 min-h-11 rounded-2xl bg-akiba-tealAccessible py-3 text-sm font-semibold text-white transition hover:bg-akiba-tealAccessibleHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-tealAccessible"
             >
               <QrCode className="h-5 w-5" aria-hidden="true" /> Show QR to redeem in store
             </button>
           ) : (
             <div className="flex flex-col items-center gap-4">
+              <div className="w-full space-y-2" role="group" aria-label="Redemption conditions">
+                <p className="text-sm font-semibold text-akiba-ink">{entitlementBenefit(entitlement)}</p>
+                <VoucherEntitlementFacts entitlement={entitlement} />
+              </div>
               <div className="relative flex h-[240px] w-[240px] items-center justify-center rounded-2xl border border-akiba-line bg-white">
                 <canvas ref={canvasRef} role="img" aria-label="Voucher redemption QR code" className={clsx(loading && "opacity-30")} />
                 {loading && (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-akiba-teal" aria-hidden="true" />
+                    <Loader2 className="h-8 w-8 animate-spin text-akiba-tealAccessible" aria-hidden="true" />
                   </div>
                 )}
               </div>
@@ -397,18 +423,19 @@ export function VoucherDetailView({ voucher }: { voucher: DetailVoucher }) {
               ) : (
                 <div className="flex items-center gap-2 text-sm text-akiba-muted">
                   <Clock className="h-4 w-4" />
-                  Refreshes in <span className="font-semibold tabular-nums text-akiba-ink">{secondsLeft}s</span>
+                  QR refreshes in <span className="font-semibold tabular-nums text-akiba-ink">{secondsLeft}s</span>
                 </div>
               )}
 
-              <p className="px-2 text-center text-xs text-akiba-muted/80">
+              <p className="px-2 text-center text-xs text-akiba-muted">
                 Ask the cashier to scan this code. It rotates automatically for security.
               </p>
 
               <button
                 type="button"
+                ref={qrCloseRef}
                 onClick={closeQr}
-                className="flex items-center justify-center gap-1.5 rounded-full border border-akiba-line px-5 py-2 text-sm font-semibold text-akiba-muted hover:bg-akiba-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
+                className="flex items-center justify-center gap-1.5 rounded-full min-h-11 border border-akiba-line px-5 py-2 text-sm font-semibold text-akiba-muted hover:bg-akiba-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-tealAccessible"
               >
                 <X className="h-4 w-4" aria-hidden="true" /> Close QR
               </button>

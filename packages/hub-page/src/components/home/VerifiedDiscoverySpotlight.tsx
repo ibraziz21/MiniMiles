@@ -1,7 +1,7 @@
 "use client";
 
 import Image, { type ImageLoaderProps } from "next/image";
-import { ArrowRight, BadgeCheck, Heart, Sparkles } from "lucide-react";
+import { ArrowRight, BadgeCheck, Heart } from "lucide-react";
 import { TrackedLink } from "@/components/akiba/TrackedLink";
 import type { VerifiedDiscoveryHighlight } from "@/lib/home/types";
 

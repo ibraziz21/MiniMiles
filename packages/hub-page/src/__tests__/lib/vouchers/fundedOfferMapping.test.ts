@@ -14,12 +14,17 @@
 import { afterEach, describe, it, expect } from "vitest";
 import {
   FUNDED_OFFER_TEMPLATE_COLUMNS,
+  allocationSupportedByV1,
   fundedOffersForV1,
   toFundedOffer,
   type RawFundedPartner,
   type RawFundedTemplate,
 } from "@/lib/vouchers/fundedOfferMapping";
-import { fundedBenefitLabel } from "@/components/vouchers/FundedOfferCard";
+import {
+  fundedBenefitLabel,
+  fundedMerchantLabel,
+  isMultiMerchantOffer,
+} from "@/components/vouchers/FundedOfferCard";
 
 const partner: RawFundedPartner = {
   id: "partner-1",
@@ -49,8 +54,12 @@ const fixedTemplate: RawFundedTemplate = {
   minimum_spend_kes: 1000,
 };
 
-function map(template: RawFundedTemplate | null) {
+const PRIMARY = { id: "partner-1", name: "Arabica Coffee House", slug: "arabica", imageUrl: null };
+const TRADER = { id: "partner-2", name: "Trader B", slug: "trader-b", imageUrl: null };
+
+function map(template: RawFundedTemplate | null, participants = [PRIMARY]) {
   return toFundedOffer({
+    participants,
     allocationId: "alloc-1",
     claimEndsAt: "2026-11-01T00:00:00.000Z",
     template,
@@ -125,6 +134,7 @@ describe("toFundedOffer", () => {
         template: percentTemplate,
         partner: null,
         eligibilitySummary: null,
+        participants: [PRIMARY],
       }),
     ).toBeNull();
   });
@@ -176,6 +186,111 @@ describe("fundedOffersForV1", () => {
     // pages call — that asymmetry is the whole point of launching on web
     // first.
     expect(map(percentTemplate)).not.toBeNull();
+  });
+});
+
+describe("participant resolution", () => {
+  it("carries the full set, primary first", () => {
+    const offer = map(percentTemplate, [PRIMARY, TRADER])!;
+    expect(offer.merchants.map((m) => m.id)).toEqual(["partner-1", "partner-2"]);
+    // `merchant` stays the primary so existing consumers are unaffected.
+    expect(offer.merchant.name).toBe("Arabica Coffee House");
+  });
+
+  it("always populates merchants, even for a single-merchant offer", () => {
+    // No special case for consumers: length tells them what they have.
+    expect(map(percentTemplate)!.merchants).toHaveLength(1);
+  });
+
+  it("withholds an offer whose participants could not be resolved", () => {
+    // Rule 7: never silently shrink an advertised set or downgrade a
+    // multi-merchant offer to single-merchant.
+    expect(map(percentTemplate, [])).toBeNull();
+    expect(
+      toFundedOffer({
+        allocationId: "alloc-1",
+        claimEndsAt: "2026-11-01T00:00:00.000Z",
+        template: percentTemplate,
+        partner: { id: "partner-1", name: "A", slug: "a", image_url: null, status: "active" },
+        eligibilitySummary: null,
+        participants: null,
+      }),
+    ).toBeNull();
+  });
+
+  it("reports multi-merchant status from the set", () => {
+    expect(isMultiMerchantOffer(map(percentTemplate)!)).toBe(false);
+    expect(isMultiMerchantOffer(map(percentTemplate, [PRIMARY, TRADER])!)).toBe(true);
+  });
+
+  it("labels a multi-merchant offer by count, not by one name", () => {
+    expect(fundedMerchantLabel(map(percentTemplate, [PRIMARY, TRADER])!)).toBe(
+      "Use once at any of 2 merchants",
+    );
+    expect(fundedMerchantLabel(map(percentTemplate)!)).toBe("Arabica Coffee House");
+  });
+});
+
+describe("fundedOffersForV1 — the two gates are independent", () => {
+  const percentSingle = map(percentTemplate)!;
+  const fixedSingle = map(fixedTemplate)!;
+  const percentMulti = map(percentTemplate, [PRIMARY, TRADER])!;
+  const fixedMulti = map(fixedTemplate, [PRIMARY, TRADER])!;
+  const all = [percentSingle, fixedSingle, percentMulti, fixedMulti];
+
+  afterEach(() => {
+    delete process.env.AKIBA_PERCENT_FUNDED_OFFERS_V1_ENABLED;
+    delete process.env.MULTI_MERCHANT_FUNDED_OFFERS_V1_ENABLED;
+  });
+
+  it("off / off → single-merchant fixed only", () => {
+    expect(fundedOffersForV1(all)).toEqual([fixedSingle]);
+  });
+
+  it("percent on / multi off → no multi-merchant offer leaks through", () => {
+    // The regression this exists for: the previous early return handed back
+    // every offer the moment percentages were enabled.
+    process.env.AKIBA_PERCENT_FUNDED_OFFERS_V1_ENABLED = "true";
+    expect(fundedOffersForV1(all)).toEqual([percentSingle, fixedSingle]);
+  });
+
+  it("percent off / multi on → percentage offers still withheld", () => {
+    process.env.MULTI_MERCHANT_FUNDED_OFFERS_V1_ENABLED = "true";
+    expect(fundedOffersForV1(all)).toEqual([fixedSingle, fixedMulti]);
+  });
+
+  it("on / on → everything otherwise eligible", () => {
+    process.env.AKIBA_PERCENT_FUNDED_OFFERS_V1_ENABLED = "true";
+    process.env.MULTI_MERCHANT_FUNDED_OFFERS_V1_ENABLED = "true";
+    expect(fundedOffersForV1(all)).toEqual(all);
+  });
+
+  it("tolerates a legacy offer with a valid merchant but no merchants array", () => {
+    // Such an offer genuinely was single-merchant — nothing could produce a
+    // multi-merchant one before the field existed — so it is served, not
+    // withheld.
+    const legacy = { ...fixedSingle, merchants: undefined } as unknown as typeof fixedSingle;
+    expect(fundedOffersForV1([legacy])).toEqual([legacy]);
+    expect(isMultiMerchantOffer(legacy)).toBe(false);
+  });
+
+  it("withholds a malformed offer carrying neither field", () => {
+    // Scope unknown, so it cannot be described honestly to any client.
+    const malformed = {
+      ...fixedSingle,
+      merchant: undefined,
+      merchants: undefined,
+    } as unknown as typeof fixedSingle;
+    expect(fundedOffersForV1([malformed])).toEqual([]);
+    expect(allocationSupportedByV1(malformed)).toBe(false);
+  });
+
+  it("allocationSupportedByV1 agrees with the catalogue filter", () => {
+    // Used by the direct v1 claim route, where hiding an offer from the
+    // catalogue is not enough on its own.
+    expect(allocationSupportedByV1(fixedSingle)).toBe(true);
+    expect(allocationSupportedByV1(fixedMulti)).toBe(false);
+    expect(allocationSupportedByV1(percentSingle)).toBe(false);
   });
 });
 

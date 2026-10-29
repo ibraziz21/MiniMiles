@@ -41,6 +41,17 @@ vi.mock("@/lib/auth/requestActor", () => {
     },
   };
 });
+// The route's client-compatibility guard, driven per test. Its own
+// fail-closed logic is covered in the mapping and integration tests; here we
+// assert the ROUTE refuses correctly and never reaches issuance.
+const support = vi.hoisted(() => ({
+  value: { supported: true } as
+    | { supported: true }
+    | { supported: false; kind: "unsupported_shape" | "unavailable"; reason: string },
+}));
+vi.mock("@/lib/vouchers/fundedOfferMerchants.server", () => ({
+  v1ClaimSupport: vi.fn(async () => support.value),
+}));
 vi.mock("@/lib/akiba/fundedVoucherCountryEligibility", () => ({
   evaluateFundedVoucherCountryEligibility: async () => state.countryEligibility,
 }));
@@ -75,6 +86,7 @@ function callRoute(allocationId = "alloc-1", body: Record<string, unknown> = { i
 describe("POST /api/v1/vouchers/funded/:allocationId/claim", () => {
   beforeEach(() => {
     mockFetch.mockReset();
+    support.value = { supported: true };
     mockRecordClaimIntent.mockReset();
     state.actor = null;
     state.username = "amina";
@@ -203,5 +215,40 @@ describe("POST /api/v1/vouchers/funded/:allocationId/claim", () => {
 
     const res = await callRoute();
     expect(res.status).toBe(502);
+  });
+
+  it("refuses an offer shape this client cannot render, without issuing", async () => {
+    state.actor = { userId: "user-1", email: "a@example.com", authMode: "bearer", accessToken: "token-abc" };
+    support.value = {
+      supported: false,
+      kind: "unsupported_shape",
+      reason: "multi_merchant_offer_unsupported",
+    };
+
+    const res = await callRoute();
+    const body = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(body.error.code).toBe("OFFER_NOT_SUPPORTED");
+    // The whole point: hiding the offer from the catalogue is not protection,
+    // so no voucher may be issued for a direct request either.
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockRecordClaimIntent).not.toHaveBeenCalled();
+  });
+
+  it("reports unavailability, not a stale app, when the shape cannot be resolved", async () => {
+    state.actor = { userId: "user-1", email: "a@example.com", authMode: "bearer", accessToken: "token-abc" };
+    support.value = { supported: false, kind: "unavailable", reason: "support_lookup_failed" };
+
+    const res = await callRoute();
+    const body = await res.json();
+
+    // Telling the member to update their app would be a guess, and wrong
+    // whenever the cause is a transient lookup failure.
+    expect(res.status).toBe(503);
+    expect(body.error.code).toBe("SERVICE_UNAVAILABLE");
+    expect(body.error.code).not.toBe("OFFER_NOT_SUPPORTED");
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockRecordClaimIntent).not.toHaveBeenCalled();
   });
 });

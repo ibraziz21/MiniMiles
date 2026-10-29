@@ -1,3 +1,4 @@
+import { fundedDiscoveryResult } from "@/lib/vouchers/fundedDiscovery";
 import { createClient } from "@/lib/supabase/server";
 import { VoucherTabs } from "./VoucherTabs";
 import {
@@ -18,7 +19,7 @@ export default async function VouchersPage({
   const { data: { user } } = await (await createClient()).auth.getUser();
   const [templates, fundedOffers, loyaltyOffers, claimedAllocationIds] = await Promise.all([
     getAllTemplates(user?.id ?? null),
-    getFundedOffers(),
+    fundedDiscoveryResult(getFundedOffers),
     getLoyaltyOffers(user?.id ?? null, user?.email ?? null),
     getClaimedAllocationIds(user?.id ?? null, user?.email ?? null),
   ]);
@@ -28,7 +29,8 @@ export default async function VouchersPage({
     <main className="mx-auto max-w-7xl px-4 pb-8 pt-4 sm:px-6 sm:pb-12 sm:pt-8 lg:px-8">
       <VoucherTabs
         templates={templates}
-        fundedOffers={fundedOffers}
+        fundedOffers={fundedOffers.offers}
+        fundedUnavailable={fundedOffers.unavailable}
         loyaltyOffers={loyaltyOffers}
         claimedAllocationIds={[...claimedAllocationIds]}
         isSignedIn={!!user}

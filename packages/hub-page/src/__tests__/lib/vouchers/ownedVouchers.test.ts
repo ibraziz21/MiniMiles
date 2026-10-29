@@ -6,6 +6,7 @@ type FixtureRow = {
   created_at: string;
   expires_at: string | null;
   redeemed_at: string | null;
+  voucher_redemptions?: { merchant_id: string | null }[];
   spend_voucher_templates: {
     title: string;
     voucher_type: string;
@@ -87,6 +88,14 @@ vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({ from: () => makeQueryBuilder(state.rows) }),
 }));
 
+vi.mock("@/lib/vouchers/fundedOfferMerchants.server", () => ({
+  resolveSnapshotParticipants: async (ids: string[]) => ({
+    merchants: ids.filter((id) => id === "secondary").map((id) => ({
+      id, name: "Secondary trader", slug: "secondary", imageUrl: "/secondary.png",
+    })),
+  }),
+}));
+
 const { listOwnedVouchers, InvalidOwnedVoucherCursorError } = await import("@/lib/vouchers/ownedVouchers.server");
 
 function template(title: string) {
@@ -109,6 +118,22 @@ describe("listOwnedVouchers", () => {
       { id: "v2", status: "issued", created_at: "2026-01-02T00:00:00Z", expires_at: null, redeemed_at: null, spend_voucher_templates: template("V2"), voucher_programs: { name: "Program" } },
       { id: "v3", status: "issued", created_at: "2026-01-03T00:00:00Z", expires_at: null, redeemed_at: null, spend_voucher_templates: template("V3"), voucher_programs: { name: "Program" } },
     ];
+  });
+
+  it("labels redeemed history with the actual merchant instead of the template primary", async () => {
+    state.rows[1].voucher_redemptions = [{ merchant_id: "secondary" }];
+    const result = await listOwnedVouchers({ userId: "u1", walletAddresses: [], status: "redeemed" });
+    expect(result.vouchers[0]).toMatchObject({
+      merchantName: "Secondary trader", merchantSlug: "secondary", merchantLogoUrl: "/secondary.png",
+      participantCount: 0,
+    });
+  });
+
+  it("does not invent a primary attribution when the redemption merchant is unavailable", async () => {
+    state.rows[1].voucher_redemptions = [{ merchant_id: "missing" }];
+    const result = await listOwnedVouchers({ userId: "u1", walletAddresses: [], status: "redeemed" });
+    expect(result.vouchers[0].merchantName).toBeNull();
+    expect(result.vouchers[0].merchantSlug).toBeNull();
   });
 
   it("maps status=active to issued/pending/claiming", async () => {

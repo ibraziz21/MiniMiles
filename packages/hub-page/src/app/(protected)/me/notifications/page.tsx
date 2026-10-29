@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ArrowLeft, Bell, XCircle, Ticket, AlertTriangle, Gift, Sparkles, Store } from "lucide-react";
+import { ArrowLeft, Bell, XCircle, Ticket, AlertTriangle, Gift, Store } from "lucide-react";
 import { PushNotificationSettings } from "@/components/PushNotificationSettings";
 import { EarnIcon, MilesAmount } from "@/components/MilesIcon";
 import { MilesEarnedLink } from "./MilesEarnedLink";
@@ -18,7 +18,7 @@ const TEMPLATE_CONFIG: Record<string, { label: string; icon: React.ReactNode }> 
   referral_activation_released:{ label: "Referral complete",               icon: <Gift className="h-4 w-4" /> },
   referral_manual_review:      { label: "Referral reward under review",    icon: <AlertTriangle className="h-4 w-4" /> },
   miles_earned:                { label: "Miles earned",                    icon: <EarnIcon className="h-4 w-4" /> },
-  feature_announcement:        { label: "Akiba feature update",            icon: <Sparkles className="h-4 w-4" /> },
+  feature_announcement:        { label: "Akiba feature update",            icon: <Bell className="h-4 w-4" /> },
   merchant_announcement:       { label: "New Akiba merchant",              icon: <Store className="h-4 w-4" /> },
   general_announcement:        { label: "Akiba update",                    icon: <Bell className="h-4 w-4" /> },
 };

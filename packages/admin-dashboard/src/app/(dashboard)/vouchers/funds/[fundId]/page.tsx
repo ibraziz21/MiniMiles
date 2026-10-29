@@ -66,7 +66,7 @@ export default async function VoucherFundDetailPage({ params }: { params: Promis
       supabase
         .from("voucher_funding_allocations")
         .select(
-          `id, state, quantity_cap, max_reimbursement_minor, authorized_budget_minor, claim_starts_at, claim_ends_at, spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, ${ALLOCATION_BENEFIT_COLUMNS}, minimum_spend_kes), partners(name)`,
+          `id, state, quantity_cap, max_reimbursement_minor, authorized_budget_minor, claim_starts_at, claim_ends_at, spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, ${ALLOCATION_BENEFIT_COLUMNS}, minimum_spend_kes), partners!voucher_funding_allocations_merchant_id_fkey(name)`,
         )
         .eq("program_id", fundId)
         .order("created_at", { ascending: false }),

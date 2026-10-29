@@ -155,7 +155,7 @@ export function GetVoucherButton({
   return (
     <div>
       {redeemStatus === "queued" && (
-        <div role="status" aria-live="polite" className="mb-2 rounded-lg bg-akiba-tint px-3 py-2 text-xs text-akiba-teal">
+        <div role="status" aria-live="polite" className="mb-2 rounded-lg bg-akiba-tint px-3 py-2 text-xs text-akiba-tealAccessible">
           Voucher processing.
           {queuedVoucherId && (
             <a
@@ -173,10 +173,10 @@ export function GetVoucherButton({
         onClick={handleRedeem}
         disabled={busy}
         className={clsx(
-          "flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus-visible:ring-offset-2",
+          "flex w-full items-center justify-center gap-2 min-h-11 rounded-full py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-tealAccessible focus-visible:ring-offset-2",
           busy
-            ? "cursor-not-allowed bg-akiba-teal/60 text-white"
-            : "bg-akiba-teal text-white hover:bg-akiba-teal/90 active:scale-[0.98]"
+            ? "cursor-not-allowed bg-akiba-card text-akiba-muted"
+            : "bg-akiba-tealAccessible text-white hover:bg-akiba-tealAccessibleHover active:scale-[0.98]"
         )}
       >
         {redeemStatus === "quoting" ? (

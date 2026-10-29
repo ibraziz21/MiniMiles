@@ -14,6 +14,17 @@
 
 html {
   scroll-behavior: smooth;
+  /* Keep keyboard targets clear of the sticky header and mobile Pass dock. */
+  scroll-padding-top: 5rem;
+  scroll-padding-bottom: calc(7rem + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 640px) {
+  html { scroll-padding-bottom: 2rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
 }
 
 body {

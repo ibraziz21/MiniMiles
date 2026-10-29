@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 const state = vi.hoisted(() => ({
   user: { id: "hub-user-1" } as { id: string } | null,
   rpc: vi.fn(),
+  snapshotError: false,
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -15,10 +16,23 @@ vi.mock("@/lib/supabase/server", () => ({
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
-    from: () => ({
+    // Two reads now: linked wallet addresses, and the voucher's own snapshot
+    // for its participant merchants.
+    from: (table: string) => ({
       select: () => {
-        const result = Promise.resolve({ data: [{ address: "0xABC" }], error: null });
-        const chain = Object.assign(result, { eq: () => chain });
+        const rows =
+          table === "issued_vouchers"
+            ? { data: state.snapshotError ? null : { expires_at: "2026-11-05T10:00:00Z", rules_snapshot: {
+                title: "Market voucher", voucher_type: "percent_off", discount_percent: 10,
+                maximum_discount_kes: 200, minimum_spend_kes: 300, terms_text: "One transaction only.",
+              } }, error: state.snapshotError ? { message: "unavailable" } : null }
+            : { data: [{ address: "0xABC" }], error: null };
+        const result = Promise.resolve(rows);
+        const chain = Object.assign(result, {
+          eq: () => chain,
+          maybeSingle: async () => rows,
+          in: () => chain,
+        });
         return chain;
       },
     }),
@@ -34,6 +48,7 @@ describe("voucher presentation route", () => {
   beforeEach(() => {
     state.user = { id: "hub-user-1" };
     state.rpc.mockReset();
+    state.snapshotError = false;
   });
 
   it("returns an uncached 401 without minting for an anonymous request", async () => {
@@ -69,6 +84,19 @@ describe("voucher presentation route", () => {
     expect(params.p_token_hash).toBe(createHash("sha256").update(body.token).digest("hex"));
     expect(JSON.stringify(params)).not.toContain(body.token);
     expect(params.p_wallet_addresses).toEqual(["0xabc"]);
+  });
+
+  it("keeps voucher expiry and immutable conditions separate from the QR token expiry", async () => {
+    state.rpc.mockResolvedValue({ data: [{ ok: true, offer_title: "Edited title", voucher_type: "percent_off", discount_percent: 90 }], error: null });
+    const body = await (await POST(new NextRequest("http://localhost/presentation", { method: "POST" }), context)).json();
+    expect(body.entitlement).toMatchObject({ title: "Market voucher", discountPercent: 10, maximumDiscountKes: 200,
+      minimumSpendKes: 300, terms: "One transaction only.", timing: { kind: "issued", expiresAt: "2026-11-05T10:00:00Z" } });
+    expect(body.expires_at).not.toBe(body.entitlement.timing.expiresAt);
+  });
+  it("withholds the token when the authoritative display data cannot be loaded", async () => {
+    state.rpc.mockResolvedValue({ data: [{ ok: true }], error: null }); state.snapshotError = true;
+    const response = await POST(new NextRequest("http://localhost/presentation", { method: "POST" }), context);
+    expect(response.status).toBe(503); expect(await response.json()).not.toHaveProperty("token");
   });
 
   it("does not return the generated raw token when PostgreSQL rejects presentation", async () => {
