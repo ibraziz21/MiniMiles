@@ -1,5 +1,22 @@
 export const PASS_ANALYTICS_MAX_DAYS = 366;
 
+export type PassDemographicBreakdown = {
+  known: number;
+  rows: Array<{ label: string; users: number }>;
+};
+
+export type PassDemographicCohort = {
+  total: number;
+  countries: PassDemographicBreakdown;
+  cities: PassDemographicBreakdown;
+  interests: PassDemographicBreakdown;
+};
+
+export type PassDemographics = {
+  all_time: PassDemographicCohort;
+  selected: PassDemographicCohort;
+};
+
 export type PassAnalyticsRange = {
   from: string;
   to: string;

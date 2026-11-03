@@ -3,7 +3,7 @@
 // In-store fast path — home-redesign-spec.md §6. Poster QRs point here with
 // a per-poster/location src for attribution. One screen: signup only, no
 // marketing scroll. Counter-time beats education — after signup this skips
-// straight to the QR reveal; /welcome is offered on the next visit instead.
+// straight to the QR reveal; Continue then offers first-run onboarding.
 import { useEffect, useId, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";

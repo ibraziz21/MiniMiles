@@ -26,7 +26,7 @@ export function JoinQrReveal({ passId }: { passId: string }) {
       </div>
       <button
         type="button"
-        onClick={() => { router.push("/"); router.refresh(); }}
+        onClick={() => { router.push("/auth/continue?next=/"); router.refresh(); }}
         className="mt-8 w-full rounded-2xl bg-akiba-teal py-3.5 text-sm font-semibold text-white transition hover:bg-akiba-tealDark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus-visible:ring-offset-2"
       >
         Continue

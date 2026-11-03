@@ -49,8 +49,9 @@ export async function middleware(request: NextRequest) {
   if (pathname === "/login" && user) {
     const next = request.nextUrl.searchParams.get("next") ?? "/me";
     const url = request.nextUrl.clone();
-    url.pathname = next;
-    url.searchParams.delete("next");
+    url.pathname = "/auth/continue";
+    url.search = "";
+    url.searchParams.set("next", next);
     const redirect = NextResponse.redirect(url);
     redirect.headers.set(CORRELATION_ID_HEADER, correlationId);
     return redirect;

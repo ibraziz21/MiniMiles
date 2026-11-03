@@ -1,3 +1,4 @@
+import { requireActor, UnauthorizedError } from "@/lib/auth/requestActor";
 import { entitlementFromIssued } from "@/lib/vouchers/customerEntitlement";
 /**
  * POST   /api/shop/vouchers/[id]/presentation  → mint a short-lived QR token
@@ -30,8 +31,17 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: voucherId } = await params;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  let user: { id: string } | null;
+  if (_req.headers.has("authorization")) {
+    try { user = { id: (await requireActor(_req)).userId }; }
+    catch (error) {
+      if (error instanceof UnauthorizedError) return NextResponse.json({ error: error.message }, { status: error.status, headers: { "Cache-Control": "no-store" } });
+      throw error;
+    }
+  } else {
+    const supabase = await createClient();
+    user = (await supabase.auth.getUser()).data.user;
+  }
   if (!user) return jsonNoStore({ error: "Unauthorized" }, 401);
 
   const admin = createAdminClient();
@@ -121,8 +131,17 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: voucherId } = await params;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  let user: { id: string } | null;
+  if (_req.headers.has("authorization")) {
+    try { user = { id: (await requireActor(_req)).userId }; }
+    catch (error) {
+      if (error instanceof UnauthorizedError) return NextResponse.json({ error: error.message }, { status: error.status, headers: { "Cache-Control": "no-store" } });
+      throw error;
+    }
+  } else {
+    const supabase = await createClient();
+    user = (await supabase.auth.getUser()).data.user;
+  }
   if (!user) return jsonNoStore({ error: "Unauthorized" }, 401);
 
   const admin = createAdminClient();

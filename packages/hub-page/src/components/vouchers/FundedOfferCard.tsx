@@ -1,6 +1,6 @@
 import { entitlementFromOffer, entitlementBenefit } from "@/lib/vouchers/customerEntitlement";
 import { VoucherEntitlementSummary } from "./VoucherEntitlementSummary";
-import { CheckCircle2, ShoppingBag } from "lucide-react";
+import { CheckCircle2, ShoppingBag, Ticket } from "lucide-react";
 import { ClaimOfferButton } from "@/components/vouchers/ClaimOfferButton";
 
 export type FundedOffer = {
@@ -109,6 +109,7 @@ export function FundedOfferCard({
   alreadyClaimed: boolean;
 }) {
   const entitlement = entitlementFromOffer(offer);
+  const multiMerchant = isMultiMerchantOffer(offer);
 
   return (
     <article id={`funded-${offer.allocationId}`} className={`group scroll-mt-24 flex min-h-[320px] flex-col overflow-hidden rounded-3xl border bg-white transition hover:-translate-y-0.5 hover:shadow-soft ${alreadyClaimed ? "border-akiba-line" : "border-emerald-200"}`}>
@@ -116,7 +117,9 @@ export function FundedOfferCard({
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-chip">
-          {offer.merchant.imageUrl ? (
+          {multiMerchant ? (
+            <Ticket className="h-5 w-5 text-akiba-muted" aria-hidden="true" />
+          ) : offer.merchant.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
                 <img src={offer.merchant.imageUrl} alt={offer.merchant.name} className="h-full w-full object-contain p-0.5" />
           ) : (
@@ -124,7 +127,9 @@ export function FundedOfferCard({
           )}
             </div>
             <div className="min-w-0">
-              <p className="truncate text-xs font-medium text-akiba-muted">{offer.merchant.name}</p>
+              {multiMerchant
+                ? <h3 className="break-words text-sm font-semibold leading-snug text-akiba-ink">{offer.title}</h3>
+                : <p className="truncate text-xs font-medium text-akiba-muted">{offer.merchant.name}</p>}
             </div>
           </div>
           <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${alreadyClaimed ? "bg-akiba-card text-akiba-muted" : "bg-emerald-700 text-white"}`}>
@@ -137,7 +142,7 @@ export function FundedOfferCard({
       </div>
 
       <div className="flex flex-1 flex-col px-4 py-4 text-sm text-akiba-muted">
-        <h3 className="font-semibold leading-snug text-akiba-ink">{offer.title}</h3>
+        {!multiMerchant && <h3 className="font-semibold leading-snug text-akiba-ink">{offer.title}</h3>}
         <div className="mt-2"><VoucherEntitlementSummary entitlement={entitlement} /></div>
         {offer.eligibilitySummary && <p className="mt-2 rounded-xl bg-akiba-card px-3 py-2 text-xs">{offer.eligibilitySummary}</p>}
         <div className="mt-auto pt-4">
@@ -158,12 +163,12 @@ export function FundedOfferCard({
         </div>
       </div>
 
-      <a
+      {!multiMerchant && <a
         href={`/merchants/${offer.merchant.slug}`}
         className="flex min-h-11 items-center justify-center border-t border-akiba-line bg-akiba-card/70 py-2.5 text-xs font-semibold text-akiba-muted transition hover:bg-emerald-50 hover:text-emerald-700"
       >
         View merchant
-      </a>
+      </a>}
     </article>
   );
 }

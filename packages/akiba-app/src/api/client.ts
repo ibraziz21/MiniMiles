@@ -1,3 +1,4 @@
+import { voucherPresentationSchema, voucherPresentationStatusSchema } from '@/contracts/owned-vouchers';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import type { z } from 'zod';
@@ -81,7 +82,10 @@ import { ApiRequestError } from './errors';
 import { fetchWithTimeout } from './timeout';
 import {
   getScreenshotMerchantOffers,
+  getScreenshotMerchantDetail,
+  getScreenshotMerchantStateDetail,
   getScreenshotOwnedVouchers,
+  getScreenshotVoucherDetail,
   getScreenshotVoucherCatalogue,
   getScreenshotVoucherState,
   isScreenshotModeEnabled,
@@ -351,6 +355,7 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
       return mutate('DELETE', `/api/v1/merchants/${slug}/save`, saveMerchantResponseSchema);
     },
     getMerchantDetail(slug: string, options: { freshPhotos?: boolean } = {}): Promise<MerchantDetail> {
+      if (isScreenshotModeEnabled() && slug === 'akiba-store') return Promise.resolve(getScreenshotMerchantDetail());
       // Customer photos use short-lived signed storage URLs. A unique query
       // key bypasses any browser/CDN response that can outlive those URLs.
       return get(
@@ -359,6 +364,7 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
       );
     },
     getMerchantStateDetail(slug: string): Promise<MerchantStateDetail> {
+      if (isScreenshotModeEnabled() && slug === 'akiba-store') return Promise.resolve(getScreenshotMerchantStateDetail());
       if (!accessToken) {
         return Promise.reject(new Error('getMerchantStateDetail requires an authenticated access token'));
       }
@@ -468,7 +474,32 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
       if (!accessToken) {
         return Promise.reject(new Error('getVoucherDetail requires an authenticated access token'));
       }
+      // Screenshot-only wallet entries have no corresponding live backend row.
+      if (isScreenshotModeEnabled() && id.startsWith('screenshot-voucher-')) {
+        return Promise.resolve(getScreenshotVoucherDetail(id));
+      }
       return get(`/api/v1/me/vouchers/${id}`, voucherDetailSchema);
+    },
+    async getVoucherPresentation(id: string) {
+      if (id.startsWith('screenshot-')) {
+        if (!isScreenshotModeEnabled()) throw new Error('Sample vouchers are unavailable');
+        const detail = getScreenshotVoucherDetail(id);
+        if (detail.status !== 'issued') throw new Error('Voucher is not ready to use');
+        return voucherPresentationSchema.parse({ token: 'AKIBA-SCREENSHOT-NOT-VALID-FOR-REDEMPTION',
+          expires_at: new Date(Date.now() + 115_000).toISOString(), entitlement: detail.entitlement });
+      }
+      return mutate('POST', `/api/shop/vouchers/${encodeURIComponent(id)}/presentation`, voucherPresentationSchema);
+    },
+    async revokeVoucherPresentation(id: string) {
+      if (id.startsWith('screenshot-')) return;
+      await mutate('DELETE', `/api/shop/vouchers/${encodeURIComponent(id)}/presentation`, voucherPresentationStatusSchema.pick({}).passthrough());
+    },
+    async getVoucherPresentationStatus(id: string) {
+      if (id.startsWith('screenshot-')) {
+        if (!isScreenshotModeEnabled()) throw new Error('Sample vouchers are unavailable');
+        return { voucher_status: getScreenshotVoucherDetail(id).status };
+      }
+      return get(`/api/shop/vouchers/${encodeURIComponent(id)}/status`, voucherPresentationStatusSchema);
     },
     getVoucherQuote(templateId: string): Promise<VoucherQuote> {
       return mutate('POST', '/api/v1/vouchers/quote', voucherQuoteSchema, { template_id: templateId });

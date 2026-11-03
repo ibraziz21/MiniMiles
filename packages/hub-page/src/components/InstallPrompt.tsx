@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Download, Share, SquarePlus, X } from "lucide-react";
 
 const DISMISS_KEY = "akiba_install_dismissed_v1";
@@ -40,11 +41,16 @@ function wasRecentlyDismissed() {
  * "Share → Add to Home Screen" steps instead.
  */
 export function InstallPrompt() {
+  const pathname = usePathname();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showIosSteps, setShowIosSteps] = useState(false);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
+    if (pathname === "/welcome") {
+      setVisible(false);
+      return;
+    }
     if (isStandalone() || wasRecentlyDismissed()) return;
 
     if (isIOS()) {
@@ -60,7 +66,7 @@ export function InstallPrompt() {
     };
     window.addEventListener("beforeinstallprompt", handler);
     return () => window.removeEventListener("beforeinstallprompt", handler);
-  }, []);
+  }, [pathname]);
 
   function dismiss() {
     localStorage.setItem(DISMISS_KEY, String(Date.now()));

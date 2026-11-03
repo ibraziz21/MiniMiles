@@ -5,7 +5,7 @@
  * Called right after OTP verification on the /join fast path. Creates (or
  * fetches) the user's pass and persists the acquisition src — but does NOT
  * mark onboarding as seen: the fast path skips the carousel *this once*,
- * /welcome is still offered on the next visit (home-redesign-spec.md §6).
+ * Continue routes new Pass holders through /auth/continue to onboarding.
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";

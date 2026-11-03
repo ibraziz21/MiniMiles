@@ -67,7 +67,7 @@ export default function LoginPage() {
   async function afterSignIn() {
     // Fire-and-forget: import wallet from users table if email matches
     fetch("/api/auth/sync-wallets", { method: "POST" }).catch(() => null);
-    router.push(next);
+    router.push(`/auth/continue?next=${encodeURIComponent(next)}`);
     router.refresh();
   }
 

@@ -1,3 +1,4 @@
+import { requireActor, UnauthorizedError } from "@/lib/auth/requestActor";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -6,12 +7,21 @@ import { userOwnsVoucher } from "@/lib/vouchers/issuance";
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _request: Request,
+  _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  let user: { id: string } | null;
+  if (_req.headers.has("authorization")) {
+    try { user = { id: (await requireActor(_req)).userId }; }
+    catch (error) {
+      if (error instanceof UnauthorizedError) return NextResponse.json({ error: error.message }, { status: error.status, headers: { "Cache-Control": "no-store" } });
+      throw error;
+    }
+  } else {
+    const supabase = await createClient();
+    user = (await supabase.auth.getUser()).data.user;
+  }
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const admin = createAdminClient();

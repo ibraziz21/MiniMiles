@@ -6,8 +6,13 @@ const state = vi.hoisted(() => ({
   user: { id: "hub-user-1" } as { id: string } | null,
   rpc: vi.fn(),
   snapshotError: false,
+  bearerActor: vi.fn(),
 }));
 
+vi.mock("@/lib/auth/requestActor", () => {
+  class UnauthorizedError extends Error { status = 401; }
+  return { requireActor: state.bearerActor, UnauthorizedError };
+});
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     auth: { getUser: async () => ({ data: { user: state.user } }) },
@@ -132,5 +137,33 @@ describe("voucher presentation route", () => {
       p_hub_user_id: "hub-user-1",
       p_wallet_addresses: ["0xabc"],
     });
+  });
+});
+
+describe('native voucher presentation authentication', () => {
+  it('uses the validated bearer actor for minting and linked-wallet lookup', async () => {
+    state.bearerActor.mockResolvedValue({ userId: 'native-user' });
+    state.snapshotError = false;
+    state.rpc.mockResolvedValue({ data: [{ ok: true, token_version: 1 }], error: null });
+    const request = new NextRequest('http://localhost/presentation', { method: 'POST', headers: { Authorization: 'Bearer native-test' } });
+    const response = await POST(request, context);
+    expect(response.status).toBe(200);
+    expect(state.bearerActor).toHaveBeenCalledWith(request);
+    expect(state.rpc).toHaveBeenLastCalledWith('issue_voucher_presentation_atomic', expect.objectContaining({ p_hub_user_id: 'native-user' }));
+  });
+  it('never falls back to a valid cookie session when a bearer token is invalid', async () => {
+    const { UnauthorizedError } = await import('@/lib/auth/requestActor');
+    state.user = { id: 'cookie-user' };
+    state.bearerActor.mockRejectedValue(new UnauthorizedError('Invalid token'));
+    const response = await POST(new NextRequest('http://localhost/presentation', { method: 'POST', headers: { Authorization: 'Bearer invalid' } }), context);
+    expect(response.status).toBe(401);
+    expect(await response.json()).not.toHaveProperty('token');
+  });
+  it('revokes against the bearer actor identity', async () => {
+    state.bearerActor.mockResolvedValue({ userId: 'native-user' });
+    state.rpc.mockResolvedValue({ data: [{ ok: true }], error: null });
+    const response = await DELETE(new NextRequest('http://localhost/presentation', { method: 'DELETE', headers: { Authorization: 'Bearer native-test' } }), context);
+    expect(response.status).toBe(200);
+    expect(state.rpc).toHaveBeenLastCalledWith('revoke_voucher_presentation_atomic', expect.objectContaining({ p_hub_user_id: 'native-user' }));
   });
 });
