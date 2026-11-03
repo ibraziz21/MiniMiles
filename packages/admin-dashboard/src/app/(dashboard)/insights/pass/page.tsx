@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { BarChart2, CalendarDays, Download, Eye, UserPlus, Users } from "lucide-react";
+import { BarChart2, CalendarDays, Download, UserPlus, Users } from "lucide-react";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import {
@@ -10,9 +10,10 @@ import {
   validatePassAnalyticsRange,
   type PassAnalytics,
   type PassAnalyticsRange,
+  type PassDemographics as PassDemographicsData,
 } from "@/lib/passAnalytics";
+import { PassDemographics } from "@/components/insights/PassDemographics";
 import { PageHeader } from "@/components/shell/PageHeader";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/ui/metric-card";
@@ -25,7 +26,6 @@ type RecentPass = {
   email: string;
   signup_src: string | null;
   created_at: string;
-  onboarding_seen_at: string | null;
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -48,24 +48,30 @@ function sourceLabel(source: string | null): string {
 
 async function getPassAnalytics(range: PassAnalyticsRange) {
   const { startsAt, endsAt } = passAnalyticsUtcBounds(range);
-  const [analyticsRes, recentRes] = await Promise.all([
+  const [analyticsRes, recentRes, demographicsRes] = await Promise.all([
     supabase.rpc("get_admin_pass_analytics", {
       p_from: range.from,
       p_to: range.to,
     }),
     supabase
       .from("hub_user_passes")
-      .select("id, user_id, email, signup_src, created_at, onboarding_seen_at")
+      .select("id, user_id, email, signup_src, created_at")
       .gte("created_at", startsAt)
       .lt("created_at", endsAt)
       .order("created_at", { ascending: false })
       .limit(50),
+    supabase.rpc("get_admin_pass_demographics", {
+      p_from: range.from,
+      p_to: range.to,
+    }),
   ]);
 
   return {
     analytics: (analyticsRes.data ?? null) as PassAnalytics | null,
     recent: (recentRes.data ?? []) as RecentPass[],
     error: analyticsRes.error?.message ?? recentRes.error?.message ?? null,
+    demographics: (demographicsRes.data ?? null) as PassDemographicsData | null,
+    demographicsError: Boolean(demographicsRes.error),
   };
 }
 
@@ -125,7 +131,7 @@ export default async function PassAnalyticsPage({ searchParams }: { searchParams
     : { ok: true as const, value: fallback };
   const range = validated.ok ? validated.value : fallback;
   const rangeError = validated.ok ? null : validated.error;
-  const { analytics, recent, error } = await getPassAnalytics(range);
+  const { analytics, recent, error, demographics, demographicsError } = await getPassAnalytics(range);
 
   const presets = [7, 30, 90].map((days) => ({
     days,
@@ -135,7 +141,7 @@ export default async function PassAnalyticsPage({ searchParams }: { searchParams
 
   return (
     <div>
-      <PageHeader title="Pass Analytics" subtitle="Signup and onboarding performance for the Akiba Pass" />
+      <PageHeader title="Pass Analytics" subtitle="Signups and member demographics for the Akiba Pass" />
       <div className="space-y-6 p-4 sm:p-6">
         <div className="flex flex-wrap items-end justify-between gap-3 rounded-card border border-border bg-surface p-4">
           <form className="flex flex-wrap items-end gap-3" action="/insights/pass">
@@ -206,15 +212,15 @@ export default async function PassAnalyticsPage({ searchParams }: { searchParams
                 sub={`${range.from} to ${range.to}`}
                 icon={CalendarDays}
               />
-              <MetricCard
-                label="Onboarding reached"
-                value={percent(analytics.period_onboarding_seen, analytics.period_signups)}
-                sub={`${formatNumber(analytics.period_onboarding_seen)} of ${formatNumber(analytics.period_signups)} selected signups`}
-                icon={Eye}
-              />
             </div>
 
             <SignupTrend data={analytics.daily} />
+
+            {demographicsError || !demographics ? (
+              <div role="status" className="rounded-card border border-warning/30 bg-warning/5 px-4 py-3 text-sm text-ink">
+                Countries, cities and interests are temporarily unavailable. Existing signup metrics remain available.
+              </div>
+            ) : <PassDemographics key={`${range.from}:${range.to}`} data={demographics} from={range.from} to={range.to} />}
 
             <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
               <Card>
@@ -232,9 +238,6 @@ export default async function PassAnalyticsPage({ searchParams }: { searchParams
                           <div key={pass.id} className="rounded-card border border-border p-3">
                             <div className="flex items-start justify-between gap-2">
                               <p className="font-medium text-ink">{pass.email}</p>
-                              <Badge variant={pass.onboarding_seen_at ? "success" : "secondary"}>
-                                {pass.onboarding_seen_at ? "reached" : "not reached"}
-                              </Badge>
                             </div>
                             <p className="mt-1 text-xs text-ink-muted">{sourceLabel(pass.signup_src)} · {formatDateTime(pass.created_at)}</p>
                           </div>
@@ -248,7 +251,6 @@ export default async function PassAnalyticsPage({ searchParams }: { searchParams
                             <tr className="border-y border-border bg-surface-subtle text-xs font-medium uppercase tracking-wider text-ink-muted">
                               <th className="px-4 py-3 text-left">Member</th>
                               <th className="px-4 py-3 text-left">Source</th>
-                              <th className="px-4 py-3 text-left">Onboarding</th>
                               <th className="px-4 py-3 text-left">Joined</th>
                             </tr>
                           </thead>
@@ -260,11 +262,6 @@ export default async function PassAnalyticsPage({ searchParams }: { searchParams
                                   <p className="font-mono text-xs text-ink-muted">{pass.user_id}</p>
                                 </td>
                                 <td className="px-4 py-3 text-ink-muted">{sourceLabel(pass.signup_src)}</td>
-                                <td className="px-4 py-3">
-                                  <Badge variant={pass.onboarding_seen_at ? "success" : "secondary"}>
-                                    {pass.onboarding_seen_at ? "reached" : "not reached"}
-                                  </Badge>
-                                </td>
                                 <td className="whitespace-nowrap px-4 py-3 text-ink-muted">{formatDateTime(pass.created_at)}</td>
                               </tr>
                             ))}

@@ -165,7 +165,7 @@
         "minimumSpendKes": 1500,
         "terms": "One per member while allocations last.",
         "eligibilitySummary": "Available to Akiba members",
-        "claimEndsAt": "2099-12-31T20:59:59.000Z",
+        "claimEndsAt": "2026-12-31T20:59:59.000Z",
         "merchant": {
           "name": "Akiba Store",
           "slug": "akiba-store",
@@ -210,7 +210,7 @@
         "eligible": false,
         "alreadyClaimed": false,
         "remaining": 1,
-        "endsAt": "2099-12-31T20:59:59.000Z"
+        "endsAt": "2026-12-31T20:59:59.000Z"
       }
     ],
     "claimFriction": {
@@ -236,7 +236,7 @@
         "merchantLogoUrl": null,
         "programName": "AkibaMiles reward",
         "createdAt": "2026-10-15T09:00:00.000Z",
-        "expiresAt": "2099-12-31T20:59:59.000Z",
+        "expiresAt": "2026-12-31T20:59:59.000Z",
         "redeemedAt": null
       },
       {
@@ -253,7 +253,7 @@
         "merchantLogoUrl": null,
         "programName": "AkibaMiles reward",
         "createdAt": "2026-10-16T11:30:00.000Z",
-        "expiresAt": "2099-12-31T20:59:59.000Z",
+        "expiresAt": "2026-12-31T20:59:59.000Z",
         "redeemedAt": null
       },
       {

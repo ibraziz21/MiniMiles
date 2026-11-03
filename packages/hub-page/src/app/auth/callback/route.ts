@@ -21,7 +21,7 @@ export async function GET(request: Request) {
       if (data.user.email) {
         await syncWalletsFromUsersTable(data.user.id, data.user.email);
       }
-      return NextResponse.redirect(`${origin}${next}`);
+      return NextResponse.redirect(`${origin}/auth/continue?next=${encodeURIComponent(next)}`);
     }
   }
 

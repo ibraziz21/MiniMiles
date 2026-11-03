@@ -32,7 +32,7 @@ export function PushOptInPrompt() {
   const [alreadySubscribed, setAlreadySubscribed] = useState(false);
 
   useEffect(() => {
-    if (pathname === "/me/notifications") {
+    if (pathname === "/me/notifications" || pathname === "/welcome") {
       setVisible(false);
       return;
     }

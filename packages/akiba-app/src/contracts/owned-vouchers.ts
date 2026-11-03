@@ -33,7 +33,27 @@ export const ownedVouchersListSchema = z.object({
 
 export type OwnedVouchersList = z.infer<typeof ownedVouchersListSchema>;
 
+
+const entitlementMerchantSchema = z.object({ id: z.string(), name: z.string(), slug: z.string(), imageUrl: z.string().nullable() });
+export const voucherEntitlementSchema = z.object({
+  title: z.string(), voucherType: z.string(), discountPercent: z.number().nullable(),
+  discountKes: z.number().nullable(), discountCusd: z.number().nullable(),
+  retailValueKes: z.number().nullable(), retailValueCusd: z.number().nullable(),
+  maximumDiscountKes: z.number().nullable(), minimumSpendKes: z.number().nullable(),
+  terms: z.string().nullable(), applicableCategory: z.string().nullable(), linkedProductId: z.string().nullable(),
+  redemptionSchedule: z.object({ days: z.array(z.number()), timezone: z.string(), startDate: z.string().optional(), endDate: z.string().optional() }).nullable(),
+  merchants: z.array(entitlementMerchantSchema), merchantCount: z.number(), merchantsIncomplete: z.boolean(),
+  timing: z.object({ kind: z.literal('issued'), expiresAt: z.string().nullable() }),
+});
+export type VoucherEntitlement = z.infer<typeof voucherEntitlementSchema>;
+export const voucherPresentationSchema = z.object({
+  token: z.string().min(1), expires_at: z.string().datetime(), entitlement: voucherEntitlementSchema,
+});
+export type VoucherPresentation = z.infer<typeof voucherPresentationSchema>;
+export const voucherPresentationStatusSchema = z.object({ voucher_status: z.string() });
+
 export const voucherDetailSchema = z.object({
+  entitlement: voucherEntitlementSchema.optional(),
   redemptionSchedule: z.object({ days: z.array(z.number().int().min(0).max(6)), timezone: z.string() }).nullable().optional(),
   id: z.string(),
   status: z.string(),
