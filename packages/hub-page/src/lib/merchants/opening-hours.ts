@@ -11,6 +11,16 @@ const DAY_LABELS: Record<DayKey, string> = {
   thursday: "Thursday", friday: "Friday", saturday: "Saturday",
 };
 
+const SCHEMA_DAY_URLS: Record<DayKey, string> = {
+  sunday: "https://schema.org/Sunday",
+  monday: "https://schema.org/Monday",
+  tuesday: "https://schema.org/Tuesday",
+  wednesday: "https://schema.org/Wednesday",
+  thursday: "https://schema.org/Thursday",
+  friday: "https://schema.org/Friday",
+  saturday: "https://schema.org/Saturday",
+};
+
 function partsInTimezone(timezone: string, date: Date) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: timezone,
@@ -70,6 +80,36 @@ export function formatTodayHours(hours: OpeningHours | null | undefined, timezon
   const ranges = hours[day] ?? [];
   if (ranges.length === 0) return "Closed today";
   return ranges.map((r) => `${r.opens}–${r.closes}`).join(", ");
+}
+
+export type OpeningHoursSpecification = {
+  "@type": "OpeningHoursSpecification";
+  dayOfWeek: string;
+  opens: string;
+  closes: string;
+};
+
+/**
+ * schema.org form of the same hours the profile already shows. An overnight
+ * range stays as-is: schema.org reads `closes` earlier than `opens` as
+ * closing the following day, which matches `rangeContains` above.
+ */
+export function toOpeningHoursSpecification(
+  hours: OpeningHours | null | undefined
+): OpeningHoursSpecification[] {
+  if (!hours || !hours.version) return [];
+  const spec: OpeningHoursSpecification[] = [];
+  for (const key of DAY_KEYS) {
+    for (const range of hours[key] ?? []) {
+      spec.push({
+        "@type": "OpeningHoursSpecification",
+        dayOfWeek: SCHEMA_DAY_URLS[key],
+        opens: range.opens,
+        closes: range.closes,
+      });
+    }
+  }
+  return spec;
 }
 
 export function formatWeekHours(hours: OpeningHours | null | undefined): Array<{ label: string; text: string }> {

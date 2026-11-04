@@ -35,7 +35,7 @@ export function SiteHeader() {
 
           <div className="flex items-center gap-2">
             <ButtonLink
-              href="/merchants"
+              href="/for-business"
               variant="secondary"
               className="hidden px-4 py-2.5 text-sm lg:inline-flex"
             >

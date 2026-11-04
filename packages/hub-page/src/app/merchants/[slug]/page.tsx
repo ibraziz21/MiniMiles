@@ -1,3 +1,5 @@
+import { PlayStoreLink } from "@/components/PlayStoreLink";
+import { cache } from "react";
 import { fundedDiscoveryResult } from "@/lib/vouchers/fundedDiscovery";
 import { FundedDiscoveryNotice } from "@/components/vouchers/FundedDiscoveryNotice";
 import { notFound } from "next/navigation";
@@ -7,7 +9,9 @@ import {
   Store, Mail, Phone, MessageCircle, Globe, ArrowLeft,
   Instagram, Facebook, Navigation,
 } from "lucide-react";
-import { buildDirectionsUrl, formatAddress } from "@/lib/merchants/directions";
+import { buildDirectionsUrl } from "@/lib/merchants/directions";
+import { buildMerchantJsonLd, isProfileIndexable } from "@/lib/merchants/seo";
+import { canonicalProfileUrl } from "@/lib/merchants/directory";
 import { BranchCard } from "@/components/merchants/BranchCard";
 import { VoucherCard } from "@/components/merchants/VoucherCard";
 import { OperatingBadges } from "@/components/merchants/OperatingBadges";
@@ -36,42 +40,59 @@ export const dynamic = "force-dynamic";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://pass.akibamiles.com";
 
-async function getSignedInIdentity(): Promise<{ userId: string | null; email: string | null }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return { userId: user?.id ?? null, email: user?.email ?? null };
-}
-
-async function safeGetMerchant(
-  slug: string,
-  userId: string | null
-): Promise<PublicMerchantDetail | null | "unavailable"> {
-  try {
-    return await getPublicMerchant(slug, userId);
-  } catch (err) {
-    if (err instanceof DirectoryUnavailableError) return "unavailable";
-    throw err;
+// `generateMetadata` and the page body each need the identity and the
+// merchant, and both run on every request. React's `cache` memoises them for
+// the duration of a single render, which halves the Supabase round trips per
+// profile view without caching anything across requests — the short-lived
+// photo URLs `getPublicMerchant` mints stay as fresh as they were.
+const getSignedInIdentity = cache(
+  async (): Promise<{ userId: string | null; email: string | null }> => {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    return { userId: user?.id ?? null, email: user?.email ?? null };
   }
-}
+);
+
+const safeGetMerchant = cache(
+  async (
+    slug: string,
+    userId: string | null
+  ): Promise<PublicMerchantDetail | null | "unavailable"> => {
+    try {
+      return await getPublicMerchant(slug, userId);
+    } catch (err) {
+      if (err instanceof DirectoryUnavailableError) return "unavailable";
+      throw err;
+    }
+  }
+);
 
 export async function generateMetadata({ params }: { params: { slug: string } }) {
   const { userId } = await getSignedInIdentity();
   const merchant = await safeGetMerchant(params.slug, userId);
   if (!merchant || merchant === "unavailable") {
-    return { title: "Merchant — Akiba Pass" };
+    // The "unavailable" branch below still renders a 200, so without this a
+    // transient directory outage could be indexed as the merchant's profile.
+    return { title: "Merchant — Akiba Pass", robots: { index: false, follow: true } };
   }
 
   const title = `${merchant.name} — Akiba Pass`;
   const description = merchant.shortDescription ?? undefined;
   const image = merchant.bannerUrl ?? merchant.logoUrl ?? undefined;
-  const url = `${SITE_URL}/merchants/${merchant.slug}`;
+  // Once the directory is relocated this names the marketing site, which is
+  // where the ranking signals should accumulate; this host keeps serving the
+  // page for native deep links either way.
+  const url = canonicalProfileUrl(merchant.slug, SITE_URL);
 
   return {
     title,
     description,
     alternates: { canonical: url },
+    // Keep stub profiles out of the index until the merchant's information
+    // pack lands; `follow` so their outbound links still carry weight.
+    robots: isProfileIndexable(merchant) ? undefined : { index: false, follow: true },
     openGraph: {
       title,
       description,
@@ -83,26 +104,11 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 }
 
 function LocalBusinessJsonLd({ merchant }: { merchant: PublicMerchantDetail }) {
-  const primary = merchant.locations.find((l) => l.isPrimary) ?? merchant.locations[0];
-  if (!primary) return null;
+  // No point describing a page we're asking crawlers to skip.
+  if (!isProfileIndexable(merchant)) return null;
 
-  const jsonLd: Record<string, unknown> = {
-    "@context": "https://schema.org",
-    "@type": "LocalBusiness",
-    name: merchant.name,
-    url: `${SITE_URL}/merchants/${merchant.slug}`,
-    address: {
-      "@type": "PostalAddress",
-      streetAddress: formatAddress(primary),
-      addressLocality: primary.city,
-      addressCountry: primary.countryCode,
-    },
-  };
-  if (merchant.logoUrl) jsonLd.image = merchant.logoUrl;
-  if (merchant.contacts.phone) jsonLd.telephone = merchant.contacts.phone;
-  if (primary.latitude != null && primary.longitude != null) {
-    jsonLd.geo = { "@type": "GeoCoordinates", latitude: primary.latitude, longitude: primary.longitude };
-  }
+  const jsonLd = buildMerchantJsonLd(merchant, canonicalProfileUrl(merchant.slug, SITE_URL));
+  if (!jsonLd) return null;
 
   return (
     <script
@@ -129,7 +135,8 @@ export default async function MerchantPage({ params }: { params: { slug: string 
         <a href={`/merchants/${params.slug}`} className="mt-4 inline-block rounded-full bg-akiba-teal px-5 py-2 text-sm font-semibold text-white">
           Retry
         </a>
-      </main>
+        <PlayStoreLink slot="merchant" />
+    </main>
     );
   }
 
@@ -380,6 +387,7 @@ export default async function MerchantPage({ params }: { params: { slug: string 
           </div>
         ) : undefined}
       />
+      <PlayStoreLink slot="merchant" />
     </main>
   );
 }

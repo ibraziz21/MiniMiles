@@ -1,3 +1,4 @@
+import { PlayStoreLink } from "@/components/PlayStoreLink";
 import { Store } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -8,10 +9,15 @@ import {
 import { getTopOffers, toMerchantValueSummary, getSignedInBalance } from "@/lib/merchants/enrich";
 import { createClient } from "@/lib/supabase/server";
 import { MerchantFilters } from "./MerchantFilters";
+import { canonicalDirectoryUrl } from "@/lib/merchants/directory";
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://pass.akibamiles.com";
 
 export const metadata = {
   title: "Merchants — Akiba Pass",
   description: "Find places to earn and use AkibaMiles—near you and online.",
+  // Points at the marketing site once the directory is relocated there.
+  alternates: { canonical: canonicalDirectoryUrl(SITE_URL) },
 };
 
 // A live-inventory directory (publish state, voucher availability) must
@@ -100,7 +106,8 @@ export default async function MerchantsPage({
             initialFilters={{ q: q ?? "", category: category ?? "", city: city ?? "", mode: mode ?? "all", hasOffer }}
           />
         )}
-      </main>
+        <PlayStoreLink slot="merchant-index" />
+    </main>
     );
   } catch {
     return (
@@ -119,7 +126,8 @@ export default async function MerchantsPage({
             Retry
           </a>
         </div>
-      </main>
+        <PlayStoreLink slot="merchant-index" />
+    </main>
     );
   }
 }

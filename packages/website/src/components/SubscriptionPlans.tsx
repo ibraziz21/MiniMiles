@@ -146,7 +146,7 @@ export function SubscriptionPlans({ plans, merchantUrl }: SubscriptionPlansProps
           <p className="font-sterling text-xl font-medium">More than 2 branches or KES 5,000,000 in monthly sales?</p>
           <p className="mt-1 text-sm leading-6 text-white/60">Talk to us about a plan shaped around your locations and monthly activity.</p>
         </div>
-        <ButtonLink href="/merchants#contact" variant="secondary" className="shrink-0 border-white/20 bg-white">
+        <ButtonLink href="/for-business#contact" variant="secondary" className="shrink-0 border-white/20 bg-white">
           Contact our team
         </ButtonLink>
       </div>

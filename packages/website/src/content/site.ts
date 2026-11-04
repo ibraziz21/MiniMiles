@@ -13,9 +13,10 @@ export const siteConfig = {
 };
 
 export const navLinks = [
+  { label: "Shops", href: "/shops" },
   { label: "What you get", href: "/#what-you-get" },
   { label: "Get the app", href: "/#app" },
-  { label: "For Merchants", href: "/merchants" },
+  { label: "For Merchants", href: "/for-business" },
   { label: "About", href: "/about" },
 ];
 
@@ -103,7 +104,7 @@ export const homeContent = {
     primaryCta: "Get your Akiba Pass",
     secondaryCta: "I'm a merchant",
     imageAlt: "The Akiba Explore screen showing business offers and places people loved",
-    badge: "iOS & Android app coming soon",
+    badge: "Android app now on Google Play",
     assurances: ["Free to join", "Miles never expire"],
   },
   whatYouGet: {
@@ -117,12 +118,12 @@ export const homeContent = {
     cta: "Put your business on Akiba",
   },
   app: {
-    eyebrow: "Coming soon",
-    title: "Akiba is coming to your home screen.",
-    body: "iOS and Android, in final testing. Leave your email and we'll tell you when it's out.",
+    eyebrow: "Get the app",
+    title: "Find your next good place with Akiba.",
+    body: "Android is now available on Google Play in Kenya. iOS is coming soon — leave your email for the launch.",
     platforms: [
       { name: "iOS", status: "In final testing" },
-      { name: "Android", status: "In final testing" },
+      { name: "Android", status: "Available on Google Play" },
     ],
     meanwhile: "Works today in any phone browser",
     meanwhileCta: "Open Akiba",
@@ -174,7 +175,7 @@ export const faqs = [
   {
     question: "Is there an Akiba app?",
     answer:
-      "Akiba works today in your phone browser. The iOS and Android app is in final testing. Join the list above and we'll tell you when it's out.",
+      "Yes. Download Akiba for Android on Google Play using the link above. iOS is coming soon; join the iOS notification list. You can also use Akiba in your phone browser.",
   },
   {
     question: "How does it work for businesses?",
@@ -514,8 +515,25 @@ export const aboutContent = {
     "Platform API",
     "Rewards ledger",
     "MiniPay Mini-App",
-    "iOS & Android app (soon)",
+    "Android app on Google Play",
+    "iOS app (coming soon)",
   ],
   disclaimer:
     "Akiba is built by Akiba Ecosystems Ltd and is not operated by MiniPay or Opera.",
+};
+
+export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.akibamiles.akiba";
+
+export function playStoreUrl(slot: string): string {
+  const referrer = new URLSearchParams({ utm_source: "marketing", utm_medium: "web", utm_campaign: slot });
+  return `${PLAY_STORE_URL}&referrer=${encodeURIComponent(referrer.toString())}`;
+}
+
+export const appInstallContent = {
+  badgeAlt: "Get it on Google Play",
+  trademark: "Google Play and the Google Play logo are trademarks of Google LLC.",
+  waitlistTitle: "Get notified when Akiba launches on iOS",
+  waitlistSubmit: "Notify me",
+  waitlistSuccess: "You're on the list. We'll email you when Akiba launches on iOS.",
+  waitlistFootnote: "One email when the iOS app ships. Nothing else.",
 };

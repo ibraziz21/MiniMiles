@@ -4,56 +4,47 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Download, Share, SquarePlus, X } from "lucide-react";
 
-const DISMISS_KEY = "akiba_install_dismissed_v1";
-const SNOOZE_DAYS = 14;
+import { isAndroid, isIos, isStandaloneApp } from "@/lib/push/browser";
+import { APP_INSTALL_DISMISS_KEY, shouldOfferAppInstall, wasRecentlyDismissed } from "@/lib/mobile/installPrompt";
+import { playStoreUrl } from "@/constants/links";
+import { TrackedAnchor } from "@/components/TrackedAnchor";
+
+const DISMISS_KEY = "akiba_install_dismissed_v1"; // Preserve iOS/desktop dismissals.
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
-function isStandalone() {
-  if (typeof window === "undefined") return false;
-  return (
-    window.matchMedia?.("(display-mode: standalone)").matches ||
-    // iOS Safari
-    (window.navigator as unknown as { standalone?: boolean }).standalone === true
-  );
-}
-
-function isIOS() {
-  if (typeof window === "undefined") return false;
-  return /iphone|ipad|ipod/i.test(window.navigator.userAgent) && !("MSStream" in window);
-}
-
-function wasRecentlyDismissed() {
-  const raw = localStorage.getItem(DISMISS_KEY);
-  if (!raw) return false;
-  const dismissedAt = Number(raw);
-  if (Number.isNaN(dismissedAt)) return false;
-  return Date.now() - dismissedAt < SNOOZE_DAYS * 24 * 60 * 60 * 1000;
-}
-
-/**
- * Prompts users to add Akiba Pass to their home screen. Android/desktop
- * Chrome fires `beforeinstallprompt`, which we defer and trigger from a
- * branded banner; iOS Safari has no such event, so we show manual
- * "Share → Add to Home Screen" steps instead.
- */
+/** Android offers the native app; iOS retains Share → Add to Home Screen.
+ * Desktop keeps the existing browser-driven PWA install flow. */
 export function InstallPrompt() {
   const pathname = usePathname();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [android, setAndroid] = useState(false);
   const [showIosSteps, setShowIosSteps] = useState(false);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
+    setVisible(false);
+    setShowIosSteps(false);
+    setAndroid(false);
     if (pathname === "/welcome") {
       setVisible(false);
       return;
     }
-    if (isStandalone() || wasRecentlyDismissed()) return;
+    const androidDevice = isAndroid();
+    let stored: string | null = null;
+    try { stored = localStorage.getItem(androidDevice ? APP_INSTALL_DISMISS_KEY : DISMISS_KEY); } catch { /* Storage may be unavailable. */ }
+    const recentlyDismissed = wasRecentlyDismissed(stored);
+    if (androidDevice) {
+      setAndroid(true);
+      setVisible(shouldOfferAppInstall({ android: true, standalone: isStandaloneApp(), recentlyDismissed, pathname }));
+      return;
+    }
+    if (isStandaloneApp() || recentlyDismissed) return;
 
-    if (isIOS()) {
+    if (isIos()) {
       setShowIosSteps(true);
       setVisible(true);
       return;
@@ -69,7 +60,8 @@ export function InstallPrompt() {
   }, [pathname]);
 
   function dismiss() {
-    localStorage.setItem(DISMISS_KEY, String(Date.now()));
+    try { localStorage.setItem(android ? APP_INSTALL_DISMISS_KEY : DISMISS_KEY, String(Date.now())); } catch { /* Dismiss for this visit even without storage. */ }
+    window.dispatchEvent(new Event("akiba:app-install-dismissed"));
     setVisible(false);
   }
 
@@ -91,7 +83,7 @@ export function InstallPrompt() {
         </div>
         <div className="flex-1">
           <p className="font-sterling text-sm font-semibold text-akiba-ink">
-            Add Akiba Pass to your home screen
+            {android ? "Akiba is now on Android" : "Add Akiba Pass to your home screen"}
           </p>
           {showIosSteps ? (
             <p className="mt-0.5 text-sm text-akiba-muted">
@@ -101,10 +93,12 @@ export function InstallPrompt() {
             </p>
           ) : (
             <p className="mt-0.5 text-sm text-akiba-muted">
-              Install for quick access to your pass, rewards, and quests — even offline.
+              {android ? "Discover local places, offers and rewards in the Akiba app. Available in Kenya." : "Install for quick access to your pass, rewards, and quests — even offline."}
             </p>
           )}
-          {!showIosSteps && (
+          {android ? (
+            <TrackedAnchor href={playStoreUrl("banner")} event="app_install_tap" eventProps={{ slot: "banner" }} className="mt-2 inline-flex min-h-11 items-center rounded-full bg-akiba-teal px-4 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-akiba-teal">Get it on Google Play</TrackedAnchor>
+          ) : !showIosSteps && (
             <button
               onClick={install}
               className="mt-2 rounded-full bg-akiba-teal px-4 py-1.5 text-sm font-semibold text-white transition hover:opacity-90"

@@ -1,3 +1,4 @@
+import { PlayStoreLink } from "@/components/PlayStoreLink";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { BusinessOfferCard } from "@/components/home/BusinessOfferRail";
@@ -23,6 +24,7 @@ export default async function OffersPage() {
       ) : (
         <p className="mt-10 text-sm text-akiba-muted">No offers are live right now.</p>
       )}
+      <PlayStoreLink slot="offer" />
     </main>
   );
 }

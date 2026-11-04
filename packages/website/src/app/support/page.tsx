@@ -1,3 +1,4 @@
+import { PlayStoreBadge } from "@/components/PlayStoreBadge";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Panel } from "@/components/Panel";
@@ -58,6 +59,7 @@ export default function SupportPage() {
       </Panel>
 
       <Panel tone="white">
+        <PlayStoreBadge slot="support" className="mb-8" />
         <h2 className="mb-8 font-sterling text-3xl font-medium text-akiba-ink sm:text-4xl">Common questions</h2>
         <FaqAccordion items={questions} />
       </Panel>
