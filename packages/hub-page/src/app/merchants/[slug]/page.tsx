@@ -75,16 +75,19 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   if (!merchant || merchant === "unavailable") {
     // The "unavailable" branch below still renders a 200, so without this a
     // transient directory outage could be indexed as the merchant's profile.
-    return { title: "Merchant — Akiba Pass", robots: { index: false, follow: true } };
+    return { title: "Shop — Akiba Pass", robots: { index: false, follow: true } };
   }
 
   const title = `${merchant.name} — Akiba Pass`;
   const description = merchant.shortDescription ?? undefined;
   const image = merchant.bannerUrl ?? merchant.logoUrl ?? undefined;
+  const indexable = isProfileIndexable(merchant);
   // Once the directory is relocated this names the marketing site, which is
   // where the ranking signals should accumulate; this host keeps serving the
-  // page for native deep links either way.
-  const url = canonicalProfileUrl(merchant.slug, SITE_URL);
+  // page for native deep links either way. A stub stays self-canonical,
+  // because the marketing site only publishes indexable profiles and would
+  // 404 the rest.
+  const url = canonicalProfileUrl(merchant.slug, SITE_URL, indexable);
 
   return {
     title,
@@ -92,7 +95,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
     alternates: { canonical: url },
     // Keep stub profiles out of the index until the merchant's information
     // pack lands; `follow` so their outbound links still carry weight.
-    robots: isProfileIndexable(merchant) ? undefined : { index: false, follow: true },
+    robots: indexable ? undefined : { index: false, follow: true },
     openGraph: {
       title,
       description,
@@ -107,7 +110,8 @@ function LocalBusinessJsonLd({ merchant }: { merchant: PublicMerchantDetail }) {
   // No point describing a page we're asking crawlers to skip.
   if (!isProfileIndexable(merchant)) return null;
 
-  const jsonLd = buildMerchantJsonLd(merchant, canonicalProfileUrl(merchant.slug, SITE_URL));
+  // Only reached for indexable profiles, so the relocated canonical applies.
+  const jsonLd = buildMerchantJsonLd(merchant, canonicalProfileUrl(merchant.slug, SITE_URL, true));
   if (!jsonLd) return null;
 
   return (
@@ -178,7 +182,7 @@ export default async function MerchantPage({ params }: { params: { slug: string 
       {hasPhysicalLocation && <LocalBusinessJsonLd merchant={merchant} />}
 
       <a href="/merchants" className="mb-4 flex items-center gap-1.5 text-sm text-akiba-muted hover:text-akiba-ink sm:mb-6">
-        <ArrowLeft className="h-4 w-4" /> All merchants
+        <ArrowLeft className="h-4 w-4" /> All shops
       </a>
 
       {/* Hero banner — full-bleed on mobile with the logo overlapping its

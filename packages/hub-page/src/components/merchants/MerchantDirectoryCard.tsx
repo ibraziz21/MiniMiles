@@ -74,7 +74,7 @@ export function MerchantDirectoryCard({
           ) : (
             <span />
           )}
-          <span className="shrink-0 text-xs font-semibold text-akiba-teal group-hover:underline">View merchant →</span>
+          <span className="shrink-0 text-xs font-semibold text-akiba-teal group-hover:underline">View shop →</span>
         </div>
       </div>
     </TrackedLink>

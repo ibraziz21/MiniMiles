@@ -228,7 +228,7 @@ export function MerchantFilters({
             <input
               type="text"
               aria-label="Search merchants, categories, cities"
-              placeholder="Search merchants…"
+              placeholder="Search shops…"
               value={filters.q}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full rounded-xl border border-akiba-line bg-white py-2.5 pl-9 pr-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal focus:border-akiba-teal"
@@ -297,7 +297,7 @@ export function MerchantFilters({
       {error ? (
         <div className="flex flex-col items-center rounded-2xl border border-dashed border-akiba-line bg-white py-14 text-center">
           <Store className="mb-3 h-10 w-10 text-akiba-line" />
-          <p className="font-medium text-akiba-ink">Merchants are temporarily unavailable</p>
+          <p className="font-medium text-akiba-ink">Shops are temporarily unavailable</p>
           <button
             onClick={retry}
             className="mt-3 flex items-center gap-1.5 text-sm font-semibold text-akiba-teal focus-visible:ring-2 focus-visible:ring-akiba-teal"
@@ -310,7 +310,7 @@ export function MerchantFilters({
       ) : visibleMerchants.length === 0 ? (
         <div className="flex flex-col items-center rounded-2xl border border-dashed border-akiba-line bg-white py-14 text-center">
           <Store className="mb-3 h-10 w-10 text-akiba-line" />
-          <p className="font-medium text-akiba-ink">No merchants match</p>
+          <p className="font-medium text-akiba-ink">No shops match</p>
           {hasFilter && (
             <button onClick={clearAll} className="mt-3 text-sm font-semibold text-akiba-teal focus-visible:ring-2 focus-visible:ring-akiba-teal">
               Clear filters

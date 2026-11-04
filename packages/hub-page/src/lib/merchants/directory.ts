@@ -68,13 +68,27 @@ export function canonicalDirectoryUrl(
   return `${trimTrailingSlash(hubSiteUrl)}/merchants`;
 }
 
-/** Canonical URL for one merchant profile. */
+/** This host's own URL for a profile — always served, relocation or not. */
+export function hubProfileUrl(slug: string, hubSiteUrl: string): string {
+  return `${trimTrailingSlash(hubSiteUrl)}/merchants/${slug}`;
+}
+
+/**
+ * Canonical URL for one merchant profile.
+ *
+ * `publishedOnDirectory` must say whether the marketing site actually serves
+ * this profile. It only publishes profiles that pass the indexability gate —
+ * the directory API 404s the rest — so a stub whose canonical named a
+ * /shops URL would point at a page that does not exist. Such a profile stays
+ * self-canonical here, where it is genuinely served.
+ */
 export function canonicalProfileUrl(
   slug: string,
   hubSiteUrl: string,
+  publishedOnDirectory: boolean,
   env: DirectoryEnvironment = process.env
 ): string {
   const origin = directoryOrigin(env);
-  if (origin) return `${origin}${DIRECTORY_PATH}/${slug}`;
-  return `${trimTrailingSlash(hubSiteUrl)}/merchants/${slug}`;
+  if (origin && publishedOnDirectory) return `${origin}${DIRECTORY_PATH}/${slug}`;
+  return hubProfileUrl(slug, hubSiteUrl);
 }

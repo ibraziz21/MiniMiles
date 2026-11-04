@@ -14,7 +14,7 @@ import { canonicalDirectoryUrl } from "@/lib/merchants/directory";
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://pass.akibamiles.com";
 
 export const metadata = {
-  title: "Merchants — Akiba Pass",
+  title: "Shops — Akiba Pass",
   description: "Find places to earn and use AkibaMiles—near you and online.",
   // Points at the marketing site once the directory is relocated there.
   alternates: { canonical: canonicalDirectoryUrl(SITE_URL) },
@@ -85,7 +85,7 @@ export default async function MerchantsPage({
     return (
       <main className="mx-auto max-w-7xl px-4 pt-3 pb-2 sm:px-6 sm:pt-8 sm:pb-4 lg:px-8">
         <div className="mb-3 sm:mb-8">
-          <h1 className="font-sterling text-2xl font-semibold text-akiba-ink sm:text-3xl">Merchants</h1>
+          <h1 className="font-sterling text-2xl font-semibold text-akiba-ink sm:text-3xl">Shops</h1>
           <p className="mt-1 text-sm text-akiba-muted sm:mt-2 sm:text-base">
             Find places to earn and use AkibaMiles—near you and online.
           </p>
@@ -94,8 +94,8 @@ export default async function MerchantsPage({
         {initialMerchants.length === 0 && !q && !category && !city && !mode ? (
           <div className="flex flex-col items-center rounded-2xl border border-dashed border-akiba-line bg-white px-6 py-16 text-center">
             <Store className="mb-4 h-12 w-12 text-akiba-line" />
-            <h2 className="font-sterling text-xl font-semibold text-akiba-ink">No merchants yet</h2>
-            <p className="mt-2 max-w-xs text-sm text-akiba-muted">Partner merchants are being onboarded. Check back soon.</p>
+            <h2 className="font-sterling text-xl font-semibold text-akiba-ink">No shops yet</h2>
+            <p className="mt-2 max-w-xs text-sm text-akiba-muted">Shops are being onboarded. Check back soon.</p>
           </div>
         ) : (
           <MerchantFilters
@@ -113,11 +113,11 @@ export default async function MerchantsPage({
     return (
       <main className="mx-auto max-w-7xl px-4 pt-3 pb-2 sm:px-6 sm:pt-8 sm:pb-4 lg:px-8">
         <div className="mb-3 sm:mb-8">
-          <h1 className="font-sterling text-2xl font-semibold text-akiba-ink sm:text-3xl">Merchants</h1>
+          <h1 className="font-sterling text-2xl font-semibold text-akiba-ink sm:text-3xl">Shops</h1>
         </div>
         <div className="flex flex-col items-center rounded-2xl border border-dashed border-akiba-line bg-white px-6 py-16 text-center">
           <Store className="mb-4 h-12 w-12 text-akiba-line" />
-          <h2 className="font-sterling text-xl font-semibold text-akiba-ink">Merchants are temporarily unavailable</h2>
+          <h2 className="font-sterling text-xl font-semibold text-akiba-ink">Shops are temporarily unavailable</h2>
           <p className="mt-2 max-w-xs text-sm text-akiba-muted">Something went wrong loading the directory. Please try again shortly.</p>
           <a
             href="/merchants"

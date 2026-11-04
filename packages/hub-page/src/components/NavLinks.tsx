@@ -22,7 +22,9 @@ type PrimaryIcon = React.ComponentType<{
 
 const PRIMARY_ITEMS: Array<{ key: PrimaryKey; href: string; label: string; icon: PrimaryIcon }> = [
   { key: "explore",   href: "/",         label: "Explore",   icon: Compass },
-  { key: "merchants", href: "/merchants", label: "Merchants", icon: ShoppingBag },
+  // "Shops" is what shoppers say; the key and route stay `merchants`, which
+  // released app builds claim as deep links.
+  { key: "merchants", href: "/merchants", label: "Shops", icon: ShoppingBag },
   { key: "rewards",   href: "/vouchers",  label: "Rewards",   icon: Tag },
   { key: "earn",      href: "/earn",      label: "Earn",      icon: EarnIcon },
 ];

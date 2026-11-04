@@ -9,6 +9,7 @@ import {
   canonicalDirectoryUrl,
   canonicalProfileUrl,
   directoryOrigin,
+  hubProfileUrl,
   isDirectoryRelocated,
 } from "@/lib/merchants/directory";
 
@@ -45,13 +46,13 @@ describe("canonical URLs before relocation", () => {
   });
 
   it("names the hub's own profile URL", () => {
-    expect(canonicalProfileUrl("arabica-coffee-house", HUB, {})).toBe(
+    expect(canonicalProfileUrl("arabica-coffee-house", HUB, true, {})).toBe(
       `${HUB}/merchants/arabica-coffee-house`
     );
   });
 
   it("does not double up a slash when the hub URL has a trailing one", () => {
-    expect(canonicalProfileUrl("x", `${HUB}/`, {})).toBe(`${HUB}/merchants/x`);
+    expect(canonicalProfileUrl("x", `${HUB}/`, true, {})).toBe(`${HUB}/merchants/x`);
   });
 });
 
@@ -63,7 +64,7 @@ describe("canonical URLs after relocation", () => {
   });
 
   it("moves each profile to the marketing site's /shops/[slug]", () => {
-    expect(canonicalProfileUrl("arabica-coffee-house", HUB, env)).toBe(
+    expect(canonicalProfileUrl("arabica-coffee-house", HUB, true, env)).toBe(
       `${WWW}/shops/arabica-coffee-house`
     );
   });
@@ -73,6 +74,40 @@ describe("canonical URLs after relocation", () => {
   });
 
   it("ignores the hub URL entirely once relocated", () => {
-    expect(canonicalProfileUrl("x", "https://something-else.example", env)).toBe(`${WWW}/shops/x`);
+    expect(canonicalProfileUrl("x", "https://something-else.example", true, env)).toBe(`${WWW}/shops/x`);
+  });
+});
+
+describe("a profile the marketing site does not publish", () => {
+  const env = { NEXT_PUBLIC_DIRECTORY_ORIGIN: WWW };
+
+  /**
+   * Regression: this reached production. The only published merchant had a
+   * 24-character description, so it failed the indexability gate — which
+   * noindexes it here and makes the directory API 404 it — while its
+   * canonical still named www/shops/<slug>. The result was a live profile
+   * pointing its canonical at a 404.
+   */
+  it("stays self-canonical on the hub even once the directory is relocated", () => {
+    expect(canonicalProfileUrl("arabica-1976-information", HUB, false, env)).toBe(
+      `${HUB}/merchants/arabica-1976-information`
+    );
+  });
+
+  it("is unaffected before relocation", () => {
+    expect(canonicalProfileUrl("stub", HUB, false, {})).toBe(`${HUB}/merchants/stub`);
+  });
+
+  it("never names the marketing site for a stub, whatever the origin", () => {
+    const url = canonicalProfileUrl("stub", HUB, false, env);
+    expect(url).not.toContain(WWW);
+    expect(url).not.toContain("/shops");
+  });
+});
+
+describe("hubProfileUrl", () => {
+  it("always names this host, since it serves the profile either way", () => {
+    expect(hubProfileUrl("acme", HUB)).toBe(`${HUB}/merchants/acme`);
+    expect(hubProfileUrl("acme", `${HUB}/`)).toBe(`${HUB}/merchants/acme`);
   });
 });
