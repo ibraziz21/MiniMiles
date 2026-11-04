@@ -123,7 +123,7 @@ jobs:
         run: pnpm --filter @akiba/akiba-app exec npx expo-doctor@latest
 
   website:
-    name: website (lint, typecheck)
+    name: website (lint, typecheck, unit)
     runs-on: ubuntu-latest
 
     steps:
@@ -143,3 +143,10 @@ jobs:
 
       - name: Typecheck
         run: pnpm --filter @akibamiles/website typecheck
+
+      - name: Unit tests
+        # The shop directory's structured data and its reader for the Pass
+        # app's public API are the only logic on this site that fails
+        # invisibly — a wrong canonical or a swallowed outage looks fine in a
+        # browser and wrong to a crawler.
+        run: pnpm --filter @akibamiles/website test

@@ -24,6 +24,13 @@ export type ServerEnv = {
   };
   siteUrl: string;
   reactAppUrl: string | null;
+  /**
+   * Marketing-site origin that canonically publishes the merchant directory.
+   * Null until the directory is relocated. Distinct from `siteUrl`, which
+   * must keep naming the host this deployment answers on — see
+   * lib/merchants/directory.ts.
+   */
+  directoryOrigin: string | null;
   celo: {
     rpcUrl: string;
     minipointsAddress: string | null;
@@ -146,6 +153,21 @@ export function getServerEnv(env: NodeJS.ProcessEnv = process.env): ServerEnv {
   }
   if (isProduction && reactAppUrl && isLocalhostUrl(reactAppUrl)) {
     problems.push("NEXT_PUBLIC_REACT_APP_URL cannot point at localhost in production");
+  }
+
+  const directoryOrigin = trimmedOrNull(env.NEXT_PUBLIC_DIRECTORY_ORIGIN);
+  if (directoryOrigin && !isValidUrl(directoryOrigin)) {
+    problems.push("NEXT_PUBLIC_DIRECTORY_ORIGIN must be a valid URL when set");
+  }
+  if (isProduction && directoryOrigin && isLocalhostUrl(directoryOrigin)) {
+    problems.push("NEXT_PUBLIC_DIRECTORY_ORIGIN cannot point at localhost in production");
+  }
+  // Setting it to this host would make every profile declare itself its own
+  // canonical twice over and quietly cancel the relocation.
+  if (directoryOrigin && isValidUrl(directoryOrigin) && isValidUrl(siteUrl)) {
+    if (new URL(directoryOrigin).host.toLowerCase() === new URL(siteUrl).host.toLowerCase()) {
+      problems.push("NEXT_PUBLIC_DIRECTORY_ORIGIN must name a different host from NEXT_PUBLIC_SITE_URL");
+    }
   }
 
   const celoRpcUrl = trimmedOrNull(env.CELO_RPC_URL) ?? "https://forno.celo.org";
@@ -313,6 +335,7 @@ export function getServerEnv(env: NodeJS.ProcessEnv = process.env): ServerEnv {
     },
     siteUrl,
     reactAppUrl,
+    directoryOrigin,
     celo: { rpcUrl: celoRpcUrl, minipointsAddress },
     akiba: {
       apiUrl: akibaApiUrl,

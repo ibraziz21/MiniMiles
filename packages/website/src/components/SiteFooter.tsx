@@ -1,7 +1,8 @@
+import { PlayStoreBadge } from "@/components/PlayStoreBadge";
 import Link from "next/link";
 import { Mail, Send, Twitter } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { siteConfig } from "@/content/site";
+import { siteConfig, appInstallContent } from "@/content/site";
 
 export function SiteFooter() {
   return (
@@ -22,7 +23,8 @@ export function SiteFooter() {
           <div className="mt-4 flex flex-col gap-3">
             {[
               { label: "Get Akiba Pass", href: siteConfig.passUrl },
-              { label: "For Merchants", href: "/merchants" },
+              { label: "Shops on Akiba", href: "/shops" },
+              { label: "For Merchants", href: "/for-business" },
               { label: "Mini-App", href: siteConfig.appUrl },
               { label: "About", href: "/about" },
             ].map((item) => (
@@ -35,6 +37,7 @@ export function SiteFooter() {
               </Link>
             ))}
           </div>
+          <PlayStoreBadge slot="footer" className="mt-3" />
         </div>
         <div>
           <h2 className="font-sterling text-lg font-medium text-akiba-ink">Developers</h2>
@@ -88,7 +91,10 @@ export function SiteFooter() {
       </div>
       <div className="border-t border-akiba-line bg-akiba-paper">
         <div className="flex flex-col gap-3 px-6 py-5 text-sm text-akiba-muted sm:flex-row sm:items-center sm:justify-between sm:px-10 lg:px-14">
-          <p>© {new Date().getFullYear()} AkibaMiles</p>
+          <div>
+            <p>© {new Date().getFullYear()} AkibaMiles</p>
+            <p className="mt-2 text-xs leading-5">{appInstallContent.trademark}</p>
+          </div>
           <div className="flex gap-4">
             <Link href="/privacy-policy" className="no-underline hover:text-akiba-teal">
               Privacy Policy

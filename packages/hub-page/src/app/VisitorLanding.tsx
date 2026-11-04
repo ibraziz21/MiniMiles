@@ -1,3 +1,4 @@
+import { AndroidAppNudge } from "@/components/AndroidAppNudge";
 import { fundedDiscoveryResult } from "@/lib/vouchers/fundedDiscovery";
 import { FundedDiscoveryNotice } from "@/components/vouchers/FundedDiscoveryNotice";
 import { HomeViewTracker } from "@/components/akiba/HomeViewTracker";
@@ -37,6 +38,7 @@ export async function VisitorLanding() {
       <HomeViewTracker variant="visitor" />
 
       <DiscoveryMasthead />
+      <AndroidAppNudge slot="visitor-home" />
 
       <IntentShortcuts intents={feed.intents} title="What are you looking for?" />
 

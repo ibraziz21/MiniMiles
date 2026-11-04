@@ -1,3 +1,4 @@
+import { AndroidAppNudge } from "@/components/AndroidAppNudge";
 import { fundedDiscoveryResult } from "@/lib/vouchers/fundedDiscovery";
 import { FundedDiscoveryNotice } from "@/components/vouchers/FundedDiscoveryNotice";
 import { TrackedLink } from "@/components/akiba/TrackedLink";
@@ -55,6 +56,7 @@ export async function MemberHome({ user }: { user: User }) {
       <HomeViewTracker variant="member" />
 
       <DiscoveryMasthead firstName={firstName} milesBalance={feed.rewards?.milesBalance ?? null} />
+      <AndroidAppNudge slot="member-home" />
 
       {/* Continue-this strip — at most one item, only when something's
           genuinely urgent (discovery-blueprint.md §3, workstream 7). A thin

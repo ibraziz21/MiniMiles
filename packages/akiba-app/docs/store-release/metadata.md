@@ -6,6 +6,11 @@ push) or a screen that is not in the reviewed binary.
 
 Every field needs a named owner and a sign-off date before submission.
 
+The Android listing is now live, so the copy below is history for Play: the
+optimisation pass against the published listing lives in
+[`aso-play-listing.md`](./aso-play-listing.md). This file remains the source
+for App Store fields and for the review notes.
+
 ## Identity
 
 | Field | Value | Owner | Signed off |

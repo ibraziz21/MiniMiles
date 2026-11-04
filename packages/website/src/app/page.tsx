@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PlayStoreBadge } from "@/components/PlayStoreBadge";
 import { ArrowUpRight, BellRing, Check, Compass, Heart, Ticket, Wallet } from "lucide-react";
 import { ButtonLink } from "@/components/ButtonLink";
 import { Eyebrow } from "@/components/Eyebrow";
@@ -7,7 +8,7 @@ import { Panel } from "@/components/Panel";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { SectionHeader } from "@/components/SectionHeader";
 import { WaitlistForm } from "@/components/WaitlistForm";
-import { faqs, homeContent, pillars, siteConfig } from "@/content/site";
+import { faqs, homeContent, pillars, siteConfig, appInstallContent, PLAY_STORE_URL } from "@/content/site";
 
 const pillarIcons = {
   discover: Compass,
@@ -22,6 +23,11 @@ export default function HomePage() {
 
   return (
     <main>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
+        "@context": "https://schema.org", "@type": "SoftwareApplication", name: "Akiba",
+        applicationCategory: "ShoppingApplication", operatingSystem: "Android", installUrl: PLAY_STORE_URL,
+        publisher: { "@type": "Organization", name: "Akiba Ecosystems Ltd" },
+      }).replace(/</g, "\\u003c") }} />
       {/* Hero */}
       <Panel tone="wash" bare>
         <div className="grid items-center gap-10 px-5 pb-0 pt-12 sm:px-10 sm:pt-16 lg:grid-cols-[1.02fr_0.98fr] lg:gap-6 lg:px-14 lg:pt-20">
@@ -35,16 +41,11 @@ export default function HomePage() {
             </div>
             <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
               <ButtonLink href={siteConfig.passUrl}>{hero.primaryCta}</ButtonLink>
-              <ButtonLink href="/merchants" variant="secondary">
+              <ButtonLink href="/for-business" variant="secondary">
                 {hero.secondaryCta}
               </ButtonLink>
             </div>
-            <Link
-              href="#app"
-              className="inline-flex items-center gap-2 rounded-full border border-akiba-teal/25 bg-akiba-tint px-4 py-2 text-sm font-semibold text-akiba-teal no-underline transition hover:border-akiba-teal"
-            >
-              {hero.badge}
-            </Link>
+            <PlayStoreBadge slot="hero" />
             <ul className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-akiba-muted">
               {hero.assurances.map((item) => (
                 <li key={item} className="inline-flex items-center gap-1.5">
@@ -125,7 +126,9 @@ export default function HomePage() {
             <p className="max-w-xl text-lg leading-8 text-white/75">{app.body}</p>
 
             <div className="flex flex-wrap gap-3">
-              {app.platforms.map((platform) => (
+              {app.platforms.map((platform) => platform.name === "Android" ? (
+                <PlayStoreBadge key={platform.name} slot="app-panel" />
+              ) : (
                 <div
                   key={platform.name}
                   className="rounded-2xl border border-white/20 bg-white/10 px-5 py-3 backdrop-blur"
@@ -137,12 +140,13 @@ export default function HomePage() {
             </div>
 
             <div className="w-full max-w-md rounded-[1.25rem] border border-white/15 bg-white/10 p-4 backdrop-blur">
+              <p className="mb-3 text-sm font-semibold">{appInstallContent.waitlistTitle}</p>
               <WaitlistForm
-                source="website_app_waitlist"
+                source="website_ios_waitlist"
                 tone="dark"
-                submitLabel="Notify me"
-                successMessage="You're on the list. We'll email you the day the app lands."
-                footnote="One email when the app ships. Nothing else."
+                submitLabel={appInstallContent.waitlistSubmit}
+                successMessage={appInstallContent.waitlistSuccess}
+                footnote={appInstallContent.waitlistFootnote}
               />
             </div>
 
@@ -204,6 +208,14 @@ export default function HomePage() {
                       </li>
                     ))}
                   </ul>
+                  {pillar.id === "discover" && (
+                    <Link
+                      href="/shops"
+                      className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-akiba-teal no-underline"
+                    >
+                      Browse shops on Akiba <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                    </Link>
+                  )}
                 </div>
 
                 <div className={`flex justify-center gap-5 ${flipped ? "lg:order-1" : ""}`}>
@@ -234,7 +246,7 @@ export default function HomePage() {
               {homeContent.merchantBand.body}
             </p>
           </div>
-          <ButtonLink href="/merchants" variant="onDark" className="shrink-0">
+          <ButtonLink href="/for-business" variant="onDark" className="shrink-0">
             {homeContent.merchantBand.cta}
           </ButtonLink>
         </div>
@@ -273,7 +285,7 @@ export default function HomePage() {
             Get your Akiba Pass <ArrowUpRight className="h-4 w-4" />
           </Link>
           <Link
-            href="/merchants"
+            href="/for-business"
             className="inline-flex items-center gap-2 text-sm font-semibold text-akiba-teal no-underline"
           >
             Become an Akiba merchant <ArrowUpRight className="h-4 w-4" />

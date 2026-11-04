@@ -60,7 +60,7 @@ export default function MerchantsPage() {
               Get started
             </ButtonLink>
             <Link
-              href="/merchants#contact"
+              href="/for-business#contact"
               className="inline-flex items-center gap-2 text-sm font-semibold text-akiba-muted hover:text-akiba-ink"
             >
               Talk to us first <ArrowRight className="h-4 w-4" />
