@@ -17,6 +17,16 @@ const nextConfig = {
     return [
       { source: "/shop", destination: "/merchants", permanent: true },
       { source: "/shop/:slug", destination: "/merchants/:slug", permanent: true },
+      // Slug renamed by supabase/migrations/120_rename_arabica_slug.sql.
+      // Profiles resolve by slug at request time, so the old URL would 404 —
+      // this keeps links already shared working. A second slug rename is the
+      // signal to replace these one-offs with a slug-alias table rather than
+      // keep adding lines here.
+      {
+        source: "/merchants/arabica-1976-information",
+        destination: "/merchants/arabica-coffee",
+        permanent: true,
+      },
       // akiba-pass-navigation-rewards-earned-notifications-v1-spec.md §4.2 —
       // Rewards now means the merchant voucher inventory; the old
       // cross-chain-campaign /rewards experience is retired in favor of it.

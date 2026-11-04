@@ -87,6 +87,9 @@ describe("a profile the marketing site does not publish", () => {
    * noindexes it here and makes the directory API 404 it — while its
    * canonical still named www/shops/<slug>. The result was a live profile
    * pointing its canonical at a 404.
+   *
+   * The slug below is that merchant's as it was at the time; it has since been
+   * renamed to arabica-coffee. Kept verbatim because this records the incident.
    */
   it("stays self-canonical on the hub even once the directory is relocated", () => {
     expect(canonicalProfileUrl("arabica-1976-information", HUB, false, env)).toBe(
