@@ -30,6 +30,14 @@
       },
       "android": { "buildType": "apk" }
     },
+    "meta-review": {
+      "extends": "production",
+      "distribution": "internal",
+      "environment": "production",
+      "autoIncrement": false,
+      "env": { "EXPO_PUBLIC_SCREENSHOT_MODE": "false" },
+      "android": { "buildType": "apk" }
+    },
     "production": {
       "distribution": "store",
       "environment": "production",
