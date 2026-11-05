@@ -23,7 +23,7 @@ const DB_CONFIG = {
 };
 
 const MIGRATIONS_DIR = resolve(__dirname, "../../../../../supabase/migrations");
-const MIGRATION_NUMBERS = ["081", "082", "083", "084", "085", "086", "087", "088", "089", "090"];
+const MIGRATION_NUMBERS = ["081", "082", "083", "084", "085", "086", "087", "088", "089", "090", "121"];
 
 const SETUP_SQL = `
 DROP SCHEMA IF EXISTS public CASCADE;
@@ -153,6 +153,67 @@ async function makeEligibleFixture(overrides?: {
 
   return { partnerId, earningEventId, requestId, contributionId };
 }
+
+describe("editing submitted visits", () => {
+  const submit = (requestId: string, key: string) => pool.query(
+    `SELECT * FROM submit_discovery_contribution(
+      $1, (SELECT hub_user_id FROM discovery_contribution_requests WHERE id = $1),
+      false, NULL, NULL::smallint, false, '{}', '[]', $2
+    )`,
+    [requestId, key],
+  );
+
+  it("updates an expired submitted visit in place and makes an identical retry a no-op", async () => {
+    const { requestId, contributionId } = await makeEligibleFixture();
+    await pool.query("UPDATE discovery_contribution_requests SET expires_at = now() - interval '1 day' WHERE id = $1", [requestId]);
+    const key = randomUUID();
+
+    expect((await submit(requestId, key)).rows).toEqual([{ ok: true, contribution_id: contributionId }]);
+    await submit(requestId, key);
+
+    const saved = await pool.query("SELECT would_recommend, answer_version FROM merchant_discovery_contributions WHERE id = $1", [contributionId]);
+    expect(saved.rows).toEqual([{ would_recommend: false, answer_version: 2 }]);
+  });
+
+  it("keeps a private note out of the public projection and preserves it when an older client omits it", async () => {
+    const { requestId, contributionId } = await makeEligibleFixture();
+    const saveNote = (note: string, key: string) => pool.query(
+      `SELECT * FROM submit_discovery_contribution(
+        $1, (SELECT hub_user_id FROM discovery_contribution_requests WHERE id = $1),
+        true, NULL, NULL::smallint, false, '{}', '[]', $2, $3
+      )`,
+      [requestId, key, note],
+    );
+    const key = randomUUID();
+    await saveNote("Keep this to myself", key);
+    await expect(saveNote("Different note", key)).rejects.toMatchObject({ code: "23514" });
+
+    const publicRow = await pool.query(
+      "SELECT to_jsonb(visit) AS visit FROM eligible_public_discovery_contributions visit WHERE contribution_id = $1",
+      [contributionId],
+    );
+    expect(publicRow.rowCount).toBe(1);
+    expect(publicRow.rows[0].visit).not.toHaveProperty("private_note");
+
+    await submit(requestId, randomUUID());
+    const readNote = () => pool.query("SELECT private_note FROM merchant_discovery_contributions WHERE id = $1", [contributionId]);
+    expect((await readNote()).rows).toEqual([{ private_note: "Keep this to myself" }]);
+
+    await saveNote("", randomUUID());
+    expect((await readNote()).rows).toEqual([{ private_note: null }]);
+  });
+
+  it("rejects withdrawn visits and expired new requests", async () => {
+    const withdrawn = await makeEligibleFixture();
+    await pool.query("UPDATE merchant_discovery_contributions SET withdrawn_at = now() WHERE id = $1", [withdrawn.contributionId]);
+    await expect(submit(withdrawn.requestId, randomUUID())).rejects.toMatchObject({ code: "22023" });
+
+    const expired = await makeEligibleFixture();
+    await pool.query("DELETE FROM merchant_discovery_contributions WHERE id = $1", [expired.contributionId]);
+    await pool.query("UPDATE discovery_contribution_requests SET state = 'open', expires_at = now() - interval '1 day' WHERE id = $1", [expired.requestId]);
+    await expect(submit(expired.requestId, randomUUID())).rejects.toMatchObject({ code: "55000" });
+  });
+});
 
 async function addApprovedPhoto(contributionId: string, partnerId: string): Promise<string> {
   const photoId = randomUUID();

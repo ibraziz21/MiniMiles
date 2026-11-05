@@ -9,8 +9,10 @@ const state = vi.hoisted(() => ({
 class MockInvalidMerchantCursorError extends Error {}
 
 const listPublicMerchantsMock = vi.fn();
+const getPublishedMerchantBannersMock = vi.fn();
 const getCanonicalVoucherCountsMock = vi.fn();
 vi.mock("@/lib/merchants/queries", () => ({
+  getPublishedMerchantBanners: (...args: unknown[]) => getPublishedMerchantBannersMock(...args),
   InvalidMerchantCursorError: MockInvalidMerchantCursorError,
   listPublicMerchants: (...args: unknown[]) => listPublicMerchantsMock(...args),
   getCanonicalVoucherCounts: (...args: unknown[]) => getCanonicalVoucherCountsMock(...args),
@@ -45,6 +47,7 @@ describe("GET /api/v1/merchants", () => {
     });
     getCanonicalVoucherCountsMock.mockResolvedValue({});
     getTopOffersMock.mockResolvedValue({});
+    getPublishedMerchantBannersMock.mockResolvedValue({});
     toMerchantValueSummaryMock.mockImplementation((m) => ({ id: m.id, slug: m.slug }));
   });
 
@@ -61,6 +64,16 @@ describe("GET /api/v1/merchants", () => {
       null,
       0,
     );
+  });
+
+  it("includes the published business banner for directory cards", async () => {
+    state.listResult.merchants = [{ id: "m1", slug: "acme" }, { id: "m2", slug: "second" }];
+    getPublishedMerchantBannersMock.mockResolvedValue({ m1: "/images/acme.jpg" });
+
+    const response = await GET(req());
+    expect(getPublishedMerchantBannersMock).toHaveBeenCalledWith(["m1", "m2"]);
+    expect((await response.json()).data.merchants.map((merchant: { bannerUrl: string | null }) => merchant.bannerUrl))
+      .toEqual(["http://localhost/images/acme.jpg", null]);
   });
 
   it("returns an empty merchants array without enrichment calls when the list is empty", async () => {

@@ -68,7 +68,7 @@ export async function GET(request: Request, { params }: { params: { allocationId
         );
   }
 
-  const claimFriction = await getVoucherClaimFriction(actor.userId);
+  const claimFriction = { ...await getVoucherClaimFriction(actor.userId), requiresUsePlan: false };
 
   // Username requirement (voucher-web2-username-identity-spec.md §3.4) comes
   // before country in the preview, matching the self-claim requirement order

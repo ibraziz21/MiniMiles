@@ -8,7 +8,7 @@ import { VisitCardFlow, type InitialContribution } from "./VisitCardFlow";
 // notification-feed surfaces (§8.2 surfaces 2-3). The in-success-surface
 // bottom-sheet entry point (surface 1) is a later addition; this route also
 // works fine linked to directly in the meantime.
-export const metadata = { title: "Add your visit — Akiba" };
+export const metadata = { title: "Your verified visit — Akiba" };
 
 type MentionShape = { client_item_key: string; raw_label: string };
 
@@ -20,6 +20,7 @@ type ContributionRow = {
   party_size_is_six_plus: boolean;
   experience_option_ids: string[];
   withdrawn_at: string | null;
+  private_note: string | null;
   items: Array<{
     is_recommended: boolean;
     // PostgREST's embed cardinality for a forward FK is normally a single
@@ -52,13 +53,15 @@ export default async function VisitCardPage({
     data: { user },
     error,
   } = await supabase.auth.getUser();
-  if (error || !user) redirect(`/login?next=/visit/${params.requestId}`);
+  const editRequested = searchParams?.step === "edit";
+  const loginDestination = `/visit/${encodeURIComponent(params.requestId)}${editRequested ? "?step=edit" : ""}`;
+  if (error || !user) redirect(`/login?next=${encodeURIComponent(loginDestination)}`);
 
   const admin = createAdminClient();
   const { data: request } = await admin
     .from("discovery_contribution_requests")
     .select(
-      "id, state, expires_at, template_snapshot, merchant:partners(name, slug), contribution:merchant_discovery_contributions(id, would_recommend, negative_reason_id, party_size, party_size_is_six_plus, experience_option_ids, withdrawn_at, items:merchant_discovery_contribution_items(is_recommended, mention:merchant_discovery_item_mentions(client_item_key, raw_label)))",
+      "id, state, expires_at, template_snapshot, merchant:partners(name, slug), contribution:merchant_discovery_contributions(id, would_recommend, negative_reason_id, party_size, party_size_is_six_plus, experience_option_ids, withdrawn_at, private_note, items:merchant_discovery_contribution_items(is_recommended, mention:merchant_discovery_item_mentions(client_item_key, raw_label)))",
     )
     .eq("id", params.requestId)
     .eq("hub_user_id", user.id)
@@ -84,6 +87,7 @@ export default async function VisitCardPage({
         negativeReasonId: resolvedContributionRow.negative_reason_id,
         partySize: resolvedContributionRow.party_size,
         partySizeIsSixPlus: resolvedContributionRow.party_size_is_six_plus,
+        privateNote: resolvedContributionRow.private_note ?? "",
         experienceOptionIds: resolvedContributionRow.experience_option_ids ?? [],
         items: (resolvedContributionRow.items ?? [])
           .map((item) => ({ mention: one(item.mention), isRecommended: item.is_recommended }))
@@ -96,6 +100,8 @@ export default async function VisitCardPage({
       }
     : null;
 
+  if (editRequested && (!initialContribution || request.state !== "submitted")) notFound();
+
   return (
     <VisitCardFlow
       requestId={request.id}
@@ -105,6 +111,7 @@ export default async function VisitCardPage({
       initialState={request.state}
       expiresAt={request.expires_at}
       initialContribution={initialContribution}
+      editing={editRequested}
       startWithPhotos={searchParams?.step === "photos" && initialContribution !== null}
     />
   );

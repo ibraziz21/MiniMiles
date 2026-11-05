@@ -31,6 +31,8 @@ export type VoucherTemplate = z.infer<typeof voucherTemplateSchema>;
 
 export const fundedOfferSchema = z.object({
   allocationId: z.string(),
+  campaign: z.object({ id: z.string(), title: z.string() }).optional(),
+  quantityRemaining: z.number().int().nonnegative().optional(),
   title: z.string(),
   // voucherType decides which benefit field is populated. A percentage offer
   // carries no flat amount — hub-page sends discountKes: null for those,
@@ -43,7 +45,12 @@ export const fundedOfferSchema = z.object({
   maximumDiscountKes: z.number().nullable().default(null),
   showInBusinessOffers: z.boolean().optional(),
   nextOpeningAt: z.string().nullable().optional(),
-  redemptionSchedule: z.object({ days: z.array(z.number().int().min(0).max(6)), timezone: z.string() }).nullable().optional(),
+  redemptionSchedule: z.object({
+    days: z.array(z.number().int().min(0).max(6)),
+    timezone: z.string(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+  }).nullable().optional(),
   claimStartsAt: z.string().optional(),
   claimsOpen: z.boolean().optional(),
   claimDays: z.array(z.number().int().min(0).max(6)).optional(),
@@ -51,7 +58,9 @@ export const fundedOfferSchema = z.object({
   terms: z.string().nullable(),
   eligibilitySummary: z.string().nullable(),
   claimEndsAt: z.string(),
+  voucherValiditySeconds: z.number().nullable().optional(),
   merchant: z.object({ name: z.string(), slug: z.string(), imageUrl: z.string().nullable() }),
+  merchants: z.array(z.object({ name: z.string(), slug: z.string(), imageUrl: z.string().nullable() })).optional(),
 });
 
 export type FundedOffer = z.infer<typeof fundedOfferSchema>;

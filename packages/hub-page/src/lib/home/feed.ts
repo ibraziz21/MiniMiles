@@ -120,8 +120,8 @@ async function buildLimitedTimeSection(
     .select(
       `id, title, voucher_type, discount_percent, discount_cusd, miles_cost, expires_at,
        partners!inner (
-         id, slug, name, image_url, type, status,
-         partner_settings!inner ( directory_status, banner_url )
+         id, slug, name, image_url, banner_url, type, status,
+         partner_settings!inner ( directory_status )
        )`
     )
     .eq("active", true)
@@ -150,8 +150,7 @@ async function buildLimitedTimeSection(
   );
 
   type RowPartner = {
-    id: string; slug: string; name: string; image_url: string | null;
-    partner_settings: { banner_url: string | null } | Array<{ banner_url: string | null }>;
+    id: string; slug: string; name: string; image_url: string | null; banner_url: string | null;
   };
   type Row = {
     id: string; title: string; voucher_type: VoucherTemplate["voucher_type"];
@@ -164,7 +163,6 @@ async function buildLimitedTimeSection(
     if (!availableIds.has(row.id)) continue;
     const partner = Array.isArray(row.partners) ? row.partners[0] : row.partners;
     if (!partner) continue;
-    const partnerSettings = Array.isArray(partner.partner_settings) ? partner.partner_settings[0] : partner.partner_settings;
 
     const offer: TopOffer = {
       templateId: row.id,
@@ -185,7 +183,7 @@ async function buildLimitedTimeSection(
       slug: partner.slug,
       name: partner.name,
       logoUrl: partner.image_url,
-      bannerUrl: partnerSettings?.banner_url ?? null,
+      bannerUrl: partner.banner_url ?? null,
       primaryCategory: null,
       matchedOffering: null,
       operatingModel: "hybrid",
@@ -203,25 +201,18 @@ async function buildLimitedTimeSection(
   return { id: "limited_time", title: "Ending soon", personalized: false, merchants };
 }
 
-/**
- * Recently published merchants (discovery-blueprint.md §3, deferred out of
- * Phase 1 pending confirming directory_published_at reliability — since
- * verified: 100% of currently-published partner_settings rows carry a
- * non-null, distinct-per-merchant timestamp, not a bulk-backfill artifact).
- * No offer/affordability enrichment — this module's only claim is "new",
- * so the section title alone is the reason; no per-card chip repeats it.
- */
-async function buildNewMerchantsSection(): Promise<HomeFeedSection | null> {
+async function buildNewMerchantsSection(userId: string | null, balance: number | null): Promise<HomeFeedSection | null> {
   const admin = createAdminClient();
+  const publishedSince = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
   const { data: rows, error } = await admin
     .from("partner_settings")
     .select(
-      `directory_published_at, banner_url,
-       partners!inner ( id, slug, name, image_url, type, status )`
+      `directory_published_at,
+       partners!inner ( id, name, banner_url, type, status )`
     )
     .eq("directory_status", "published")
-    .not("directory_published_at", "is", null)
+    .gte("directory_published_at", publishedSince)
     .eq("partners.type", "merchant")
     .eq("partners.status", "active")
     .not("partners.id", "in", HIDDEN_PARTNER_FILTER)
@@ -234,24 +225,26 @@ async function buildNewMerchantsSection(): Promise<HomeFeedSection | null> {
   }
   if (!rows || rows.length === 0) return null;
 
-  type RowPartner = { id: string; slug: string; name: string; image_url: string | null };
-  type Row = { banner_url: string | null; partners: RowPartner | RowPartner[] };
-
-  const merchants: MerchantValueSummary[] = (rows as unknown as Row[]).flatMap((row) => {
+  type RowPartner = { id: string; name: string; banner_url: string | null };
+  type Row = { partners: RowPartner | RowPartner[] };
+  const listings = (rows as unknown as Row[]).flatMap((row) => {
     const partner = Array.isArray(row.partners) ? row.partners[0] : row.partners;
-    if (!partner) return [];
+    return partner ? [{ partner, bannerUrl: partner.banner_url ?? null }] : [];
+  });
+  const [matches, offers] = await Promise.all([
+    Promise.allSettled(listings.map(async ({ partner, bannerUrl }) => {
+      const { merchants } = await listPublicMerchants({ q: partner.name });
+      const merchant = merchants.find((candidate) => candidate.id === partner.id);
+      return merchant ? { merchant, bannerUrl } : null;
+    })),
+    getTopOffers(listings.map(({ partner }) => partner.id), userId),
+  ]);
+  const merchants = matches.flatMap((match) => {
+    if (match.status !== "fulfilled" || !match.value) return [];
+    const { merchant, bannerUrl } = match.value;
     return [{
-      id: partner.id,
-      slug: partner.slug,
-      name: partner.name,
-      logoUrl: partner.image_url,
-      bannerUrl: row.banner_url,
-      primaryCategory: null,
-      matchedOffering: null,
-      operatingModel: "hybrid" as const,
-      nearestLocation: null,
-      topOffer: null,
-      earnSummary: null,
+      ...toMerchantValueSummary(merchant, offers[merchant.id], balance, null, merchant.voucherCount),
+      bannerUrl,
       reasons: [],
     }];
   });
@@ -310,7 +303,7 @@ export async function getHomeFeed(params: HomeFeedParams): Promise<HomeFeedRespo
     buildForYouSection(params, intentQuery, intentLabel, balance, limit, purchaseAffinityPromise),
     buildNearbySection(params, balance),
     buildLimitedTimeSection(params.userId, balance, limit),
-    buildNewMerchantsSection(),
+    buildNewMerchantsSection(params.userId, balance),
     getVerifiedDiscoveryHighlights(),
     listPublicMerchantOffers(limit),
   ]);

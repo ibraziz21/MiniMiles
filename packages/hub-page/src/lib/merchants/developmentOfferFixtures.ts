@@ -3,12 +3,12 @@ import type { PublicMerchantOfferFeedItem } from "./types";
 
 const FIXTURE_ID_PREFIX = "dev-offer-";
 
-function fixturesEnabled(): boolean {
-  return process.env.NODE_ENV === "development" && process.env.AKIBA_TEST_OFFERS !== "false";
+export function developmentOfferPreviewsEnabled(): boolean {
+  return process.env.NODE_ENV === "development" && process.env.AKIBA_TEST_OFFERS === "true";
 }
 
 export function getDevelopmentMerchantOfferFixtures(): PublicMerchantOfferFeedItem[] {
-  if (!fixturesEnabled()) return [];
+  if (!developmentOfferPreviewsEnabled()) return [];
   return fixtureData.offers.map((offer) => ({
     ...offer,
     schedule: offer.schedule as PublicMerchantOfferFeedItem["schedule"],
@@ -17,7 +17,7 @@ export function getDevelopmentMerchantOfferFixtures(): PublicMerchantOfferFeedIt
 }
 
 export function isDevelopmentMerchantOfferFixture(offerId: string): boolean {
-  return fixturesEnabled()
+  return developmentOfferPreviewsEnabled()
     && offerId.startsWith(FIXTURE_ID_PREFIX)
     && fixtureData.offers.some((offer) => offer.id === offerId);
 }

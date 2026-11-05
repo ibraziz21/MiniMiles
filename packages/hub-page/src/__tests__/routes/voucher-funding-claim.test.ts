@@ -42,8 +42,7 @@ vi.mock("@/lib/akiba/voucherUsername", () => ({
 }));
 const mockRecordClaimIntent = vi.fn();
 vi.mock("@/lib/vouchers/claimIntent", () => ({
-  getVoucherClaimFriction: async () => ({ expiredUnusedCount: 0, activeUnusedCount: 0, redeemedCount: 0, requiresUsePlan: false }),
-  claimIntentIsValid: (confirmed: unknown) => confirmed === true,
+  getVoucherClaimFriction: async () => ({ expiredUnusedCount: 1, activeUnusedCount: 0, redeemedCount: 0, requiresUsePlan: true }),
   isVoucherUsePlan: (value: unknown) => typeof value === "string",
   recordVoucherClaimIntent: (...args: unknown[]) => mockRecordClaimIntent(...args),
 }));
@@ -115,7 +114,7 @@ describe("POST /api/voucher-funding/:allocationId/claim", () => {
 
     expect(res.status).toBe(201);
     expect(body.voucherId).toBe("v-1");
-    expect(mockRecordClaimIntent).toHaveBeenCalledWith(expect.objectContaining({ voucherId: "v-1", flow: "funded_claim" }));
+    expect(mockRecordClaimIntent).toHaveBeenCalledWith(expect.objectContaining({ voucherId: "v-1", flow: "funded_claim", usePlan: null, friction: expect.objectContaining({ expiredUnusedCount: 1, requiresUsePlan: false }) }));
     expect(mockFetch).toHaveBeenCalledWith(
       "https://platform.test/api/v1/voucher-funding-allocations/alloc-1/claim",
       expect.objectContaining({

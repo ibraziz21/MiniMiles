@@ -183,6 +183,7 @@ describe("listPublicMerchants — public-data safety and pagination", () => {
     });
 
     vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("AKIBA_TEST_OFFERS", "true");
     try {
       const result = await listPublicMerchants({ limit: 20 });
 
@@ -471,6 +472,7 @@ describe("getPublicMerchant — voucher branch-restriction correctness", () => {
     });
 
     vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("AKIBA_TEST_OFFERS", "true");
     try {
       const merchant = await getPublicMerchant("akiba-store", null);
 
@@ -516,6 +518,7 @@ describe("getPublicMerchant — voucher branch-restriction correctness", () => {
     }];
 
     vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("AKIBA_TEST_OFFERS", "true");
     try {
       const merchant = await getPublicMerchant("akiba-store", null);
 

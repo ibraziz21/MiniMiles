@@ -69,18 +69,23 @@ export function MerchantFilters({
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
+  const [pageError, setPageError] = useState(false);
+  const currentQuery = buildQuery(filters, nearMe);
+  const [loadedQuery, setLoadedQuery] = useState(currentQuery);
+  const pageRequest = useRef<AbortController | null>(null);
 
-  const isFirstRun = useRef(true);
+  const lastUrlQuery = useRef(buildQuery(filters, nearMe, { forUrl: true }));
+  const lastSearch = useRef(filters.q);
 
   useEffect(() => {
     track("merchant_directory_view");
   }, []);
 
   const fetchMerchants = useCallback(
-    async (f: Filters, near: { lat: number; lng: number } | null, cursor?: string) => {
+    async (f: Filters, near: { lat: number; lng: number } | null, cursor?: string, signal?: AbortSignal) => {
       const params = new URLSearchParams(buildQuery(f, near));
       if (cursor) params.set("cursor", cursor);
-      const res = await fetch(`/api/merchants?${params.toString()}`);
+      const res = await fetch(`/api/merchants?${params.toString()}`, { signal });
       if (!res.ok) throw new Error("directory_unavailable");
       return (await res.json()) as { merchants: MerchantValueSummary[]; next_cursor: string | null };
     },
@@ -89,46 +94,59 @@ export function MerchantFilters({
 
   // Sync filters -> URL (shareable/back-forward capable) and re-fetch.
   useEffect(() => {
-    if (isFirstRun.current) {
-      isFirstRun.current = false;
-      return;
-    }
     const query = buildQuery(filters, nearMe, { forUrl: true });
+    if (query === lastUrlQuery.current) return;
+    lastUrlQuery.current = query;
+    pageRequest.current?.abort();
+    const request = new AbortController();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
 
     const handle = setTimeout(async () => {
       setLoading(true);
       setError(false);
+      setPageError(false);
       try {
-        const data = await fetchMerchants(filters, nearMe);
+        const data = await fetchMerchants(filters, nearMe, undefined, request.signal);
+        if (request.signal.aborted) return;
+        setLoadedQuery(buildQuery(filters, nearMe));
         setMerchants(data.merchants);
         setNextCursor(data.next_cursor);
       } catch {
-        setError(true);
+        if (!request.signal.aborted) setError(true);
       } finally {
-        setLoading(false);
+        if (!request.signal.aborted) setLoading(false);
       }
     }, 250);
-    return () => clearTimeout(handle);
+    return () => {
+      clearTimeout(handle);
+      request.abort();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters, nearMe]);
 
-  async function loadMore() {
-    if (!nextCursor || loadingMore) return;
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || loadedQuery !== currentQuery || pageRequest.current) return;
+    const request = new AbortController();
+    pageRequest.current = request;
     setLoadingMore(true);
+    setPageError(false);
     try {
-      const data = await fetchMerchants(filters, nearMe, nextCursor);
+      const data = await fetchMerchants(filters, nearMe, nextCursor, request.signal);
+      if (request.signal.aborted) return;
       setMerchants((prev) => {
         const seen = new Set(prev.map((m) => m.id));
         return [...prev, ...data.merchants.filter((m) => !seen.has(m.id))];
       });
-      setNextCursor(data.next_cursor);
+      setNextCursor(data.next_cursor === nextCursor ? null : data.next_cursor);
     } catch {
-      setError(true);
+      if (!request.signal.aborted) setPageError(true);
     } finally {
-      setLoadingMore(false);
+      if (pageRequest.current === request) {
+        pageRequest.current = null;
+        setLoadingMore(false);
+      }
     }
-  }
+  }, [currentQuery, fetchMerchants, filters, loadedQuery, nearMe, nextCursor]);
 
   async function retry() {
     setLoading(true);
@@ -137,6 +155,7 @@ export function MerchantFilters({
       const data = await fetchMerchants(filters, nearMe);
       setMerchants(data.merchants);
       setNextCursor(data.next_cursor);
+      setLoadedQuery(currentQuery);
     } catch {
       setError(true);
     } finally {
@@ -185,7 +204,8 @@ export function MerchantFilters({
 
   // Debounced, content-free search event — never logs the raw query text.
   useEffect(() => {
-    if (isFirstRun.current) return;
+    if (lastSearch.current === filters.q) return;
+    lastSearch.current = filters.q;
     const handle = setTimeout(() => {
       track("merchant_search", { hasQuery: filters.q.length > 0 });
     }, 400);
@@ -194,6 +214,12 @@ export function MerchantFilters({
 
   const hasFilter =
     filters.q || filters.category || filters.city || filters.mode !== "all" || filters.hasOffer || nearMe;
+  useEffect(() => {
+    if (!hasFilter && !error && !pageError && !loading && !loadingMore && nextCursor) {
+      void loadMore();
+    }
+  }, [error, hasFilter, loadMore, loading, loadingMore, nextCursor, pageError]);
+
   const activeFilterCount =
     (filters.mode !== "all" ? 1 : 0) +
     (filters.city ? 1 : 0) +
@@ -326,7 +352,7 @@ export function MerchantFilters({
           <div
             aria-busy={loading}
             className={clsx(
-              "grid gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 transition-opacity motion-safe:duration-200",
+              "grid gap-1 sm:grid-cols-2 sm:gap-2 transition-opacity motion-safe:duration-200",
               loading && "pointer-events-none opacity-50"
             )}
           >
@@ -334,7 +360,7 @@ export function MerchantFilters({
               <MerchantDirectoryCard key={m.id} merchant={m} position={i} />
             ))}
           </div>
-          {nextCursor && !loading && (
+          {nextCursor && !loading && loadedQuery === currentQuery && (hasFilter || pageError || loadingMore) && (
             <div className="mt-8 flex justify-center">
               <button
                 onClick={loadMore}
@@ -342,7 +368,7 @@ export function MerchantFilters({
                 className="flex items-center gap-2 rounded-full border border-akiba-line bg-white px-5 py-2.5 text-sm font-semibold text-akiba-ink transition hover:border-akiba-teal/40 focus-visible:ring-2 focus-visible:ring-akiba-teal disabled:opacity-60"
               >
                 {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                {loadingMore ? "Loading…" : "Load more"}
+                {loadingMore ? "Loading…" : pageError ? "Retry loading more shops" : "Load more"}
               </button>
             </div>
           )}

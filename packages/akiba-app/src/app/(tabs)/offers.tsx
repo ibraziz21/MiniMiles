@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import {
   Alert,
   Animated,
@@ -14,8 +14,11 @@ import {
 
 import { createApiClient } from '@/api';
 import { useAuth } from '@/auth';
+import { VoucherCampaignRail } from '@/components/voucher-campaign-rail';
+import { groupVoucherCampaigns, type VoucherCampaign } from '@/lib/voucher-campaigns';
 import { ProfileButton } from '@/components/profile-button';
-import type { MerchantOfferFeedItem } from '@/contracts';
+import { fundedBenefit, type FundedOffer, type MerchantOfferFeedItem } from '@/contracts';
+import { scheduleFundedOfferReminder } from '@/push/funded-offer-reminder';
 import { ActivityIndicator, Icon, colors, fontFamily, shadows } from '@/design-system';
 import { loadOfferDecisionState, saveOfferDecisionState } from '@/lib/offer-decision-storage';
 import {
@@ -28,10 +31,45 @@ import {
 } from '@/lib/offer-decisions';
 import { merchantOfferAvailability } from '@/lib/merchant-offer-availability';
 
+type DeckOffer = MerchantOfferFeedItem & { fundedOffer?: FundedOffer };
+
+function fundedDeckOffer(offer: FundedOffer): DeckOffer {
+  const schedule = offer.redemptionSchedule;
+  const days = schedule?.days ?? offer.claimDays ?? [];
+  return {
+    id: `funded-${offer.allocationId}`,
+    title: offer.title,
+    description: [fundedBenefit(offer), offer.terms ?? offer.eligibilitySummary].filter(Boolean).join(' · '),
+    terms: offer.terms,
+    schedule: days.length ? 'weekly' : 'always',
+    daysOfWeek: days,
+    startTime: null,
+    endTime: null,
+    startsOn: schedule?.startDate ?? null,
+    endsOn: schedule?.endDate ?? null,
+    timezone: schedule?.timezone ?? 'Africa/Nairobi',
+    remindersEnabled: Boolean(offer.nextOpeningAt),
+    reminderSet: false,
+    imageUrl: null,
+    thumbnailUrl: null,
+    requiresAkibaMiles: false,
+    partner: {
+      id: offer.merchant.slug,
+      name: offer.merchant.name,
+      slug: offer.merchant.slug,
+      logoUrl: offer.merchant.imageUrl,
+    },
+    fundedOffer: offer,
+  };
+}
+
 type ReadyState = {
   status: 'ready';
-  allOffers: MerchantOfferFeedItem[];
-  deck: MerchantOfferFeedItem[];
+  allOffers: DeckOffer[];
+  campaigns: VoucherCampaign[];
+  fundedOffers: FundedOffer[];
+  catalogueUnavailable: boolean;
+  deck: DeckOffer[];
   decisions: OfferDecisionState;
 };
 
@@ -40,10 +78,11 @@ type ScreenState =
   | { status: 'error'; message: string }
   | ReadyState;
 
-type LastChoice = { offer: MerchantOfferFeedItem; decision: OfferDecision };
+type LastChoice = { offer: DeckOffer; decision: OfferDecision };
 
 export default function OffersScreen() {
   const { accessToken, session } = useAuth();
+  const { claimable } = useLocalSearchParams<{ claimable?: string }>();
   const { height, width } = useWindowDimensions();
   const scope = session?.user.id ?? 'guest';
   const [state, setState] = useState<ScreenState>({ status: 'loading' });
@@ -54,21 +93,28 @@ export default function OffersScreen() {
     setState({ status: 'loading' });
     setLastChoice(null);
     try {
-      const [{ offers }, decisions] = await Promise.all([
-        createApiClient({ accessToken }).getMerchantOffers(),
+      const client = createApiClient({ accessToken });
+      const [{ offers }, decisions, catalogue] = await Promise.all([
+        client.getMerchantOffers(),
         loadOfferDecisionState(scope),
+        client.getVouchers().catch(() => null),
       ]);
       const decided = decidedOfferIds(decisions);
+      const { campaigns, standalone } = groupVoucherCampaigns(catalogue?.fundedOffers ?? []);
+      const allOffers = [...standalone.filter((offer) => offer.showInBusinessOffers).map(fundedDeckOffer), ...offers];
       setState({
         status: 'ready',
-        allOffers: offers,
-        deck: offers.filter((offer) => !decided.has(offer.id)),
+        allOffers,
+        campaigns,
+        fundedOffers: claimable === '1' ? standalone.filter((offer) => !offer.showInBusinessOffers) : [],
+        catalogueUnavailable: catalogue === null,
+        deck: allOffers.filter((offer) => !decided.has(offer.id)),
         decisions,
       });
     } catch (error) {
       setState({ status: 'error', message: error instanceof Error ? error.message : 'Please try again.' });
     }
-  }, [accessToken, scope]);
+  }, [accessToken, claimable, scope]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -101,7 +147,7 @@ export default function OffersScreen() {
     void saveOfferDecisionState(scope, decisions);
   }, [scope, state]);
 
-  const chooseReminder = useCallback((offer: MerchantOfferFeedItem) => {
+  const chooseReminder = useCallback((offer: DeckOffer) => {
     if (!offer.remindersEnabled) return;
     if (!accessToken) {
       Alert.alert('Sign in required', 'Sign in to save an offer reminder.');
@@ -111,7 +157,11 @@ export default function OffersScreen() {
     const save = async (leadMinutes: 30 | 60 | 1440) => {
       setReminderPending(true);
       try {
-        await createApiClient({ accessToken }).setOfferReminder(offer.id, leadMinutes);
+        if (offer.fundedOffer) {
+          await scheduleFundedOfferReminder(offer.fundedOffer, leadMinutes);
+        } else {
+          await createApiClient({ accessToken }).setOfferReminder(offer.id, leadMinutes);
+        }
         commitChoice('reminder');
       } catch (error) {
         Alert.alert('Reminder not saved', error instanceof Error ? error.message : 'Please try again.');
@@ -135,10 +185,13 @@ export default function OffersScreen() {
     <View style={styles.screen}>
       <View style={styles.shell}>
         <Header state={state} />
+        {state.status === 'ready' && (state.campaigns.length > 0 || state.fundedOffers.length > 0) ? (
+          <View style={styles.campaigns}><VoucherCampaignRail campaigns={state.campaigns} fundedOffers={state.fundedOffers} /></View>
+        ) : null}
 
         {state.status === 'loading' ? (
           <CenteredState><ActivityIndicator color={colors.teal} /></CenteredState>
-        ) : state.status === 'error' ? (
+        ) : state.status === 'error' || (state.allOffers.length === 0 && state.catalogueUnavailable) ? (
           <CenteredState>
             <Text style={styles.stateTitle}>Offers are unavailable</Text>
             <Pressable onPress={load} style={({ pressed }) => [styles.stateButton, pressed && styles.pressed]}>
@@ -148,7 +201,7 @@ export default function OffersScreen() {
         ) : state.allOffers.length === 0 ? (
           <CenteredState>
             <View style={styles.stateIcon}><Icon name="tag" size={24} color={colors.teal} /></View>
-            <Text style={styles.stateTitle}>No offers are live</Text>
+            <Text style={styles.stateTitle}>{state.campaigns.length || state.fundedOffers.length ? 'Choose an offer above' : 'No offers are live'}</Text>
           </CenteredState>
         ) : state.deck.length === 0 ? (
           <CenteredState>
@@ -286,8 +339,9 @@ function OfferDeck({ cardHeight, cardWidth, current, next, onDismiss, onInterest
   );
 }
 
-function OfferCardContent({ height, offer }: { height: number; offer: MerchantOfferFeedItem }) {
+function OfferCardContent({ height, offer }: { height: number; offer: DeckOffer }) {
   const availability = merchantOfferAvailability(offer);
+  const availabilityLabel = offer.fundedOffer?.claimsOpen === false ? 'Upcoming' : availability.label;
   const imageHeight = Math.round(height * 0.54);
 
   return (
@@ -306,7 +360,7 @@ function OfferCardContent({ height, offer }: { height: number; offer: MerchantOf
         )}
         <View style={styles.status}>
           <View style={styles.statusDot} />
-          <Text style={styles.statusText}>{availability.label}</Text>
+          <Text style={styles.statusText}>{availabilityLabel}</Text>
         </View>
       </View>
 
@@ -359,6 +413,7 @@ const styles = StyleSheet.create({
   header: { alignItems: 'center', flexDirection: 'row', gap: 10, minHeight: 64, paddingHorizontal: 16 },
   headerTitle: { color: colors.ink, flex: 1, fontFamily: fontFamily.sterlingSemiBold, fontSize: 24, lineHeight: 30 },
   progress: { color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 14, textAlign: 'right', width: 44 },
+  campaigns: { paddingHorizontal: 16, paddingBottom: 8 },
   deckScreen: { flex: 1, justifyContent: 'center', paddingBottom: 4 },
   deckArea: { alignSelf: 'center', position: 'relative' },
   nextCard: { backgroundColor: colors.white, borderColor: colors.line, borderRadius: 24, borderWidth: 1, left: 0, opacity: 0.72, overflow: 'hidden', position: 'absolute', top: 10, transform: [{ scale: 0.96 }] },

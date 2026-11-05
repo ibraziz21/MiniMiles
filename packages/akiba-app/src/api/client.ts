@@ -258,7 +258,7 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
       });
     },
     async getHome(params: { lat?: number; lng?: number; intent?: string } = {}): Promise<MobileHome> {
-      const home = await get(`/api/v1/home${toQueryString(params)}`, mobileHomeSchema);
+      const home = await get(`/api/v1/home${toQueryString({ ...params, percentFundedOffers: 1 })}`, mobileHomeSchema);
       return isScreenshotModeEnabled() ? withScreenshotHomeFixtures(home) : home;
     },
     getMerchantOffers(): Promise<MerchantOfferFeed> {
@@ -274,6 +274,7 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
         lat?: number;
         lng?: number;
         radius_km?: number;
+        cursor?: string;
       } = {},
     ): Promise<MerchantDirectoryResponse> {
       return get(`/api/v1/merchants${toQueryString(params)}`, merchantDirectoryResponseSchema);
@@ -327,7 +328,7 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
     },
     getVouchers(): Promise<VoucherCatalogue> {
       if (isScreenshotModeEnabled()) return Promise.resolve(getScreenshotVoucherCatalogue());
-      return get('/api/v1/vouchers', voucherCatalogueSchema);
+      return get('/api/v1/vouchers?percentFundedOffers=1', voucherCatalogueSchema);
     },
     getVoucherState(): Promise<VoucherState> {
       if (!accessToken) {
@@ -354,12 +355,12 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
     unsaveMerchant(slug: string): Promise<SaveMerchantResponse> {
       return mutate('DELETE', `/api/v1/merchants/${slug}/save`, saveMerchantResponseSchema);
     },
-    getMerchantDetail(slug: string, options: { freshPhotos?: boolean } = {}): Promise<MerchantDetail> {
+    getMerchantDetail(slug: string, options: { freshPhotos?: boolean; sharedVisitId?: string } = {}): Promise<MerchantDetail> {
       if (isScreenshotModeEnabled() && slug === 'akiba-store') return Promise.resolve(getScreenshotMerchantDetail());
       // Customer photos use short-lived signed storage URLs. A unique query
       // key bypasses any browser/CDN response that can outlive those URLs.
       return get(
-        `/api/v1/merchants/${slug}${toQueryString({ photo_refresh: options.freshPhotos ? Date.now() : undefined })}`,
+        `/api/v1/merchants/${slug}${toQueryString({ percentFundedOffers: 1, visit: options.sharedVisitId, photo_refresh: options.freshPhotos ? Date.now() : undefined })}`,
         merchantDetailSchema,
       );
     },
@@ -368,7 +369,7 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
       if (!accessToken) {
         return Promise.reject(new Error('getMerchantStateDetail requires an authenticated access token'));
       }
-      return get(`/api/v1/me/merchant-state/${slug}`, merchantStateDetailSchema);
+      return get(`/api/v1/me/merchant-state/${slug}?percentFundedOffers=1`, merchantStateDetailSchema);
     },
     markVerifiedVisitHelpful(slug: string, visitId: string): Promise<VerifiedVisitHelpfulResponse> {
       return mutate(

@@ -35,6 +35,7 @@ export default async function EditVoucherFundPage({ params }: { params: Promise<
           startsAt: fund.starts_at,
           endsAt: fund.ends_at,
           costCenterReference: fund.cost_center_reference ?? "",
+          campaignTitle: (fund.metadata as { public_campaign_title?: string } | null)?.public_campaign_title ?? "",
           notes: (fund.metadata as { notes?: string } | null)?.notes ?? "",
         }}
       />

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { AppState, useWindowDimensions } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import {
   ActivityIndicator,
-  Button,
+  Badge,
+  Icon,
+  PrimaryButton,
   Card,
   ScrollView,
   StyleSheet,
@@ -14,7 +16,6 @@ import {
   fontFamily,
   radius,
   spacing,
-  typography,
 } from '@/design-system';
 import { useAuth } from '@/auth';
 import { createApiClient } from '@/api';
@@ -37,6 +38,8 @@ const QR_DARK = '#0D3349';
 const QR_LIGHT = '#FFFFFF';
 
 export default function PassScreen() {
+  const { width } = useWindowDimensions();
+  const qrSize = Math.min(272, width - 116);
   const screenshotMode = isScreenshotModeEnabled();
   const { accessToken } = useAuth();
   const [state, setState] = useState<ScreenState>({ status: 'loading' });
@@ -59,6 +62,9 @@ export default function PassScreen() {
     const request = (async () => {
       try {
         const data = await createApiClient({ accessToken }).getPassPresentation();
+        if (!(Date.parse(data.expiresAt) > Date.now())) {
+          throw new Error('Could not load a live Pass. Try again.');
+        }
         setPresentation({ status: 'ready', data });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Live Pass is temporarily unavailable';
@@ -83,17 +89,30 @@ export default function PassScreen() {
   useEffect(() => {
     void refreshPresentation();
     const subscription = AppState.addEventListener('change', (status) => {
-      if (status === 'active') void refreshPresentation();
+      if (status === 'active') {
+        setPresentation((current) =>
+          current.status === 'ready' && Date.parse(current.data.expiresAt) <= Date.now()
+            ? { status: 'loading' }
+            : current,
+        );
+        void refreshPresentation();
+      }
     });
     return () => subscription.remove();
   }, [refreshPresentation]);
 
   useEffect(() => {
     if (presentation.status !== 'ready') return;
-    const refreshAt = Date.parse(presentation.data.expiresAt) - 30_000;
-    const delay = Math.max(1_000, refreshAt - Date.now());
-    const timer = setTimeout(() => void refreshPresentation(), delay);
-    return () => clearTimeout(timer);
+    const expiresAt = Date.parse(presentation.data.expiresAt);
+    const refreshTimer = setTimeout(() => void refreshPresentation(), Math.max(1_000, expiresAt - 30_000 - Date.now()));
+    const expiryTimer = setTimeout(() => {
+      setPresentation((current) => current === presentation ? { status: 'loading' } : current);
+      void refreshPresentation();
+    }, Math.max(0, expiresAt - Date.now()));
+    return () => {
+      clearTimeout(refreshTimer);
+      clearTimeout(expiryTimer);
+    };
   }, [presentation, refreshPresentation]);
 
   const retry = useCallback(() => {
@@ -121,29 +140,45 @@ export default function PassScreen() {
           <ProfileButton />
         </View>
 
-        {loading ? (
-          <View style={styles.centered}>
-            <ActivityIndicator color={colors.teal} />
-          </View>
-        ) : errorMessage ? (
-          <Card style={styles.card}>
-            <Text style={styles.title}>Pass</Text>
-            <Text style={styles.body}>{errorMessage}</Text>
-            <Button onPress={retry} style={styles.retryButton}>
-              <Text style={styles.retryLabel}>Retry</Text>
-            </Button>
-          </Card>
-        ) : state.status === 'ready' && presentation.status === 'ready' ? (
-          <Card style={styles.card}>
-            <Text style={styles.title}>{screenshotMode ? 'Amani Kamau' : state.data.displayName}</Text>
-            <Text style={styles.body}>{screenshotMode ? 'amani@example.com' : state.data.email}</Text>
-            <View style={styles.qrWrap}>
-              <QRCode value={screenshotMode ? 'AKIBA-SCREENSHOT-SAMPLE-NOT-VALID-FOR-REDEMPTION' : presentation.data.token} size={220} color={QR_DARK} backgroundColor={QR_LIGHT} ecl="M" />
+        <Card style={styles.card}>
+          <View style={styles.identity}>
+            <View style={styles.mark}><Icon name="award" size={22} color={colors.tealDark} /></View>
+            <View style={styles.identityCopy}>
+              <Text style={styles.eyebrow}>Akiba Pass</Text>
+              {state.status === 'ready' ? (
+                <Text style={styles.memberName}>{screenshotMode ? 'Amani Kamau' : state.data.displayName}</Text>
+              ) : null}
             </View>
-            <Text style={styles.liveLabel}>LIVE PASS</Text>
-            <Text style={styles.hint}>Show this at participating merchants to earn AkibaMiles. It refreshes automatically.</Text>
-          </Card>
-        ) : null}
+            {!loading && !errorMessage && presentation.status === 'ready' ? (
+              <Badge label={screenshotMode ? 'Sample' : 'Live'} tone={screenshotMode ? 'muted' : 'teal'} />
+            ) : null}
+          </View>
+
+          <Text accessibilityRole="header" style={styles.instruction}>Show your Pass to earn AkibaMiles</Text>
+          <Text style={styles.hint}>Ask the cashier to scan it when you pay at a participating place.</Text>
+
+          {errorMessage ? (
+            <View style={styles.feedback}>
+              <Icon name="info" size={26} color={colors.tealDark} />
+              <Text accessibilityRole="alert" style={styles.hint}>{errorMessage}</Text>
+              <PrimaryButton label="Try again" onPress={retry} />
+            </View>
+          ) : loading ? (
+            <View style={styles.feedback}>
+              <ActivityIndicator color={colors.teal} />
+              <Text accessibilityLiveRegion="polite" style={styles.hint}>Getting your live Pass ready…</Text>
+            </View>
+          ) : presentation.status === 'ready' ? (
+            <>
+              <View style={styles.qrWell}>
+                <View style={styles.qrWrap} accessible accessibilityLabel={screenshotMode ? 'Sample Pass QR for preview only' : 'Akiba Pass QR for earning AkibaMiles'}>
+                  <QRCode value={screenshotMode ? 'AKIBA-SCREENSHOT-SAMPLE-NOT-VALID-FOR-REDEMPTION' : presentation.data.token} size={qrSize} color={QR_DARK} backgroundColor={QR_LIGHT} ecl="M" />
+                </View>
+              </View>
+              <Text style={styles.refresh}>{screenshotMode ? 'Sample QR for preview only' : 'Your QR refreshes automatically'}</Text>
+            </>
+          ) : null}
+        </Card>
       </View>
     </ScrollView>
   );
@@ -163,15 +198,11 @@ const styles = StyleSheet.create({
     maxWidth: 520,
     width: '100%',
   },
-  centered: {
-    alignItems: 'center',
-    paddingVertical: spacing.xxl,
-  },
   screenHeader: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.xs,
   },
   screenTitle: {
     color: colors.ink,
@@ -179,51 +210,16 @@ const styles = StyleSheet.create({
     fontSize: 28,
     lineHeight: 34,
   },
-  card: {
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  title: {
-    color: colors.ink,
-    fontFamily: fontFamily.serif,
-    fontSize: typography.title,
-    fontWeight: '700',
-  },
-  body: {
-    color: colors.muted,
-    fontFamily: fontFamily.sans,
-    fontSize: typography.body,
-  },
-  qrWrap: {
-    backgroundColor: colors.tint,
-    borderRadius: radius.md,
-    marginVertical: spacing.lg,
-    padding: spacing.lg,
-  },
-  hint: {
-    color: colors.muted,
-    fontFamily: fontFamily.sans,
-    fontSize: typography.caption,
-    textAlign: 'center',
-  },
-  liveLabel: {
-    color: colors.teal,
-    fontFamily: fontFamily.sansBold,
-    fontSize: typography.caption,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-  },
-  retryButton: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.teal,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  retryLabel: {
-    color: colors.white,
-    fontFamily: fontFamily.sansBold,
-    fontSize: typography.body,
-    fontWeight: '700',
-  },
+  card: { gap: 12 },
+  identity: { alignItems: 'center', flexDirection: 'row', gap: 10 },
+  mark: { alignItems: 'center', backgroundColor: colors.tint, borderRadius: 12, height: 44, justifyContent: 'center', width: 44 },
+  identityCopy: { flex: 1, gap: 2 },
+  eyebrow: { color: colors.tealDark, fontFamily: fontFamily.sansSemiBold, fontSize: 12 },
+  memberName: { color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 16 },
+  instruction: { color: colors.ink, fontFamily: fontFamily.sterlingSemiBold, fontSize: 24, lineHeight: 29 },
+  hint: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 14, lineHeight: 20 },
+  qrWell: { alignItems: 'center', backgroundColor: colors.tint, borderRadius: radius.lg, paddingVertical: 16 },
+  qrWrap: { backgroundColor: QR_LIGHT, padding: 8 },
+  refresh: { color: colors.tealDark, fontFamily: fontFamily.sansMedium, fontSize: 13, textAlign: 'center' },
+  feedback: { alignItems: 'center', backgroundColor: colors.tint, borderRadius: radius.lg, gap: 12, justifyContent: 'center', minHeight: 144, padding: 16 },
 });

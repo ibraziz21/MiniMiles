@@ -14,7 +14,6 @@ import { apiSuccess, apiError } from "@/lib/api/v1/response";
 import { getServerEnv } from "@/lib/env.server";
 import { evaluateFundedVoucherCountryEligibility } from "@/lib/akiba/fundedVoucherCountryEligibility";
 import {
-  claimIntentIsValid,
   getVoucherClaimFriction,
   isVoucherUsePlan,
   recordVoucherClaimIntent,
@@ -89,14 +88,12 @@ export async function POST(request: Request, { params }: { params: { allocationI
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const intentConfirmed = body?.intent_confirmed;
   const usePlan = body?.use_plan;
-  const claimFriction = await getVoucherClaimFriction(actor.userId);
-  if (!claimIntentIsValid(intentConfirmed, usePlan, claimFriction)) {
+  const claimFriction = { ...await getVoucherClaimFriction(actor.userId), requiresUsePlan: false };
+  if (intentConfirmed !== true) {
     return apiError(
       request,
       "CLAIM_INTENT_REQUIRED",
-      claimFriction.requiresUsePlan
-        ? "Confirm your intent and choose how you plan to use this voucher"
-        : "Confirm that you intend to use this voucher before it expires",
+      "Confirm that you intend to use this voucher before it expires",
       400,
     );
   }

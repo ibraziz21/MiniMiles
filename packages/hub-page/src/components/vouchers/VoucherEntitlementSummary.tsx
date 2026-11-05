@@ -12,11 +12,11 @@ export function VoucherEntitlementFacts({ entitlement, showScope = true }: {
   </div>;
 }
 
-export function VoucherEntitlementSummary({ entitlement: e, interactive = true }: {
-  entitlement: CustomerVoucherEntitlement; interactive?: boolean;
+export function VoucherEntitlementSummary({ entitlement: e, interactive = true, showFacts = true }: {
+  entitlement: CustomerVoucherEntitlement; interactive?: boolean; showFacts?: boolean;
 }) {
   return <div className="space-y-2" data-entitlement-summary>
-    <VoucherEntitlementFacts entitlement={e} />
+    {showFacts && <VoucherEntitlementFacts entitlement={e} />}
     {e.merchantCount > 1 && (interactive ? (
       <details className="group rounded-xl bg-akiba-card px-3 text-xs">
         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 font-semibold text-akiba-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-tealAccessible focus-visible:ring-offset-2">

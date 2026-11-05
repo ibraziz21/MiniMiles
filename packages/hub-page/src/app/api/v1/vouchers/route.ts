@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   const [templates, allFundedOffers] = await Promise.all([getAllTemplates(null), getFundedOffers()]);
   // Percentage offers are withheld from this contract until the app release
   // that can parse them is live — see fundedOffersForV1.
-  const fundedOffers = fundedOffersForV1(allFundedOffers);
+  const fundedOffers = fundedOffersForV1(allFundedOffers, request);
 
   const response = apiSuccess(request, { templates, fundedOffers });
   response.headers.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");

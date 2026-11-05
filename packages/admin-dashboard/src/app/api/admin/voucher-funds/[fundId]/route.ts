@@ -30,6 +30,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ fu
     return NextResponse.json({ error: "Authorized budget must be a positive KES amount." }, { status: 400 });
   }
 
+  let metadata = null;
+  if (body.notes != null || body.campaignTitle !== undefined) {
+    const { data: fund, error: readError } = await supabase
+      .from("voucher_funding_programs")
+      .select("metadata")
+      .eq("id", fundId)
+      .maybeSingle();
+    if (readError) return rpcErrorResponse(readError);
+    if (!fund) return NextResponse.json({ error: "Voucher fund not found." }, { status: 404 });
+    metadata = {
+      ...fund.metadata,
+      ...(body.notes != null ? { notes: textOrNull(body.notes, 4000) } : {}),
+      ...(body.campaignTitle !== undefined ? { public_campaign_title: textOrNull(body.campaignTitle, 120) } : {}),
+    };
+  }
+
   const { data, error } = await supabase.rpc(VOUCHER_FUND_RPCS.updateProgramDraft, {
     p_program_id: fundId,
     p_actor_id: fundedVoucherActorId(session),
@@ -40,7 +56,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ fu
     p_starts_at: typeof body.startsAt === "string" ? body.startsAt : null,
     p_ends_at: typeof body.endsAt === "string" ? body.endsAt : null,
     p_cost_center_reference: textOrNull(body.costCenterReference, 120),
-    p_metadata: body.notes != null ? { notes: textOrNull(body.notes, 4000) } : null,
+    p_metadata: metadata,
   });
 
   if (error) return rpcErrorResponse(error);

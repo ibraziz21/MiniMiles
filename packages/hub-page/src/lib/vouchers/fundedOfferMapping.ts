@@ -35,13 +35,23 @@ export type RawFundedTemplate = {
   minimum_spend_kes: number | null;
 };
 
+export const FUNDED_OFFER_PARTNER_COLUMNS =
+  "id, name, slug, image_url, logo_url, status, partner_settings(logo_url)";
+
 export type RawFundedPartner = {
   id: string;
   name: string;
   slug: string;
   image_url: string | null;
+  logo_url?: string | null;
+  partner_settings?: { logo_url: string | null } | { logo_url: string | null }[] | null;
   status: string;
 };
+
+export function fundedPartnerLogo(partner: RawFundedPartner): string | null {
+  const settings = Array.isArray(partner.partner_settings) ? partner.partner_settings[0] : partner.partner_settings;
+  return partner.logo_url?.trim() || settings?.logo_url?.trim() || partner.image_url?.trim() || null;
+}
 
 /**
  * Null when the row cannot be rendered honestly — a missing minimum spend, a
@@ -89,7 +99,7 @@ export function toFundedOffer(input: {
     eligibilitySummary: input.eligibilitySummary,
     claimEndsAt: input.claimEndsAt,
     voucherValiditySeconds: input.voucherValiditySeconds ?? null,
-    merchant: { name: partner.name, slug: partner.slug, imageUrl: partner.image_url },
+    merchant: { name: partner.name, slug: partner.slug, imageUrl: fundedPartnerLogo(partner) },
     merchants: participants,
   };
 }
@@ -109,15 +119,16 @@ export function toFundedOffer(input: {
  * page and the v1 routes share getFundedOffers(). This is therefore the only
  * thing that makes "launch on web first" real.
  *
- * Remove this, and the flag, once the minimum supported build ships the
- * widened contract.
+ * Compatible clients opt in through the request URL, which also keeps the
+ * cached catalogue separate from the response older clients receive.
  */
-export function fundedOffersForV1(offers: FundedOffer[]): FundedOffer[] {
+export function fundedOffersForV1(offers: FundedOffer[], request?: Request): FundedOffer[] {
   // Each shape is gated by its own flag and the two compose. The previous
   // `if (percentEnabled) return offers` short-circuit meant enabling
   // percentage offers also released every other unsupported shape, which is
   // exactly the kind of coupling that makes a compatibility gate useless.
-  const percentAllowed = percentFundedOffersV1Flag().enabled;
+  const percentAllowed = percentFundedOffersV1Flag().enabled
+    || (request != null && new URL(request.url).searchParams.get("percentFundedOffers") === "1");
   const multiMerchantAllowed = multiMerchantFundedOffersV1Flag().enabled;
 
   return offers.filter((offer) => {

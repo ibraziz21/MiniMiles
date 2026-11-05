@@ -5,6 +5,8 @@ import { ClaimOfferButton } from "@/components/vouchers/ClaimOfferButton";
 
 export type FundedOffer = {
   allocationId: string;
+  campaign?: { id: string; title: string };
+  quantityRemaining?: number;
   title: string;
   /**
    * `voucherType` decides which benefit fields are populated. A percentage

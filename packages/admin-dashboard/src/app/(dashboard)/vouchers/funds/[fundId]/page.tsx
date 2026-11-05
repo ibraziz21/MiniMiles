@@ -80,6 +80,7 @@ export default async function VoucherFundDetailPage({ params }: { params: Promis
 
   if (!fund) notFound();
 
+  const campaignTitle = typeof fund.metadata?.public_campaign_title === "string" ? fund.metadata.public_campaign_title : null;
   const availabilityByAllocation = new Map<string, AvailabilityRow>();
   for (const row of (availability ?? []) as AvailabilityRow[]) availabilityByAllocation.set(row.allocation_id, row);
 
@@ -149,6 +150,10 @@ export default async function VoucherFundDetailPage({ params }: { params: Promis
             <CardTitle>Summary</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {campaignTitle ? <>
+              <Stat label="Public voucher campaign" value={campaignTitle} />
+              <Stat label="Vouchers allocated" value={formatNumber((allocations ?? []).reduce((total, allocation) => total + allocation.quantity_cap, 0))} />
+            </> : null}
             <Stat label="Authorized budget" value={formatMoney(minorToKes(fund.authorized_budget_minor), fund.currency)} />
             <Stat
               label="Committed"

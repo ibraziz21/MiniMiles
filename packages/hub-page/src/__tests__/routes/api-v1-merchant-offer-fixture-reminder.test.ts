@@ -29,6 +29,7 @@ const actor = {
 describe("development offer fixture reminders", () => {
   beforeEach(() => {
     vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("AKIBA_TEST_OFFERS", "true");
     requireActorMock.mockResolvedValue(actor);
     assertMutationAllowedMock.mockResolvedValue(undefined);
   });

@@ -1,6 +1,6 @@
 import { HIDDEN_PARTNER_IDS } from "@/lib/akiba/hidden-partners";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getDevelopmentMerchantOfferFixtures } from "./developmentOfferFixtures";
+import { developmentOfferPreviewsEnabled, getDevelopmentMerchantOfferFixtures } from "./developmentOfferFixtures";
 import { getMerchantOfferAvailability } from "./offerAvailability";
 import type { PublicMerchantOfferFeedItem } from "./types";
 
@@ -77,7 +77,7 @@ function isVisiblePartner(partner: PartnerRow): boolean {
   }
   const settings = first(partner.partner_settings);
   if (settings?.directory_status === "published") return true;
-  return process.env.NODE_ENV === "development" && partner.id === LOCAL_AKIBA_STORE_PREVIEW_ID;
+  return developmentOfferPreviewsEnabled() && partner.id === LOCAL_AKIBA_STORE_PREVIEW_ID;
 }
 
 /**

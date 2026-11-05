@@ -12,6 +12,7 @@ import { BusinessOfferRail } from "@/components/home/BusinessOfferRail";
 import { FundedVoucherSection } from "@/components/home/FundedVoucherSection";
 import { getFundedOffers } from "@/lib/vouchers/catalogue.server";
 import { getHomeFeed } from "@/lib/home/feed";
+import { addHomePlaceBanners } from "@/lib/home/placeBanners";
 import { listDirectoryCities } from "@/lib/merchants/queries";
 
 // Signed-out home — home-redesign-spec.md §5. Same discovery mental model as
@@ -20,7 +21,7 @@ import { listDirectoryCities } from "@/lib/merchants/queries";
 // (e.g. acquiring a voucher) needs it.
 export async function VisitorLanding() {
   const [feed, cities, fundedOffers] = await Promise.all([
-    getHomeFeed({ userId: null }),
+    getHomeFeed({ userId: null }).then((feed) => addHomePlaceBanners(feed)),
     listDirectoryCities().catch(() => [] as string[]),
     fundedDiscoveryResult(getFundedOffers),
   ]);
@@ -43,9 +44,11 @@ export async function VisitorLanding() {
       <IntentShortcuts intents={feed.intents} title="What are you looking for?" />
 
       {fundedOffers.unavailable && <FundedDiscoveryNotice />}
-      <FundedVoucherSection offers={fundedOffers.offers} />
+      <FundedVoucherSection offers={fundedOffers.offers} isSignedIn={false} />
 
       <BusinessOfferRail offers={feed.businessOffers} />
+
+      {newMerchants && <MerchantRail section={newMerchants} seeAllHref="/merchants" />}
 
       <VerifiedDiscoverySpotlight highlights={feed.verifiedHighlights} />
 
@@ -60,8 +63,6 @@ export async function VisitorLanding() {
       )}
 
       <LocationOptIn cities={cities} />
-
-      {newMerchants && <MerchantRail section={newMerchants} seeAllHref="/merchants" />}
     </main>
   );
 }

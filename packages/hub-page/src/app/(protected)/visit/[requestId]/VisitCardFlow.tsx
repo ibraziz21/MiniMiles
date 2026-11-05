@@ -52,6 +52,7 @@ export type InitialContribution = {
   partySize: number | null;
   partySizeIsSixPlus: boolean;
   experienceOptionIds: string[];
+  privateNote?: string;
   items: Item[];
 };
 
@@ -64,6 +65,7 @@ export function VisitCardFlow({
   expiresAt,
   initialContribution,
   startWithPhotos,
+  editing = false,
 }: {
   requestId: string;
   merchantName: string;
@@ -73,6 +75,7 @@ export function VisitCardFlow({
   expiresAt: string;
   initialContribution: InitialContribution | null;
   startWithPhotos: boolean;
+  editing?: boolean;
 }) {
   const router = useRouter();
   const alreadyExpired = new Date(expiresAt).getTime() < Date.now();
@@ -81,7 +84,7 @@ export function VisitCardFlow({
   // A previously saved contribution hydrates the flow instead of starting
   // blank — editing an existing visit card must not silently erase answers
   // the member already gave just because this submit didn't re-send them.
-  const [step, setStep] = useState<Step>(startWithPhotos ? "photos" : "intro");
+  const [step, setStep] = useState<Step>(startWithPhotos ? "photos" : editing ? "recommend" : "intro");
   const [wouldRecommend, setWouldRecommend] = useState<boolean | null>(initialContribution?.wouldRecommend ?? null);
   const [negativeReasonId, setNegativeReasonId] = useState<string | null>(
     initialContribution?.negativeReasonId ?? null,
@@ -93,6 +96,7 @@ export function VisitCardFlow({
   const [experienceOptionIds, setExperienceOptionIds] = useState<string[]>(
     initialContribution?.experienceOptionIds ?? [],
   );
+  const [privateNote, setPrivateNote] = useState(initialContribution?.privateNote ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [dismissing, setDismissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -121,17 +125,14 @@ export function VisitCardFlow({
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasActiveUpload]);
 
-  // Stable for the lifetime of this mount so a retry (network error, user
-  // taps submit again) reuses the same key (§8.4: "A retry reuses the same
-  // idempotency key"). Re-opening this route fresh after an edit mounts a
-  // new instance and so gets a new key, which is correct — that's a
-  // genuinely new version, not a retry.
-  const [idempotencyKey] = useState(createBrowserId);
+  // Retry the same answers with the same key. Changed answers are a new write.
+  const lastSubmission = useRef<{ payload: string; key: string } | null>(null);
+  const submittingRef = useRef(false);
 
   const hasExperienceTags = Boolean(templateSnapshot.experience_prompt && templateSnapshot.experience_options.length);
 
   const sequence = useMemo(() => {
-    const steps: Step[] = ["intro", "recommend"];
+    const steps: Step[] = editing ? ["recommend"] : ["intro", "recommend"];
     if (wouldRecommend === false) {
       steps.push("negativeReason");
     } else if (wouldRecommend === true || wouldRecommend === null) {
@@ -145,7 +146,7 @@ export function VisitCardFlow({
     }
     steps.push("review");
     return steps;
-  }, [wouldRecommend, items.length, hasExperienceTags]);
+  }, [wouldRecommend, items.length, hasExperienceTags, editing]);
 
   function goNext() {
     const currentIndex = sequence.indexOf(step);
@@ -209,37 +210,47 @@ export function VisitCardFlow({
   }
 
   async function submit() {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     setError(null);
+    const answers = {
+      wouldRecommend,
+      negativeReasonId: wouldRecommend === false ? negativeReasonId : null,
+      partySize,
+      partySizeIsSixPlus,
+      experienceOptionIds,
+      ...(editing ? { privateNote } : {}),
+      items: wouldRecommend === false ? [] : items.map(({ clientItemKey, rawLabel, isRecommended }) => ({
+        clientItemKey,
+        rawLabel,
+        source: "customer_input",
+        isRecommended,
+      })),
+    };
+    const payload = JSON.stringify(answers);
+    if (lastSubmission.current?.payload !== payload) {
+      lastSubmission.current = { payload, key: createBrowserId() };
+    }
     try {
       const res = await fetch(`/api/me/discovery-contributions/${requestId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          idempotencyKey,
-          wouldRecommend,
-          negativeReasonId,
-          partySize,
-          partySizeIsSixPlus,
-          experienceOptionIds,
-          items: wouldRecommend === false ? [] : items.map(({ clientItemKey, rawLabel, isRecommended }) => ({
-            clientItemKey,
-            rawLabel,
-            source: "customer_input",
-            isRecommended,
-          })),
-        }),
+        body: JSON.stringify({ ...answers, idempotencyKey: lastSubmission.current.key }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(typeof data.error === "string" ? data.error : "Something went wrong. Please try again.");
+        setError(editing
+          ? "Couldn’t save your changes. Check your answers and try again."
+          : typeof data.error === "string" ? data.error : "Something went wrong. Please try again.");
         return;
       }
       setContributionId(data.contributionId ?? null);
-      setStep("photos");
+      setStep(editing ? "success" : "photos");
     } catch {
-      setError("Something went wrong. Please try again.");
+      setError(editing ? "Couldn’t save your changes. Please try again." : "Something went wrong. Please try again.");
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }
@@ -343,7 +354,7 @@ export function VisitCardFlow({
   // A submitted visit can receive optional photos later. The contribution
   // itself remains owner-scoped and active even after the original response
   // request expires, so only bypass request expiry for this photo-only entry.
-  if ((alreadyExpired && !startWithPhotos) || alreadyClosed) {
+  if ((alreadyExpired && !startWithPhotos && !editing) || alreadyClosed) {
     return <ClosedState merchantName={merchantName} headingRef={headingRef} />;
   }
 
@@ -366,6 +377,10 @@ export function VisitCardFlow({
           {error}
         </p>
       )}
+
+      {editing && step !== "success" ? (
+        <p className="mb-3 text-sm text-akiba-muted">Edit your verified visit. Recommendations and eligible details may appear publicly. Negative feedback stays private.</p>
+      ) : null}
 
       {step === "intro" && (
         <IntroStep
@@ -465,6 +480,9 @@ export function VisitCardFlow({
 
       {step === "review" && (
         <ReviewStep
+          editing={editing}
+          privateNote={privateNote}
+          onPrivateNoteChange={setPrivateNote}
           wouldRecommend={wouldRecommend}
           items={items}
           experienceOptionIds={experienceOptionIds}
@@ -492,7 +510,15 @@ export function VisitCardFlow({
         />
       )}
 
-      {step === "success" && (
+      {editing && step === "success" ? (
+        <section className="flex flex-1 flex-col justify-center gap-4">
+          <h1 ref={headingRef} tabIndex={-1} className="font-sterling text-xl font-semibold text-akiba-ink">Changes saved</h1>
+          <p className="text-sm text-akiba-muted">Your verified visit has been updated.</p>
+          <button type="button" onClick={() => router.push(merchantSlug ? `/merchants/${encodeURIComponent(merchantSlug)}?tab=verified` : "/")} className="min-h-12 rounded-full bg-akiba-teal px-6 text-sm font-semibold text-white">Done</button>
+        </section>
+      ) : null}
+
+      {!editing && step === "success" && (
         <SuccessStep
           merchantName={merchantName}
           merchantSlug={merchantSlug}

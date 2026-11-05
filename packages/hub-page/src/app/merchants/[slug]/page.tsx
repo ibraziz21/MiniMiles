@@ -58,10 +58,11 @@ const getSignedInIdentity = cache(
 const safeGetMerchant = cache(
   async (
     slug: string,
-    userId: string | null
+    userId: string | null,
+    sharedVisitId?: string,
   ): Promise<PublicMerchantDetail | null | "unavailable"> => {
     try {
-      return await getPublicMerchant(slug, userId);
+      return await (sharedVisitId ? getPublicMerchant(slug, userId, sharedVisitId) : getPublicMerchant(slug, userId));
     } catch (err) {
       if (err instanceof DirectoryUnavailableError) return "unavailable";
       throw err;
@@ -123,10 +124,14 @@ function LocalBusinessJsonLd({ merchant }: { merchant: PublicMerchantDetail }) {
   );
 }
 
-export default async function MerchantPage({ params }: { params: { slug: string } }) {
+export default async function MerchantPage({ params, searchParams }: {
+  params: { slug: string };
+  searchParams?: { visit?: string | string[]; tab?: string };
+}) {
+  const sharedVisitId = typeof searchParams?.visit === "string" ? searchParams.visit : undefined;
   const { userId, email } = await getSignedInIdentity();
   const [result, balance] = await Promise.all([
-    safeGetMerchant(params.slug, userId),
+    safeGetMerchant(params.slug, userId, sharedVisitId),
     getSignedInBalance(userId, email),
   ]);
 
@@ -331,10 +336,13 @@ export default async function MerchantPage({ params }: { params: { slug: string 
       </div>
 
       <MerchantPhotoTabs
+        key={sharedVisitId ?? merchant.slug}
         merchantName={merchant.name}
         merchantId={merchant.id}
         merchantSlug={merchant.slug}
         verifiedVisits={merchant.verifiedVisits}
+        sharedVisitId={sharedVisitId}
+        startOnVerified={searchParams?.tab === "verified"}
         approvedCustomerPhotos={merchant.approvedCustomerPhotos}
         communityFavoriteProduct={merchant.verifiedVisitFavoriteProduct}
         merchantMedia={merchant.merchantMedia}

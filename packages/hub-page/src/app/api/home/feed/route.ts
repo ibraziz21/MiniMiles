@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getHomeFeed } from "@/lib/home/feed";
+import { addHomePlaceBanners } from "@/lib/home/placeBanners";
 
 // Used for the client-side re-fetch after a location grant (initial page
 // load calls getHomeFeed directly from the server component). Must reflect
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
       userId: user?.id ?? null,
       userEmail: user?.email ?? null,
       lat, lng, intent, limitPerSection,
-    });
+    }).then((feed) => addHomePlaceBanners(feed));
     return NextResponse.json(feed);
   } catch {
     return NextResponse.json({ error: "feed_unavailable" }, { status: 503 });

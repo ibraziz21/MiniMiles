@@ -18,6 +18,7 @@ export interface FundFormInitial {
   endsAt: string;
   costCenterReference: string;
   notes: string;
+  campaignTitle?: string;
 }
 
 // Fund creation/edit form — companion admin spec §7.1. Country and currency
@@ -36,6 +37,7 @@ export function FundForm({ initial }: { initial?: FundFormInitial }) {
   const [endsAt, setEndsAt] = useState(initial ? toNairobiDateTimeInput(initial.endsAt) : "");
   const [costCenterReference, setCostCenterReference] = useState(initial?.costCenterReference ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [campaignTitle, setCampaignTitle] = useState(initial?.campaignTitle ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -53,6 +55,7 @@ export function FundForm({ initial }: { initial?: FundFormInitial }) {
       endsAt: fromNairobiDateTimeInput(endsAt),
       costCenterReference,
       notes,
+      campaignTitle,
     };
     if (isEdit) body.expectedVersion = initial!.version;
 
@@ -81,6 +84,12 @@ export function FundForm({ initial }: { initial?: FundFormInitial }) {
         <CardContent className="space-y-4">
           <Field label="Internal name">
             <Input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Founding Partners Launch — Kenya" />
+          </Field>
+          <Field label="Public voucher campaign name (optional)">
+            <Input maxLength={120} value={campaignTitle} onChange={(e) => setCampaignTitle(e.target.value)} placeholder="Karen Flea Market – NSK Edition" />
+            <span className="block text-xs text-ink-muted">
+              Groups this fund’s published voucher offers under one name in the app and Business Offers. Add each merchant’s offer after saving.
+            </span>
           </Field>
           <Field label="Customer-facing sponsorship label">
             <Input value={sponsorshipLabel} onChange={(e) => setSponsorshipLabel(e.target.value)} />

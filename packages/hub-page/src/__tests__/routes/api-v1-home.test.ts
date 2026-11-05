@@ -21,8 +21,10 @@ vi.mock("@/lib/home/feed", () => ({
   getHomeFeed: (...args: unknown[]) => getHomeFeedMock(...args),
 }));
 
+const getPublishedMerchantBannersMock = vi.fn();
 const listDirectoryCitiesMock = vi.fn();
 vi.mock("@/lib/merchants/queries", () => ({
+  getPublishedMerchantBanners: (...args: unknown[]) => getPublishedMerchantBannersMock(...args),
   listDirectoryCities: (...args: unknown[]) => listDirectoryCitiesMock(...args),
 }));
 
@@ -53,6 +55,8 @@ describe("GET /api/v1/home", () => {
     state.actor = null;
     state.feedShouldThrow = false;
     state.fundedOffers = [];
+    state.feed.sections = [];
+    getPublishedMerchantBannersMock.mockResolvedValue({});
     vi.stubEnv("AKIBA_PERCENT_FUNDED_OFFERS_V1_ENABLED", "false");
 
     getHomeFeedMock.mockImplementation(async () => {
@@ -82,6 +86,16 @@ describe("GET /api/v1/home", () => {
     );
     expect(resolveHubProfileMock).not.toHaveBeenCalled();
     expect(getNextDiscoveryContributionRequestMock).not.toHaveBeenCalled();
+  });
+
+  it("serves the same published banner used by the directory for an Explore place", async () => {
+    state.feed.sections = [{ id: "for_you", merchants: [{ id: "m1", bannerUrl: null }] }];
+    getPublishedMerchantBannersMock.mockResolvedValue({ m1: "/images/acme.jpg" });
+
+    const response = await GET(homeReq());
+    expect(getPublishedMerchantBannersMock).toHaveBeenCalledWith(["m1"]);
+    expect((await response.json()).data.feed.sections[0].merchants[0].bannerUrl)
+      .toBe("http://localhost/images/acme.jpg");
   });
 
   it("populates member.displayName and member.nextDiscoveryContribution for an authenticated caller", async () => {

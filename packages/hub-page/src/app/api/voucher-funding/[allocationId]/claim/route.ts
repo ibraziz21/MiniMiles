@@ -18,7 +18,6 @@ import { createClient } from "@/lib/supabase/server";
 import { getServerEnv } from "@/lib/env.server";
 import { evaluateFundedVoucherCountryEligibility } from "@/lib/akiba/fundedVoucherCountryEligibility";
 import {
-  claimIntentIsValid,
   getVoucherClaimFriction,
   isVoucherUsePlan,
   recordVoucherClaimIntent,
@@ -59,10 +58,10 @@ export async function POST(
   const body = await req.json().catch(() => null) as Record<string, unknown> | null;
   const intentConfirmed = body?.intent_confirmed;
   const usePlan = body?.use_plan;
-  const claimFriction = await getVoucherClaimFriction(user.id);
-  if (!claimIntentIsValid(intentConfirmed, usePlan, claimFriction)) {
+  const claimFriction = { ...await getVoucherClaimFriction(user.id), requiresUsePlan: false };
+  if (intentConfirmed !== true) {
     return NextResponse.json(
-      { error: claimFriction.requiresUsePlan ? "Confirm your intent and choose how you plan to use this voucher" : "Confirm that you intend to use this voucher before it expires" },
+      { error: "Confirm that you intend to use this voucher before it expires" },
       { status: 400 },
     );
   }

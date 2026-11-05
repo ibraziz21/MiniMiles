@@ -25,6 +25,7 @@ vi.mock("@/lib/supabase", () => ({
       select: () => ({
         eq: () => ({
           single: async () => ({ data: table === "voucher_funding_programs" ? state.programRow : null, error: null }),
+          maybeSingle: async () => ({ data: table === "voucher_funding_programs" ? state.programRow : null, error: null }),
         }),
       }),
     }),
@@ -32,6 +33,7 @@ vi.mock("@/lib/supabase", () => ({
 }));
 
 const createRoute = await import("@/app/api/admin/voucher-funds/route");
+const updateRoute = await import("@/app/api/admin/voucher-funds/[fundId]/route");
 const submitRoute = await import("@/app/api/admin/voucher-funds/[fundId]/submit/route");
 const approveRoute = await import("@/app/api/admin/voucher-funds/[fundId]/approve/route");
 
@@ -89,6 +91,27 @@ describe("POST /api/admin/voucher-funds", () => {
       expect.objectContaining({ p_country_code: "KE", p_authorized_budget_minor: 500_000, p_created_by: "admin-1" }),
     );
     expect(state.audit).toHaveBeenCalledWith(expect.objectContaining({ action: "voucher_fund.created" }));
+  });
+
+  it("creates and clears the public campaign name without discarding other fund metadata", async () => {
+    state.session = { adminUserId: "admin-1", role: "ops_admin" };
+    state.rpc.mockResolvedValue({ data: { id: "fund-1" }, error: null });
+    const created = await createRoute.POST(post({
+      name: "Internal ledger name", campaignTitle: " Karen Flea Market – NSK Edition ",
+      countryCode: "KE", authorizedBudgetKes: 1200,
+      startsAt: "2026-11-06T00:00:00Z", endsAt: "2026-11-08T00:00:00Z",
+    }));
+    expect(created.status).toBe(200);
+    expect(state.rpc.mock.calls[0][1].p_metadata.public_campaign_title).toBe("Karen Flea Market – NSK Edition");
+
+    state.programRow = { metadata: { public_campaign_title: "Karen Flea Market – NSK Edition", notes: "Private notes" } };
+    const updated = await updateRoute.PATCH(new NextRequest("http://localhost/api/admin/voucher-funds/fund-1", {
+      method: "PATCH", body: JSON.stringify({ campaignTitle: "", expectedVersion: 2 }),
+    }), { params: Promise.resolve({ fundId: "fund-1" }) });
+    expect(updated.status).toBe(200);
+    expect(state.rpc.mock.calls[1][1]).toMatchObject({
+      p_expected_version: 2, p_metadata: { public_campaign_title: null, notes: "Private notes" },
+    });
   });
 
   it("maps a stable RPC error code to an admin-safe message and status", async () => {

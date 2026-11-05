@@ -50,7 +50,7 @@ export async function GET(request: Request, { params }: { params: { slug: string
     .filter((offer) => offer.reminderSet)
     .map((offer) => offer.id);
 
-  const fundedOffers = fundedOffersForV1(await getMerchantFundedOffers(merchantId));
+  const fundedOffers = fundedOffersForV1(await getMerchantFundedOffers(merchantId), request);
 
   const [balance, claimedFundedAllocationIds, saved, verifiedVisit, openContributionRequest, helpfulVisitIds] = await Promise.all([
     getSignedInBalance(actor.userId, actor.email),

@@ -27,7 +27,7 @@ export type MerchantValueSummary = {
   name: string;
   logoUrl: string | null;
   /**
-   * Merchant-uploaded cover photo (partner_settings.banner_url,
+   * Merchant-uploaded cover photo (partners.banner_url,
    * merchant-dashboard/sql/009_partner_banner_image.sql) — used as the
    * card's header image in place of the logo-on-flat-background fallback
    * when set. Not yet returned by the list_public_merchants /

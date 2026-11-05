@@ -131,7 +131,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
 
-  const { wouldRecommend, negativeReasonId, partySize, partySizeIsSixPlus, experienceOptionIds, items, idempotencyKey } =
+  const { wouldRecommend, negativeReasonId, partySize, partySizeIsSixPlus, experienceOptionIds, items, idempotencyKey, privateNote } =
     body as Record<string, unknown>;
 
   // Required per §11.2 — a bare network retry of an identical submit must
@@ -163,6 +163,10 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     return NextResponse.json({ error: "invalid_experience_option_ids" }, { status: 400 });
   }
 
+  if (privateNote !== undefined && (typeof privateNote !== "string" || privateNote.length > 300)) {
+    return NextResponse.json({ error: "invalid_private_note" }, { status: 400 });
+  }
+
   const validatedItems = validateItems(items);
   if (!validatedItems.ok) {
     return NextResponse.json({ error: validatedItems.error }, { status: 400 });
@@ -179,6 +183,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     p_experience_option_ids: (experienceOptionIds as string[] | undefined) ?? [],
     p_items: validatedItems.items,
     p_idempotency_key: idempotencyKey,
+    ...(typeof privateNote === "string" ? { p_private_note: privateNote } : {}),
   });
 
   if (error) return rpcErrorResponse(error);

@@ -5,6 +5,7 @@ import {
   listPublicMerchants,
   listDirectoryCities,
   getCanonicalVoucherCounts,
+  getPublishedMerchantBanners,
 } from "@/lib/merchants/queries";
 import { getTopOffers, toMerchantValueSummary, getSignedInBalance } from "@/lib/merchants/enrich";
 import { createClient } from "@/lib/supabase/server";
@@ -72,14 +73,16 @@ export default async function MerchantsPage({
         data: { user },
       } = await supabase.auth.getUser();
       const partnerIds = merchants.map((m) => m.id);
-      const [counts, offers, balance] = await Promise.all([
+      const [counts, offers, balance, banners] = await Promise.all([
         getCanonicalVoucherCounts(partnerIds, user?.id ?? null),
         getTopOffers(partnerIds, user?.id ?? null),
         getSignedInBalance(user?.id ?? null, user?.email ?? null),
+        getPublishedMerchantBanners(partnerIds).catch(() => ({} as Record<string, string>)),
       ]);
-      initialMerchants = merchants.map((m) =>
-        toMerchantValueSummary(m, offers[m.id], balance, q ?? null, counts[m.id] ?? 0)
-      );
+      initialMerchants = merchants.map((m) => ({
+        ...toMerchantValueSummary(m, offers[m.id], balance, q ?? null, counts[m.id] ?? 0),
+        bannerUrl: banners[m.id] ?? null,
+      }));
     }
 
     return (

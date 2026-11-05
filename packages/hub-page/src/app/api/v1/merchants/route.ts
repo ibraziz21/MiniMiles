@@ -8,7 +8,7 @@
 // — the client composes affordability itself from this response's
 // `topOffer.milesCost` plus the overlay's `balance`.
 import { apiSuccess, apiError } from "@/lib/api/v1/response";
-import { listPublicMerchants, getCanonicalVoucherCounts, InvalidMerchantCursorError } from "@/lib/merchants/queries";
+import { listPublicMerchants, getCanonicalVoucherCounts, getPublishedMerchantBanners, InvalidMerchantCursorError } from "@/lib/merchants/queries";
 import { getTopOffers, toMerchantValueSummary } from "@/lib/merchants/enrich";
 
 const MAX_RADIUS_KM = 100;
@@ -77,14 +77,16 @@ export async function GET(request: Request) {
     }
 
     const partnerIds = result.merchants.map((m) => m.id);
-    const [counts, offers] = await Promise.all([
+    const [counts, offers, banners] = await Promise.all([
       getCanonicalVoucherCounts(partnerIds, null),
       getTopOffers(partnerIds, null),
+      getPublishedMerchantBanners(partnerIds).catch(() => ({} as Record<string, string>)),
     ]);
 
-    const merchants = result.merchants.map((m) =>
-      toMerchantValueSummary(m, offers[m.id], null, q ?? null, counts[m.id] ?? 0),
-    );
+    const merchants = result.merchants.map((m) => ({
+      ...toMerchantValueSummary(m, offers[m.id], null, q ?? null, counts[m.id] ?? 0),
+      bannerUrl: banners[m.id] ? new URL(banners[m.id], request.url).href : null,
+    }));
 
     const response = apiSuccess(request, { ...result, merchants });
     response.headers.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");

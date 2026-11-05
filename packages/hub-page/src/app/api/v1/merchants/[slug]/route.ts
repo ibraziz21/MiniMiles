@@ -18,7 +18,10 @@ export async function GET(request: Request, { params }: { params: { slug: string
   try {
   let merchant;
   try {
-    merchant = await getPublicMerchant(params.slug, null);
+    const sharedVisitId = new URL(request.url).searchParams.get("visit");
+    merchant = await (sharedVisitId
+      ? getPublicMerchant(params.slug, null, sharedVisitId)
+      : getPublicMerchant(params.slug, null));
   } catch (error) {
     if (error instanceof DirectoryUnavailableError) {
       return apiError(request, "DIRECTORY_UNAVAILABLE", "This merchant profile is temporarily unavailable", 503, {
@@ -33,7 +36,7 @@ export async function GET(request: Request, { params }: { params: { slug: string
   }
 
   const { vouchers, ...merchantRest } = merchant;
-  const fundedOffers = fundedOffersForV1(await getMerchantFundedOffers(merchant.id));
+  const fundedOffers = fundedOffersForV1(await getMerchantFundedOffers(merchant.id), request);
 
   const response = apiSuccess(request, {
     merchant: merchantRest,

@@ -25,19 +25,10 @@ import {
 } from "@/lib/featureFlags.server";
 import type { MerchantSummary } from "@/components/vouchers/FundedOfferCard";
 
-/** Public partner columns a participant summary needs — nothing private. */
-const PARTICIPANT_COLUMNS = "id, name, slug, image_url, status";
+import { FUNDED_OFFER_PARTNER_COLUMNS, fundedPartnerLogo, type RawFundedPartner } from "@/lib/vouchers/fundedOfferMapping";
 
-type PartnerRow = {
-  id: string;
-  name: string;
-  slug: string;
-  image_url: string | null;
-  status: string;
-};
-
-function toSummary(row: PartnerRow): MerchantSummary {
-  return { id: row.id, name: row.name, slug: row.slug, imageUrl: row.image_url };
+function toSummary(row: RawFundedPartner): MerchantSummary {
+  return { id: row.id, name: row.name, slug: row.slug, imageUrl: fundedPartnerLogo(row) };
 }
 
 /**
@@ -106,13 +97,13 @@ export async function resolveAllocationParticipants(
   if (extraPartnerIds.length > 0) {
     const { data: partners, error: partnerError } = await admin
       .from("partners")
-      .select(PARTICIPANT_COLUMNS)
+      .select(FUNDED_OFFER_PARTNER_COLUMNS)
       .in("id", extraPartnerIds);
 
     if (partnerError || !Array.isArray(partners)) {
       throw new FundedDiscoveryUnavailable("participant_profiles", allocationIds);
     }
-    for (const row of (partners ?? []) as PartnerRow[]) {
+    for (const row of (partners ?? []) as RawFundedPartner[]) {
       if (row.status !== "active") continue;
       if (isHiddenPartner(row.id)) continue;
       partnersById.set(row.id, toSummary(row));
@@ -264,7 +255,7 @@ export async function resolveSnapshotParticipants(
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("partners")
-    .select(PARTICIPANT_COLUMNS)
+    .select(FUNDED_OFFER_PARTNER_COLUMNS)
     .in("id", snapshotIds);
 
   if (error) {
@@ -275,7 +266,7 @@ export async function resolveSnapshotParticipants(
   }
 
   const byId = new Map<string, MerchantSummary>();
-  for (const row of (data ?? []) as PartnerRow[]) {
+  for (const row of (data ?? []) as RawFundedPartner[]) {
     // Hidden or inactive partners are still named: the voucher genuinely
     // covers them, and hiding one would misstate the entitlement.
     byId.set(row.id, toSummary(row));
