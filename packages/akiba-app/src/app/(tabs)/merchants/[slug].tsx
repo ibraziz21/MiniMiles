@@ -3,11 +3,13 @@
 // mobile information architecture.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image } from 'expo-image';
+import * as Notifications from 'expo-notifications';
 import * as WebBrowser from 'expo-web-browser';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { Alert, Linking, Modal, Pressable, ScrollView as HorizontalScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Alert, Linking, Modal, Platform, Pressable, ScrollView as HorizontalScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { createApiClient } from '@/api';
+import { fundedOfferReminderId, scheduleFundedOfferReminder } from '@/push/funded-offer-reminder';
 import { useAuth } from '@/auth';
 import { useFeatureFlags } from '@/config';
 import { FundedOfferCard } from '@/components/funded-offer-card';
@@ -512,18 +514,21 @@ function BusinessGallery({ media, merchantName }: { media: MerchantMedia[]; merc
 function OffersPanel({ balance, businessOffers, claimedIds, fundedOffers, initialReminderIds, merchantName, vouchers }: { balance: number | null; businessOffers: MerchantOffer[]; claimedIds: Set<string>; fundedOffers: MerchantDetail['fundedOffers']; initialReminderIds: Set<string>; merchantName: string; vouchers: PublicVoucherSummary[] }) {
   const [filter, setFilter] = useState<'all' | 'business' | 'akiba'>('all');
   const [filterOpen, setFilterOpen] = useState(false);
-  const rewardCount = vouchers.length + fundedOffers.length;
-  const count = businessOffers.length + rewardCount;
+  const businessFunded = fundedOffers.filter((offer) => offer.showInBusinessOffers);
+  const rewardFunded = fundedOffers.filter((offer) => !offer.showInBusinessOffers);
+  const businessCount = businessOffers.length + businessFunded.length;
+  const rewardCount = vouchers.length + rewardFunded.length;
+  const count = businessCount + rewardCount;
   const showBusiness = filter !== 'akiba';
   const showRewards = filter !== 'business';
   const filters = [
     { id: 'all' as const, label: 'All', count },
-    { id: 'business' as const, label: 'Business offers', count: businessOffers.length },
+    { id: 'business' as const, label: 'Business offers', count: businessCount },
     { id: 'akiba' as const, label: 'Akiba rewards', count: rewardCount },
   ];
-  const showBusinessGroup = showBusiness && (businessOffers.length > 0 || filter === 'business');
+  const showBusinessGroup = showBusiness && (businessCount > 0 || filter === 'business');
   const showRewardsGroup = showRewards && (rewardCount > 0 || filter === 'akiba');
-  const showGroupLabels = filter === 'all' && businessOffers.length > 0 && rewardCount > 0;
+  const showGroupLabels = filter === 'all' && businessCount > 0 && rewardCount > 0;
 
   return (
     <View style={styles.panel}>
@@ -546,18 +551,18 @@ function OffersPanel({ balance, businessOffers, claimedIds, fundedOffers, initia
           {showBusinessGroup ? (
             <View style={styles.offerGroup}>
               {showGroupLabels ? <Text style={styles.offerGroupTitle}>From {merchantName}</Text> : null}
-              {businessOffers.length > 0
-                ? businessOffers.map((offer) => <BusinessOfferCard key={offer.id} initialReminderSet={initialReminderIds.has(offer.id) || offer.reminderSet} offer={offer} />)
-                : <InlineEmpty text="No direct offers right now." />}
+              {businessOffers.map((offer) => <BusinessOfferCard key={offer.id} initialReminderSet={initialReminderIds.has(offer.id) || offer.reminderSet} offer={offer} />)}
+              {businessFunded.map((offer) => <BusinessFundedOffer key={offer.allocationId} offer={offer} claimed={claimedIds.has(offer.allocationId)} />)}
+              {businessCount === 0 ? <InlineEmpty text="No business offers right now." /> : null}
             </View>
           ) : null}
 
           {showRewardsGroup ? (
-            <View style={[styles.offerGroup, showBusinessGroup && businessOffers.length > 0 && styles.offerGroupSeparated]}>
+            <View style={[styles.offerGroup, showBusinessGroup && businessCount > 0 && styles.offerGroupSeparated]}>
               {showGroupLabels ? <Text style={styles.offerGroupTitle}>Akiba rewards</Text> : null}
               {rewardCount > 0 ? (
                 <>
-                  {fundedOffers.map((offer) => <FundedOfferCard key={offer.allocationId} offer={offer} claimed={claimedIds.has(offer.allocationId)} />)}
+                  {rewardFunded.map((offer) => <FundedOfferCard key={offer.allocationId} offer={offer} claimed={claimedIds.has(offer.allocationId)} />)}
                   {vouchers.map((voucher) => <MerchantVoucher key={voucher.id} balance={balance} merchantName={merchantName} voucher={voucher} />)}
                 </>
               ) : <InlineEmpty text="No Akiba rewards right now." />}
@@ -672,6 +677,84 @@ function BusinessOfferCard({ initialReminderSet, offer }: { initialReminderSet: 
               <Text style={[styles.reminderButtonText, reminderSet && styles.reminderButtonTextActive]}>{reminderSet ? 'Reminder saved' : 'Save reminder'}</Text>
             </Pressable>
           </View>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function BusinessFundedOffer({ offer, claimed }: { offer: MerchantDetail['fundedOffers'][number]; claimed: boolean }) {
+  const [savedOpening, setSavedOpening] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const id = fundedOfferReminderId(offer.allocationId);
+  const openingAt = offer.nextOpeningAt;
+  const supported = Platform.OS === 'ios' || Platform.OS === 'android';
+  const canRemind = supported && !claimed && !!openingAt;
+
+  useEffect(() => {
+    if (!supported) return;
+    let mounted = true;
+    Notifications.getAllScheduledNotificationsAsync().then((requests) => {
+      if (!mounted) return;
+      const opening = requests.find((request) => request.identifier === id)?.content.data?.openingAt;
+      setSavedOpening(typeof opening === 'string' ? opening : null);
+    }).catch(() => {}).finally(() => {
+      if (mounted) setLoaded(true);
+    });
+    return () => { mounted = false; };
+  }, [id, supported]);
+
+  async function toggleReminder() {
+    setPending(true);
+    try {
+      if (savedOpening === openingAt || !canRemind) {
+        await Notifications.cancelScheduledNotificationAsync(id);
+        setSavedOpening(null);
+      } else {
+        await scheduleFundedOfferReminder(offer);
+        setSavedOpening(openingAt ?? null);
+      }
+    } catch (error) {
+      Alert.alert('Could not update reminder', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setPending(false);
+    }
+  }
+
+  const reminderSet = !!savedOpening && savedOpening === openingAt;
+  return (
+    <View style={styles.businessOfferCard}>
+      <FundedOfferCard offer={offer} claimed={claimed} />
+      <View style={styles.businessOfferBody}>
+        <Text style={styles.businessOfferSourceText}>Funded by Akiba</Text>
+        {openingAt ? (
+          <Text style={styles.businessOfferScheduleText}>
+            Next opening · {new Date(openingAt).toLocaleString('en-KE', {
+              weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+              timeZone: offer.redemptionSchedule?.timezone ?? 'Africa/Nairobi',
+            })}
+          </Text>
+        ) : null}
+        {offer.redemptionSchedule ? (
+          <Text style={styles.businessOfferScheduleText}>
+            Use on {offer.redemptionSchedule.days.map((day) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]).join(', ')}
+          </Text>
+        ) : null}
+        {offer.eligibilitySummary ? <Text style={styles.offerTermsText}>{offer.eligibilitySummary}</Text> : null}
+        {offer.terms ? <Text style={styles.offerTermsText}>{offer.terms}</Text> : null}
+        {loaded && (canRemind || savedOpening) ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ busy: pending, selected: reminderSet }}
+            disabled={pending}
+            onPress={() => void toggleReminder()}
+            style={[styles.reminderButton, reminderSet && styles.reminderButtonActive]}>
+            <Icon name="bell" size={16} color={reminderSet ? colors.teal : colors.ink} />
+            <Text style={styles.reminderButtonText}>
+              {reminderSet || !canRemind ? 'Remove reminder' : savedOpening ? 'Update reminder' : 'Remind me'}
+            </Text>
+          </Pressable>
         ) : null}
       </View>
     </View>

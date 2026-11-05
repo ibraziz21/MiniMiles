@@ -65,6 +65,7 @@ export default async function EditVoucherAllocationPage({
         fundCountryCode={fund?.country_code ?? "KE"}
         merchants={(partners ?? []) as MerchantOption[]}
         initial={{
+          showInBusinessOffers: allocation.metadata?.show_in_business_offers === true,
           redemptionSchedule: allocation.metadata?.redemption_schedule ?? null,
           eligibilityRules: ruleSet?.rules ?? [],
           eligibilityMode: ruleSet?.mode ?? null,

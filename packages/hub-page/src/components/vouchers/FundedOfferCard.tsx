@@ -23,6 +23,8 @@ export type FundedOffer = {
   voucherValiditySeconds?: number | null;
   claimStartsAt?: string;
   claimsOpen?: boolean;
+  showInBusinessOffers?: boolean;
+  nextOpeningAt?: string | null;
   redemptionSchedule?: { days: number[]; timezone: string; startDate?: string; endDate?: string } | null;
   claimDays?: number[];
   merchant: { name: string; slug: string; imageUrl: string | null };

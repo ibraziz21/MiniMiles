@@ -47,6 +47,10 @@ export async function PATCH(
     additionalMerchantIds = parsed;
   }
 
+  if (body.showInBusinessOffers !== undefined && typeof body.showInBusinessOffers !== "boolean") {
+    return NextResponse.json({ error: "Show in Business offers must be true or false." }, { status: 400 });
+  }
+
   if (body.redemptionSchedule !== undefined && !isRedemptionSchedule(body.redemptionSchedule)) {
     return NextResponse.json({ error: "Choose valid redemption days and timezone." }, { status: 400 });
   }
@@ -59,13 +63,14 @@ export async function PATCH(
   }
   // Keep existing metadata, including schedules, when editing only notes.
   let metadata: Record<string, unknown> | null = null;
-  if (body.notes !== undefined || body.redemptionSchedule !== undefined) {
+  if (body.notes !== undefined || body.redemptionSchedule !== undefined || body.showInBusinessOffers !== undefined) {
     const { data: current, error: readError } = await supabase.from("voucher_funding_allocations")
       .select("metadata").eq("id", allocationId).single();
     if (readError || !current) return NextResponse.json({ error: "Could not load allocation settings." }, { status: 404 });
     const merged = { ...(current.metadata ?? {}) };
     if (body.notes !== undefined) merged.notes = textOrNull(body.notes, 4000);
     if (body.redemptionSchedule !== undefined) merged.redemption_schedule = body.redemptionSchedule;
+    if (body.showInBusinessOffers !== undefined) merged.show_in_business_offers = body.showInBusinessOffers;
     metadata = merged;
   }
 

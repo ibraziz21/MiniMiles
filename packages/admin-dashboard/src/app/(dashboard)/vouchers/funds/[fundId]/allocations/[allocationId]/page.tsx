@@ -195,6 +195,7 @@ export default async function VoucherAllocationDetailPage({
                   : "—"
               }
             />
+            <Stat label="Business offers" value={allocation.metadata?.show_in_business_offers === true ? "Shown" : "Hidden"} />
             <Stat label="Use on" value={redemptionScheduleLabel(allocation.metadata?.redemption_schedule ?? null)} />
             <Stat label="Minimum purchase" value={`KES ${template?.minimum_spend_kes ?? 0}`} />
             <Stat label="Quantity" value={formatNumber(allocation.quantity_cap)} />

@@ -27,6 +27,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fun
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 
+  if (body.showInBusinessOffers !== undefined && typeof body.showInBusinessOffers !== "boolean") {
+    return NextResponse.json({ error: "Show in Business offers must be true or false." }, { status: 400 });
+  }
+
   if (body.redemptionSchedule !== undefined && !isRedemptionSchedule(body.redemptionSchedule)) {
     return NextResponse.json({ error: "Choose valid redemption days and timezone." }, { status: 400 });
   }
@@ -165,7 +169,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fun
     p_distribution_modes: distributionModes.length > 0 ? distributionModes : null,
     p_recycle_expired_inventory: Boolean(body.recycleExpiredInventory),
     p_eligibility_rule_set_id: eligibilityRuleSetId,
-    p_metadata: { notes: textOrNull(body.notes, 4000), redemption_schedule: body.redemptionSchedule ?? null },
+    p_metadata: { notes: textOrNull(body.notes, 4000), redemption_schedule: body.redemptionSchedule ?? null, ...(body.showInBusinessOffers === true ? { show_in_business_offers: true } : {}) },
   });
 
   if (error) return rpcErrorResponse(error);

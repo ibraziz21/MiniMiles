@@ -52,6 +52,7 @@ export interface AllocationFormInitial {
   voucherValidityDays: number;
   distributionModes: string[];
   recycleExpiredInventory: boolean;
+  showInBusinessOffers?: boolean;
   redemptionSchedule?: RedemptionSchedule | null;
   eligibilityRules?: Record<string, unknown>[];
   eligibilityMode?: string | null;
@@ -137,6 +138,7 @@ export function AllocationForm({
     savedRules.some((rule) => !isValidEligibilityRule(rule)) ||
     new Set(savedRules.map((rule) => rule.type)).size !== savedRules.length
   );
+  const [showInBusinessOffers, setShowInBusinessOffers] = useState(initial?.showInBusinessOffers ?? false);
   const [restrictRedemption, setRestrictRedemption] = useState(Boolean(initial?.redemptionSchedule));
   const [redemptionDays, setRedemptionDays] = useState<number[]>(initial?.redemptionSchedule?.days ?? [...WEEKEND_DAYS]);
   const [redemptionStartDate, setRedemptionStartDate] = useState(initial?.redemptionSchedule?.startDate ?? "");
@@ -296,6 +298,7 @@ export function AllocationForm({
       title,
       description,
       termsText,
+      showInBusinessOffers,
       redemptionSchedule: restrictRedemption ? { days: [...redemptionDays].sort((a, b) => a - b), timezone: redemptionTimezone, ...(redemptionStartDate || redemptionEndDate ? { startDate: redemptionStartDate, endDate: redemptionEndDate } : {}) } : null,
       discountKes: isPercent ? undefined : Number(discountKes),
       discountPercent: isPercent ? Number(discountPercent) : undefined,
@@ -651,6 +654,11 @@ export function AllocationForm({
       <Card>
         <CardHeader><CardTitle>Redemption schedule</CardTitle></CardHeader>
         <CardContent className="space-y-3">
+          <label className="flex min-h-11 items-center gap-2 text-sm">
+            <input type="checkbox" checked={showInBusinessOffers} onChange={(event) => setShowInBusinessOffers(event.target.checked)} />
+            Show in Business offers
+          </label>
+          <p className="text-sm text-ink-muted">Show this funded voucher on the business’s Offers page. Members can set a reminder for the next opening.</p>
           <label className="flex min-h-11 items-center gap-2 text-sm">
             <input type="checkbox" checked={restrictRedemption} onChange={(event) => setRestrictRedemption(event.target.checked)} />
             Restrict which days the voucher can be used

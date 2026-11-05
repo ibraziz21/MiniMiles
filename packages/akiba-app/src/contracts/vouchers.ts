@@ -41,6 +41,8 @@ export const fundedOfferSchema = z.object({
   discountKes: z.number().nullable().default(null),
   discountPercent: z.number().nullable().default(null),
   maximumDiscountKes: z.number().nullable().default(null),
+  showInBusinessOffers: z.boolean().optional(),
+  nextOpeningAt: z.string().nullable().optional(),
   redemptionSchedule: z.object({ days: z.array(z.number().int().min(0).max(6)), timezone: z.string() }).nullable().optional(),
   claimStartsAt: z.string().optional(),
   claimsOpen: z.boolean().optional(),

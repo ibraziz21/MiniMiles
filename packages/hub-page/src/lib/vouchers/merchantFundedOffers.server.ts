@@ -1,3 +1,4 @@
+import { nextFundedOfferOpening } from "@/lib/vouchers/fundedOfferOpening";
 import { FundedDiscoveryUnavailable } from "@/lib/vouchers/fundedDiscovery";
 import { isHiddenPartner } from "@/lib/akiba/hidden-partners";
 import { akibaFundedVouchersHubFlag } from "@/lib/featureFlags.server";
@@ -20,7 +21,7 @@ type RawFundedAllocation = {
   claim_ends_at: string;
   voucher_validity_seconds?: number | null;
   claim_starts_at: string;
-  metadata?: { redemption_schedule?: { days: number[]; timezone: string } | null };
+  metadata?: { redemption_schedule?: FundedOffer["redemptionSchedule"]; show_in_business_offers?: boolean };
   spend_voucher_templates: RawFundedTemplate | RawFundedTemplate[] | null;
   partners: RawFundedPartner | RawFundedPartner[] | null;
   voucher_eligibility_rule_sets:
@@ -38,7 +39,8 @@ export async function getMerchantFundedOffers(merchantId: string): Promise<Funde
   if (!akibaFundedVouchersHubFlag().enabled) return [];
 
   const admin = createAdminClient();
-  const nowIso = new Date().toISOString();
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
 
   // A merchant's page must show offers they merely participate in, not only
   // the ones they host — otherwise a trader honouring a market-wide voucher
@@ -107,6 +109,10 @@ export async function getMerchantFundedOffers(merchantId: string): Promise<Funde
       offer.redemptionSchedule = row.metadata?.redemption_schedule ?? null;
       offer.claimStartsAt = row.claim_starts_at;
       offer.claimsOpen = row.claim_starts_at <= nowIso;
+      if (row.metadata?.show_in_business_offers === true) {
+        offer.showInBusinessOffers = true;
+        offer.nextOpeningAt = nextFundedOfferOpening(offer, now);
+      }
       offers.push(offer);
     }
   }
