@@ -104,6 +104,11 @@ export function toFundedOffer(input: {
   };
 }
 
+export function allowsPercentFundedOffersV1(request?: Request): boolean {
+  return percentFundedOffersV1Flag().enabled
+    || (request != null && new URL(request.url).searchParams.get("percentFundedOffers") === "1");
+}
+
 /**
  * Narrows a funded-offer list to what the /api/v1/* mobile contract can be
  * served safely, for the three v1 routes only. The web pages call the loaders
@@ -127,8 +132,7 @@ export function fundedOffersForV1(offers: FundedOffer[], request?: Request): Fun
   // `if (percentEnabled) return offers` short-circuit meant enabling
   // percentage offers also released every other unsupported shape, which is
   // exactly the kind of coupling that makes a compatibility gate useless.
-  const percentAllowed = percentFundedOffersV1Flag().enabled
-    || (request != null && new URL(request.url).searchParams.get("percentFundedOffers") === "1");
+  const percentAllowed = allowsPercentFundedOffersV1(request);
   const multiMerchantAllowed = multiMerchantFundedOffersV1Flag().enabled;
 
   return offers.filter((offer) => {

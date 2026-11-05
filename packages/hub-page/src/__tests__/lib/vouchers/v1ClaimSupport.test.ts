@@ -140,6 +140,18 @@ describe("v1ClaimSupport", () => {
     });
   });
 
+  it("accepts the catalogue's percentage opt-in without enabling multi-merchant claims", async () => {
+    state.allocation = allocation("percent_off");
+    const request = new Request("https://pass.akibamiles.com/api/v1/vouchers/funded/alloc-1/claim?percentFundedOffers=1");
+
+    await expect(v1ClaimSupport("alloc-1", request)).resolves.toEqual({ supported: true });
+
+    state.merchantCount = { count: 1, error: null };
+    await expect(v1ClaimSupport("alloc-1", request)).resolves.toMatchObject({
+      reason: "multi_merchant_offer_unsupported",
+    });
+  });
+
   it("gates the two shapes independently", async () => {
     state.allocation = allocation("percent_off");
     state.merchantCount = { count: 2, error: null };
