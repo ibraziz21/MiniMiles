@@ -46,6 +46,18 @@ describe("GET /api/v1/merchants/[slug]", () => {
     expect(getPublicMerchantMock).toHaveBeenCalledWith("acme", null);
   });
 
+  it("resolves a shared visit through the public merchant projection", async () => {
+    const visitId = "ac4753df-3436-4a58-8823-0ed19c4897c0";
+    state.merchant = { id: "m1", slug: "acme", vouchers: [], verifiedVisits: [{ id: visitId }] };
+
+    const response = await GET(new Request(`http://localhost/api/v1/merchants/acme?visit=${visitId}`), {
+      params: { slug: "acme" },
+    });
+
+    expect(getPublicMerchantMock).toHaveBeenCalledWith("acme", null, visitId);
+    expect((await response.json()).data.merchant.verifiedVisits).toEqual([{ id: visitId }]);
+  });
+
   it("returns 404 for a merchant that doesn't resolve", async () => {
     const { req: r, params } = req("nope");
     const res = await GET(r, { params });

@@ -125,7 +125,7 @@ describe("GET /api/v1/vouchers/funded/:allocationId/eligibility", () => {
 
     expect(res.status).toBe(200);
     expect(body.data.requirementsRemaining).toEqual(["pass_activated"]);
-    expect(body.data.claimFriction.requiresUsePlan).toBe(true);
+    expect(body.data.claimFriction.requiresUsePlan).toBe(false);
     expect(mockFetch).toHaveBeenCalledWith(
       "https://platform.test/api/v1/voucher-funding-allocations/alloc-1/eligibility",
       expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer token-abc" }) }),

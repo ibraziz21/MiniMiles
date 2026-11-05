@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     p_ends_at: endsAt,
     p_cost_center_reference: textOrNull(body.costCenterReference, 120),
     p_created_by: actorId,
-    p_metadata: { notes: textOrNull(body.notes, 4000) },
+    p_metadata: { notes: textOrNull(body.notes, 4000), ...(body.campaignTitle !== undefined ? { public_campaign_title: textOrNull(body.campaignTitle, 120) } : {}) },
   });
 
   if (error) return rpcErrorResponse(error);

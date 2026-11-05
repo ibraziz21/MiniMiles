@@ -1,323 +1,125 @@
-import { memo } from 'react';
+import { memo, useState, type ComponentProps } from 'react';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Icon, colors, fontFamily } from '@/design-system';
+import { MaterialIcon, colors, fontFamily, shadows } from '@/design-system';
 import type { MerchantValueSummary } from '@/contracts';
 
-import { MilesAmount } from './miles-amount';
 
 type MerchantCardProps = {
   merchant: MerchantValueSummary;
   onPress: () => void;
 };
 
-function MerchantCardMedia({ merchant }: { merchant: MerchantValueSummary }) {
-  return (
-    <LinearGradient colors={[colors.tint, colors.card]} style={styles.media}>
-      {merchant.bannerUrl ? (
-        <Image source={{ uri: merchant.bannerUrl }} style={StyleSheet.absoluteFill} contentFit="cover" transition={160} />
-      ) : merchant.logoUrl ? (
-        <Image
-          source={{ uri: merchant.logoUrl }}
-          style={styles.logoBackdrop}
-          contentFit="cover"
-          blurRadius={22}
-          transition={160}
-        />
-      ) : null}
+type CategoryIcon = ComponentProps<typeof MaterialIcon>['name'];
 
-      {!merchant.bannerUrl ? (
-        <View style={styles.logoWell}>
-          {merchant.logoUrl ? (
-            <Image source={{ uri: merchant.logoUrl }} style={styles.logo} contentFit="contain" transition={160} />
-          ) : (
-            <Icon name="shopping-bag" size={28} color={colors.teal} />
-          )}
-        </View>
-      ) : null}
-
-      {merchant.bannerUrl && merchant.logoUrl ? (
-        <View style={styles.bannerLogoWell}>
-          <Image source={{ uri: merchant.logoUrl }} style={styles.bannerLogo} contentFit="contain" transition={160} />
-        </View>
-      ) : null}
-    </LinearGradient>
-  );
+function categoryIcon(merchant: MerchantValueSummary): CategoryIcon {
+  const category = merchant.primaryCategory?.slug ?? '';
+  if (/coffee|cafe|bakery/.test(category)) return 'coffee';
+  if (/food|dining|restaurant/.test(category)) return 'silverware-fork-knife';
+  if (/grocer|supermarket/.test(category)) return 'cart-outline';
+  if (/salon|beauty|barber/.test(category)) return 'content-cut';
+  if (/electronic|tech/.test(category)) return 'monitor';
+  return merchant.operatingModel === 'online' ? 'web' : 'storefront-outline';
 }
 
-function MerchantFacts({ merchant, recommendation }: { merchant: MerchantValueSummary; recommendation: boolean }) {
-  const location = merchant.nearestLocation;
-  const category = merchant.matchedOffering ?? merchant.primaryCategory?.name;
+function DirectoryThumbnail({ bannerUrl, logoUrl, icon, monogram }: {
+  bannerUrl: string | null;
+  logoUrl: string | null;
+  icon: CategoryIcon;
+  monogram: string | null;
+}) {
+  const [failed, setFailed] = useState<string[]>([]);
+  const banner = bannerUrl && !failed.includes(bannerUrl) ? bannerUrl : null;
+  const logo = logoUrl && !failed.includes(logoUrl) ? logoUrl : null;
+  const image = banner ?? logo;
 
   return (
-    <View style={styles.body}>
-      <View style={styles.nameRow}>
-        <Text style={styles.name} numberOfLines={1}>{merchant.name}</Text>
-        {merchant.operatingModel === 'online' ? <Icon name="globe" size={14} color={colors.muted} /> : null}
-      </View>
-
-      {category ? <Text style={styles.category} numberOfLines={1}>{category}</Text> : null}
-
-      {location ? (
-        <View style={styles.factRow}>
-          <Icon name="map-pin" size={12} color={colors.muted} />
-          <Text style={styles.factText} numberOfLines={1}>
-            {location.locality ? `${location.locality}, ` : ''}{location.city}
-            {location.distanceKm != null ? ` · ${location.distanceKm.toFixed(1)} km` : ''}
-            {!recommendation && merchant.branchCount && merchant.branchCount > 1 ? ` · ${merchant.branchCount} branches` : ''}
-          </Text>
-        </View>
+    <View style={[styles.thumbnail, !image && !monogram && styles.iconThumbnail]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      {image ? (
+        <Image
+          source={{ uri: image }}
+          style={banner ? StyleSheet.absoluteFill : styles.logo}
+          contentFit={banner ? 'cover' : 'contain'}
+          recyclingKey={image}
+          onError={() => setFailed((current) => [...current, image])}
+        />
+      ) : monogram ? (
+        <View style={styles.monogram}><Text allowFontScaling={false} style={styles.monogramText}>{monogram}</Text></View>
+      ) : <MaterialIcon name={icon} size={40} color={cardColors.forest} />}
+      {banner ? (
+        <View style={styles.thumbnailBadge}><MaterialIcon name={icon} size={12} color={cardColors.green} /></View>
       ) : null}
-
-      {recommendation && merchant.reasons.length > 0 ? (
-        <View style={styles.reasonRow}>
-          {merchant.reasons.slice(0, 1).map((reason, index) => (
-            <View key={`${reason.kind}-${index}`} style={styles.reasonChip}>
-              <Text style={styles.reasonText}>{reasonLabel(reason)}</Text>
-            </View>
-          ))}
-        </View>
-      ) : (
-        <View style={styles.badgeRow}>
-          <View style={styles.neutralBadge}>
-            <Text style={styles.neutralBadgeText}>
-              {merchant.operatingModel === 'online' ? 'Online' : merchant.operatingModel === 'hybrid' ? 'In store · Online' : 'In store'}
-            </Text>
-          </View>
-        </View>
-      )}
-
-      <View style={styles.footer}>
-        <View style={styles.offerArea}>
-          {recommendation && merchant.topOffer ? (
-            <View style={styles.milesRow}>
-              <Icon name="tag" size={12} color={colors.teal} />
-              <MilesAmount amount={merchant.topOffer.milesCost} size="sm" />
-            </View>
-          ) : merchant.voucherCount && merchant.voucherCount > 0 ? (
-            <View style={styles.voucherBadge}>
-              <Icon name="tag" size={12} color={colors.teal} />
-              <Text style={styles.voucherText}>
-                {merchant.voucherCount} voucher{merchant.voucherCount === 1 ? '' : 's'}
-              </Text>
-            </View>
-          ) : null}
-        </View>
-        <Text style={styles.viewLabel}>View merchant →</Text>
-      </View>
     </View>
   );
 }
 
-function reasonLabel(reason: MerchantValueSummary['reasons'][number]) {
-  if (reason.kind === 'distance' && reason.distanceKm != null) return `${reason.distanceKm.toFixed(1)} km away`;
-  if (reason.kind === 'affordable') return 'You can unlock this';
-  return reason.label ?? (reason.kind === 'new' ? 'New' : 'Recommended');
-}
-
-export const MerchantValueCard = memo(function MerchantValueCard({ merchant, onPress }: MerchantCardProps) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [styles.card, styles.valueCard, pressed && styles.cardPressed]}>
-      <MerchantCardMedia merchant={merchant} />
-      <MerchantFacts merchant={merchant} recommendation />
-    </Pressable>
-  );
-});
-
 export const MerchantDirectoryCard = memo(function MerchantDirectoryCard({ merchant, onPress }: MerchantCardProps) {
+  const location = merchant.nearestLocation;
+  const onlineOnly = merchant.operatingModel === 'online';
+  const area = location ? [...new Set([location.locality, location.city].filter(Boolean))].join(', ') : null;
+  const category = merchant.primaryCategory?.name;
+  const where = onlineOnly ? 'Online only'
+    : merchant.operatingModel === 'hybrid' ? [area, 'In store & online'].filter(Boolean).join(' · ')
+    : area ?? 'In store';
+  const monogram = onlineOnly ? null : merchant.name.trim().match(/[\p{L}\p{N}]/u)?.[0].toLocaleUpperCase() ?? null;
+
   return (
     <Pressable
-      accessibilityRole="button"
+      accessibilityRole="link"
       onPress={onPress}
-      style={({ pressed }) => [styles.card, styles.directoryCard, pressed && styles.cardPressed]}>
-      <MerchantCardMedia merchant={merchant} />
-      <MerchantFacts merchant={merchant} recommendation={false} />
+      style={({ pressed }) => [styles.directoryCard, pressed && styles.directoryPressed]}>
+      <DirectoryThumbnail
+        key={JSON.stringify([merchant.bannerUrl, merchant.logoUrl])}
+        bannerUrl={merchant.bannerUrl}
+        logoUrl={merchant.logoUrl}
+        icon={categoryIcon(merchant)}
+        monogram={monogram}
+      />
+      <View style={styles.directoryBody}>
+        <Text numberOfLines={1} style={styles.name}>{merchant.name}</Text>
+        {category ? <Text numberOfLines={1} style={styles.metadata}>{category}</Text> : null}
+        <Text numberOfLines={1} style={styles.metadata}>{where}</Text>
+      </View>
+      <View style={styles.chevron} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <MaterialIcon name="chevron-right" size={20} color={cardColors.metadata} />
+      </View>
     </Pressable>
   );
 });
+
+// Card surfaces and accents from the Places Stitch export.
+const cardColors = {
+  surface: '#FFFFFF',
+  ink: '#131B2E',
+  metadata: '#404942',
+  forest: '#0F5132',
+  green: '#006C49',
+  mutedSurface: '#F2F3FF',
+  onlineSurface: '#E2E7FF',
+};
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.white,
-    borderColor: colors.line,
-    borderCurve: 'continuous',
-    borderRadius: 16,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  valueCard: {
-    width: 280,
-  },
   directoryCard: {
-    width: '100%',
-  },
-  cardPressed: {
-    borderColor: 'rgba(35,141,157,0.42)',
-    transform: [{ scale: 0.992 }],
-  },
-  media: {
+    ...shadows.chip,
     alignItems: 'center',
-    height: 128,
-    justifyContent: 'center',
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  logoBackdrop: {
-    bottom: 0,
-    left: 0,
-    opacity: 0.28,
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    transform: [{ scale: 1.5 }],
-  },
-  logoWell: {
-    alignItems: 'center',
-    backgroundColor: colors.white,
-    borderColor: 'rgba(13,14,12,0.05)',
-    borderCurve: 'continuous',
-    borderRadius: 16,
-    borderWidth: 1,
-    boxShadow: '0 8px 24px rgba(13,14,12,0.10)',
-    height: 64,
-    justifyContent: 'center',
-    padding: 8,
-    width: 64,
-  },
-  logo: {
-    height: '100%',
-    width: '100%',
-  },
-  bannerLogoWell: {
-    alignItems: 'center',
-    backgroundColor: colors.white,
-    borderColor: 'rgba(13,14,12,0.05)',
-    borderCurve: 'continuous',
+    backgroundColor: cardColors.surface,
     borderRadius: 12,
-    borderWidth: 1,
-    bottom: 8,
-    height: 40,
-    justifyContent: 'center',
-    left: 8,
-    padding: 6,
-    position: 'absolute',
-    width: 40,
-  },
-  bannerLogo: {
-    height: '100%',
+    flexDirection: 'row',
+    gap: 8,
+    minHeight: 88,
+    padding: 12,
     width: '100%',
   },
-  body: {
-    flex: 1,
-    padding: 14,
-  },
-  nameRow: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    gap: 8,
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  name: {
-    color: colors.ink,
-    flex: 1,
-    fontFamily: fontFamily.sansSemiBold,
-    fontSize: 16,
-    lineHeight: 20,
-  },
-  category: {
-    color: colors.muted,
-    fontFamily: fontFamily.sans,
-    fontSize: 12,
-    lineHeight: 16,
-    marginBottom: 6,
-  },
-  factRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 4,
-    marginBottom: 6,
-  },
-  factText: {
-    color: colors.muted,
-    flex: 1,
-    fontFamily: fontFamily.sans,
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  reasonRow: {
-    flexDirection: 'row',
-    marginBottom: 8,
-  },
-  reasonChip: {
-    backgroundColor: colors.tint,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  reasonText: {
-    color: colors.teal,
-    fontFamily: fontFamily.sansMedium,
-    fontSize: 11,
-    lineHeight: 15,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    marginBottom: 8,
-  },
-  neutralBadge: {
-    backgroundColor: colors.card,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-  },
-  neutralBadgeText: {
-    color: colors.muted,
-    fontFamily: fontFamily.sansMedium,
-    fontSize: 11,
-    lineHeight: 15,
-  },
-  footer: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 8,
-    justifyContent: 'space-between',
-    marginTop: 'auto',
-    paddingTop: 4,
-  },
-  offerArea: {
-    flex: 1,
-  },
-  milesRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 4,
-  },
-  voucherBadge: {
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: colors.tint,
-    borderRadius: 999,
-    flexDirection: 'row',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  voucherText: {
-    color: colors.teal,
-    fontFamily: fontFamily.sansSemiBold,
-    fontSize: 11,
-    lineHeight: 15,
-  },
-  viewLabel: {
-    color: colors.teal,
-    fontFamily: fontFamily.sansSemiBold,
-    fontSize: 12,
-    lineHeight: 16,
-  },
+  directoryPressed: { backgroundColor: colors.tint },
+  thumbnail: { alignItems: 'center', backgroundColor: cardColors.mutedSurface, borderRadius: 12, height: 64, justifyContent: 'center', overflow: 'hidden', width: 64 },
+  iconThumbnail: { backgroundColor: cardColors.onlineSurface },
+  logo: { height: 64, width: 64 },
+  monogram: { alignItems: 'center', backgroundColor: cardColors.forest, height: 64, justifyContent: 'center', width: 64 },
+  monogramText: { color: cardColors.surface, fontFamily: fontFamily.sansBold, fontSize: 30 },
+  thumbnailBadge: { alignItems: 'center', backgroundColor: cardColors.surface, borderRadius: 8, bottom: 4, height: 16, justifyContent: 'center', position: 'absolute', right: 4, width: 16 },
+  directoryBody: { flex: 1, justifyContent: 'center', minWidth: 0 },
+  name: { color: cardColors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 18, lineHeight: 24 },
+  metadata: { color: cardColors.metadata, flexShrink: 1, fontFamily: fontFamily.sans, fontSize: 12, lineHeight: 16 },
+  chevron: { paddingLeft: 4 },
 });

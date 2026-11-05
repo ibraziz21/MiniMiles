@@ -40,7 +40,7 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const claimFriction = await getVoucherClaimFriction(user.id);
+  const claimFriction = { ...await getVoucherClaimFriction(user.id), requiresUsePlan: false };
 
   // Username requirement (voucher-web2-username-identity-spec.md §3.4) comes
   // before country in the preview, matching the self-claim requirement order

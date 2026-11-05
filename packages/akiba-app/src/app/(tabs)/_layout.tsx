@@ -40,7 +40,7 @@ export default function TabsLayout() {
       <PushRegistrar />
       <Tabs screenOptions={{ headerShown: false }} tabBar={() => <PassTabBar showGifts={gifts} />}>
         <Tabs.Screen name="index" options={{ title: 'Explore' }} />
-        <Tabs.Screen name="merchants" options={{ title: 'Merchants' }} />
+        <Tabs.Screen name="merchants" options={{ title: 'Places' }} />
         <Tabs.Screen name="vouchers" options={{ title: 'Rewards' }} />
         <Tabs.Screen name="pass" options={{ title: 'Pass' }} />
         <Tabs.Screen name="offers" options={{ href: gifts ? null : undefined, title: 'Offers' }} />

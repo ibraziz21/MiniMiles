@@ -1,5 +1,5 @@
 {
-  "notes": "Development-only offers for the Akiba App swipe deck. Set AKIBA_TEST_OFFERS=false to hide them locally. IDs must keep the dev-offer- prefix so reminder requests stay local.",
+  "notes": "Development-only offers for the Akiba App swipe deck. Set AKIBA_TEST_OFFERS=true to enable them locally. IDs must keep the dev-offer- prefix so reminder requests stay local.",
   "offers": [
     {
       "id": "dev-offer-coffee-pairing",

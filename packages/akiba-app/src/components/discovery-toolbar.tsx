@@ -6,6 +6,8 @@ import { ProfileButton } from './profile-button';
 
 type DiscoveryToolbarProps = {
   activeFilterCount?: number;
+  showFilterLabel?: boolean;
+  showProfile?: boolean;
   onChangeText: (value: string) => void;
   onOpenFilters: () => void;
   onSubmit?: () => void;
@@ -15,10 +17,12 @@ type DiscoveryToolbarProps = {
 
 export function DiscoveryToolbar({
   activeFilterCount = 0,
+  showFilterLabel = false,
+  showProfile = true,
   onChangeText,
   onOpenFilters,
   onSubmit,
-  placeholder = 'Search merchants…',
+  placeholder = 'Search places…',
   value,
 }: DiscoveryToolbarProps) {
   return (
@@ -26,7 +30,7 @@ export function DiscoveryToolbar({
       <View style={styles.searchField}>
         <Icon name="search" size={18} color={colors.muted} />
         <TextInput
-          accessibilityLabel="Search merchants, categories and cities"
+          accessibilityLabel="Search places, categories and cities"
           enterKeyHint="search"
           onChangeText={onChangeText}
           onSubmitEditing={onSubmit}
@@ -48,8 +52,9 @@ export function DiscoveryToolbar({
         accessibilityRole="button"
         hitSlop={4}
         onPress={onOpenFilters}
-        style={({ pressed }) => [styles.iconButton, activeFilterCount > 0 && styles.iconButtonActive, pressed && styles.pressed]}>
+        style={({ pressed }) => [styles.iconButton, showFilterLabel && styles.labelledButton, activeFilterCount > 0 && styles.iconButtonActive, pressed && styles.pressed]}>
         <Icon name="sliders" size={19} color={activeFilterCount ? colors.white : colors.ink} />
+        {showFilterLabel ? <Text style={[styles.filterLabel, activeFilterCount > 0 && styles.filterLabelActive]}>Filters</Text> : null}
         {activeFilterCount > 0 ? (
           <View style={styles.badge}>
             <Text style={styles.badgeText}>{activeFilterCount}</Text>
@@ -57,7 +62,7 @@ export function DiscoveryToolbar({
         ) : null}
       </Pressable>
 
-      <ProfileButton />
+      {showProfile ? <ProfileButton /> : null}
     </View>
   );
 }
@@ -110,6 +115,9 @@ const styles = StyleSheet.create({
     position: 'relative',
     width: 48,
   },
+  labelledButton: { flexDirection: 'row', gap: 6, paddingHorizontal: 12, width: 'auto' },
+  filterLabel: { color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 13 },
+  filterLabelActive: { color: colors.white },
   iconButtonActive: {
     backgroundColor: colors.teal,
     borderColor: colors.teal,

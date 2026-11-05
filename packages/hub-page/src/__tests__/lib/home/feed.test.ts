@@ -368,7 +368,8 @@ describe("getHomeFeed", () => {
         miles_cost: 20, expires_at: new Date(Date.now() + 86_400_000).toISOString(),
         partners: {
           id: "banner-merchant", slug: "banner-merchant", name: "Banner Co", image_url: "https://logo.example/x.png",
-          partner_settings: { directory_status: "published", banner_url: "https://cdn.example/banner.jpg" },
+          banner_url: "https://cdn.example/banner.jpg",
+          partner_settings: { directory_status: "published" },
         },
       },
     ];
@@ -389,7 +390,8 @@ describe("getHomeFeed", () => {
         miles_cost: 20, expires_at: new Date(Date.now() + 86_400_000).toISOString(),
         partners: {
           id: "no-banner-merchant", slug: "no-banner-merchant", name: "No Banner Co", image_url: null,
-          partner_settings: { directory_status: "published", banner_url: null },
+          banner_url: null,
+          partner_settings: { directory_status: "published" },
         },
       },
     ];
@@ -429,7 +431,7 @@ describe("getHomeFeed", () => {
   });
 
   it("ships a new-merchants section, untitled reasons, when recently-published merchants exist", async () => {
-    state.merchants = [merchant()];
+    state.merchants = [merchant({ id: "new-1", slug: "new-1", name: "Newly Opened", operatingModel: "online" })];
     state.newPartnerSettings = [
       {
         directory_published_at: "2026-09-11T00:00:00Z",
@@ -444,7 +446,7 @@ describe("getHomeFeed", () => {
     expect(newMerchants?.title).toBe("New on Akiba");
     expect(newMerchants?.personalized).toBe(false);
     expect(newMerchants?.merchants).toEqual([
-      expect.objectContaining({ id: "new-1", slug: "new-1", name: "Newly Opened", reasons: [] }),
+      expect.objectContaining({ id: "new-1", slug: "new-1", name: "Newly Opened", operatingModel: "online", reasons: [] }),
     ]);
   });
 

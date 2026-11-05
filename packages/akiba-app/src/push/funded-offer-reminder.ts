@@ -7,10 +7,10 @@ export function fundedOfferReminderId(allocationId: string) {
   return `funded-offer-${allocationId}`;
 }
 
-export async function scheduleFundedOfferReminder(offer: FundedOffer) {
-  const date = new Date(offer.nextOpeningAt ?? '');
+export async function scheduleFundedOfferReminder(offer: FundedOffer, leadMinutes = 0) {
+  const date = new Date(Date.parse(offer.nextOpeningAt ?? '') - leadMinutes * 60_000);
   if (!(date.getTime() > Date.now())) {
-    throw new Error('This opening has passed. Refresh the offers to check the next date.');
+    throw new Error('That reminder time has passed. Choose a shorter reminder or check the next opening.');
   }
 
   if (Platform.OS === 'android') {
@@ -27,7 +27,7 @@ export async function scheduleFundedOfferReminder(offer: FundedOffer) {
     throw new Error('Allow Akiba notifications in your phone settings to set a reminder.');
   }
   if (date.getTime() <= Date.now()) {
-    throw new Error('This opening has passed. Refresh the offers to check the next date.');
+    throw new Error('That reminder time has passed. Choose a shorter reminder or check the next opening.');
   }
 
   await Notifications.scheduleNotificationAsync({

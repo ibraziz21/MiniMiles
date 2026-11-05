@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   listPublicMerchants,
   getCanonicalVoucherCounts,
+  getPublishedMerchantBanners,
   InvalidMerchantCursorError,
 } from "@/lib/merchants/queries";
 import { getTopOffers, toMerchantValueSummary, getSignedInBalance } from "@/lib/merchants/enrich";
@@ -85,15 +86,17 @@ export async function GET(request: Request) {
     } = await supabase.auth.getUser();
     const partnerIds = result.merchants.map((m) => m.id);
 
-    const [counts, offers, balance] = await Promise.all([
+    const [counts, offers, balance, banners] = await Promise.all([
       getCanonicalVoucherCounts(partnerIds, user?.id ?? null),
       getTopOffers(partnerIds, user?.id ?? null),
       getSignedInBalance(user?.id ?? null, user?.email ?? null),
+      getPublishedMerchantBanners(partnerIds).catch(() => ({} as Record<string, string>)),
     ]);
 
-    const merchants = result.merchants.map((m) =>
-      toMerchantValueSummary(m, offers[m.id], balance, q ?? null, counts[m.id] ?? 0)
-    );
+    const merchants = result.merchants.map((m) => ({
+      ...toMerchantValueSummary(m, offers[m.id], balance, q ?? null, counts[m.id] ?? 0),
+      bannerUrl: banners[m.id] ?? null,
+    }));
 
     return NextResponse.json({ ...result, merchants });
   } catch (error) {

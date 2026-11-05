@@ -63,6 +63,8 @@ export function MerchantPhotoTabs({
   merchantId,
   merchantSlug,
   verifiedVisits,
+  sharedVisitId,
+  startOnVerified,
   approvedCustomerPhotos = [],
   communityFavoriteProduct,
   merchantMedia,
@@ -80,6 +82,8 @@ export function MerchantPhotoTabs({
   merchantId: string;
   merchantSlug: string;
   verifiedVisits: PublicVerifiedVisit[];
+  sharedVisitId?: string;
+  startOnVerified?: boolean;
   approvedCustomerPhotos?: PublicCustomerPhoto[];
   communityFavoriteProduct: string | null;
   merchantMedia: PublicMerchantMedia[];
@@ -105,6 +109,7 @@ export function MerchantPhotoTabs({
     ...(locationCount > 0 ? (["locations"] as const) : []),
   ];
   const [activeTab, setActiveTab] = useState<ProfileTab>(() => {
+    if (sharedVisitId || startOnVerified) return "verified";
     if (offerCount > 0) return "offers";
     if (memberVerifiedVisit) return "verified";
     if (verifiedVisits.length > 0) return "verified";
@@ -394,6 +399,7 @@ export function MerchantPhotoTabs({
                 )}
 
                 {memberVerifiedVisit && (
+                  <div>
                   <TrackedLink
                     href={`/visit/${memberVerifiedVisit.requestId}?step=photos`}
                     event="merchant_verified_visit_edit_photos_tap"
@@ -423,9 +429,23 @@ export function MerchantPhotoTabs({
                       <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" aria-hidden="true" />
                     </span>
                   </TrackedLink>
+                  <TrackedLink
+                    href={`/visit/${memberVerifiedVisit.requestId}?step=edit`}
+                    event="merchant_verified_visit_edit_tap"
+                    eventProps={{ merchant_id: merchantId }}
+                    className="mx-4 mt-2 inline-flex min-h-11 items-center rounded-full px-3 text-sm font-semibold text-akiba-teal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
+                  >
+                    Edit visit
+                  </TrackedLink>
+                  </div>
                 )}
 
+                {sharedVisitId && !verifiedVisits.some((visit) => visit.id === sharedVisitId) ? (
+                  <p className="px-4 py-3 text-sm text-akiba-muted">This shared visit is no longer available.</p>
+                ) : null}
                 <VerifiedVisitPosts
+                  key={sharedVisitId ?? "community"}
+                  sharedVisitId={sharedVisitId}
                   approvedCustomerPhotos={approvedCustomerPhotos}
                   communityFavoriteProduct={communityFavoriteProduct}
                   initialHelpfulVisitIds={initialHelpfulVisitIds}

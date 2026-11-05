@@ -2,6 +2,9 @@ import type { RefObject } from "react";
 import type { ExperienceOption, Item } from "./types";
 
 export function ReviewStep({
+  editing = false,
+  privateNote,
+  onPrivateNoteChange,
   wouldRecommend,
   items,
   experienceOptionIds,
@@ -11,6 +14,9 @@ export function ReviewStep({
   onBack,
   headingRef,
 }: {
+  editing?: boolean;
+  privateNote?: string;
+  onPrivateNoteChange?: (note: string) => void;
   wouldRecommend: boolean | null;
   items: Item[];
   experienceOptionIds: string[];
@@ -52,6 +58,20 @@ export function ReviewStep({
           </div>
         )}
       </dl>
+      {editing && onPrivateNoteChange ? (
+        <label className="flex flex-col gap-2 text-sm text-akiba-ink">
+          <span className="font-medium">Private note <span className="font-normal text-akiba-muted">(optional)</span></span>
+          <textarea
+            value={privateNote ?? ""}
+            onChange={(event) => onPrivateNoteChange(event.target.value)}
+            maxLength={300}
+            rows={3}
+            disabled={submitting}
+            className="rounded-xl border border-akiba-line bg-white p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-akiba-teal"
+          />
+          <span className="text-xs text-akiba-muted">Only you can see this note. {(privateNote ?? "").length}/300</span>
+        </label>
+      ) : null}
       <div className="mt-auto flex flex-col gap-3">
         <button
           type="button"
@@ -59,7 +79,7 @@ export function ReviewStep({
           disabled={submitting}
           className="min-h-[48px] rounded-full bg-akiba-teal px-6 py-3 text-sm font-semibold text-white disabled:opacity-60"
         >
-          {submitting ? "Saving…" : "Add to the Akiba guide"}
+          {submitting ? "Saving…" : editing ? "Save changes" : "Add to the Akiba guide"}
         </button>
         <button type="button" onClick={onBack} className="min-h-[44px] text-sm font-medium text-akiba-muted">
           Edit

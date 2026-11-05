@@ -1,3 +1,4 @@
+import { fundedCampaignTitle, publicFundedCampaign, type FundedCampaignProgram } from "@/lib/vouchers/fundedCampaign";
 import { nextFundedOfferOpening } from "@/lib/vouchers/fundedOfferOpening";
 import { FundedDiscoveryUnavailable } from "@/lib/vouchers/fundedDiscovery";
 import { isHiddenPartner } from "@/lib/akiba/hidden-partners";
@@ -10,13 +11,16 @@ import {
 } from "@/lib/vouchers/fundedOfferMerchants.server";
 import type { MerchantSummary } from "@/components/vouchers/FundedOfferCard";
 import {
+  FUNDED_OFFER_PARTNER_COLUMNS,
   FUNDED_OFFER_TEMPLATE_COLUMNS,
+  fundedPartnerLogo,
   toFundedOffer,
   type RawFundedPartner,
   type RawFundedTemplate,
 } from "@/lib/vouchers/fundedOfferMapping";
 
 type RawFundedAllocation = {
+  voucher_funding_programs?: FundedCampaignProgram | FundedCampaignProgram[] | null;
   id: string;
   claim_ends_at: string;
   voucher_validity_seconds?: number | null;
@@ -56,8 +60,9 @@ export async function getMerchantFundedOffers(merchantId: string): Promise<Funde
     .from("voucher_funding_allocations")
     .select(`
       id, metadata, claim_starts_at, claim_ends_at, voucher_validity_seconds,
+      voucher_funding_programs ( id, state, metadata ),
       spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey ( ${FUNDED_OFFER_TEMPLATE_COLUMNS} ),
-      partners!voucher_funding_allocations_merchant_id_fkey ( id, name, slug, image_url, status ),
+      partners!voucher_funding_allocations_merchant_id_fkey ( ${FUNDED_OFFER_PARTNER_COLUMNS} ),
       voucher_eligibility_rule_sets ( customer_copy )
     `);
   query = scope ? query.or(scope) : query.eq("merchant_id", merchantId);
@@ -81,7 +86,7 @@ export async function getMerchantFundedOffers(merchantId: string): Promise<Funde
       id: merchant.id,
       name: merchant.name,
       slug: merchant.slug,
-      imageUrl: merchant.image_url,
+      imageUrl: fundedPartnerLogo(merchant),
     });
   }
   const participants = await resolveAllocationParticipants(primaries);
@@ -96,6 +101,9 @@ export async function getMerchantFundedOffers(merchantId: string): Promise<Funde
     const merchant = one(row.partners);
     const ruleSet = one(row.voucher_eligibility_rule_sets);
     if (!merchant || merchant.status !== "active" || isHiddenPartner(merchant.id)) continue;
+    const program = one(row.voucher_funding_programs ?? null);
+    const campaign = publicFundedCampaign(program);
+    if (fundedCampaignTitle(program) && !campaign) continue;
     const offer = toFundedOffer({
       allocationId: row.id,
       claimEndsAt: row.claim_ends_at,
@@ -106,10 +114,12 @@ export async function getMerchantFundedOffers(merchantId: string): Promise<Funde
       participants: participants.get(row.id) ?? null,
     });
     if (offer) {
+      offer.campaign = campaign;
+      if (offer.campaign) offer.showInBusinessOffers = true;
       offer.redemptionSchedule = row.metadata?.redemption_schedule ?? null;
       offer.claimStartsAt = row.claim_starts_at;
       offer.claimsOpen = row.claim_starts_at <= nowIso;
-      if (row.metadata?.show_in_business_offers === true) {
+      if (offer.campaign || row.metadata?.show_in_business_offers === true) {
         offer.showInBusinessOffers = true;
         offer.nextOpeningAt = nextFundedOfferOpening(offer, now);
       }

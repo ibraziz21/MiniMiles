@@ -1,12 +1,12 @@
 // GET /api/v1/merchants/:slug + private merchant-state overlay. This is a
 // native translation of hub-page's current merchant profile, not a separate
 // mobile information architecture.
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image } from 'expo-image';
 import * as Notifications from 'expo-notifications';
 import * as WebBrowser from 'expo-web-browser';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { Alert, Linking, Modal, Platform, Pressable, ScrollView as HorizontalScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Alert, AppState, Linking, Modal, Platform, Pressable, ScrollView as HorizontalScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { createApiClient } from '@/api';
 import { fundedOfferReminderId, scheduleFundedOfferReminder } from '@/push/funded-offer-reminder';
@@ -14,6 +14,7 @@ import { useAuth } from '@/auth';
 import { useFeatureFlags } from '@/config';
 import { FundedOfferCard } from '@/components/funded-offer-card';
 import { MilesAmount } from '@/components/miles-amount';
+import { PlaceShareSheet, publicPlaceLink, type PlaceShareContent } from '@/components/place-share-sheet';
 import { VerifiedVisitCommunity } from '@/components/verified-visit-community';
 import { VerifiedVisitPhotoSheet } from '@/components/verified-visit-photo-sheet';
 import { VerifiedVisitReportSheet } from '@/components/verified-visit-report-sheet';
@@ -38,7 +39,7 @@ type ScreenState =
 type ProfileTab = 'verified' | 'merchant' | 'vouchers' | 'locations';
 
 export default function MerchantDetailScreen() {
-  const { slug } = useLocalSearchParams<{ slug: string }>();
+  const { slug, tab, visit } = useLocalSearchParams<{ slug: string; tab?: string; visit?: string }>();
   const { accessToken } = useAuth();
   const [state, setState] = useState<ScreenState>({ status: 'loading' });
   const [saved, setSaved] = useState(false);
@@ -47,7 +48,7 @@ export default function MerchantDetailScreen() {
 
   const load = useCallback(async () => {
     try {
-      const detail = await createApiClient().getMerchantDetail(slug);
+      const detail = await createApiClient().getMerchantDetail(slug, { sharedVisitId: visit });
       let overlay: MerchantStateDetail | null = null;
       if (accessToken) {
         try {
@@ -62,7 +63,7 @@ export default function MerchantDetailScreen() {
     } catch (error) {
       setState({ status: 'error', message: error instanceof Error ? error.message : 'Something went wrong' });
     }
-  }, [accessToken, slug]);
+  }, [accessToken, slug, visit]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -119,7 +120,7 @@ export default function MerchantDetailScreen() {
 
   const refreshVisitPhoto = useCallback(async (photoId: string, updateProfile = true): Promise<CustomerPhoto | null> => {
     try {
-      const detail = await createApiClient().getMerchantDetail(slug, { freshPhotos: true });
+      const detail = await createApiClient().getMerchantDetail(slug, { freshPhotos: true, sharedVisitId: visit });
       if (updateProfile) {
         setState((current) => current.status === 'ready' ? { ...current, detail } : current);
       }
@@ -129,7 +130,7 @@ export default function MerchantDetailScreen() {
     } catch {
       return null;
     }
-  }, [slug]);
+  }, [slug, visit]);
 
   return (
     <>
@@ -141,8 +142,11 @@ export default function MerchantDetailScreen() {
           <ErrorState message={state.message} onRetry={load} />
         ) : (
           <MerchantProfile
+            key={visit ?? slug}
             accessToken={accessToken}
             detail={state.detail}
+            initialTab={tab === 'verified' || visit ? 'verified' : undefined}
+            sharedVisitId={visit}
             helpfulVisitIds={helpfulVisitIds}
             onToggleSave={toggleSave}
             onToggleHelpful={toggleHelpful}
@@ -158,9 +162,27 @@ export default function MerchantDetailScreen() {
   );
 }
 
+function topStoryDetails(values: (string | null)[], limit: number) {
+  const counts = new Map<string, { label: string; count: number }>();
+  for (const value of values) {
+    const label = value?.trim();
+    if (!label) continue;
+    const key = label.toLowerCase();
+    const entry = counts.get(key);
+    if (entry) entry.count++;
+    else counts.set(key, { label, count: 1 });
+  }
+  return [...counts.values()]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit)
+    .map(({ label }) => label);
+}
+
 function MerchantProfile({
   accessToken,
   detail,
+  initialTab,
+  sharedVisitId,
   helpfulVisitIds,
   onToggleHelpful,
   onToggleSave,
@@ -172,6 +194,8 @@ function MerchantProfile({
 }: {
   accessToken: string | null;
   detail: MerchantDetail;
+  initialTab?: ProfileTab;
+  sharedVisitId?: string;
   helpfulVisitIds: Set<string>;
   onToggleHelpful: (visitId: string) => Promise<void>;
   onToggleSave: () => void;
@@ -191,7 +215,8 @@ function MerchantProfile({
       : merchant.merchantMedia.length > 0
         ? 'merchant'
         : merchant.locations.length > 0 ? 'locations' : 'verified';
-  const [activeTab, setActiveTab] = useState<ProfileTab>(defaultTab);
+  const [activeTab, setActiveTab] = useState<ProfileTab>(initialTab ?? defaultTab);
+  const [shareContent, setShareContent] = useState<PlaceShareContent | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [photoSheetOpen, setPhotoSheetOpen] = useState(false);
   // The card being reported, plus the photo that prompted it when the
@@ -216,6 +241,32 @@ function MerchantProfile({
       Alert.alert('Could not open your visit', 'Please try again.');
     }
   }, [merchant.slug]);
+
+  const refreshAfterEdit = useRef(false);
+  const editVerifiedVisit = async () => {
+    const requestId = overlay?.verifiedVisit?.requestId;
+    if (!requestId) return;
+    const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.trim().replace(/\/$/, '') || 'https://pass.akibamiles.com';
+    try {
+      refreshAfterEdit.current = Platform.OS === 'android';
+      await WebBrowser.openBrowserAsync(`${baseUrl}/visit/${encodeURIComponent(requestId)}?step=edit`);
+      if (Platform.OS === 'ios') await onRefresh();
+    } catch {
+      refreshAfterEdit.current = false;
+      Alert.alert('Could not open your visit', 'Please try again.');
+    }
+  };
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && refreshAfterEdit.current) {
+        refreshAfterEdit.current = false;
+        void onRefresh();
+      }
+    });
+    return () => subscription.remove();
+  }, [onRefresh]);
 
   const addVerifiedVisitPhotos = useCallback(() => setPhotoSheetOpen(true), []);
 
@@ -268,6 +319,24 @@ function MerchantProfile({
                 style={({ pressed }) => [styles.saveButton, saved && styles.saveButtonActive, pressed && styles.pressed]}>
                 {savePending ? <ActivityIndicator color={colors.teal} size="small" /> : <Icon name="bookmark" size={17} color={saved ? colors.teal : colors.ink} />}
               </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Share place"
+                onPress={() => setShareContent({
+                  title: 'Share place', name: merchant.name, description: merchant.shortDescription,
+                  imageUrl: merchant.bannerUrl ?? merchant.logoUrl, imageKind: merchant.bannerUrl ? 'photo' : 'logo', url: publicPlaceLink(merchant.slug),
+                  verifiedPhotos: merchant.approvedCustomerPhotos.filter((photo) => photo.visitId),
+                  logoUrl: merchant.logoUrl,
+                  category: merchant.primaryCategory?.name,
+                  favoriteProducts: topStoryDetails([
+                    merchant.verifiedVisitFavoriteProduct,
+                    ...merchant.verifiedVisits.map((visit) => visit.favoriteOrder),
+                  ], 2),
+                  highlights: topStoryDetails(merchant.verifiedVisits.flatMap((visit) => visit.experienceLabels), 1),
+                })}
+                style={({ pressed }) => [styles.shareButton, pressed && styles.pressed]}>
+                <Icon name="share-2" size={17} color={colors.ink} />
+              </Pressable>
             </View>
             {merchant.shortDescription ? <Text style={styles.shortDescription}>{merchant.shortDescription}</Text> : null}
             <View style={styles.chipRow}>
@@ -307,12 +376,23 @@ function MerchantProfile({
 
       {activeTab === 'verified' ? (
         <VerifiedPanel
+          sharedVisitId={sharedVisitId}
+          onShareVisit={(visit) => setShareContent({
+            title: 'Share my visit', name: merchant.name, visit: true,
+            verifiedPhotos: visit.photos,
+            logoUrl: merchant.logoUrl,
+            category: merchant.primaryCategory?.name,
+            favoriteProducts: topStoryDetails([visit.favoriteOrder], 2),
+            highlights: topStoryDetails(visit.experienceLabels, 1),
+            url: publicPlaceLink(merchant.slug, visit.id),
+          })}
           favoriteProduct={merchant.verifiedVisitFavoriteProduct}
           helpfulVisitIds={helpfulVisitIds}
           merchantName={merchant.name}
           merchantSlug={merchant.slug}
           onAddVisit={addVerifiedVisit}
           onAddVisitPhotos={addVerifiedVisitPhotos}
+          onEditVisit={() => void editVerifiedVisit()}
           onReport={(visitId, photoId) => setReporting({ visitId, photoId })}
           onToggleHelpful={onToggleHelpful}
           onToggleSave={onToggleSave}
@@ -350,6 +430,7 @@ function MerchantProfile({
         />
       ) : null}
 
+      {shareContent ? <PlaceShareSheet content={shareContent} onClose={() => setShareContent(null)} /> : null}
       {accessToken && discoveryContributions && overlay?.verifiedVisit ? (
         <VerifiedVisitPhotoSheet
           accessToken={accessToken}
@@ -422,12 +503,15 @@ function TabButton({ active, onPress, tab }: { active: boolean; onPress: () => v
 }
 
 function VerifiedPanel({
+  sharedVisitId,
+  onShareVisit,
   favoriteProduct,
   helpfulVisitIds,
   merchantName,
   merchantSlug,
   onAddVisit,
   onAddVisitPhotos,
+  onEditVisit,
   onReport,
   onToggleHelpful,
   onToggleSave,
@@ -437,12 +521,15 @@ function VerifiedPanel({
   saved,
   visits,
 }: {
+  sharedVisitId?: string;
+  onShareVisit: (visit: VerifiedVisit) => void;
   favoriteProduct: string | null;
   helpfulVisitIds: Set<string>;
   merchantName: string;
   merchantSlug: string;
   onAddVisit: () => void;
   onAddVisitPhotos: () => void;
+  onEditVisit: () => void;
   onReport: (visitId: string, photoId: string | null) => void;
   onToggleHelpful: (visitId: string) => Promise<void>;
   onToggleSave: () => void;
@@ -457,8 +544,12 @@ function VerifiedPanel({
   // makes it obvious at a glance which surfaces the switch controls.
   const { discoveryContributions } = useFeatureFlags();
 
+  const myPublicVisit = visits.find((visit) => visit.id === overlay?.verifiedVisit?.id);
+  const sharedVisit = visits.find((visit) => visit.id === sharedVisitId);
+
   return (
     <View style={styles.panel}>
+      {sharedVisitId && !sharedVisit ? <Text style={styles.cardBody}>This shared visit is no longer available.</Text> : null}
       {discoveryContributions && overlay?.openContributionRequest ? (
         <Pressable accessibilityHint="Opens the verified visit form" accessibilityRole="button" onPress={onAddVisit} style={({ pressed }) => [styles.contributionCard, pressed && styles.pressed]}>
           <View style={styles.roundIcon}><Icon name="message-square" size={20} color={colors.teal} /></View>
@@ -466,20 +557,41 @@ function VerifiedPanel({
           <View style={styles.contributionAction}><Text style={styles.contributionActionText}>Add visit</Text><Icon name="chevron-right" size={16} color={colors.white} /></View>
         </Pressable>
       ) : null}
-      {discoveryContributions && overlay?.verifiedVisit ? (
-        <Pressable
-          accessibilityHint="Opens your saved verified visit at the photo step"
-          accessibilityLabel="Your verified visit. Add photos"
-          accessibilityRole="button"
-          onPress={onAddVisitPhotos}
-          style={({ pressed }) => [styles.privateVisit, pressed && styles.pressed]}
-        >
-          <View style={styles.roundIconTint}><Icon name="check-circle" size={20} color={colors.teal} /></View>
-          <View style={styles.flex}><Text style={styles.cardTitle}>Your verified visit</Text><Text style={styles.privateBadge}>Only visible to you</Text><Text style={styles.cardBody}>{memberVisitCopy(overlay.verifiedVisit, merchantName)}</Text></View>
-          <View style={styles.privateVisitAction}><Text style={styles.privateVisitActionText}>Add photos</Text><Icon name="chevron-right" size={16} color={colors.teal} /></View>
-        </Pressable>
+      {overlay?.verifiedVisit ? (
+        <View style={styles.privateVisitCard}>
+          <View style={styles.privateVisit}>
+            <View style={styles.roundIconTint}><Icon name="check-circle" size={28} color={colors.teal} /></View>
+            <View style={styles.flex}>
+              <Text style={styles.cardTitle}>Your verified visit</Text>
+              <Text style={styles.privateBadge}>Only visible to you</Text>
+              <Text style={styles.cardBody}>{memberVisitCopy(overlay.verifiedVisit, merchantName)}</Text>
+            </View>
+          </View>
+          <View style={styles.visitActions}>
+            {discoveryContributions ? (
+              <>
+                <Pressable accessibilityRole="button" onPress={onEditVisit} style={styles.shareVisit}>
+                  <Icon name="edit-2" size={16} color={colors.tealDark} />
+                  <Text style={styles.shareVisitText}>Edit visit</Text>
+                </Pressable>
+                <Pressable accessibilityRole="button" onPress={onAddVisitPhotos} style={styles.shareVisit}>
+                  <Icon name="camera" size={16} color={colors.tealDark} />
+                  <Text style={styles.shareVisitText}>Manage photos</Text>
+                </Pressable>
+              </>
+            ) : null}
+            {myPublicVisit ? (
+              <Pressable accessibilityRole="button" onPress={() => onShareVisit(myPublicVisit)} style={styles.shareVisit}>
+                <Icon name="share-2" size={16} color={colors.tealDark} />
+                <Text style={styles.shareVisitText}>Share my visit</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
       ) : null}
       <VerifiedVisitCommunity
+        key={sharedVisit?.id ?? 'community'}
+        sharedVisitId={sharedVisitId}
         canAddVisit={discoveryContributions && Boolean(overlay?.openContributionRequest)}
         favoriteProduct={favoriteProduct}
         helpfulVisitIds={helpfulVisitIds}
@@ -803,11 +915,16 @@ const styles = StyleSheet.create({
   backButton: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 6, minHeight: 44, marginHorizontal: 16, marginTop: 4 }, backText: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 14 }, pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] },
   bannerWrap: { height: 136, position: 'relative' }, banner: { height: 112, width: '100%' }, bannerLogo: { bottom: 0, left: 16, position: 'absolute' },
   logoWell: { alignItems: 'center', backgroundColor: colors.white, borderColor: colors.paper, borderCurve: 'continuous', borderRadius: 16, borderWidth: 4, height: 64, justifyContent: 'center', overflow: 'hidden', padding: 7, width: 64 }, inlineLogo: { borderColor: colors.line, borderWidth: 1, height: 80, width: 80 }, logoImage: { height: '100%', width: '100%' },
+  privateVisitCard: { backgroundColor: colors.white, borderColor: colors.line, borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  visitActions: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 8, paddingBottom: 6 },
+  shareButton: { alignItems: 'center', borderColor: colors.line, borderRadius: 999, borderWidth: 1, height: 44, justifyContent: 'center', width: 44 },
+  shareVisit: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 8, minHeight: 44, paddingHorizontal: 8 },
+  shareVisitText: { color: colors.tealDark, fontFamily: fontFamily.sansSemiBold, fontSize: 14 },
   identity: { paddingBottom: 12, paddingHorizontal: 16 }, identityRow: { alignItems: 'flex-start', flexDirection: 'row', gap: 12 }, identityBody: { flex: 1, minWidth: 0 }, nameRow: { alignItems: 'flex-start', flexDirection: 'row', gap: 10 }, merchantName: { color: colors.ink, flex: 1, fontFamily: fontFamily.sterlingSemiBold, fontSize: 22, lineHeight: 26 }, saveButton: { alignItems: 'center', backgroundColor: colors.white, borderColor: colors.line, borderRadius: 999, borderWidth: 1, height: 36, justifyContent: 'center', width: 36 }, saveButtonActive: { backgroundColor: colors.tint, borderColor: colors.teal }, shortDescription: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 14, lineHeight: 19, marginTop: 4 }, chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }, pill: { backgroundColor: colors.card, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 }, pillTeal: { backgroundColor: colors.tint }, pillText: { color: colors.muted, fontFamily: fontFamily.sansMedium, fontSize: 11 }, pillTextTeal: { color: colors.teal, fontFamily: fontFamily.sansSemiBold },
   disclosure: { marginTop: 10 }, description: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 13, lineHeight: 20 }, offerings: { marginTop: 10 }, microHeading: { color: colors.muted, fontFamily: fontFamily.sansSemiBold, fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase' }, seeMore: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 3, minHeight: 36 }, seeMoreText: { color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 12 },
   actionRow: { gap: 8, paddingTop: 10 }, action: { alignItems: 'center', backgroundColor: colors.white, borderColor: colors.line, borderRadius: 999, borderWidth: 1, flexDirection: 'row', gap: 6, minHeight: 40, paddingHorizontal: 16 }, actionPrimary: { backgroundColor: colors.ink, borderColor: colors.ink }, actionCompact: { height: 40, justifyContent: 'center', paddingHorizontal: 0, width: 40 }, actionText: { color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 14 }, actionTextPrimary: { color: colors.white },
   tabs: { backgroundColor: 'rgba(252,252,252,0.96)', borderBottomColor: colors.line, borderBottomWidth: 1, borderTopColor: colors.line, borderTopWidth: 1, flexDirection: 'row' }, tab: { alignItems: 'center', flex: 1, gap: 4, justifyContent: 'center', minHeight: 58, position: 'relative' }, tabPressed: { backgroundColor: colors.card }, tabText: { color: colors.muted, fontFamily: fontFamily.sansSemiBold, fontSize: 11 }, tabTextActive: { color: colors.ink }, tabIndicator: { backgroundColor: 'transparent', bottom: -1, height: 2, left: 8, position: 'absolute', right: 8 }, tabIndicatorActive: { backgroundColor: colors.teal },
-  panel: { gap: 12, padding: 16 }, contributionCard: { alignItems: 'center', backgroundColor: colors.tint, borderColor: 'rgba(35,141,157,0.20)', borderCurve: 'continuous', borderRadius: 16, borderWidth: 1, flexDirection: 'row', gap: 12, padding: 14 }, contributionAction: { alignItems: 'center', backgroundColor: colors.ink, borderRadius: 999, flexDirection: 'row', gap: 3, minHeight: 38, paddingHorizontal: 12 }, contributionActionText: { color: colors.white, fontFamily: fontFamily.sansSemiBold, fontSize: 11 }, privateVisit: { alignItems: 'center', backgroundColor: colors.white, borderColor: colors.line, borderCurve: 'continuous', borderRadius: 16, borderWidth: 1, flexDirection: 'row', gap: 12, minHeight: 72, padding: 16 }, privateVisitAction: { alignItems: 'center', flexDirection: 'row', gap: 2, minHeight: 44 }, privateVisitActionText: { color: colors.teal, fontFamily: fontFamily.sansSemiBold, fontSize: 11 }, roundIcon: { alignItems: 'center', backgroundColor: colors.white, borderRadius: 999, height: 40, justifyContent: 'center', width: 40 }, roundIconTint: { alignItems: 'center', backgroundColor: colors.tint, borderRadius: 999, height: 40, justifyContent: 'center', width: 40 }, cardTitle: { color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 14 }, cardBody: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 13, lineHeight: 19, marginTop: 3 }, privateBadge: { alignSelf: 'flex-start', backgroundColor: colors.card, borderRadius: 999, color: colors.muted, fontFamily: fontFamily.sansSemiBold, fontSize: 10, marginTop: 4, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 2 },
+  panel: { gap: 12, padding: 16 }, contributionCard: { alignItems: 'center', backgroundColor: colors.tint, borderColor: 'rgba(35,141,157,0.20)', borderCurve: 'continuous', borderRadius: 16, borderWidth: 1, flexDirection: 'row', gap: 12, padding: 14 }, contributionAction: { alignItems: 'center', backgroundColor: colors.ink, borderRadius: 999, flexDirection: 'row', gap: 3, minHeight: 38, paddingHorizontal: 12 }, contributionActionText: { color: colors.white, fontFamily: fontFamily.sansSemiBold, fontSize: 11 }, privateVisit: { alignItems: 'center', flexDirection: 'row', gap: 12, minHeight: 72, padding: 16 }, roundIcon: { alignItems: 'center', backgroundColor: colors.white, borderRadius: 999, height: 40, justifyContent: 'center', width: 40 }, roundIconTint: { alignItems: 'center', backgroundColor: colors.tint, borderRadius: 999, height: 40, justifyContent: 'center', width: 40 }, cardTitle: { color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 14 }, cardBody: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 13, lineHeight: 19, marginTop: 3 }, privateBadge: { alignSelf: 'flex-start', backgroundColor: colors.card, borderRadius: 999, color: colors.muted, fontFamily: fontFamily.sansSemiBold, fontSize: 10, marginTop: 4, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 2 },
   businessPanel: { paddingBottom: 16 }, panelIntro: { alignItems: 'flex-start', flexDirection: 'row', gap: 16, justifyContent: 'space-between', padding: 16 }, panelIntroText: { color: colors.muted, flex: 1, fontFamily: fontFamily.sans, fontSize: 13, lineHeight: 19 }, panelCount: { color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 12 }, photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 1 }, gridPhotoButton: { aspectRatio: 1, backgroundColor: colors.card, flexBasis: '33%', flexGrow: 1, maxWidth: '33.2%', position: 'relative' }, galleryModal: { backgroundColor: '#000', flex: 1 }, galleryHeader: { alignItems: 'center', borderBottomColor: 'rgba(255,255,255,0.10)', borderBottomWidth: 1, flexDirection: 'row', justifyContent: 'space-between', padding: 16, paddingTop: 54 }, galleryMerchant: { color: colors.white, fontFamily: fontFamily.sansSemiBold, fontSize: 16 }, gallerySource: { color: 'rgba(255,255,255,0.65)', fontFamily: fontFamily.sans, fontSize: 12 }, galleryClose: { alignItems: 'center', height: 44, justifyContent: 'center', width: 44 }, galleryImage: { flex: 1, width: '100%' }, galleryCaption: { color: colors.white, fontFamily: fontFamily.sans, fontSize: 14, padding: 18, textAlign: 'center' },
   panelHeading: { alignItems: 'flex-start', flexDirection: 'row', gap: 12 }, panelTitle: { color: colors.ink, fontFamily: fontFamily.sterlingSemiBold, fontSize: 19 }, panelDescription: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 14, lineHeight: 19, marginTop: 3 }, emptyPanel: { alignItems: 'center', borderColor: colors.line, borderCurve: 'continuous', borderRadius: 16, borderWidth: 1, padding: 28 }, emptyIcon: { alignItems: 'center', backgroundColor: colors.white, borderColor: colors.line, borderRadius: 999, borderWidth: 1, height: 48, justifyContent: 'center', width: 48 }, emptyTitle: { color: colors.ink, fontFamily: fontFamily.sterlingSemiBold, fontSize: 19, marginTop: 10, textAlign: 'center' }, emptyBody: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 14, lineHeight: 20, marginTop: 3, textAlign: 'center' },
   offerToolbar: { alignItems: 'center', flexDirection: 'row', minHeight: 44 }, offerCount: { color: colors.muted, fontFamily: fontFamily.sansSemiBold, fontSize: 12, marginLeft: 'auto', marginRight: 10 }, offerFilterButton: { alignItems: 'center', backgroundColor: colors.white, borderColor: colors.line, borderRadius: 999, borderWidth: 1, height: 44, justifyContent: 'center', position: 'relative', width: 44 }, offerFilterButtonActive: { backgroundColor: colors.ink, borderColor: colors.ink }, offerFilterDot: { backgroundColor: colors.teal, borderRadius: 999, height: 6, position: 'absolute', right: 7, top: 7, width: 6 },

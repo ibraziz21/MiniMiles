@@ -6,6 +6,7 @@ import {
 } from "@/lib/akiba/verifiedDiscoveryPublicProofFlags";
 import { extractPublicExperienceLabels } from "@/lib/discovery/publicExperienceLabels";
 import { expandQueryAlias } from "./aliases";
+import { developmentOfferPreviewsEnabled } from "./developmentOfferFixtures";
 import type {
   MerchantDirectoryResponse,
   PublicCustomerPhoto,
@@ -44,13 +45,11 @@ const LOCAL_AKIBA_STORE_PREVIEW = {
 
 /**
  * Akiba Store is intentionally paused in the shared public directory. In a
- * local Next.js development server only, use the same read-only preview that
+ * local Next.js development server with previews enabled, use the read-only preview that
  * the admin directory review screen uses so Hub and the native app can test
  * the merchant without changing shared/production publication state.
  */
-function isLocalAkibaStorePreviewEnabled(): boolean {
-  return process.env.NODE_ENV === "development";
-}
+const isLocalAkibaStorePreviewEnabled = developmentOfferPreviewsEnabled;
 
 function isValidSummaryRow(row: unknown): row is RawSummaryRow {
   if (!row || typeof row !== "object") return false;
@@ -418,6 +417,27 @@ function safePublicImageUrl(value: unknown): string | null {
   }
 }
 
+export async function getPublishedMerchantBanners(ids: string[]): Promise<Record<string, string>> {
+  if (!ids.length) return {};
+  const { data, error } = await createAdminClient()
+    .from("partners")
+    .select("id, banner_url, partner_settings!inner(directory_status)")
+    .eq("partner_settings.directory_status", "published")
+    .eq("status", "active")
+    .eq("type", "merchant")
+    .in("id", ids);
+
+  if (error) {
+    console.error("[merchants] directory banner lookup failed:", error.message);
+    return {};
+  }
+
+  return Object.fromEntries((data ?? []).flatMap((row) => {
+    const url = safePublicImageUrl(row.banner_url);
+    return url ? [[row.id, url]] : [];
+  }));
+}
+
 function safeLabel(value: unknown, fallback: string): string {
   return typeof value === "string" && value.trim().length > 0
     ? value.trim().slice(0, 160)
@@ -722,14 +742,15 @@ type EligibleVisitRow = {
 async function getPublicVerifiedVisits(
   admin: ReturnType<typeof createAdminClient>,
   partnerId: string,
+  visitId?: string,
 ): Promise<PublicVerifiedVisit[]> {
   if (!isVerifiedVisitsPublicEnabled()) return [];
 
   try {
-    const { data, error } = await admin
-      .rpc("eligible_public_merchant_visit_cards", { p_partner_id: partnerId })
-      .order("submitted_at", { ascending: false })
-      .limit(PUBLIC_VERIFIED_VISIT_LIMIT);
+    const query = admin.rpc("eligible_public_merchant_visit_cards", { p_partner_id: partnerId });
+    const { data, error } = visitId
+      ? await query.eq("contribution_id", visitId).limit(1)
+      : await query.order("submitted_at", { ascending: false }).limit(PUBLIC_VERIFIED_VISIT_LIMIT);
 
     if (error) {
       console.error("[merchants] verified-visit lookup failed:", error.message);
@@ -826,7 +847,8 @@ function mapLocation(raw: Record<string, unknown>) {
  */
 export async function getPublicMerchant(
   slug: string,
-  hubUserId: string | null
+  hubUserId: string | null,
+  sharedVisitId?: string,
 ): Promise<PublicMerchantDetail | null> {
   // This projection mints short-lived customer-photo URLs. Its Supabase
   // requests must bypass Next's server fetch cache as well as the outer
@@ -891,6 +913,7 @@ export async function getPublicMerchant(
   const [
     directApprovedCustomerPhotos,
     verifiedVisits,
+    sharedVisits,
     verifiedVisitFavoriteProduct,
     { data: templates, error: templatesErr },
     { data: availableRows, error: availabilityErr },
@@ -898,6 +921,9 @@ export async function getPublicMerchant(
   ] = await Promise.all([
     getIndividuallyApprovedCustomerPhotos(admin, raw.id, raw.name),
     getPublicVerifiedVisits(admin, raw.id),
+    sharedVisitId && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(sharedVisitId)
+      ? getPublicVerifiedVisits(admin, raw.id, sharedVisitId)
+      : [],
     getPublicVerifiedVisitFavorite(admin, raw.id),
     admin
       .from("spend_voucher_templates")
@@ -916,7 +942,9 @@ export async function getPublicMerchant(
     directApprovedCustomerPhotos,
     projectedCustomerPhotos,
   );
-  const verifiedVisitsWithPhotos = verifiedVisits.map((visit) => ({
+  const existingVisitIds = new Set(verifiedVisits.map((visit) => visit.id));
+  const requestedVisits = sharedVisits.filter((visit) => !existingVisitIds.has(visit.id));
+  const verifiedVisitsWithPhotos = [...requestedVisits, ...verifiedVisits].map((visit) => ({
     ...visit,
     photos: approvedCustomerPhotos.filter((photo) => photo.visitId === visit.id),
   }));

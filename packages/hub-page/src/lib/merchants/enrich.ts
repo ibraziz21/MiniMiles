@@ -154,7 +154,7 @@ export function toMerchantValueSummary(
     name: m.name,
     logoUrl: m.logoUrl,
     // list_public_merchants/get_public_merchant (external RPCs, not in this
-    // repo) don't return partner_settings.banner_url yet — null, not a
+    // repo) don't return partners.banner_url yet — null, not a
     // fabricated guess, until they're updated to select it too.
     bannerUrl: null,
     primaryCategory: m.primaryCategory,

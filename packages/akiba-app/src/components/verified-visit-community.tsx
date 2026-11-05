@@ -1,3 +1,4 @@
+import { publicPlaceLink } from './place-share-sheet';
 import { useCallback, useMemo, useState } from 'react';
 import { Image } from 'expo-image';
 import {
@@ -23,6 +24,7 @@ const VISIT_SWIPE_THRESHOLD = 72;
 const PHOTO_SWIPE_THRESHOLD = 48;
 
 export function VerifiedVisitCommunity({
+  sharedVisitId,
   canAddVisit,
   favoriteProduct,
   helpfulVisitIds,
@@ -37,6 +39,7 @@ export function VerifiedVisitCommunity({
   saved,
   visits,
 }: {
+  sharedVisitId?: string;
   canAddVisit: boolean;
   favoriteProduct: string | null;
   helpfulVisitIds: Set<string>;
@@ -58,13 +61,14 @@ export function VerifiedVisitCommunity({
 }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const [open, setOpen] = useState(false);
-  const [visitIndex, setVisitIndex] = useState(0);
+  const deckVisits = useMemo(() => prioritizeVerifiedVisitsWithPhotos(visits), [visits]);
+  const sharedIndex = deckVisits.findIndex((visit) => visit.id === sharedVisitId);
+  const [open, setOpen] = useState(sharedIndex >= 0);
+  const [visitIndex, setVisitIndex] = useState(Math.max(0, sharedIndex));
   const [photoIndex, setPhotoIndex] = useState(0);
   const [helpfulPending, setHelpfulPending] = useState(false);
   const [translation] = useState(() => new Animated.ValueXY());
 
-  const deckVisits = useMemo(() => prioritizeVerifiedVisitsWithPhotos(visits), [visits]);
   const current = deckVisits[visitIndex] ?? null;
   const next = deckVisits[visitIndex + 1] ?? null;
   const photos = current?.photos ?? [];
@@ -133,12 +137,12 @@ export function VerifiedVisitCommunity({
   }
 
   async function shareCommunity() {
-    const base = process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, '') ?? 'https://hub.akibamiles.com';
+    const url = publicPlaceLink(merchantSlug);
     try {
       await Share.share({
         title: `${merchantName} on Akiba`,
-        message: `See verified visits to ${merchantName}: ${base}/merchants/${merchantSlug}`,
-        url: `${base}/merchants/${merchantSlug}`,
+        message: `See verified visits to ${merchantName}: ${url}`,
+        url: `${url}`,
       });
     } catch {
       Alert.alert('Could not open sharing', 'Please try again.');

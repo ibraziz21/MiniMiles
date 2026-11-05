@@ -69,6 +69,21 @@ function map(template: RawFundedTemplate | null, participants = [PRIMARY]) {
 }
 
 describe("toFundedOffer", () => {
+  it("prefers the merchant's logo over the legacy image for funded offers", () => {
+    const logo = "https://cdn.example/merchant-logo.png";
+    const offer = toFundedOffer({
+      allocationId: "alloc-1",
+      claimEndsAt: "2026-11-01T00:00:00.000Z",
+      template: fixedTemplate,
+      partner: { ...partner, logo_url: logo, image_url: "https://cdn.example/legacy.png" },
+      eligibilitySummary: null,
+      participants: [{ ...PRIMARY, imageUrl: logo }],
+    });
+
+    expect(offer?.merchant.imageUrl).toBe(logo);
+    expect(offer?.merchants[0].imageUrl).toBe(logo);
+  });
+
   it("keeps a percentage offer that stores no flat amount", () => {
     const offer = map(percentTemplate);
 
@@ -170,6 +185,12 @@ describe("fundedOffersForV1", () => {
     // schema.parse, and the schema covers the whole catalogue — so one
     // percentage offer breaks the entire response, not one card.
     expect(fundedOffersForV1([percent, fixed])).toEqual([fixed]);
+  });
+
+  it("serves them to compatible clients that opt in", () => {
+    const request = new Request("https://example.test/api/v1/vouchers?percentFundedOffers=1");
+    expect(fundedOffersForV1([percent, fixed], request)).toEqual([percent, fixed]);
+    expect(fundedOffersForV1([percent, fixed], new Request("https://example.test/api/v1/vouchers"))).toEqual([fixed]);
   });
 
   it("serves them once the flag is on", () => {

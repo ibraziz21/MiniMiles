@@ -11,9 +11,10 @@ import { VoucherRail } from "@/components/home/VoucherRail";
 import { VerifiedDiscoverySpotlight } from "@/components/home/VerifiedDiscoverySpotlight";
 import { BusinessOfferRail } from "@/components/home/BusinessOfferRail";
 import { FundedVoucherSection } from "@/components/home/FundedVoucherSection";
-import { getFundedOffers } from "@/lib/vouchers/catalogue.server";
+import { getClaimedAllocationIds, getFundedOffers } from "@/lib/vouchers/catalogue.server";
 import { resolveHubProfile } from "@/lib/akiba/hubProfile";
 import { getHomeFeed } from "@/lib/home/feed";
+import { addHomePlaceBanners } from "@/lib/home/placeBanners";
 import { listDirectoryCities } from "@/lib/merchants/queries";
 import { getNextDiscoveryContributionRequest } from "@/lib/akiba/discoveryContributions";
 import type { User } from "@supabase/supabase-js";
@@ -29,12 +30,13 @@ function daysUntilLabel(expiresAt: string): string {
 export async function MemberHome({ user }: { user: User }) {
   const email = user.email ?? null;
 
-  const [{ displayName }, feed, cities, nextContribution, fundedOffers] = await Promise.all([
+  const [{ displayName }, feed, cities, nextContribution, fundedOffers, claimedIds] = await Promise.all([
     resolveHubProfile({ userId: user.id, email }),
-    getHomeFeed({ userId: user.id, userEmail: email }),
+    getHomeFeed({ userId: user.id, userEmail: email }).then((feed) => addHomePlaceBanners(feed)),
     listDirectoryCities().catch(() => [] as string[]),
     getNextDiscoveryContributionRequest(user.id).catch(() => null),
     fundedDiscoveryResult(getFundedOffers),
+    getClaimedAllocationIds(user.id, email).catch(() => new Set<string>()),
   ]);
 
   // displayName falls back to the raw email (resolveHubProfile) when the
@@ -99,9 +101,11 @@ export async function MemberHome({ user }: { user: User }) {
       )}
 
       {fundedOffers.unavailable && <FundedDiscoveryNotice />}
-      <FundedVoucherSection offers={fundedOffers.offers} />
+      <FundedVoucherSection offers={fundedOffers.offers} isSignedIn claimedIds={claimedIds} />
 
       <BusinessOfferRail offers={feed.businessOffers} />
+
+      {newMerchants && <MerchantRail section={newMerchants} seeAllHref="/merchants" />}
 
       <VerifiedDiscoverySpotlight highlights={feed.verifiedHighlights} />
 
@@ -114,8 +118,6 @@ export async function MemberHome({ user }: { user: User }) {
       )}
 
       <LocationOptIn cities={cities} />
-
-      {newMerchants && <MerchantRail section={newMerchants} seeAllHref="/merchants" />}
 
       {forYou && !forYou.personalized && (
         <MerchantRail section={forYou} seeAllHref="/merchants" description="Browse places to shop, both nearby and online." />

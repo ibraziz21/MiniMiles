@@ -1,4 +1,6 @@
+import { fundedCampaignTitle, publicFundedCampaign, type FundedCampaignProgram } from "@/lib/vouchers/fundedCampaign";
 import { FundedDiscoveryUnavailable } from "@/lib/vouchers/fundedDiscovery";
+import { nextFundedOfferOpening } from "@/lib/vouchers/fundedOfferOpening";
 // Voucher catalogue reads — extracted from src/app/vouchers/page.tsx so the
 // web page and the /api/v1/vouchers* routes call the same loaders instead
 // of each reimplementing these queries (hub-mobile-app-migration-plan.md:
@@ -11,7 +13,9 @@ import type { FundedOffer } from "@/components/vouchers/FundedOfferCard";
 import { resolveAllocationParticipants } from "@/lib/vouchers/fundedOfferMerchants.server";
 import type { MerchantSummary } from "@/components/vouchers/FundedOfferCard";
 import {
+  FUNDED_OFFER_PARTNER_COLUMNS,
   FUNDED_OFFER_TEMPLATE_COLUMNS,
+  fundedPartnerLogo,
   toFundedOffer,
   type RawFundedPartner,
   type RawFundedTemplate,
@@ -70,11 +74,12 @@ export async function getAllTemplates(hubUserId: string | null): Promise<Voucher
 }
 
 type RawFundedAllocation = {
+  voucher_funding_programs?: FundedCampaignProgram | FundedCampaignProgram[] | null;
   id: string;
   claim_ends_at: string;
   voucher_validity_seconds?: number | null;
   claim_starts_at: string;
-  metadata?: { redemption_schedule?: { days: number[]; timezone: string } | null };
+  metadata?: { redemption_schedule?: FundedOffer["redemptionSchedule"]; show_in_business_offers?: boolean };
   spend_voucher_templates: RawFundedTemplate | RawFundedTemplate[] | null;
   partners: RawFundedPartner | RawFundedPartner[] | null;
   voucher_eligibility_rule_sets:
@@ -109,8 +114,9 @@ export async function getFundedOffers(): Promise<FundedOffer[]> {
     .from("voucher_funding_allocations")
     .select(`
       id, metadata, claim_starts_at, claim_ends_at, voucher_validity_seconds,
+      voucher_funding_programs ( id, state, metadata ),
       spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey ( ${FUNDED_OFFER_TEMPLATE_COLUMNS} ),
-      partners!voucher_funding_allocations_merchant_id_fkey ( id, name, slug, image_url, status ),
+      partners!voucher_funding_allocations_merchant_id_fkey ( ${FUNDED_OFFER_PARTNER_COLUMNS} ),
       voucher_eligibility_rule_sets ( customer_copy, rules )
     `)
     .in("state", ["active", "scheduled"])
@@ -131,10 +137,23 @@ export async function getFundedOffers(): Promise<FundedOffer[]> {
       id: merchant.id,
       name: merchant.name,
       slug: merchant.slug,
-      imageUrl: merchant.image_url,
+      imageUrl: fundedPartnerLogo(merchant),
     });
   }
-  const participants = await resolveAllocationParticipants(primaries);
+  const campaignAllocationIds = rows
+    .filter((row) => primaries.has(row.id) && publicFundedCampaign(one(row.voucher_funding_programs ?? null)))
+    .map((row) => row.id);
+  const [participants, inventory] = await Promise.all([
+    resolveAllocationParticipants(primaries),
+    campaignAllocationIds.length
+      ? admin.from("v_voucher_funding_allocation_availability")
+          .select("allocation_id, quantity_remaining")
+          .in("allocation_id", campaignAllocationIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  const remainingByAllocation = new Map(
+    (inventory.data ?? []).map((row) => [row.allocation_id, Number(row.quantity_remaining)]),
+  );
 
   const offers: FundedOffer[] = [];
   for (const row of rows) {
@@ -144,6 +163,9 @@ export async function getFundedOffers(): Promise<FundedOffer[]> {
     if (merchant.status !== "active") continue;
     if (isHiddenPartner(merchant.id)) continue;
 
+    const program = one(row.voucher_funding_programs ?? null);
+    const campaign = publicFundedCampaign(program);
+    if (fundedCampaignTitle(program) && !campaign) continue;
     const offer = toFundedOffer({
       allocationId: row.id,
       claimEndsAt: row.claim_ends_at,
@@ -154,11 +176,21 @@ export async function getFundedOffers(): Promise<FundedOffer[]> {
       participants: participants.get(row.id) ?? null,
     });
     if (offer) {
+      offer.campaign = campaign;
+      if (row.metadata?.show_in_business_offers === true) offer.showInBusinessOffers = true;
+      if (offer.campaign) {
+        offer.showInBusinessOffers = true;
+        const remaining = remainingByAllocation.get(row.id);
+        if (remaining !== undefined && Number.isSafeInteger(remaining) && remaining >= 0) {
+          offer.quantityRemaining = remaining;
+        }
+      }
       offer.redemptionSchedule = row.metadata?.redemption_schedule ?? null;
       offer.claimStartsAt = row.claim_starts_at;
       offer.claimsOpen = row.claim_starts_at <= nowIso;
       const dayRule = ruleSet?.rules?.find((rule) => rule.type === "claim_day_of_week");
       if (Array.isArray(dayRule?.days)) offer.claimDays = dayRule.days;
+      if (offer.showInBusinessOffers) offer.nextOpeningAt = nextFundedOfferOpening(offer, Date.parse(nowIso));
       offers.push(offer);
     }
   }

@@ -33,6 +33,7 @@ export function VerifiedVisitPosts({
   merchantName,
   merchantSlug,
   visits,
+  sharedVisitId,
 }: {
   approvedCustomerPhotos?: PublicCustomerPhoto[];
   communityFavoriteProduct: string | null;
@@ -43,14 +44,16 @@ export function VerifiedVisitPosts({
   merchantName: string;
   merchantSlug: string;
   visits: PublicVerifiedVisit[];
+  sharedVisitId?: string;
 }) {
   const router = useRouter();
   const titleId = useId();
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const visitPointerStart = useRef<number | null>(null);
   const photoPointerStart = useRef<number | null>(null);
-  const [open, setOpen] = useState(false);
-  const [visitIndex, setVisitIndex] = useState(0);
+  const sharedIndex = visits.findIndex((visit) => visit.id === sharedVisitId);
+  const [open, setOpen] = useState(sharedIndex >= 0);
+  const [visitIndex, setVisitIndex] = useState(Math.max(0, sharedIndex));
   const [photoIndex, setPhotoIndex] = useState(0);
   const [helpfulIds, setHelpfulIds] = useState(() => new Set(initialHelpfulVisitIds));
   const [helpfulPending, setHelpfulPending] = useState(false);

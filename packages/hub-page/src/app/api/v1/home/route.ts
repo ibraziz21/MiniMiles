@@ -11,6 +11,7 @@
 import { optionalActor } from "@/lib/auth/requestActor";
 import { apiSuccess, apiError } from "@/lib/api/v1/response";
 import { getHomeFeed } from "@/lib/home/feed";
+import { addHomePlaceBanners } from "@/lib/home/placeBanners";
 import { listDirectoryCities } from "@/lib/merchants/queries";
 import { resolveHubProfile } from "@/lib/akiba/hubProfile";
 import { getNextDiscoveryContributionRequest } from "@/lib/akiba/discoveryContributions";
@@ -49,9 +50,9 @@ export async function GET(request: Request) {
   let feed, cities, fundedOffers;
   try {
     [feed, cities, fundedOffers] = await Promise.all([
-      getHomeFeed({ userId: actor?.userId ?? null, userEmail: actor?.email ?? null, lat, lng, intent }),
+      getHomeFeed({ userId: actor?.userId ?? null, userEmail: actor?.email ?? null, lat, lng, intent }).then((feed) => addHomePlaceBanners(feed, request.url)),
       listDirectoryCities().catch(() => []),
-      getFundedOffers().then(fundedOffersForV1),
+      getFundedOffers().then((offers) => fundedOffersForV1(offers, request)),
     ]);
   } catch {
     return apiError(request, "HOME_FEED_UNAVAILABLE", "The home feed is temporarily unavailable", 503, {

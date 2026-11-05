@@ -34,11 +34,9 @@ export function MerchantRail({
           </Link>
         )}
       </div>
-      <div className="no-scrollbar -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
+      <div className="grid gap-1 sm:grid-cols-2 sm:gap-2">
         {section.merchants.map((m, i) => (
-          <div key={m.id} className="w-[calc(100vw-3.5rem)] max-w-[280px] shrink-0 snap-start sm:w-64">
-            <MerchantValueCard merchant={m} sectionId={section.id} position={i} />
-          </div>
+          <MerchantValueCard key={m.id} merchant={m} sectionId={section.id} position={i} />
         ))}
       </div>
     </section>
