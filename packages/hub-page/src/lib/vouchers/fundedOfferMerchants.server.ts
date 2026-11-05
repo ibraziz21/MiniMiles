@@ -21,11 +21,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isHiddenPartner } from "@/lib/akiba/hidden-partners";
 import {
   multiMerchantFundedOffersV1Flag,
-  percentFundedOffersV1Flag,
 } from "@/lib/featureFlags.server";
 import type { MerchantSummary } from "@/components/vouchers/FundedOfferCard";
 
-import { FUNDED_OFFER_PARTNER_COLUMNS, fundedPartnerLogo, type RawFundedPartner } from "@/lib/vouchers/fundedOfferMapping";
+import { FUNDED_OFFER_PARTNER_COLUMNS, fundedPartnerLogo, allowsPercentFundedOffersV1, type RawFundedPartner } from "@/lib/vouchers/fundedOfferMapping";
 
 function toSummary(row: RawFundedPartner): MerchantSummary {
   return { id: row.id, name: row.name, slug: row.slug, imageUrl: fundedPartnerLogo(row) };
@@ -164,7 +163,7 @@ export type V1ClaimSupport =
    */
   | { supported: false; kind: "unavailable"; reason: string };
 
-export async function v1ClaimSupport(allocationId: string): Promise<V1ClaimSupport> {
+export async function v1ClaimSupport(allocationId: string, request?: Request): Promise<V1ClaimSupport> {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("voucher_funding_allocations")
@@ -194,7 +193,7 @@ export async function v1ClaimSupport(allocationId: string): Promise<V1ClaimSuppo
     return { supported: false, kind: "unavailable", reason: "voucher_type_unknown" };
   }
 
-  if (voucherType === "percent_off" && !percentFundedOffersV1Flag().enabled) {
+  if (voucherType === "percent_off" && !allowsPercentFundedOffersV1(request)) {
     return { supported: false, kind: "unsupported_shape", reason: "percentage_offer_unsupported" };
   }
 

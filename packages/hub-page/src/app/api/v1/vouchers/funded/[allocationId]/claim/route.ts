@@ -59,7 +59,7 @@ export async function POST(request: Request, { params }: { params: { allocationI
   // before issuance, not merely hidden from discovery. Placed after auth and
   // the mutation guard so an unauthenticated or malformed request still gets
   // its own status rather than a capability error.
-  const support = await v1ClaimSupport(allocationId);
+  const support = await v1ClaimSupport(allocationId, request);
   if (!support.supported) {
     console.warn("[funded offer] refused v1 request", {
       allocationId,

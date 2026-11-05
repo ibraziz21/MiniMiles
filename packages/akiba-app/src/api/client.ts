@@ -523,13 +523,13 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
       if (!accessToken) {
         return Promise.reject(new Error('getFundedEligibility requires an authenticated access token'));
       }
-      return get(`/api/v1/vouchers/funded/${allocationId}/eligibility`, fundedEligibilitySchema);
+      return get(`/api/v1/vouchers/funded/${allocationId}/eligibility?percentFundedOffers=1`, fundedEligibilitySchema);
     },
     claimFundedOffer(
       allocationId: string,
       input: { intentConfirmed: boolean; usePlan?: VoucherUsePlan },
     ): Promise<FundedClaimResult> {
-      return mutate('POST', `/api/v1/vouchers/funded/${allocationId}/claim`, fundedClaimResultSchema, {
+      return mutate('POST', `/api/v1/vouchers/funded/${allocationId}/claim?percentFundedOffers=1`, fundedClaimResultSchema, {
         intent_confirmed: input.intentConfirmed,
         use_plan: input.usePlan,
       });
