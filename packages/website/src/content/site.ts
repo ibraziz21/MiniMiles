@@ -120,9 +120,9 @@ export const homeContent = {
   app: {
     eyebrow: "Get the app",
     title: "Find your next good place with Akiba.",
-    body: "Android is now available on Google Play in Kenya. iOS is coming soon — leave your email for the launch.",
+    body: "Download Akiba for iPhone or Android in Kenya. Find local places, discover offers and collect Miles on eligible purchases.",
     platforms: [
-      { name: "iOS", status: "In final testing" },
+      { name: "iOS", status: "Available on the App Store" },
       { name: "Android", status: "Available on Google Play" },
     ],
     meanwhile: "Works today in any phone browser",
@@ -175,7 +175,7 @@ export const faqs = [
   {
     question: "Is there an Akiba app?",
     answer:
-      "Yes. Download Akiba for Android on Google Play using the link above. iOS is coming soon; join the iOS notification list. You can also use Akiba in your phone browser.",
+      "Yes. Download Akiba for iPhone on the App Store or Android on Google Play. You can also use Akiba in your phone browser.",
   },
   {
     question: "How does it work for businesses?",
@@ -516,11 +516,13 @@ export const aboutContent = {
     "Rewards ledger",
     "MiniPay Mini-App",
     "Android app on Google Play",
-    "iOS app (coming soon)",
+    "iOS app on the App Store",
   ],
   disclaimer:
     "Akiba is built by Akiba Ecosystems Ltd and is not operated by MiniPay or Opera.",
 };
+
+export const APP_STORE_URL = "https://apps.apple.com/ke/app/akiba-app/id6826160217";
 
 export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.akibamiles.akiba";
 

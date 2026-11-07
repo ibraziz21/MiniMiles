@@ -7,8 +7,7 @@ import { FaqAccordion } from "@/components/FaqAccordion";
 import { Panel } from "@/components/Panel";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { SectionHeader } from "@/components/SectionHeader";
-import { WaitlistForm } from "@/components/WaitlistForm";
-import { faqs, homeContent, pillars, siteConfig, appInstallContent, PLAY_STORE_URL } from "@/content/site";
+import { faqs, homeContent, pillars, siteConfig, APP_STORE_URL, PLAY_STORE_URL } from "@/content/site";
 
 const pillarIcons = {
   discover: Compass,
@@ -126,28 +125,8 @@ export default function HomePage() {
             <p className="max-w-xl text-lg leading-8 text-white/75">{app.body}</p>
 
             <div className="flex flex-wrap gap-3">
-              {app.platforms.map((platform) => platform.name === "Android" ? (
-                <PlayStoreBadge key={platform.name} slot="app-panel" />
-              ) : (
-                <div
-                  key={platform.name}
-                  className="rounded-2xl border border-white/20 bg-white/10 px-5 py-3 backdrop-blur"
-                >
-                  <p className="font-sterling text-lg font-semibold leading-none">{platform.name}</p>
-                  <p className="mt-1.5 text-xs text-white/65">{platform.status}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="w-full max-w-md rounded-[1.25rem] border border-white/15 bg-white/10 p-4 backdrop-blur">
-              <p className="mb-3 text-sm font-semibold">{appInstallContent.waitlistTitle}</p>
-              <WaitlistForm
-                source="website_ios_waitlist"
-                tone="dark"
-                submitLabel={appInstallContent.waitlistSubmit}
-                successMessage={appInstallContent.waitlistSuccess}
-                footnote={appInstallContent.waitlistFootnote}
-              />
+              <ButtonLink href={APP_STORE_URL} variant="onDark">Download on the App Store</ButtonLink>
+              <ButtonLink href={PLAY_STORE_URL} variant="onDark">Get it on Google Play</ButtonLink>
             </div>
 
             <p className="text-sm text-white/60">
