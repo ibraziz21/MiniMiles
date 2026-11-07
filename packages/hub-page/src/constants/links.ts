@@ -7,6 +7,7 @@ export const PRIVACY_POLICY_URL = "/privacy-policy";
 export const TERMS_URL = "/terms-of-use";
 
 export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.akibamiles.akiba";
+export const APP_DOWNLOAD_URL = "https://akibamiles.com/download?utm_source=hub&utm_medium=web&utm_campaign=install_sheet";
 
 export function playStoreUrl(slot: string): string {
   const referrer = new URLSearchParams({ utm_source: "hub", utm_medium: "web", utm_campaign: slot });

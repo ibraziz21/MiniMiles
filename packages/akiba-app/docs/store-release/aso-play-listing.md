@@ -81,25 +81,11 @@ intersection of local, in-person and Kenyan, which nobody holds.
 
 ## 1. Title — 30 char limit
 
-**Recommended:** `Akiba: Local Places & Offers` — 28 / 30.
+**Recommended:** `Akiba: Local Places & Offers` — 28 / 30 characters.
 
-Title keywords carry more weight than any other indexed field, and this one
-states both purposes in the order they matter: *Local Places* is discovery,
-*Offers* is the reason to go. It indexes the phrases "local places", "places",
-"local offers" and "offers", and truncates in the search row to "Akiba: Local
-Places…", which still reads as a place-finding app rather than a savings
-account.
+Keep the brand name Akiba. Google Play has no separate keyword field, so retain AkibaMiles naturally in the full description, including the opening paragraph. The name does not need to change to target that query.
 
-| Option | Chars | Trade-off |
-|---|---|---|
-| **`Akiba: Local Places & Offers`** | **28** | Recommended — both purposes, no cashback overlap |
-| `Akiba: Local Places & Rewards` | 29 | Closer to "get rewarded", but "Rewards" pulls matches from the get-paid-to category |
-| `Akiba: Places, Offers, Rewards` | 30 | Maximum keyword coverage; reads as a list and carries the same "Rewards" risk |
-| `Akiba: Discover Local Offers` | 28 | Discovery verb, but loses "places" |
-
-Policy check: no superlatives, no price or promo claims, no emoji, no
-all-caps stuffing — "Places" and "Offers" are descriptive category terms
-(cf. "Groupon – Deals & Coupons"). Compliant with Play's metadata policy.
+Publish the description in Play Console’s main store listing and each supported localization. Uploading an Android bundle does not apply store listing copy. Verify `akibamiles` and `akiba miles` after the metadata is published and indexed. Search placement depends on relevance, availability and the store’s ranking system.
 
 Do **not** rename the developer account. It is indexed, but "Akiba Ecosystems
 Ltd" already carries the brand, and a change resets nothing useful.
@@ -152,7 +138,7 @@ Each paragraph below is a single line, so it pastes into Play Console without
 stray mid-sentence line breaks. Blank lines are intentional.
 
 ```text
-Akiba helps you find local places to shop, eat and enjoy in Kenya — and get rewarded on eligible purchases at participating businesses.
+Akiba helps you find local places to shop, eat and enjoy in Kenya, and collect AkibaMiles on eligible purchases at participating businesses.
 
 Discover shops, cafés and businesses around you, see their available offers, and earn AkibaMiles on eligible purchases. Turn those Miles into vouchers for future visits.
 

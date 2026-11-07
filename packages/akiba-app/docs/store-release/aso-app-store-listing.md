@@ -30,7 +30,7 @@ Deals & vouchers in Kenya
 nairobi,near me,discount,coupon,cafe,shops,akibamiles,merchant,specials,redeem
 ```
 
-This first pass targets local discovery, discounts and the AkibaMiles brand. Search volume and rankings for these terms in the Kenya App Store are unverified. Recheck the merchant footprint before using Nairobi in the keyword field.
+The keyword field includes the exact brand akibamiles. The title can keep Akiba. Publish the keyword field in App Store Connect with the next editable version. Search volume and rankings for these terms in the Kenya App Store are unverified. Recheck the merchant footprint before using Nairobi in the keyword field.
 
 **Promotional text (145 of 170 characters)**
 
