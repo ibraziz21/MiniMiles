@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ from: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({ supabase: mocks }));
-import { getQueueItems } from "@/lib/unifiedQueue";
+import { getQueueItems, getPendingQueueItems } from "@/lib/unifiedQueue";
 import { getQueueSourceSummaries } from "@/lib/queueSources";
 const tables = ["partner_settings", "merchant_visit_photos", "merchant_verified_visit_reports", "merchant_discovery_contributions"];
 beforeEach(() => {
@@ -14,6 +14,10 @@ beforeEach(() => {
   });
 });
 describe("current review queue", () => {
+  it("does not load verified visit records for the pending review screen", async () => {
+    await getPendingQueueItems("super_admin");
+    expect(mocks.from.mock.calls.map(args => args[0])).toEqual(tables.slice(0, 3));
+  });
   it("queries only the four current sources", async () => {
     await getQueueItems("super_admin");
     expect(mocks.from.mock.calls.map(args => args[0])).toEqual(tables);

@@ -4,6 +4,7 @@ import { ButtonLink } from "@/components/ButtonLink";
 import { Panel } from "@/components/Panel";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { siteConfig } from "@/content/site";
+import { AppStoreBadges } from "@/components/AppStoreBadges";
 import { downloadCampaign } from "@/lib/download";
 
 export const metadata: Metadata = {
@@ -22,11 +23,6 @@ export default function DownloadOptions({
     if (typeof value === "string") incoming.set(key, value);
   }
   const campaign = downloadCampaign(incoming);
-  function storeLink(store: "ios" | "android") {
-    const params = new URLSearchParams(campaign);
-    params.set("store", store);
-    return `/download?${params}`;
-  }
 
   return (
     <main>
@@ -39,15 +35,7 @@ export default function DownloadOptions({
             <p className="mt-6 text-lg leading-8 text-akiba-muted">
               Find shops and cafés in Kenya, discover their offers and collect Miles on eligible purchases.
             </p>
-            <div className="mt-8 flex flex-wrap gap-4">
-              {/* Plain anchors prevent Next prefetches from recording false store selections. */}
-              <a href={storeLink("ios")} className="inline-flex min-h-12 items-center rounded-full bg-akiba-ink px-6 py-3 font-medium text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-akiba-ink">
-                Download on the App Store
-              </a>
-              <a href={storeLink("android")} className="inline-flex min-h-12 items-center rounded-full bg-akiba-teal px-6 py-3 font-medium text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-akiba-ink">
-                Get it on Google Play
-              </a>
-            </div>
+            <AppStoreBadges slot="download" campaign={campaign.toString()} className="mt-8" />
             <p className="mt-5 text-sm text-akiba-muted">Available in Kenya for iPhone and Android.</p>
             <div className="mt-10 flex items-center gap-5 border-t border-akiba-line pt-6">
               <Image src="/app/download-qr.svg" alt="Scan to download Akiba on your phone" width={112} height={112} unoptimized />

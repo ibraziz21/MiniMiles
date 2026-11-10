@@ -1,8 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Check, CheckCircle2, ChevronRight, Landmark, Loader2, Search, Send, ShieldCheck, UserRound } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  AlertCircle,
+  Check,
+  CheckCircle2,
+  ChevronRight,
+  Loader2,
+  Search,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
+import Link from "next/link";
+import { VoucherFacts, voucherCard } from "./VoucherUi";
+import { voucherDateTime } from "@/lib/voucherPresentation";
 import { Button } from "@/components/ui/button";
 import { cn, formatMoney, minorToMajor } from "@/lib/utils";
 
@@ -20,6 +31,7 @@ export interface GrantAllocationOption {
   currency: string;
   expiresAt: string;
   quantityRemaining: number;
+  voucherValiditySeconds?: number | null;
   availableBudgetMinor: number;
 }
 
@@ -49,9 +61,11 @@ interface IssuedVoucherResult {
   auditReference: string;
 }
 
-const STEPS = ["Member", "Voucher", "Review"] as const;
-
-export function IssueVoucherFlow({ allocations }: { allocations: GrantAllocationOption[] }) {
+export function IssueVoucherFlow({
+  allocations,
+}: {
+  allocations: GrantAllocationOption[];
+}) {
   const [query, setQuery] = useState("");
   const [members, setMembers] = useState<MemberResult[]>([]);
   const [member, setMember] = useState<MemberResult | null>(null);
@@ -65,11 +79,20 @@ export function IssueVoucherFlow({ allocations }: { allocations: GrantAllocation
   const [issued, setIssued] = useState<IssuedVoucherResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const allocation = useMemo(() => allocations.find((item) => item.id === allocationId) ?? null, [allocationId, allocations]);
-  const currentStep = preview ? 3 : member ? 2 : 1;
+  const allocation = useMemo(
+    () => allocations.find((item) => item.id === allocationId) ?? null,
+    [allocationId, allocations]
+  );
+  const [currentStep, setCurrentStep] = useState(1);
+  const requestLock = useRef(false);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const [note, setNote] = useState("");
+  useEffect(() => {
+    heading.current?.focus();
+  }, [currentStep, issued]);
 
   useEffect(() => {
-    if (query.trim().length < 2 || member) {
+    if (query.trim().length < 2) {
       setMembers([]);
       return;
     }
@@ -78,21 +101,32 @@ export function IssueVoucherFlow({ allocations }: { allocations: GrantAllocation
       setSearching(true);
       setError(null);
       try {
-        const response = await fetch(`/api/admin/voucher-grants/members?query=${encodeURIComponent(query.trim())}`, { signal: controller.signal, cache: "no-store" });
+        const response = await fetch(
+          `/api/admin/voucher-grants/members?query=${encodeURIComponent(
+            query.trim()
+          )}`,
+          { signal: controller.signal, cache: "no-store" }
+        );
         const body = await response.json();
-        if (!response.ok) throw new Error(body.error ?? "Member search failed.");
+        if (!response.ok)
+          throw new Error(body.error ?? "Member search failed.");
         setMembers(body.members ?? []);
       } catch (searchError) {
-        if ((searchError as Error).name !== "AbortError") setError((searchError as Error).message);
+        if ((searchError as Error).name !== "AbortError")
+          setError((searchError as Error).message);
       } finally {
         setSearching(false);
       }
     }, 250);
-    return () => { window.clearTimeout(timeout); controller.abort(); };
-  }, [query, member]);
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [query]);
 
   async function checkEligibility() {
-    if (!member || !allocation) return;
+    if (!member || !allocation || requestLock.current) return;
+    requestLock.current = true;
     setPreviewing(true);
     setError(null);
     setPreview(null);
@@ -100,22 +134,37 @@ export function IssueVoucherFlow({ allocations }: { allocations: GrantAllocation
       const response = await fetch("/api/admin/voucher-grants/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ member_username: member.username, allocation_id: allocation.id }),
+        body: JSON.stringify({
+          member_username: member.username,
+          allocation_id: allocation.id,
+        }),
       });
       const body = await response.json();
-      if (!response.ok && !body.preview) throw new Error(body.error ?? "Eligibility preview failed.");
+      if (!response.ok && !body.preview)
+        throw new Error(body.error ?? "Eligibility preview failed.");
       const nextPreview = body.preview ?? body;
       setPreview(nextPreview);
+      setCurrentStep(3);
       setConfirmationId(nextPreview.eligible ? crypto.randomUUID() : null);
     } catch (previewError) {
       setError((previewError as Error).message);
     } finally {
       setPreviewing(false);
+      requestLock.current = false;
     }
   }
 
   async function issueVoucher() {
-    if (!member || !allocation || !preview?.eligible || !confirmationId || reason.trim().length < 4) return;
+    if (
+      !member ||
+      !allocation ||
+      !preview?.eligible ||
+      !confirmationId ||
+      reason.trim().length < 4 ||
+      requestLock.current
+    )
+      return;
+    requestLock.current = true;
     setIssuing(true);
     setError(null);
     try {
@@ -125,17 +174,22 @@ export function IssueVoucherFlow({ allocations }: { allocations: GrantAllocation
         body: JSON.stringify({
           member_username: member.username,
           allocation_id: allocation.id,
-          operator_reason: reason.trim(),
+          operator_reason: [reason.trim(), note.trim()]
+            .filter(Boolean)
+            .join(": ")
+            .slice(0, 500),
           confirmation_id: confirmationId,
         }),
       });
       const body = await response.json();
-      if (!response.ok || !body.voucher) throw new Error(body.error ?? "Voucher issuance failed.");
+      if (!response.ok || !body.voucher)
+        throw new Error(body.error ?? "Voucher issuance failed.");
       setIssued(body.voucher);
     } catch (issueError) {
       setError((issueError as Error).message);
     } finally {
       setIssuing(false);
+      requestLock.current = false;
     }
   }
 
@@ -147,129 +201,452 @@ export function IssueVoucherFlow({ allocations }: { allocations: GrantAllocation
     setConfirmationId(null);
     setIssued(null);
     setReason("");
+    setNote("");
+    setError(null);
+    setCurrentStep(1);
   }
 
-  if (issued) {
+  const primary =
+    "min-h-12 w-full rounded-control bg-[#005C55] text-base text-white hover:bg-[#0F766E]";
+  const secondary =
+    "min-h-12 w-full rounded-control bg-[#EAEDFF] text-base text-primary-strong";
+  function chooseMember(result: MemberResult) {
+    setMember(result);
+    setPreview(null);
+    setConfirmationId(null);
+    setAllocationId("");
+    setError(null);
+  }
+  const unavailable = allocations.filter(
+    (option) =>
+      option.quantityRemaining < 1 ||
+      option.availableBudgetMinor < option.maximumReimbursementMinor
+  );
+  const available = allocations.filter(
+    (option) => !unavailable.includes(option)
+  );
+  if (issued)
     return (
-      <Card className="mx-auto max-w-3xl border-success/25 bg-success/[0.04] p-5 shadow-none sm:p-6" role="status">
-        <div className="flex gap-3">
-          <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-success" aria-hidden="true" />
-          <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-semibold text-ink">Voucher issued to @{issued.recipient}</h2>
-            <p className="mt-1 text-sm leading-6 text-ink-muted">{issued.merchantName} · expires {new Date(issued.expiresAt).toLocaleString("en-KE", { dateStyle: "medium", timeStyle: "short" })}</p>
-            {issued.idempotent && <p className="mt-2 text-sm text-ink-muted">This was a safe replay of the original confirmed issuance.</p>}
-            <dl className="mt-4 grid gap-3 rounded-card border border-success/20 bg-surface/70 p-4 text-sm sm:grid-cols-2">
-              <div><dt className="text-xs text-ink-muted">Voucher ID</dt><dd className="mt-1 break-all font-mono text-xs text-ink">{issued.id}</dd></div>
-              <div><dt className="text-xs text-ink-muted">Fund</dt><dd className="mt-1 font-medium text-ink">{issued.fundName}</dd></div>
-              <div className="sm:col-span-2"><dt className="text-xs text-ink-muted">Audit reference</dt><dd className="mt-1 break-all font-mono text-xs text-ink">{issued.auditReference}</dd></div>
-            </dl>
-            <Button type="button" className="mt-5 min-h-11" onClick={resetMember}>Issue another voucher</Button>
-          </div>
+      <div className="mx-auto flex max-w-xl flex-col items-center px-4 py-12 text-center sm:px-6 sm:py-20">
+        <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[#99F1E5] text-[#005C55]">
+          <CheckCircle2 className="h-14 w-14" aria-hidden="true" />
         </div>
-      </Card>
+        <h2
+          ref={heading}
+          tabIndex={-1}
+          className="mt-6 text-3xl font-semibold tracking-tight outline-none"
+        >
+          Voucher issued
+        </h2>
+        <p className="mt-3 text-base leading-7 text-ink-muted">
+          {allocation?.title} has been issued to{" "}
+          <strong className="text-ink">@{issued.recipient}</strong>.
+        </p>
+        <p className="mt-5 max-w-full break-all rounded-full bg-[#EAEDFF] px-4 py-3 text-xs text-ink-muted">
+          Reference: {issued.auditReference}
+        </p>
+        {issued.idempotent && (
+          <p role="status" className="mt-3 text-sm text-ink-muted">
+            The original voucher was returned. No duplicate was issued.
+          </p>
+        )}
+        <div className="mt-8 w-full space-y-3">
+          <Button asChild className={primary}>
+            <Link
+              href={`/vouchers/issued/${issued.id}?returnTo=%2Fvouchers%2Fgrants`}
+            >
+              View voucher{" "}
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </Button>
+          <Button className={secondary} onClick={resetMember}>
+            Issue another voucher
+          </Button>
+          <Link
+            href="/vouchers"
+            className="flex min-h-12 items-center justify-center text-sm text-ink-muted"
+          >
+            Back to vouchers
+          </Link>
+        </div>
+      </div>
     );
-  }
-
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
-      <nav aria-label="Issue voucher progress" className="grid grid-cols-3 overflow-hidden rounded-card border border-border bg-surface">
-        {STEPS.map((label, index) => {
-          const step = index + 1;
-          const complete = step < currentStep;
-          const active = step === currentStep;
-          return (
-            <div key={label} aria-current={active ? "step" : undefined} className={cn("flex min-h-[52px] items-center justify-center gap-2 border-r border-border px-2 text-xs font-medium last:border-r-0 sm:text-sm", active ? "bg-primary/[0.06] text-primary-strong" : complete ? "text-success" : "text-ink-muted")}>
-              <span className={cn("flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-bold", active && "border-primary bg-primary text-white", complete && "border-success bg-success text-white")}>
-                {complete ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : step}
-              </span>
-              {label}
-            </div>
-          );
-        })}
-      </nav>
-
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]">
-        <Card className="overflow-hidden border-border shadow-[0_18px_48px_-34px_rgba(15,23,42,0.5)]">
-          <div className="border-b border-border px-4 py-4 sm:px-5"><h2 className="font-semibold text-ink">1. Select a member</h2><p className="mt-1 text-sm text-ink-muted">Search by the member’s active Akiba username.</p></div>
-          <div className="p-4 sm:p-5">
-            {member ? (
-              <div className="flex items-center gap-3 rounded-card border border-success/25 bg-success/[0.04] p-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-success/10 text-success"><UserRound className="h-5 w-5" aria-hidden="true" /></span>
-                <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-ink">@{member.username}</p><p className="text-xs text-ink-muted">{member.maskedContact}</p></div>
-                <Button type="button" variant="ghost" size="sm" onClick={resetMember}>Change</Button>
-              </div>
-            ) : (
-              <div>
-                <label htmlFor="member-search" className="text-sm font-medium text-ink">Member search</label>
-                <div className="relative mt-2">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" aria-hidden="true" />
-                  <input id="member-search" name="member-search" type="search" autoComplete="off" spellCheck={false} aria-busy={searching} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="e.g. awino…" className="min-h-11 w-full rounded-control border border-border bg-surface pl-9 pr-10 text-base text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm" />
-                  {searching && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-primary" aria-label="Searching" />}
-                </div>
-                <p className="sr-only" aria-live="polite">{searching ? "Searching for members…" : query.trim().length >= 2 ? `${members.length} matching member${members.length === 1 ? "" : "s"}` : ""}</p>
-                {query.trim().length > 0 && query.trim().length < 2 && <p className="mt-2 text-xs text-ink-muted">Enter at least two characters.</p>}
-                {members.length > 0 && (
-                  <ul className="mt-2 overflow-hidden rounded-card border border-border">
-                    {members.map((result) => (
-                      <li key={result.id} className="border-b border-border last:border-b-0"><button type="button" onClick={() => { setMember(result); setMembers([]); setPreview(null); }} className="flex min-h-[56px] w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"><UserRound className="h-4 w-4 text-ink-muted" aria-hidden="true" /><span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-ink">@{result.username}</span><span className="block text-xs text-ink-muted">{result.maskedContact}</span></span><ChevronRight className="h-4 w-4 text-ink-muted" aria-hidden="true" /></button></li>
-                    ))}
-                  </ul>
-                )}
-                {!searching && query.trim().length >= 2 && members.length === 0 && !error && <p className="mt-3 text-sm text-ink-muted">No matching members.</p>}
-              </div>
+    <div className="mx-auto flex min-h-[calc(100dvh-152px)] max-w-2xl flex-col gap-5 px-4 pb-6 pt-5 sm:px-6">
+      <div>
+        <div className="flex items-center justify-between gap-3">
+          <h2
+            ref={heading}
+            tabIndex={-1}
+            className="text-2xl font-semibold tracking-tight outline-none"
+          >
+            {currentStep === 1
+              ? "Issue voucher"
+              : currentStep === 2
+              ? "Select voucher"
+              : "Review issuance"}
+          </h2>
+          <span className="shrink-0 rounded-full bg-[#E2E7FF] px-3 py-1 text-xs font-medium text-primary-strong">
+            Step {currentStep} of 3
+          </span>
+        </div>
+        <div
+          role="progressbar"
+          aria-label="Issuance progress"
+          aria-valuenow={currentStep}
+          aria-valuemin={1}
+          aria-valuemax={3}
+          className="mt-4 h-1.5 overflow-hidden rounded-full bg-[#EAEDFF]"
+        >
+          <div
+            style={{ width: `${(currentStep / 3) * 100}%` }}
+            className="h-full rounded-full bg-[#005C55]"
+          />
+        </div>
+      </div>
+      {currentStep === 1 && (
+        <>
+          <label htmlFor="member-search" className="sr-only">
+            Search member username
+          </label>
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute left-4 top-4 h-5 w-5 text-ink-muted"
+              aria-hidden="true"
+            />
+            <input
+              id="member-search"
+              type="search"
+              autoComplete="off"
+              spellCheck={false}
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setMember(null);
+                setMembers([]);
+              }}
+              placeholder="Search by username"
+              className="min-h-14 w-full rounded-card border-0 bg-white pl-12 pr-11 text-base shadow-sm focus-visible:outline-primary"
+            />
+            {searching && (
+              <Loader2
+                aria-label="Searching"
+                className="absolute right-4 top-4 h-5 w-5 animate-spin text-primary"
+              />
             )}
           </div>
-
-          <div className={cn("border-t border-border px-4 py-4 sm:px-5", !member && "opacity-50")}>
-            <h2 className="font-semibold text-ink">2. Select a reimbursable voucher</h2>
-            <p className="mt-1 text-sm text-ink-muted">Only live allocations configured for direct issue appear.</p>
-            <label htmlFor="allocation" className="sr-only">Voucher allocation</label>
-            <select id="allocation" name="allocation" autoComplete="off" value={allocationId} onChange={(event) => { setAllocationId(event.target.value); setPreview(null); setConfirmationId(null); }} disabled={!member} className="mt-3 min-h-11 w-full rounded-control border border-border bg-surface px-3 text-base text-ink focus:outline-none focus:ring-2 focus:ring-primary disabled:cursor-not-allowed sm:text-sm">
-              <option value="">Choose an allocation</option>
-              {allocations.map((option) => <option key={option.id} value={option.id}>{option.title} · {option.merchantName} · {option.quantityRemaining} left</option>)}
-            </select>
-            {member && allocations.length === 0 && <p className="mt-3 rounded-control bg-warning/[0.06] p-3 text-sm text-warning">No live allocations currently allow direct issuance.</p>}
-            <Button type="button" onClick={checkEligibility} disabled={!member || !allocation || previewing} className="mt-4 min-h-11 w-full sm:w-auto">
-              {previewing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}Check eligibility
+          <p aria-live="polite" className="text-sm text-ink-muted">
+            {searching
+              ? "Searching…"
+              : query.trim().length < 2
+              ? "Enter at least two characters."
+              : `${members.length || (member ? 1 : 0)} matching members`}
+          </p>
+          <fieldset className="space-y-3">
+            <legend className="sr-only">Select member</legend>
+            {(member && members.length === 0 ? [member] : members).map(
+              (result) => (
+                <label
+                  key={result.id}
+                  className={cn(
+                    "flex cursor-pointer items-start gap-3 rounded-card p-4 shadow-sm",
+                    member?.id === result.id ? "bg-[#E2E7FF]" : "bg-white"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="member"
+                    checked={member?.id === result.id}
+                    onChange={() => chooseMember(result)}
+                    className="mt-3 h-5 w-5 shrink-0 accent-[#005C55]"
+                  />
+                  <span
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#99F1E5] font-semibold text-primary-strong"
+                    aria-hidden="true"
+                  >
+                    {result.username.slice(0, 2).toUpperCase()}
+                  </span>
+                  <span className="min-w-0 py-1">
+                    <span className="block break-all text-base font-semibold">
+                      @{result.username}
+                    </span>
+                    <span className="mt-1 block text-sm text-ink-muted">
+                      {result.maskedContact}
+                    </span>
+                  </span>
+                </label>
+              )
+            )}
+          </fieldset>
+          {!searching &&
+            query.trim().length >= 2 &&
+            members.length === 0 &&
+            !member &&
+            !error && (
+              <p className={voucherCard}>
+                No matching members. Check the username and try again.
+              </p>
+            )}
+        </>
+      )}
+      {currentStep === 2 && (
+        <>
+          <div className={`${voucherCard} flex items-center gap-3`}>
+            <UserRound
+              aria-hidden="true"
+              className="h-6 w-6 shrink-0 text-primary"
+            />
+            <p className="min-w-0 flex-1 break-all font-semibold">
+              @{member?.username}
+            </p>
+            <Button
+              variant="ghost"
+              disabled={previewing}
+              onClick={() => setCurrentStep(1)}
+              className="min-h-11 text-primary-strong"
+            >
+              Change
             </Button>
           </div>
-
-          {preview && (
-            <div className="border-t border-border px-4 py-4 sm:px-5">
-              <h2 className="font-semibold text-ink">3. Review and confirm</h2>
-              <div className={cn("mt-3 rounded-card border p-4", preview.eligible ? "border-success/25 bg-success/[0.04]" : "border-warning/25 bg-warning/[0.04]")}>
-                <div className="flex gap-3"><ShieldCheck className={cn("mt-0.5 h-5 w-5 shrink-0", preview.eligible ? "text-success" : "text-warning")} aria-hidden="true" /><div><p className="text-sm font-semibold text-ink">{preview.eligible ? "Eligible to issue" : "Issuance not available"}</p><p className="mt-1 text-sm leading-6 text-ink-muted">{preview.message}</p></div></div>
-                <ul className="mt-3 space-y-2 border-t border-current/10 pt-3">
-                  {preview.requirements.map((requirement) => <li key={requirement.label} className="flex items-center gap-2 text-sm text-ink"><span className={cn("flex h-5 w-5 items-center justify-center rounded-full", requirement.satisfied ? "bg-success/10 text-success" : "bg-warning/10 text-warning")}>{requirement.satisfied ? <Check className="h-3 w-3" aria-hidden="true" /> : <AlertCircle className="h-3 w-3" aria-hidden="true" />}</span>{requirement.label}</li>)}
-                </ul>
-              </div>
-              <label htmlFor="issue-reason" className="mt-4 block text-sm font-medium text-ink">Operator reason</label>
-              <textarea id="issue-reason" name="issue-reason" autoComplete="off" value={reason} onChange={(event) => setReason(event.target.value)} rows={3} disabled={!preview.eligible} placeholder="e.g. Service recovery for delayed claim…" className="mt-2 w-full rounded-control border border-border bg-surface px-3 py-2 text-base text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:bg-surface-subtle sm:text-sm" />
-              <Button type="button" onClick={issueVoucher} disabled={!preview.eligible || reason.trim().length < 4 || issuing} className="mt-4 min-h-11 w-full sm:w-auto">
-                {issuing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="h-4 w-4" aria-hidden="true" />}
-                {issuing ? "Issuing voucher…" : "Issue voucher"}
-              </Button>
-            </div>
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-lg font-semibold">Available vouchers</h3>
+            <span className="text-sm text-ink-muted">{available.length}</span>
+          </div>
+          <fieldset className="space-y-3">
+            <legend className="sr-only">Choose voucher</legend>
+            {available.map((option) => (
+              <label
+                key={option.id}
+                className={cn(
+                  "flex cursor-pointer items-start gap-3 rounded-card p-4 shadow-sm",
+                  allocationId === option.id ? "bg-[#E2E7FF]" : "bg-white"
+                )}
+              >
+                <input
+                  type="radio"
+                  name="allocation"
+                  disabled={previewing}
+                  value={option.id}
+                  checked={allocationId === option.id}
+                  onChange={() => {
+                    setAllocationId(option.id);
+                    setPreview(null);
+                    setConfirmationId(null);
+                    setError(null);
+                  }}
+                  className="mt-1 h-5 w-5 shrink-0 accent-[#005C55]"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-base font-semibold">
+                    {option.title}
+                  </span>
+                  <span className="mt-1 block text-sm">
+                    {option.merchantName}
+                  </span>
+                  <span className="mt-1 block text-sm text-ink-muted">
+                    {option.benefitLabel}
+                  </span>
+                  <span className="mt-3 block text-xs text-ink-muted">
+                    Closes {voucherDateTime(option.expiresAt)} ·{" "}
+                    {option.quantityRemaining} left
+                  </span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+          {!available.length && (
+            <p className={voucherCard}>
+              No vouchers are open for direct issuance.
+            </p>
           )}
+          {!!unavailable.length && (
+            <details className="rounded-card bg-[#F2F3FF] p-4">
+              <summary className="cursor-pointer py-2 font-medium">
+                Unavailable vouchers ({unavailable.length})
+              </summary>
+              <ul className="mt-3 divide-y divide-[#DAE2FD]">
+                {unavailable.map((option) => (
+                  <li key={option.id} className="py-3 text-sm">
+                    <p className="font-medium">{option.title}</p>
+                    <p className="mt-1 text-ink-muted">
+                      {option.quantityRemaining < 1
+                        ? "No vouchers remaining"
+                        : "Insufficient allocation budget"}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </>
+      )}
+      {currentStep === 3 && allocation && (
+        <>
+          <section className="rounded-card bg-[#F2F3FF] p-5 [&_dl>div]:py-3">
+            <h3 className="mb-5 font-semibold">Issuance details</h3>
+            <VoucherFacts
+              items={[
+                { label: "Member", value: `@${member?.username}` },
+                { label: "Merchant", value: allocation.merchantName },
+                { label: "Voucher", value: allocation.title },
+                { label: "Quantity", value: "1 voucher" },
+                ...(allocation.voucherValiditySeconds
+                  ? [
+                      {
+                        label: "Voucher validity",
+                        value: `${Math.round(
+                          allocation.voucherValiditySeconds / 3600
+                        )} hours after issue`,
+                      },
+                    ]
+                  : []),
 
-          {error && <div role="alert" className="border-t border-danger/20 bg-danger/[0.04] px-4 py-3 text-sm text-danger sm:px-5">{error}</div>}
-        </Card>
-
-        <aside className="space-y-4">
-          <Card className="border-border p-4 shadow-none sm:p-5">
-            <h2 className="text-sm font-semibold text-ink">Issue summary</h2>
-            <dl className="mt-4 space-y-3 text-sm">
-              <div className="flex justify-between gap-3"><dt className="text-ink-muted">Recipient</dt><dd className="max-w-[60%] truncate font-medium text-ink">{member ? `@${member.username}` : "Not selected"}</dd></div>
-              <div className="flex justify-between gap-3"><dt className="text-ink-muted">Merchant</dt><dd className="max-w-[60%] text-right font-medium text-ink">{allocation?.merchantName ?? "Not selected"}</dd></div>
-              <div className="flex justify-between gap-3"><dt className="text-ink-muted">Benefit</dt><dd className="font-medium text-ink">{allocation ? allocation.benefitLabel : "—"}</dd></div>
-              <div className="flex justify-between gap-3"><dt className="text-ink-muted">Max reimbursement</dt><dd className="font-medium text-ink">{allocation ? formatMoney(minorToMajor(allocation.maximumReimbursementMinor), allocation.currency) : "—"}</dd></div>
-              <div className="flex justify-between gap-3"><dt className="text-ink-muted">Allocation closes</dt><dd className="font-medium text-ink">{allocation ? new Date(allocation.expiresAt).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" }) : "—"}</dd></div>
-            </dl>
-          </Card>
-          <Card className="border-primary/15 bg-primary/[0.04] p-4 shadow-none sm:p-5">
-            <div className="flex gap-3"><Landmark className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" /><div><h2 className="text-sm font-semibold text-ink">Budget-safe by design</h2><p className="mt-1 text-sm leading-6 text-ink-muted">Eligibility and availability are rechecked by the Platform at confirmation. Operators cannot bypass member rules or fund limits.</p></div></div>
-          </Card>
-        </aside>
+                {
+                  label: "Allocation closes",
+                  value: voucherDateTime(allocation.expiresAt),
+                },
+                {
+                  label: "Funding reserved",
+                  value: (
+                    <span>
+                      {formatMoney(
+                        minorToMajor(allocation.maximumReimbursementMinor),
+                        allocation.currency
+                      )}
+                      <span className="mt-1 block font-normal text-ink-muted">
+                        {allocation.fundName}
+                      </span>
+                    </span>
+                  ),
+                },
+              ]}
+            />
+          </section>
+          <section className={voucherCard}>
+            <h3
+              className={cn(
+                "flex items-center gap-2 font-semibold",
+                preview?.eligible ? "text-primary-strong" : "text-danger"
+              )}
+            >
+              <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+              {preview?.eligible
+                ? "Ready to issue"
+                : "Cannot issue this voucher"}
+            </h3>
+            {!preview?.eligible && (
+              <p className="mt-2 text-sm text-ink-muted">{preview?.message}</p>
+            )}
+            <details className="mt-2">
+              <summary className="min-h-11 cursor-pointer py-3 text-sm text-ink-muted">
+                View eligibility checks
+              </summary>
+              <ul className="space-y-2">
+                {preview?.requirements.map((r) => (
+                  <li key={r.label} className="flex items-start gap-2 text-sm">
+                    <span
+                      className={r.satisfied ? "text-primary" : "text-danger"}
+                    >
+                      {r.satisfied ? (
+                        <Check className="h-4 w-4" aria-label="Passed" />
+                      ) : (
+                        <AlertCircle className="h-4 w-4" aria-label="Failed" />
+                      )}
+                    </span>
+                    {r.label}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </section>
+          <label className="block text-sm font-medium">
+            Issuance reason <span className="text-danger">*</span>
+            <select
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              disabled={!preview?.eligible || issuing}
+              className="mt-2 min-h-12 w-full rounded-control border-0 bg-white px-4 text-base focus-visible:outline-primary"
+            >
+              <option value="">Select reason</option>
+              <option>Customer support exception</option>
+              <option>Service recovery</option>
+              <option>Approved campaign distribution</option>
+              <option>Other operational exception</option>
+            </select>
+          </label>
+          <label className="block text-sm font-medium">
+            Internal note{" "}
+            <span className="font-normal text-ink-muted">(optional)</span>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              disabled={!preview?.eligible || issuing}
+              rows={3}
+              maxLength={400}
+              className="mt-2 w-full rounded-card border-0 bg-white p-4 text-base focus-visible:outline-primary"
+              placeholder="Add a note…"
+            />
+          </label>
+        </>
+      )}
+      {error && (
+        <p
+          role="alert"
+          className="rounded-control bg-danger/5 p-4 text-sm text-danger"
+        >
+          {error}
+        </p>
+      )}
+      <div className="sticky bottom-20 z-10 mt-auto space-y-2 bg-[#FAF8FF]/95 py-3 backdrop-blur sm:bottom-0">
+        <Button
+          className={primary}
+          disabled={
+            currentStep === 1
+              ? !member
+              : currentStep === 2
+              ? !allocation || previewing
+              : !preview?.eligible || reason.trim().length < 4 || issuing
+          }
+          onClick={() =>
+            currentStep === 1
+              ? setCurrentStep(2)
+              : currentStep === 2
+              ? void checkEligibility()
+              : void issueVoucher()
+          }
+        >
+          {previewing || issuing ? (
+            <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+          ) : currentStep === 3 ? (
+            <CheckCircle2 aria-hidden="true" className="h-5 w-5" />
+          ) : null}
+          {issuing
+            ? "Issuing…"
+            : previewing
+            ? "Checking…"
+            : currentStep === 3
+            ? "Issue voucher"
+            : "Continue"}
+        </Button>
+        {currentStep === 1 ? (
+          <Link
+            href="/vouchers"
+            className="flex min-h-11 items-center justify-center text-sm text-ink-muted"
+          >
+            Cancel
+          </Link>
+        ) : (
+          <Button
+            className={secondary}
+            disabled={issuing || previewing}
+            onClick={() => {
+              setCurrentStep(currentStep - 1);
+              setError(null);
+            }}
+          >
+            Back
+          </Button>
+        )}
       </div>
     </div>
   );

@@ -22,7 +22,7 @@ export const MobileBottomNav = forwardRef<HTMLButtonElement, MobileBottomNavProp
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-40 flex gap-1 min-[375px]:gap-2 border-t-2 border-border bg-surface px-1 min-[375px]:px-2 pt-2 shadow-[0_-12px_35px_-28px_rgba(15,23,42,0.55)] lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 flex gap-1 min-[375px]:gap-2 border-t border-border bg-surface px-1 min-[375px]:px-2 pt-2 shadow-[0_-4px_16px_rgba(15,23,42,0.04)] lg:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       {slots.map((slot) => {
@@ -36,7 +36,7 @@ export const MobileBottomNav = forwardRef<HTMLButtonElement, MobileBottomNavProp
               ref={moreButtonRef}
               onClick={onMoreClick}
               aria-label="Open more destinations"
-              className="flex min-h-[72px] min-w-0 rounded-card flex-1 flex-col items-center justify-center gap-1.5 px-0 py-2 text-ink-muted hover:bg-surface-subtle transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="flex min-h-[56px] min-w-0 rounded-control flex-1 flex-col items-center justify-center gap-1 px-0 py-1 text-ink-muted hover:bg-surface-subtle transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <Icon className="h-6 w-6" aria-hidden="true" />
               <span className="w-full truncate text-center text-xs tracking-tight font-medium">{slot.label}</span>
@@ -50,7 +50,7 @@ export const MobileBottomNav = forwardRef<HTMLButtonElement, MobileBottomNavProp
             href={slot.targetRoute}
             aria-current={isActive ? "page" : undefined}
             className={cn(
-              "relative flex min-h-[72px] min-w-0 rounded-card flex-1 flex-col items-center justify-center gap-1.5 px-0 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+              "relative flex min-h-[56px] min-w-0 rounded-control flex-1 flex-col items-center justify-center gap-1 px-0 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
               isActive ? "bg-primary/10 text-primary-strong" : "text-ink-muted hover:bg-surface-subtle",
             )}
           >

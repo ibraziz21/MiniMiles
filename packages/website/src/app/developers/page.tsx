@@ -16,9 +16,9 @@ import { SectionHeader } from "@/components/SectionHeader";
 import { siteConfig } from "@/content/site";
 
 export const metadata: Metadata = {
-  title: "Voucher and Rewards API for Merchants",
+  title: "Voucher and Rewards API for Businesses",
   description:
-    "Create, distribute, and redeem merchant vouchers with the AkibaMiles API. Connect your checkout, POS, or customer platform and track every redemption.",
+    "Create, distribute, and redeem business vouchers with the AkibaMiles API. Connect your checkout, POS, or customer platform and track every redemption.",
 };
 
 const apiCapabilities = [
@@ -63,9 +63,9 @@ const apiCapabilities = [
 const integrationOptions = [
   {
     eyebrow: "No code",
-    title: "Merchant dashboard",
+    title: "Business dashboard",
     body: "Create voucher types, issue rewards, manage branches, and review redemptions from a self-serve dashboard.",
-    cta: "Open merchant dashboard",
+    cta: "Open business dashboard",
     href: siteConfig.merchantUrl,
   },
   {
@@ -73,7 +73,7 @@ const integrationOptions = [
     title: "Voucher API",
     body: "Connect voucher issuance and redemption directly to your POS, checkout, CRM, or backend services.",
     cta: "Request API access",
-    href: `mailto:${siteConfig.email}?subject=Merchant%20Voucher%20API%20Access`,
+    href: `mailto:${siteConfig.email}?subject=Business%20Voucher%20API%20Access`,
   },
   {
     eyebrow: "Flexible",
@@ -111,17 +111,17 @@ export default function DevelopersPage() {
       <Panel tone="ink">
         <div className="mx-auto max-w-4xl text-center">
           <div className="inline-flex rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-[#74D4DF]">
-            Akiba Merchant API · REST
+            Akiba Business API · REST
           </div>
           <h1 className="mt-6 font-sterling text-5xl font-medium leading-[1.02] sm:text-6xl">
             Vouchers that move<br />from campaign to checkout.
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-white/65">
-            Create voucher offers, distribute unique codes to customers, redeem them in-store or online, and track every result from one merchant-focused API.
+            Create voucher offers, distribute unique codes to customers, redeem them in-store or online, and track every result from one business-focused API.
           </p>
           <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <ButtonLink href={siteConfig.merchantUrl} className="bg-akiba-teal text-white hover:bg-akiba-teal/90">
-              Open merchant dashboard
+              Open business dashboard
             </ButtonLink>
             <Link
               href="/developers#capabilities"
@@ -162,7 +162,7 @@ export default function DevelopersPage() {
       <Panel id="capabilities" tone="card">
         <div>
           <SectionHeader
-            eyebrow="Merchant API"
+            eyebrow="Business API"
             title="The voucher workflow, end to end."
             body="Manage the offer in Akiba, connect distribution to the tools you already use, and make redemption simple for customers and staff."
             align="center"
@@ -205,7 +205,7 @@ export default function DevelopersPage() {
               />
               <ul className="mt-8 space-y-4">
                 {[
-                  { label: "Scoped access", detail: "A partner key connected only to your merchant account." },
+                  { label: "Scoped access", detail: "A partner key connected only to your business account." },
                   { label: "Duplicate protection", detail: "Idempotency keys make retries safe at checkout." },
                   { label: "Signed updates", detail: "Authenticated webhooks for events your backend needs." },
                   { label: "Clear responses", detail: "Structured JSON results and consistent error codes." },
@@ -246,7 +246,7 @@ export default function DevelopersPage() {
       <Panel tone="card">
         <div>
           <SectionHeader
-            eyebrow="Built for merchant operations"
+            eyebrow="Built for business operations"
             title="Easy for your systems. Easy for your staff."
           />
           <div className="mt-10 grid gap-5 md:grid-cols-3">
@@ -281,14 +281,14 @@ export default function DevelopersPage() {
             Start with your first voucher.
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg leading-8 text-white/65">
-            Create your merchant account and manage vouchers immediately from the dashboard. When you&apos;re ready to connect distribution or redemption to your own systems, request a partner API key.
+            Create your business account and manage vouchers immediately from the dashboard. When you&apos;re ready to connect distribution or redemption to your own systems, request a partner API key.
           </p>
           <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <ButtonLink href={siteConfig.merchantUrl} className="bg-akiba-teal text-white hover:bg-akiba-teal/90">
-              Open merchant dashboard
+              Open business dashboard
             </ButtonLink>
             <ButtonLink
-              href={`mailto:${siteConfig.email}?subject=Merchant%20Voucher%20API%20Access`}
+              href={`mailto:${siteConfig.email}?subject=Business%20Voucher%20API%20Access`}
               variant="secondary"
               className="border-white/20 text-white hover:bg-white/10"
             >

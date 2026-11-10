@@ -15,7 +15,7 @@ export const privacyPolicy: LegalPage = {
   title: "Privacy Policy",
   lastUpdated: "Oct 10, 2026",
   intro:
-    "This Privacy Policy explains how Akiba Ecosystems Ltd (\"Akiba\", \"we\") collects, uses, and protects information when you use the Akiba services — including the Akiba Pass mobile app for iOS and Android, the Akiba Pass web experience, Scan & Award at participating merchants, the Akiba Hub, the Akiba Mini-App on MiniPay, and this website. By using our services or submitting information through this site, you agree to this policy.",
+    "This Privacy Policy explains how Akiba Ecosystems Ltd (\"Akiba\", \"we\") collects, uses, and protects information when you use the Akiba services — including the Akiba Pass mobile app for iOS and Android, the Akiba Pass web experience, Scan & Award at participating businesses, the Akiba Hub, the Akiba Mini-App on MiniPay, and this website. By using our services or submitting information through this site, you agree to this policy.",
   sections: [
     {
       title: "1. What We Collect",
@@ -25,12 +25,12 @@ export const privacyPolicy: LegalPage = {
       bullets: [
         "Account details when you register for an Akiba Pass: email address, phone number, and optionally your name, country, and reward interests.",
         "Wallet addresses you link, to assign Miles and track balances.",
-        "Purchase reward data when you earn Miles at a participating merchant: the merchant, purchase amount, product category, payment reference, and time of purchase.",
-        "Voucher activity in the Akiba Hub and Pass, including Miles spent, vouchers obtained, and voucher redemptions at participating merchants.",
+        "Purchase reward data when you earn Miles at a participating business: the business, purchase amount, product category, payment reference, and time of purchase.",
+        "Voucher activity in the Akiba Hub and Pass, including Miles spent, vouchers obtained, and voucher redemptions at participating businesses.",
         "Interaction data from the Mini-App, Hub, and mobile app, such as point-earning actions, quest completions, referrals, raffle entries, and voucher redemptions.",
-        "Your approximate location, only while you are using the app and only if you choose \"Near me\" to find nearby merchants. Coordinates are sent with that single search request and are not stored against your profile; the app never collects location in the background, and denying the permission leaves the rest of the app fully usable.",
+        "Your approximate location, only while you are using the app and only if you choose \"Near me\" to find nearby businesses. Coordinates are sent with that single search request and are not stored against your profile; the app never collects location in the background, and denying the permission leaves the rest of the app fully usable.",
         "Optional profile and social information if you provide it for quests, physical rewards, winner contact, or profile completion.",
-        "Business contact details when you submit a merchant or partner inquiry, such as name, email, company, country, website, role, and message.",
+        "Business contact details when you submit a business or partner inquiry, such as name, email, company, country, website, role, and message.",
       ],
     },
     {
@@ -38,17 +38,17 @@ export const privacyPolicy: LegalPage = {
       bullets: [
         "Assign and track Miles earned from purchases, quests, and other activities.",
         "Operate Scan & Award, including verifying purchases and delivering rewards to your Akiba Pass.",
-        "Issue Miles and vouchers, record voucher redemptions, and show loyalty activity in the Akiba Hub, Pass, and merchant dashboard.",
+        "Issue Miles and vouchers, record voucher redemptions, and show loyalty activity in the Akiba Hub, Pass, and business dashboard.",
         "Display progress on dashboards, leaderboards, badges, and profiles.",
         "Enable raffle entries, reward distribution, and winner contact.",
-        "Review merchant and partner inquiries and respond to business requests.",
+        "Review business and partner inquiries and respond to business requests.",
         "Improve app performance, safety, fraud prevention, and user experience.",
       ],
     },
     {
-      title: "3. What Merchants Can See",
+      title: "3. What Businesses Can See",
       paragraphs: [
-        "Participating merchants can see loyalty activity connected to their own store — such as rewards issued against their sales, redemption of their vouchers, and aggregate repeat-visit patterns. Merchants do not receive your activity at other merchants, your wallet balances, or your full profile.",
+        "Participating businesses can see loyalty activity connected to their own store — such as rewards issued against their sales, redemption of their vouchers, and aggregate repeat-visit patterns. Businesses do not receive your activity at other businesses, your wallet balances, or your full profile.",
       ],
     },
     {
@@ -72,7 +72,7 @@ export const privacyPolicy: LegalPage = {
     {
       title: "7. Third-Party Services",
       paragraphs: [
-        "Akiba uses third-party services to operate, including MiniPay as a distribution surface for the Mini-App, M-Pesa and banking services for merchant subscription payments, Supabase for data infrastructure, the Celo network for Miles records, and anti-spam providers. Akiba does not process customer purchase payments. Data handled by third-party services is subject to their own policies as applicable.",
+        "Akiba uses third-party services to operate, including MiniPay as a distribution surface for the Mini-App, M-Pesa and banking services for business subscription payments, Supabase for data infrastructure, the Celo network for Miles records, and anti-spam providers. Akiba does not process customer purchase payments. Data handled by third-party services is subject to their own policies as applicable.",
       ],
     },
     {
@@ -88,8 +88,8 @@ export const privacyPolicy: LegalPage = {
         "You can delete your entire Akiba account and the personal data connected to it. In the Akiba Pass app, open Settings, then the Danger zone section, then Delete account. Without the app, use https://pass.akibamiles.com/account-deletion. Both paths use the same verification and the same process. We verify the request with a one-time code sent to your account email before accepting it, because otherwise anyone with your unlocked phone could delete your account.",
         "We delete your sign-in account and email address, your profile and contact details, your Akiba Pass and its credentials, your saved places, your notification and device registrations, our record of any wallet address you linked, and the photos and contributions you submitted.",
         "Deleting your account ends your access to Miles earned on it. Your Akiba Pass stops working and vouchers you have not yet redeemed become unusable. We cannot transfer Miles or vouchers to another account and cannot restore them afterwards. We will not refuse your deletion request because you still hold a balance or an active voucher.",
-        "Some records survive deletion in pseudonymised form — with your name, email, and other direct identifiers removed — where an approved purpose requires it. That covers transaction and voucher-redemption records, merchant settlement and payment evidence, and fraud, security, and audit records. Access to those records is restricted, each is held only for its approved retention period, and we keep a record that you asked for deletion and that we carried it out.",
-        "For native-app activity, minimal moderation evidence is retained for 90 days after deletion completion. Minimal Miles, voucher, referral-reward and security evidence is retained for 180 days. Restricted proof of deletion is retained for 24 months. Direct member identity and contact details are removed from this evidence; a specific documented legal hold may extend retention of affected records only. Deletion closes your shared Akiba member account across the native app and connected Akiba services, removes linked sign-in and wallet associations, and ends access to account-bound Miles, Passes and vouchers. Merchant accounting records with a justified retention obligation are reviewed separately and are not silently erased.",
+        "Some records survive deletion in pseudonymised form — with your name, email, and other direct identifiers removed — where an approved purpose requires it. That covers transaction and voucher-redemption records, business settlement and payment evidence, and fraud, security, and audit records. Access to those records is restricted, each is held only for its approved retention period, and we keep a record that you asked for deletion and that we carried it out.",
+        "For native-app activity, minimal moderation evidence is retained for 90 days after deletion completion. Minimal Miles, voucher, referral-reward and security evidence is retained for 180 days. Restricted proof of deletion is retained for 24 months. Direct member identity and contact details are removed from this evidence; a specific documented legal hold may extend retention of affected records only. Deletion closes your shared Akiba member account across the native app and connected Akiba services, removes linked sign-in and wallet associations, and ends access to account-bound Miles, Passes and vouchers. Business accounting records with a justified retention obligation are reviewed separately and are not silently erased.",
         "Transactions already written to the Celo blockchain, and the public wallet addresses in them, are permanent and public. Neither you nor Akiba can delete or change them. Deleting your Akiba account removes our own off-chain association with your wallet where our retention plan allows it; it does not and cannot remove anything from the blockchain itself.",
         "We aim to complete deletion within 14 calendar days of a verified request, unless we are legally required to hold data for longer, and we email your account address when processing finishes. You cannot cancel the request yourself once you confirm it. The version of this deletion notice shown when you confirm is 2026-10-19.3.",
         "If you have lost access to your account email and cannot receive the verification code, contact hello.akibamiles@gmail.com and we will verify you another way.",
@@ -123,8 +123,8 @@ export const termsOfUse: LegalPage = {
     {
       title: "1. What Akiba Is",
       paragraphs: [
-        "Akiba is a loyalty network. Shoppers earn Miles on qualifying purchases at participating merchants via Scan & Award using their Akiba Pass, and can redeem Miles for merchant vouchers, discounts, and other rewards across the network.",
-        "Akiba also includes the Akiba Hub and Pass, where users can collect Miles from purchases, spend Miles on merchant vouchers, and present those vouchers at participating merchants. The Akiba Mini-App on MiniPay lets users earn additional Miles through activities such as quests, challenges, and streaks, and use Miles for raffles and digital experiences.",
+        "Akiba is a loyalty network. Shoppers earn Miles on qualifying purchases at participating businesses via Scan & Award using their Akiba Pass, and can redeem Miles for business vouchers, discounts, and other rewards across the network.",
+        "Akiba also includes the Akiba Hub and Pass, where users can collect Miles from purchases, spend Miles on business vouchers, and present those vouchers at participating businesses. The Akiba Mini-App on MiniPay lets users earn additional Miles through activities such as quests, challenges, and streaks, and use Miles for raffles and digital experiences.",
         "The Akiba Mini-App runs on MiniPay as a distribution surface. Akiba is built and operated by Akiba Ecosystems Ltd and is not affiliated with, or operated by, MiniPay or Opera.",
       ],
     },
@@ -143,8 +143,8 @@ export const termsOfUse: LegalPage = {
     {
       title: "4. Miles",
       paragraphs: [
-        "Miles are loyalty points funded by merchants and campaigns. They can be redeemed for vouchers, discounts, and other rewards within the Akiba network, but they are not legal tender, cannot be redeemed for cash from Akiba, and have no guaranteed exchange value outside the network.",
-        "Miles earned on purchases depend on the merchant's active campaign at the time of purchase. If a merchant has no active campaign or a campaign's reward budget is exhausted, a purchase may not earn Miles.",
+        "Miles are loyalty points funded by businesses and campaigns. They can be redeemed for vouchers, discounts, and other rewards within the Akiba network, but they are not legal tender, cannot be redeemed for cash from Akiba, and have no guaranteed exchange value outside the network.",
+        "Miles earned on purchases depend on the business's active campaign at the time of purchase. If a business has no active campaign or a campaign's reward budget is exhausted, a purchase may not earn Miles.",
         "Miles are recorded on a public blockchain ledger. Miles may be revoked at our discretion in cases of abuse, fraud, payment reversal, or misuse of the system.",
         "Miles are tied to your Akiba account. If you delete your account, you lose access to the Miles earned on it; they cannot be transferred to another account, redeemed for cash, or restored.",
       ],
@@ -152,15 +152,15 @@ export const termsOfUse: LegalPage = {
     {
       title: "5. Purchases and Customer Payments",
       paragraphs: [
-        "Customers always pay participating merchants directly. Akiba does not collect, process, hold, or settle customer purchase payments at any point.",
-        "The Akiba Hub and Pass support the loyalty journey: customers collect Miles from qualifying purchases, spend Miles on vouchers, and use those vouchers with participating merchants.",
-        "Rewards for purchases are issued when the merchant records or verifies the purchase through Akiba. Refunds, exchanges, payment disputes, and fulfilment remain between the customer and the merchant and are subject to the merchant's own policies.",
+        "Customers always pay participating businesses directly. Akiba does not collect, process, hold, or settle customer purchase payments at any point.",
+        "The Akiba Hub and Pass support the loyalty journey: customers collect Miles from qualifying purchases, spend Miles on vouchers, and use those vouchers with participating businesses.",
+        "Rewards for purchases are issued when the business records or verifies the purchase through Akiba. Refunds, exchanges, payment disputes, and fulfilment remain between the customer and the business and are subject to the business's own policies.",
       ],
     },
     {
       title: "6. Vouchers",
       paragraphs: [
-        "Vouchers are redeemed against purchases and may be limited to a specific merchant, product, or category. Vouchers may carry an expiry date, after which they are no longer usable. A voucher can be used once and cannot be transferred, resold, or exchanged for cash.",
+        "Vouchers are redeemed against purchases and may be limited to a specific business, product, or category. Vouchers may carry an expiry date, after which they are no longer usable. A voucher can be used once and cannot be transferred, resold, or exchanged for cash.",
         "We may cancel or claw back a voucher where it was obtained or used through fraud, abuse, or a purchase that was reversed or found to be invalid.",
         "Vouchers are issued to your Akiba account. If you delete your account, your Akiba Pass stops working and any voucher you have not yet redeemed becomes unusable. Having an unredeemed voucher does not prevent you from deleting your account, and we cannot refund or transfer one.",
       ],
@@ -172,11 +172,11 @@ export const termsOfUse: LegalPage = {
       ],
     },
     {
-      title: "8. Merchants",
+      title: "8. Businesses",
       paragraphs: [
-        "Merchant participation in the Akiba network — including subscription plans and reward activity — is governed by a separate merchant agreement entered into during merchant onboarding. Subscription invoices are generated in the merchant dashboard and paid directly to Akiba by M-Pesa or bank transfer. These subscription payments are separate from customer purchases.",
+        "Business participation in the Akiba network — including subscription plans and reward activity — is governed by a separate business agreement entered into during business onboarding. Subscription invoices are generated in the business dashboard and paid directly to Akiba by M-Pesa or bank transfer. These subscription payments are separate from customer purchases.",
         "Published subscription prices exclude VAT. Miles issued above a plan's monthly allowance are charged at the published per-Mile overage rate and added to the invoice for the next billing period. On quarterly and annual plans, overage is invoiced monthly.",
-        "Monthly renewal invoices are issued 7 days before renewal. Quarterly and annual renewal invoices are issued 14 days before renewal. Akiba sends a reminder 3 days before the due date, on the due date, and 3 days after it, and may follow up directly with the merchant.",
+        "Monthly renewal invoices are issued 7 days before renewal. Quarterly and annual renewal invoices are issued 14 days before renewal. Akiba sends a reminder 3 days before the due date, on the due date, and 3 days after it, and may follow up directly with the business.",
         "An unpaid renewal invoice has a 7-day grace period. After the grace period, Akiba may pause new Miles issuance and voucher publishing until the invoice is paid in full. Vouchers already issued to customers remain redeemable, and full service is restored after payment is confirmed.",
         "A subscription cancellation takes effect at the end of the current paid term, and a term that has already started is not refundable. Plan upgrades take effect immediately and are prorated. Plan downgrades take effect at the next renewal.",
       ],
@@ -190,7 +190,7 @@ export const termsOfUse: LegalPage = {
     {
       title: "10. Partner Inquiries",
       paragraphs: [
-        "Submitting a merchant or partner inquiry does not create a partnership, campaign obligation, or commercial agreement. Any partnership or campaign is subject to separate review and approval.",
+        "Submitting a business or partner inquiry does not create a partnership, campaign obligation, or commercial agreement. Any partnership or campaign is subject to separate review and approval.",
       ],
     },
     {

@@ -46,8 +46,7 @@ export function AttentionCard({ items, className }: AttentionCardProps) {
             <ListChecks className="h-4 w-4" aria-hidden="true" />
           </span>
           <div>
-            <h2 className="text-sm font-semibold text-ink">Key action items</h2>
-            <p className="text-xs text-ink-muted">Prioritized by age across your queues</p>
+            <h2 className="text-base font-semibold text-ink">Needs attention</h2>
           </div>
         </div>
         <span className="shrink-0 whitespace-nowrap rounded-full bg-warning/10 px-2.5 py-1 text-xs font-semibold tabular-nums text-ink">

@@ -7,7 +7,7 @@ import { siteConfig } from "@/content/site";
 export const metadata: Metadata = {
   title: "Hub",
   description:
-    "Browse live AkibaMiles campaigns, partner quests, games, merchant vouchers, and upcoming rewards. Open the Akiba Hub App for personalized recommendations.",
+    "Browse live AkibaMiles campaigns, partner quests, games, business vouchers, and upcoming rewards. Open the Akiba Hub App for personalized recommendations.",
 };
 
 const categoryTiles = [
@@ -34,8 +34,8 @@ const categoryTiles = [
   },
   {
     icon: "🛍️",
-    label: "Merchants & Vouchers",
-    description: "Redeem Miles for vouchers and shop with Akiba merchant partners.",
+    label: "Businesses & Vouchers",
+    description: "Redeem Miles for vouchers and shop with Akiba business partners.",
     via: "MiniPay",
     viaColor: "bg-blue-50 text-blue-700",
   },

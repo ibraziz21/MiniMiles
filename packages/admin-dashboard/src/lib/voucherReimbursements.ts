@@ -1,3 +1,7 @@
+import {
+  readReferenceChunks,
+  readAllRows as voucherReadAll,
+} from "./readAllRows";
 import { supabase } from "@/lib/supabase";
 
 export interface VoucherReimbursementDashboard {
@@ -45,32 +49,63 @@ export interface VoucherReimbursementDashboard {
 }
 
 export async function getVoucherReimbursementDashboard(): Promise<VoucherReimbursementDashboard> {
-  const [payablesRes, batchesRes, incidentsRes] = await Promise.all([
-    supabase.from("v_unbatched_voucher_payables").select("voucher_redemption_id, merchant_id, currency, net_payable_minor, payout_ready"),
-    supabase.from("v_partner_settlement_batches").select("id, merchant_id, currency, state, total_amount_minor, item_count, payment_reference, payment_evidence_ref, created_by, created_at, updated_at, paid_at").order("created_at", { ascending: false }).limit(100),
-    supabase.from("v_open_voucher_reconciliation_incidents").select("id, incident_type, severity, entity_type, entity_id, description, opened_at").limit(100),
+  const [payables, batches, incidents] = await Promise.all([
+    voucherReadAll((from, to) =>
+      supabase
+        .from("v_unbatched_voucher_payables")
+        .select(
+          "voucher_redemption_id, merchant_id, currency, net_payable_minor, payout_ready"
+        )
+        .order("voucher_redemption_id")
+        .range(from, to)
+    ),
+    voucherReadAll((from, to) =>
+      supabase
+        .from("v_partner_settlement_batches")
+        .select(
+          "id, merchant_id, currency, state, total_amount_minor, item_count, payment_reference, payment_evidence_ref, created_by, created_at, updated_at, paid_at"
+        )
+        .order("created_at", { ascending: false })
+        .order("id")
+        .range(from, to)
+    ),
+    voucherReadAll((from, to) =>
+      supabase
+        .from("v_open_voucher_reconciliation_incidents")
+        .select(
+          "id, incident_type, severity, entity_type, entity_id, description, opened_at"
+        )
+        .order("id")
+        .range(from, to)
+    ),
   ]);
-
-  const firstError = payablesRes.error ?? batchesRes.error ?? incidentsRes.error;
-  if (firstError) throw new Error(`Voucher reimbursement data is unavailable: ${firstError.message}`);
-
-  const payables = payablesRes.data ?? [];
-  const batches = batchesRes.data ?? [];
-  const merchantIds = [...new Set([...payables.map((row) => row.merchant_id), ...batches.map((row) => row.merchant_id)])];
+  const merchantIds = [
+    ...new Set([
+      ...payables.map((row) => row.merchant_id),
+      ...batches.map((row) => row.merchant_id),
+    ]),
+  ];
   const redemptionIds = payables.map((row) => row.voucher_redemption_id);
-  const [merchantsRes, redemptionsRes] = await Promise.all([
-    merchantIds.length
-      ? supabase.from("partners").select("id, name, payout_destination_approved").in("id", merchantIds)
-      : Promise.resolve({ data: [] as Array<{ id: string; name: string; payout_destination_approved: boolean }>, error: null }),
-    redemptionIds.length
-      ? supabase.from("voucher_redemptions").select("id, external_reference, redeemed_at").in("id", redemptionIds)
-      : Promise.resolve({ data: [] as Array<{ id: string; external_reference: string | null; redeemed_at: string }>, error: null }),
+  const [merchantRows, redemptionRows] = await Promise.all([
+    readReferenceChunks(merchantIds, (chunk) =>
+      supabase
+        .from("partners")
+        .select("id,name,payout_destination_approved")
+        .in("id", chunk)
+    ),
+    readReferenceChunks(redemptionIds, (chunk) =>
+      supabase
+        .from("voucher_redemptions")
+        .select("id,external_reference,redeemed_at")
+        .in("id", chunk)
+    ),
   ]);
-  if (merchantsRes.error || redemptionsRes.error) throw new Error("Voucher reimbursement references are unavailable.");
-
-  const merchants = new Map((merchantsRes.data ?? []).map((row) => [row.id, row]));
-  const redemptions = new Map((redemptionsRes.data ?? []).map((row) => [row.id, row]));
-  const balances = new Map<string, VoucherReimbursementDashboard["balances"][number]>();
+  const merchants = new Map(merchantRows.map((row) => [row.id, row]));
+  const redemptions = new Map(redemptionRows.map((row) => [row.id, row]));
+  const balances = new Map<
+    string,
+    VoucherReimbursementDashboard["balances"][number]
+  >();
   function balanceFor(merchantId: string) {
     const existing = balances.get(merchantId);
     if (existing) return existing;
@@ -88,22 +123,31 @@ export async function getVoucherReimbursementDashboard(): Promise<VoucherReimbur
     return created;
   }
 
-  for (const payable of payables) balanceFor(payable.merchant_id).outstandingMinor += Number(payable.net_payable_minor ?? 0);
+  for (const payable of payables)
+    balanceFor(payable.merchant_id).outstandingMinor += Number(
+      payable.net_payable_minor ?? 0
+    );
   for (const batch of batches) {
     const balance = balanceFor(batch.merchant_id);
-    if (batch.state === "paid") balance.paidMinor += Number(batch.total_amount_minor ?? 0);
-    if (batch.state === "draft" || batch.state === "submitted") balance.batchedMinor += Number(batch.total_amount_minor ?? 0);
+    if (batch.state === "paid")
+      balance.paidMinor += Number(batch.total_amount_minor ?? 0);
+    if (batch.state === "draft" || batch.state === "submitted")
+      balance.batchedMinor += Number(batch.total_amount_minor ?? 0);
   }
 
   return {
-    balances: Array.from(balances.values()).sort((a, b) => b.outstandingMinor - a.outstandingMinor),
+    balances: Array.from(balances.values()).sort(
+      (a, b) => b.outstandingMinor - a.outstandingMinor
+    ),
     unbatched: payables.map((row) => {
       const redemption = redemptions.get(row.voucher_redemption_id);
       return {
         voucherRedemptionId: row.voucher_redemption_id,
         merchantId: row.merchant_id,
-        merchantName: merchants.get(row.merchant_id)?.name ?? "Unknown merchant",
-        receiptReference: redemption?.external_reference ?? "No receipt reference",
+        merchantName:
+          merchants.get(row.merchant_id)?.name ?? "Unknown merchant",
+        receiptReference:
+          redemption?.external_reference ?? "No receipt reference",
         redeemedAt: redemption?.redeemed_at ?? "",
         amountMinor: Number(row.net_payable_minor ?? 0),
         payoutReady: Boolean(row.payout_ready),
@@ -120,10 +164,13 @@ export async function getVoucherReimbursementDashboard(): Promise<VoucherReimbur
       paymentEvidenceRef: row.payment_evidence_ref,
       createdBy: row.created_by,
       createdAt: row.created_at,
-      submittedAt: row.state === "submitted" || row.state === "paid" ? row.updated_at : null,
+      submittedAt:
+        row.state === "submitted" || row.state === "paid"
+          ? row.updated_at
+          : null,
       paidAt: row.paid_at,
     })),
-    incidents: (incidentsRes.data ?? []).map((row) => ({
+    incidents: incidents.map((row) => ({
       incidentId: row.id,
       incidentType: row.incident_type,
       severity: row.severity,

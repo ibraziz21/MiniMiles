@@ -39,7 +39,7 @@ export function SiteHeader() {
               variant="secondary"
               className="hidden px-4 py-2.5 text-sm lg:inline-flex"
             >
-              For Merchants
+              For Business
             </ButtonLink>
             <ButtonLink href={siteConfig.passUrl} className="px-4 py-2.5 text-sm">
               Get Akiba Pass

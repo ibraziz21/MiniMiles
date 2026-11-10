@@ -8,4 +8,10 @@ if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
 }
 
 // Service-role client — only ever used in server components and API routes.
-export const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+export const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+  global: {
+    // Administrative reads must reflect current review and payment state,
+    // including local open-access sessions that don't read a cookie.
+    fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }),
+  },
+});

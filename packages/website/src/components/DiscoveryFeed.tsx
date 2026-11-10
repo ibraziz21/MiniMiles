@@ -12,7 +12,7 @@ const filters: (typeof ALL | CampaignCategory)[] = [
   "Wallet Rewards",
   "Partner Quests",
   "Games",
-  "Merchants & Vouchers",
+  "Businesses & Vouchers",
   "Rewards",
 ];
 
@@ -21,7 +21,7 @@ const filterEmoji: Record<typeof ALL | CampaignCategory, string> = {
   "Wallet Rewards": "💳",
   "Partner Quests": "🎯",
   Games: "🎮",
-  "Merchants & Vouchers": "🛍️",
+  "Businesses & Vouchers": "🛍️",
   Rewards: "⚡",
 };
 

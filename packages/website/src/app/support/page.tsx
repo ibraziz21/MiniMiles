@@ -1,4 +1,4 @@
-import { PlayStoreBadge } from "@/components/PlayStoreBadge";
+import { AppStoreBadges } from "@/components/AppStoreBadges";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Panel } from "@/components/Panel";
@@ -18,19 +18,19 @@ const questions = [
   },
   {
     question: "How do I use my Akiba Pass?",
-    answer: "Open the Pass tab in the Akiba app and show your QR code to the cashier at a participating merchant. Eligible purchases earn AkibaMiles according to the merchant’s offer. Keep your Pass QR code private except when presenting it to a participating merchant.",
+    answer: "Open the Pass tab in the Akiba app and show your QR code to the cashier at a participating business. Eligible purchases earn AkibaMiles according to the business’s offer. Keep your Pass QR code private except when presenting it to a participating business.",
   },
   {
     question: "My Miles are missing or look incorrect",
-    answer: "Check your Miles balance and activity in the app. If a purchase is missing or the amount looks wrong, email us with the merchant’s name, the date of your visit and the expected Miles. Keep your receipt available in case we need it to investigate. Please don’t send payment card or bank account details.",
+    answer: "Check your Miles balance and activity in the app. If a purchase is missing or the amount looks wrong, email us with the business’s name, the date of your visit and the expected Miles. Keep your receipt available in case we need it to investigate. Please don’t send payment card or bank account details.",
   },
   {
     question: "How do I redeem a voucher?",
-    answer: "Open your voucher in the app and follow its redemption instructions at the participating merchant. Check its expiry date, eligible location and any minimum-spend or other terms before redeeming. If a voucher won’t work, contact us with the merchant’s name and the error you see. Don’t email the voucher’s redemption code or QR code.",
+    answer: "Open your voucher in the app and follow its redemption instructions at the participating business. Check its expiry date, eligible location and any minimum-spend or other terms before redeeming. If a voucher won’t work, contact us with the business’s name and the error you see. Don’t email the voucher’s redemption code or QR code.",
   },
   {
     question: "How do I report a visit photo?",
-    answer: "Open the verified visit on the merchant’s page and use its report option to flag inappropriate content. You can also email us with the merchant’s name and enough detail to identify the content you’re reporting.",
+    answer: "Open the verified visit on the business’s page and use its report option to flag inappropriate content. You can also email us with the business’s name and enough detail to identify the content you’re reporting.",
   },
   {
     question: "The app isn’t working as expected",
@@ -59,7 +59,7 @@ export default function SupportPage() {
       </Panel>
 
       <Panel tone="white">
-        <PlayStoreBadge slot="support" className="mb-8" />
+        <AppStoreBadges slot="support" className="mb-8" />
         <h2 className="mb-8 font-sterling text-3xl font-medium text-akiba-ink sm:text-4xl">Common questions</h2>
         <FaqAccordion items={questions} />
       </Panel>

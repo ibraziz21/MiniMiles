@@ -1,4 +1,4 @@
-import { PlayStoreBadge } from "@/components/PlayStoreBadge";
+import { AppStoreBadges } from "@/components/AppStoreBadges";
 import Link from "next/link";
 import { Mail, Send, Twitter } from "lucide-react";
 import { Logo } from "@/components/Logo";
@@ -24,7 +24,7 @@ export function SiteFooter() {
             {[
               { label: "Get Akiba Pass", href: siteConfig.passUrl },
               { label: "Shops on Akiba", href: "/shops" },
-              { label: "For Merchants", href: "/for-business" },
+              { label: "For Business", href: "/for-business" },
               { label: "Mini-App", href: siteConfig.appUrl },
               { label: "About", href: "/about" },
             ].map((item) => (
@@ -37,7 +37,7 @@ export function SiteFooter() {
               </Link>
             ))}
           </div>
-          <PlayStoreBadge slot="footer" className="mt-3" />
+          <AppStoreBadges slot="footer" className="mt-3" />
         </div>
         <div>
           <h2 className="font-sterling text-lg font-medium text-akiba-ink">Developers</h2>

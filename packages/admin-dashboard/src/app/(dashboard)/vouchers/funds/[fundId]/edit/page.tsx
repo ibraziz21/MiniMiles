@@ -2,17 +2,24 @@ import { notFound, redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { minorToKes } from "@/lib/voucherFunds";
-import { PageHeader } from "@/components/shell/PageHeader";
+import { VoucherHeader } from "@/components/vouchers/VoucherHeader";
+import { voucherCanvas } from "@/components/vouchers/VoucherUi";
 import { FundForm } from "@/components/vouchers/FundForm";
 
-export default async function EditVoucherFundPage({ params }: { params: Promise<{ fundId: string }> }) {
+export default async function EditVoucherFundPage({
+  params,
+}: {
+  params: Promise<{ fundId: string }>;
+}) {
   const session = await requireAdminSession("voucher_funds.write");
   if (!session) redirect("/login");
   const { fundId } = await params;
 
   const { data: fund } = await supabase
     .from("voucher_funding_programs")
-    .select("id, version, name, sponsorship_label, country_code, authorized_budget_minor, starts_at, ends_at, cost_center_reference, state, metadata")
+    .select(
+      "id, version, name, sponsorship_label, country_code, authorized_budget_minor, starts_at, ends_at, cost_center_reference, state, metadata"
+    )
     .eq("id", fundId)
     .single();
 
@@ -22,8 +29,13 @@ export default async function EditVoucherFundPage({ params }: { params: Promise<
   }
 
   return (
-    <div>
-      <PageHeader title={`Edit ${fund.name}`} subtitle="Only draft funds can be edited" />
+    <div className={voucherCanvas}>
+      <VoucherHeader
+        title="Edit Fund"
+        backHref={`/vouchers/funds/${fundId}`}
+        name={session.name}
+        role={session.role}
+      />
       <FundForm
         initial={{
           id: fund.id,
@@ -35,7 +47,9 @@ export default async function EditVoucherFundPage({ params }: { params: Promise<
           startsAt: fund.starts_at,
           endsAt: fund.ends_at,
           costCenterReference: fund.cost_center_reference ?? "",
-          campaignTitle: (fund.metadata as { public_campaign_title?: string } | null)?.public_campaign_title ?? "",
+          campaignTitle:
+            (fund.metadata as { public_campaign_title?: string } | null)
+              ?.public_campaign_title ?? "",
           notes: (fund.metadata as { notes?: string } | null)?.notes ?? "",
         }}
       />
