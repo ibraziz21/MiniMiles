@@ -11,16 +11,20 @@ import {
   minorToKes,
   type MerchantReadiness,
 } from "@/lib/voucherFunds";
-import { PageHeader } from "@/components/shell/PageHeader";
+import Link from "next/link";
+import { VoucherHeader } from "@/components/vouchers/VoucherHeader";
+import { voucherCanvas } from "@/components/vouchers/VoucherUi";
 import { DetailHeader } from "@/components/shell/DetailHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AllocationActions } from "@/components/vouchers/AllocationActions";
-import { IssuedVouchersPanel, type IssuedVoucherRow } from "@/components/vouchers/IssuedVouchersPanel";
-import { getVoucherMemberDetails } from "@/lib/voucherMemberDetails";
+import { voucherReadAll } from "@/lib/voucherCatalogue";
 import { formatDateTime, formatMoney, formatNumber } from "@/lib/utils";
 
-const STATE_VARIANT: Record<string, "secondary" | "success" | "warning" | "destructive" | "outline"> = {
+const STATE_VARIANT: Record<
+  string,
+  "secondary" | "success" | "warning" | "destructive" | "outline"
+> = {
   draft: "secondary",
   pending_approval: "warning",
   approved: "outline",
@@ -40,60 +44,46 @@ export default async function VoucherAllocationDetailPage({
   if (!session) redirect("/login");
   const { fundId, allocationId } = await params;
 
-  const [{ data: allocation, error: allocationError }, { data: availability }, { data: issuedVouchers }] = await Promise.all([
+  const [
+    { data: allocation, error: allocationError },
+    { data: availability },
+    issuedResult,
+  ] = await Promise.all([
     supabase
       .from("voucher_funding_allocations")
       .select(
-        `*, spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, description, ${ALLOCATION_BENEFIT_COLUMNS}, minimum_spend_kes, terms_text, active, lifecycle_state), partners!voucher_funding_allocations_merchant_id_fkey(name, country)`,
+        `*, spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, description, ${ALLOCATION_BENEFIT_COLUMNS}, minimum_spend_kes, terms_text, active, lifecycle_state), partners!voucher_funding_allocations_merchant_id_fkey(name, country)`
       )
       .eq("id", allocationId)
       .single(),
-    supabase.from("v_voucher_funding_allocation_availability").select("*").eq("allocation_id", allocationId).single(),
     supabase
-      .from("issued_vouchers")
-      .select("id, code, status, expires_at, created_at, revoked_reason, partners(name)")
-      .eq("funding_allocation_id", allocationId)
-      .order("created_at", { ascending: false })
-      .limit(200),
+      .from("v_voucher_funding_allocation_availability")
+      .select("*")
+      .eq("allocation_id", allocationId)
+      .single(),
+    voucherReadAll((from, to) =>
+      supabase
+        .from("issued_vouchers")
+        .select("status")
+        .eq("funding_allocation_id", allocationId)
+        .order("id")
+        .range(from, to)
+    )
+      .then((data) => ({ data, error: null }))
+      .catch(() => ({ data: [], error: true })),
   ]);
 
-  if (allocationError && allocationError.code !== "PGRST116") throw new Error("Allocation details are temporarily unavailable");
+  if (allocationError && allocationError.code !== "PGRST116")
+    throw new Error("Allocation details are temporarily unavailable");
   if (!allocation || allocation.program_id !== fundId) notFound();
 
-  const memberDetailsByVoucher = await getVoucherMemberDetails(
-    (issuedVouchers ?? []).map((voucher) => voucher.id),
+  const statusCounts = issuedResult.data.reduce<Record<string, number>>(
+    (counts, row) => {
+      counts[row.status] = (counts[row.status] ?? 0) + 1;
+      return counts;
+    },
+    {}
   );
-
-  const voucherRows: IssuedVoucherRow[] = (issuedVouchers ?? []).map((v) => {
-    const row = v as unknown as {
-      id: string;
-      code: string;
-      status: string;
-      expires_at: string | null;
-      created_at: string;
-      revoked_reason: string | null;
-      partners: { name: string } | null;
-    };
-    const memberDetails = memberDetailsByVoucher.get(row.id);
-    return {
-      id: row.id,
-      code: row.code,
-      status: row.status,
-      expires_at: row.expires_at,
-      created_at: row.created_at,
-      revoked_reason: row.revoked_reason,
-      merchant_name: row.partners?.name ?? "Unknown merchant",
-      username: memberDetails?.username ?? null,
-      account_created_at: memberDetails?.accountCreatedAt ?? null,
-      account_age_days: memberDetails?.accountAgeDays ?? null,
-      country: memberDetails?.country ?? null,
-      spend_miles_earned: memberDetails?.spendMilesEarned ?? 0,
-    };
-  });
-  const statusCounts = voucherRows.reduce<Record<string, number>>((acc, v) => {
-    acc[v.status] = (acc[v.status] ?? 0) + 1;
-    return acc;
-  }, {});
 
   const template = allocation.spend_voucher_templates as {
     title: string;
@@ -107,14 +97,17 @@ export default async function VoucherAllocationDetailPage({
     active: boolean;
     lifecycle_state: string;
   } | null;
-  const merchant = allocation.partners as { name: string; country: string | null } | null;
+  const merchant = allocation.partners as {
+    name: string;
+    country: string | null;
+  } | null;
 
   // Participating merchants and whether each could honour the offer. Shown
   // before anyone clicks publish — the database refuses an unready publish,
   // but discovering that at the click is a worse experience than seeing it.
   const { data: readinessRows } = await supabase.rpc(
     VOUCHER_FUND_RPCS.allocationMerchantReadiness,
-    { p_allocation_id: allocationId },
+    { p_allocation_id: allocationId }
   );
   const readiness = (readinessRows ?? []) as MerchantReadiness[];
   const unreadyDescription = describeUnreadyMerchants(readiness);
@@ -124,21 +117,31 @@ export default async function VoucherAllocationDetailPage({
   const canPublish = hasPermission(session.role, "voucher_funds.publish");
 
   return (
-    <div>
-      <PageHeader title={merchant?.name ?? "Merchant allocation"} subtitle={template?.title ?? ""} />
-      <div className="space-y-6 p-4 sm:p-6">
+    <div className={voucherCanvas}>
+      <VoucherHeader
+        title="Allocation Details"
+        backHref={`/vouchers/funds/${fundId}`}
+        name={session.name}
+        role={session.role}
+      />
+      <div className="mx-auto max-w-3xl space-y-5 p-4 sm:p-6 [&>div]:border-0">
         <DetailHeader
           backHref={`/vouchers/funds/${fundId}`}
           backLabel="Back to fund"
           title={merchant?.name ?? "Merchant allocation"}
           subtitle={template?.title ?? undefined}
-          badges={<Badge variant={STATE_VARIANT[allocation.state] ?? "secondary"}>{allocation.state.replaceAll("_", " ")}</Badge>}
+          badges={
+            <Badge variant={STATE_VARIANT[allocation.state] ?? "secondary"}>
+              {allocation.state.replaceAll("_", " ")}
+            </Badge>
+          }
         />
 
         <Card>
           <CardHeader>
             <CardTitle>
-              Participating merchants{readiness.length > 1 ? ` (${readiness.length})` : ""}
+              Participating merchants
+              {readiness.length > 1 ? ` (${readiness.length})` : ""}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -148,7 +151,9 @@ export default async function VoucherAllocationDetailPage({
               </p>
             )}
             {readiness.length === 0 && (
-              <p className="text-sm text-ink-muted">No participating merchants resolved.</p>
+              <p className="text-sm text-ink-muted">
+                No participating merchants resolved.
+              </p>
             )}
             {readiness.map((merchant) => (
               <div
@@ -159,14 +164,20 @@ export default async function VoucherAllocationDetailPage({
                   <p className="truncate text-sm font-medium text-ink">
                     {merchant.merchant_name}
                     {merchant.is_primary && (
-                      <span className="ml-2 text-xs font-normal text-ink-muted">primary</span>
+                      <span className="ml-2 text-xs font-normal text-ink-muted">
+                        primary
+                      </span>
                     )}
                   </p>
-                  {merchant.reason && <p className="text-xs text-amber-800">{merchant.reason}</p>}
+                  {merchant.reason && (
+                    <p className="text-xs text-amber-800">{merchant.reason}</p>
+                  )}
                   {merchant.ready && !merchant.payout_destination_ready && (
                     // Advisory only: settlement allows a payable before a
                     // destination is on file.
-                    <p className="text-xs text-ink-muted">No payout destination on file yet</p>
+                    <p className="text-xs text-ink-muted">
+                      No payout destination on file yet
+                    </p>
                   )}
                 </div>
                 <Badge variant={merchant.ready ? "secondary" : "destructive"}>
@@ -195,22 +206,103 @@ export default async function VoucherAllocationDetailPage({
                   : "—"
               }
             />
-            <Stat label="Business offers" value={allocation.metadata?.show_in_business_offers === true ? "Shown" : "Hidden"} />
-            <Stat label="Use on" value={redemptionScheduleLabel(allocation.metadata?.redemption_schedule ?? null)} />
-            <Stat label="Minimum purchase" value={`KES ${template?.minimum_spend_kes ?? 0}`} />
-            <Stat label="Quantity" value={formatNumber(allocation.quantity_cap)} />
-            <Stat label="Max exposure" value={formatMoney(minorToKes(allocation.authorized_budget_minor), "KES")} />
-            <Stat label="Issued" value={formatNumber(availability?.quantity_claimed_total ?? 0)} />
-            <Stat label="Remaining" value={formatNumber(availability?.quantity_remaining ?? allocation.quantity_cap)} />
-            <Stat label="Redeemed" value={formatNumber(statusCounts.redeemed ?? 0)} />
-            <Stat label="Expired" value={formatNumber(statusCounts.expired ?? 0)} />
-            <Stat label="Revoked" value={formatNumber(statusCounts.revoked ?? 0)} />
-            <Stat label="Active reserved" value={formatMoney(minorToKes(availability?.active_reserved_minor ?? 0), "KES")} />
-            <Stat label="Available budget" value={formatMoney(minorToKes(availability?.available_budget_minor ?? 0), "KES")} />
-            <Stat label="Claim window" value={`${formatDateTime(allocation.claim_starts_at)} → ${formatDateTime(allocation.claim_ends_at)}`} />
-            <Stat label="Voucher validity" value={`${Math.round(allocation.voucher_validity_seconds / 86400)} days after claim`} />
-            <Stat label="Distribution" value={allocation.distribution_modes.join(", ")} />
-            <Stat label="Recycles expired inventory" value={allocation.recycle_expired_inventory ? "Yes" : "No"} />
+            <Stat
+              label="Business offers"
+              value={
+                allocation.metadata?.show_in_business_offers === true
+                  ? "Shown"
+                  : "Hidden"
+              }
+            />
+            <Stat
+              label="Use on"
+              value={redemptionScheduleLabel(
+                allocation.metadata?.redemption_schedule ?? null
+              )}
+            />
+            <Stat
+              label="Minimum purchase"
+              value={`KES ${template?.minimum_spend_kes ?? 0}`}
+            />
+            <Stat
+              label="Quantity"
+              value={formatNumber(allocation.quantity_cap)}
+            />
+            <Stat
+              label="Max exposure"
+              value={formatMoney(
+                minorToKes(allocation.authorized_budget_minor),
+                "KES"
+              )}
+            />
+            <Stat
+              label="Issued"
+              value={formatNumber(availability?.quantity_claimed_total ?? 0)}
+            />
+            <Stat
+              label="Remaining"
+              value={formatNumber(
+                availability?.quantity_remaining ?? allocation.quantity_cap
+              )}
+            />
+            <Stat
+              label="Redeemed"
+              value={
+                issuedResult.error
+                  ? "Unavailable"
+                  : formatNumber(statusCounts.redeemed ?? 0)
+              }
+            />
+            <Stat
+              label="Expired"
+              value={
+                issuedResult.error
+                  ? "Unavailable"
+                  : formatNumber(statusCounts.expired ?? 0)
+              }
+            />
+            <Stat
+              label="Revoked"
+              value={
+                issuedResult.error
+                  ? "Unavailable"
+                  : formatNumber(statusCounts.revoked ?? 0)
+              }
+            />
+            <Stat
+              label="Active reserved"
+              value={formatMoney(
+                minorToKes(availability?.active_reserved_minor ?? 0),
+                "KES"
+              )}
+            />
+            <Stat
+              label="Available budget"
+              value={formatMoney(
+                minorToKes(availability?.available_budget_minor ?? 0),
+                "KES"
+              )}
+            />
+            <Stat
+              label="Claim window"
+              value={`${formatDateTime(
+                allocation.claim_starts_at
+              )} → ${formatDateTime(allocation.claim_ends_at)}`}
+            />
+            <Stat
+              label="Voucher validity"
+              value={`${Math.round(
+                allocation.voucher_validity_seconds / 86400
+              )} days after claim`}
+            />
+            <Stat
+              label="Distribution"
+              value={allocation.distribution_modes.join(", ")}
+            />
+            <Stat
+              label="Recycles expired inventory"
+              value={allocation.recycle_expired_inventory ? "Yes" : "No"}
+            />
           </CardContent>
         </Card>
 
@@ -230,7 +322,9 @@ export default async function VoucherAllocationDetailPage({
             </CardHeader>
             <CardContent className="space-y-1 text-sm text-ink-muted">
               <p>{template.description}</p>
-              {template.terms_text && <p className="text-xs text-ink-muted">{template.terms_text}</p>}
+              {template.terms_text && (
+                <p className="text-xs text-ink-muted">{template.terms_text}</p>
+              )}
             </CardContent>
           </Card>
         )}
@@ -240,7 +334,12 @@ export default async function VoucherAllocationDetailPage({
             <CardTitle>Issued vouchers</CardTitle>
           </CardHeader>
           <CardContent>
-            <IssuedVouchersPanel fundId={fundId} vouchers={voucherRows} canRevoke={canPublish} />
+            <Link
+              href={`/vouchers/issued?allocation=${allocationId}&fund=${fundId}`}
+              className="inline-flex min-h-11 items-center text-sm font-medium text-primary"
+            >
+              View issued vouchers
+            </Link>
           </CardContent>
         </Card>
       </div>

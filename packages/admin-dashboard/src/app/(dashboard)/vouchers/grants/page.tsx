@@ -1,39 +1,64 @@
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { ALLOCATION_BENEFIT_COLUMNS, allocationBenefitLabel } from "@/lib/voucherFunds";
-import { PageHeader } from "@/components/shell/PageHeader";
-import { IssueVoucherFlow, type GrantAllocationOption } from "@/components/vouchers/IssueVoucherFlow";
+import {
+  ALLOCATION_BENEFIT_COLUMNS,
+  allocationBenefitLabel,
+} from "@/lib/voucherFunds";
+import { VoucherHeader } from "@/components/vouchers/VoucherHeader";
+import { voucherCanvas } from "@/components/vouchers/VoucherUi";
+import { voucherReadAll } from "@/lib/voucherCatalogue";
+import {
+  IssueVoucherFlow,
+  type GrantAllocationOption,
+} from "@/components/vouchers/IssueVoucherFlow";
 
 async function getGrantableAllocations(): Promise<GrantAllocationOption[]> {
-  const [{ data: allocations }, { data: availability }] = await Promise.all([
-    supabase
-      .from("voucher_funding_allocations")
-      .select(`id, program_id, state, distribution_modes, claim_ends_at, max_reimbursement_minor, partners!voucher_funding_allocations_merchant_id_fkey(name), voucher_funding_programs(name, currency), spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, ${ALLOCATION_BENEFIT_COLUMNS}, minimum_spend_kes)`)
-      .in("state", ["active", "scheduled"])
-      .contains("distribution_modes", ["internal_grant"])
-      .order("claim_ends_at", { ascending: true }),
-    supabase.from("v_voucher_funding_allocation_availability").select("allocation_id, quantity_remaining, available_budget_minor"),
+  const [allocations, availability] = await Promise.all([
+    voucherReadAll((from, to) =>
+      supabase
+        .from("voucher_funding_allocations")
+        .select(
+          `id, program_id, state, distribution_modes, voucher_validity_seconds, claim_ends_at, max_reimbursement_minor, partners!voucher_funding_allocations_merchant_id_fkey(name), voucher_funding_programs(name, currency), spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, ${ALLOCATION_BENEFIT_COLUMNS}, minimum_spend_kes)`
+        )
+        .in("state", ["active", "scheduled"])
+        .contains("distribution_modes", ["internal_grant"])
+        .order("claim_ends_at", { ascending: true })
+        .order("id")
+        .range(from, to)
+    ),
+    voucherReadAll((from, to) =>
+      supabase
+        .from("v_voucher_funding_allocation_availability")
+        .select("allocation_id, quantity_remaining, available_budget_minor")
+        .order("allocation_id")
+        .range(from, to)
+    ),
   ]);
 
-  const availabilityByAllocation = new Map((availability ?? []).map((row) => [row.allocation_id, row]));
-  return ((allocations ?? []) as unknown as Array<{
-    id: string;
-    program_id: string;
-    state: string;
-    claim_ends_at: string;
-    max_reimbursement_minor: number;
-    partners: { name: string } | null;
-    voucher_funding_programs: { name: string; currency: string } | null;
-    spend_voucher_templates: {
-      title: string;
-      voucher_type: string | null;
-      discount_kes: number | null;
-      discount_percent: number | null;
-      maximum_discount_kes: number | null;
-      minimum_spend_kes: number;
-    } | null;
-  }>).map((allocation) => ({
+  const availabilityByAllocation = new Map(
+    (availability ?? []).map((row) => [row.allocation_id, row])
+  );
+  return (
+    (allocations ?? []) as unknown as Array<{
+      id: string;
+      program_id: string;
+      state: string;
+      claim_ends_at: string;
+      max_reimbursement_minor: number;
+      voucher_validity_seconds: number | null;
+      partners: { name: string } | null;
+      voucher_funding_programs: { name: string; currency: string } | null;
+      spend_voucher_templates: {
+        title: string;
+        voucher_type: string | null;
+        discount_kes: number | null;
+        discount_percent: number | null;
+        maximum_discount_kes: number | null;
+        minimum_spend_kes: number;
+      } | null;
+    }>
+  ).map((allocation) => ({
     id: allocation.id,
     fundId: allocation.program_id,
     fundName: allocation.voucher_funding_programs?.name ?? "Voucher fund",
@@ -45,15 +70,24 @@ async function getGrantableAllocations(): Promise<GrantAllocationOption[]> {
     benefitLabel: allocationBenefitLabel({
       voucherType: allocation.spend_voucher_templates?.voucher_type ?? null,
       discountKes: allocation.spend_voucher_templates?.discount_kes ?? null,
-      discountPercent: allocation.spend_voucher_templates?.discount_percent ?? null,
-      maximumDiscountKes: allocation.spend_voucher_templates?.maximum_discount_kes ?? null,
+      discountPercent:
+        allocation.spend_voucher_templates?.discount_percent ?? null,
+      maximumDiscountKes:
+        allocation.spend_voucher_templates?.maximum_discount_kes ?? null,
     }),
-    minimumSpendKes: Number(allocation.spend_voucher_templates?.minimum_spend_kes ?? 0),
+    minimumSpendKes: Number(
+      allocation.spend_voucher_templates?.minimum_spend_kes ?? 0
+    ),
     maximumReimbursementMinor: Number(allocation.max_reimbursement_minor ?? 0),
     currency: allocation.voucher_funding_programs?.currency ?? "KES",
     expiresAt: allocation.claim_ends_at,
-    quantityRemaining: Number(availabilityByAllocation.get(allocation.id)?.quantity_remaining ?? 0),
-    availableBudgetMinor: Number(availabilityByAllocation.get(allocation.id)?.available_budget_minor ?? 0),
+    voucherValiditySeconds: allocation.voucher_validity_seconds,
+    quantityRemaining: Number(
+      availabilityByAllocation.get(allocation.id)?.quantity_remaining ?? 0
+    ),
+    availableBudgetMinor: Number(
+      availabilityByAllocation.get(allocation.id)?.available_budget_minor ?? 0
+    ),
   }));
 }
 
@@ -61,14 +95,32 @@ export default async function VoucherGrantsPage() {
   const session = await requireAdminSession("voucher_funds.grant");
   if (!session) redirect("/login");
 
-  const allocations = await getGrantableAllocations();
+  let allocations: GrantAllocationOption[] = [];
+  let unavailable = false;
+  try {
+    allocations = await getGrantableAllocations();
+  } catch {
+    unavailable = true;
+  }
 
   return (
-    <div>
-      <PageHeader title="Issue voucher" subtitle="Issue one reimbursable voucher to an eligible member" />
-      <div className="p-4 sm:p-6">
+    <div className={voucherCanvas}>
+      <VoucherHeader
+        title="Issue voucher"
+        backHref="/vouchers"
+        name={session.name}
+        role={session.role}
+      />
+      {unavailable ? (
+        <p
+          role="alert"
+          className="m-4 rounded-card bg-white p-5 text-sm text-danger"
+        >
+          Voucher allocations could not be loaded. Refresh to try again.
+        </p>
+      ) : (
         <IssueVoucherFlow allocations={allocations} />
-      </div>
+      )}
     </div>
   );
 }

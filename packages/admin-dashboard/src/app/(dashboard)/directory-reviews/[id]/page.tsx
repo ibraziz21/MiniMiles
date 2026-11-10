@@ -1,26 +1,31 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import {
-  CheckCircle2,
-  ExternalLink,
-  Globe2,
-  MapPin,
-  Store,
-  XCircle,
-} from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 import { PageHeader } from "@/components/shell/PageHeader";
-import { DetailHeader } from "@/components/shell/DetailHeader";
+import { MerchantProfilePreview } from "@/components/merchants/MerchantProfilePreview";
 import { DirectoryReviewActions } from "@/components/merchants/DirectoryReviewActions";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireAdminSession } from "@/lib/auth";
 import {
   directoryStatusLabel,
   type DirectoryStatus,
 } from "@/lib/merchant-directory-review";
+import { queueReturnPath, reviewHref } from "@/lib/queueNavigation";
+import { openingHoursRows, safePublicUrl } from "@/lib/reviewPresentation";
 import { supabase } from "@/lib/supabase";
 import { hasPermission } from "@/types";
-import { formatDateTime } from "@/lib/utils";
+
+function eatDate(value: string) {
+  return (
+    new Date(value).toLocaleString("en-KE", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Africa/Nairobi",
+    }) + " EAT"
+  );
+}
 
 interface CompletenessItem {
   code: string;
@@ -113,6 +118,12 @@ interface DirectoryPreview {
   coreOfferings: Offering[];
   locations: Location[];
   products: Product[];
+  merchantMedia?: Array<{
+    id: string;
+    imageUrl: string;
+    altText: string | null;
+    title: string | null;
+  }>;
   directoryStatus: DirectoryStatus;
 }
 
@@ -150,15 +161,6 @@ interface VoucherTemplate {
   active: boolean;
 }
 
-const STATUS_VARIANT: Record<string, "success" | "warning" | "destructive" | "secondary" | "outline"> = {
-  pending_review: "warning",
-  changes_requested: "destructive",
-  published: "success",
-  paused: "secondary",
-  suspended: "destructive",
-  draft: "outline",
-};
-
 function nonEmpty(values: Array<string | null | undefined>): string {
   return values.filter(Boolean).join(", ");
 }
@@ -169,29 +171,32 @@ function profileHref(slug: string): string | null {
 }
 
 async function getReviewDetail(id: string) {
-  const [settingsRes, completenessRes, previewRes, vouchersRes, eventsRes] = await Promise.all([
-    supabase
-      .from("partner_settings")
-      .select(
-        "partner_id, directory_status, directory_submitted_at, directory_published_at, directory_updated_at, partners(name, slug, status, type)",
-      )
-      .eq("partner_id", id)
-      .maybeSingle(),
-    supabase.rpc("compute_merchant_directory_completeness", { p_partner_id: id }),
-    supabase.rpc("preview_merchant_directory", { p_partner_id: id }),
-    supabase
-      .from("spend_voucher_templates")
-      .select("id, title, miles_cost, active")
-      .eq("partner_id", id)
-      .order("title"),
-    supabase
-      .from("merchant_directory_review_events")
-      .select(
-        "id, from_status, to_status, action, affected_sections, merchant_safe_message, internal_note, actor_type, actor_user_id, created_at",
-      )
-      .eq("partner_id", id)
-      .order("created_at", { ascending: false }),
-  ]);
+  const [settingsRes, completenessRes, previewRes, vouchersRes, eventsRes] =
+    await Promise.all([
+      supabase
+        .from("partner_settings")
+        .select(
+          "partner_id, directory_status, directory_submitted_at, directory_published_at, directory_updated_at, partners(name, slug, status, type)"
+        )
+        .eq("partner_id", id)
+        .maybeSingle(),
+      supabase.rpc("compute_merchant_directory_completeness", {
+        p_partner_id: id,
+      }),
+      supabase.rpc("preview_merchant_directory", { p_partner_id: id }),
+      supabase
+        .from("spend_voucher_templates")
+        .select("id, title, miles_cost, active")
+        .eq("partner_id", id)
+        .order("title"),
+      supabase
+        .from("merchant_directory_review_events")
+        .select(
+          "id, from_status, to_status, action, affected_sections, merchant_safe_message, internal_note, actor_type, actor_user_id, created_at"
+        )
+        .eq("partner_id", id)
+        .order("created_at", { ascending: false }),
+    ]);
 
   if (settingsRes.error || completenessRes.error || previewRes.error) {
     console.error("[directory-reviews] detail failed", {
@@ -199,9 +204,11 @@ async function getReviewDetail(id: string) {
       completeness: completenessRes.error?.message,
       preview: previewRes.error?.message,
     });
-    return null;
+    throw new Error("Profile sources unavailable");
   }
-  if (!settingsRes.data || !previewRes.data) return null;
+  if (!settingsRes.data) return null;
+  if (!previewRes.data || !completenessRes.data)
+    throw new Error("Profile sources unavailable");
 
   return {
     settings: settingsRes.data as unknown as SettingsRow,
@@ -209,410 +216,430 @@ async function getReviewDetail(id: string) {
     preview: previewRes.data as unknown as DirectoryPreview,
     vouchers: (vouchersRes.data ?? []) as VoucherTemplate[],
     events: (eventsRes.data ?? []) as ReviewEvent[],
+    eventsError: Boolean(eventsRes.error),
+    vouchersError: Boolean(vouchersRes.error),
   };
 }
 
 export default async function DirectoryReviewDetailPage({
   params,
+  searchParams,
 }: {
   params: { id: string };
+  searchParams: { returnTo?: string | string[]; preview?: string };
 }) {
   const session = await requireAdminSession("merchants.read");
   if (!session) redirect("/login");
-
-  const detail = await getReviewDetail(params.id);
+  const back = queueReturnPath(searchParams.returnTo);
+  let detail;
+  try {
+    detail = await getReviewDetail(params.id);
+  } catch {
+    return (
+      <div>
+        <PageHeader title="Merchant review" />
+        <div className="space-y-4 p-4 sm:p-6">
+          <Link
+            href={back}
+            className="inline-flex min-h-11 items-center text-sm text-primary"
+          >
+            {back.startsWith("/merchants/")
+              ? "Back to merchant"
+              : "Back to queue"}
+          </Link>
+          <div
+            role="alert"
+            className="rounded-card border border-border bg-white p-5"
+          >
+            <h2 className="text-lg font-semibold text-ink">
+              Couldn’t load this profile
+            </h2>
+            <a
+              href={reviewHref(params.id, back)}
+              className="mt-3 inline-flex min-h-11 items-center text-primary underline"
+            >
+              Try again
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (!detail) notFound();
-
   const { settings, completeness, preview, vouchers, events } = detail;
   const canWrite = hasPermission(session.role, "merchants.write");
+  const previewOnly = searchParams.preview === "1";
+  const reviewUrl = reviewHref(params.id, back);
+  if (previewOnly)
+    return (
+      <div>
+        <PageHeader title="Profile preview" />
+        <MerchantProfilePreview profile={preview} reviewUrl={reviewUrl} />
+      </div>
+    );
+  const media = [
+    preview.bannerUrl && {
+      url: safePublicUrl(preview.bannerUrl),
+      label: "Cover photo",
+    },
+    preview.logoUrl && {
+      url: safePublicUrl(preview.logoUrl),
+      label: "Business logo",
+    },
+  ].filter((item): item is { url: string; label: string } =>
+    Boolean(item && item.url)
+  );
+  const nextRes =
+    canWrite && !previewOnly
+      ? await supabase
+          .from("partner_settings")
+          .select("partner_id, partners(name)")
+          .eq("directory_status", "pending_review")
+          .neq("partner_id", params.id)
+          .order("directory_submitted_at")
+          .limit(1)
+      : null;
+  const nextRow = nextRes?.data?.[0];
+  const nextMerchant = nextRow
+    ? {
+        id: nextRow.partner_id as string,
+        name:
+          (nextRow.partners as unknown as { name: string } | null)?.name ??
+          "Next merchant",
+      }
+    : null;
+  const missing = completeness.sections.flatMap((section) => section.missing);
   const publicHref = profileHref(preview.slug);
-  const hasContact = Object.values(preview.contacts ?? {}).some(Boolean);
-
+  const website = safePublicUrl(preview.websiteUrl);
   return (
     <div>
-      <PageHeader
-        title={preview.name}
-        subtitle={`Public profile · ${directoryStatusLabel(settings.directory_status)}`}
-      />
-      <div className="space-y-6 p-4 sm:p-6">
-        <DetailHeader
-          backHref="/directory-reviews"
-          backLabel="Back to profile reviews"
-          title={preview.name}
-          subtitle={directoryStatusLabel(settings.directory_status)}
-          actions={
-            <div className="flex items-center gap-3">
-              <Link
-                href={`/merchants/${params.id}`}
-                className="text-sm font-medium text-primary hover:text-primary-strong"
-              >
-                Merchant account
-              </Link>
-              {publicHref && settings.directory_status === "published" && (
+      <PageHeader title={previewOnly ? "Profile preview" : "Merchant review"} />
+      <div className="mx-auto max-w-4xl space-y-5 p-4 pb-24 sm:p-6 sm:pb-24 lg:pb-6">
+        <Link
+          href={previewOnly ? reviewUrl : back}
+          className="inline-flex min-h-11 items-center gap-2 rounded-control text-sm font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          {back.startsWith("/directory-reviews") ? "Merchant reviews" : "Queue"}
+        </Link>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="break-words text-2xl font-semibold tracking-tight text-ink">
+              {preview.name}
+            </h2>
+            <p className="mt-2 text-sm text-ink-muted">
+              {settings.directory_status === "pending_review"
+                ? `${
+                    settings.directory_published_at
+                      ? "Profile update"
+                      : "New profile"
+                  } · `
+                : ""}
+              {directoryStatusLabel(settings.directory_status)}
+              {settings.directory_submitted_at
+                ? ` · Submitted ${eatDate(settings.directory_submitted_at)}`
+                : ""}
+            </p>
+          </div>
+          {!previewOnly && (
+            <Link
+              href={`${reviewUrl}&preview=1`}
+              className="inline-flex min-h-11 items-center gap-2 rounded-control bg-primary/10 px-3 text-sm font-medium text-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              Preview profile
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          )}
+        </div>
+        {settings.directory_status === "pending_review" &&
+          settings.directory_published_at && (
+            <p className="text-sm text-ink-muted">
+              Showing submitted details. The previous version isn’t available
+              for comparison.
+            </p>
+          )}
+        {!previewOnly && missing.length > 0 && (
+          <div className="rounded-control border border-warning/30 bg-warning/5 p-4">
+            <h3 className="font-medium text-ink">Missing information</h3>
+            <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-ink-muted">
+              {missing.map((item) => (
+                <li key={`${item.code}-${item.field}`}>{item.message}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {media.length > 0 && (
+          <section
+            aria-labelledby="photos-title"
+            className="border-t border-border pt-5"
+          >
+            <h3
+              id="photos-title"
+              className="mb-3 text-lg font-semibold text-ink"
+            >
+              Photos
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              {media.map((photo) => (
                 <a
-                  href={publicHref}
+                  key={photo.label}
+                  href={photo.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-primary-strong"
+                  aria-label={`Open ${photo.label.toLowerCase()} in a new tab`}
+                  className="overflow-hidden rounded-control border border-border bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 >
-                  Open in Hub <ExternalLink className="h-3.5 w-3.5" />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={photo.url}
+                    alt={`${preview.name} ${photo.label.toLowerCase()}`}
+                    width={480}
+                    height={320}
+                    className="aspect-[3/2] w-full object-cover"
+                  />
+                  <span className="block px-3 py-2 text-sm text-ink-muted">
+                    {photo.label}
+                  </span>
                 </a>
-              )}
-            </div>
-          }
-        />
-
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-ink-muted">Directory status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Badge variant={STATUS_VARIANT[settings.directory_status] ?? "secondary"}>
-                {directoryStatusLabel(settings.directory_status)}
-              </Badge>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-ink-muted">Completeness</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold text-ink">
-                {completeness.completedCount}/{completeness.requiredCount}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-ink-muted">Submitted</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm font-medium text-ink">
-                {formatDateTime(settings.directory_submitted_at)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-ink-muted">Account eligibility</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {settings.partners?.status === "active" && settings.partners?.type === "merchant" ? (
-                <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-600">
-                  <CheckCircle2 className="h-4 w-4" /> Active merchant
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 text-sm font-medium text-red-600">
-                  <XCircle className="h-4 w-4" /> Not eligible
-                </span>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Completeness checks</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            {completeness.sections.map((section) => (
-              <div
-                key={section.key}
-                className={`rounded-card border p-3 ${
-                  section.complete
-                    ? "border-emerald-200 bg-emerald-50"
-                    : "border-red-200 bg-red-50"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  {section.complete ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  ) : (
-                    <XCircle className="h-4 w-4 text-red-600" />
-                  )}
-                  <p className="text-sm font-medium text-ink">{section.label}</p>
-                </div>
-                {section.missing.map((item) => (
-                  <p key={item.code} className="mt-2 text-xs text-red-700">{item.message}</p>
-                ))}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Business identity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-5 sm:flex-row">
-              <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-card border border-border bg-surface-subtle">
-                {preview.logoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={preview.logoUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <Store className="h-8 w-8 text-ink-muted" />
-                )}
-              </div>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-lg font-semibold text-ink">{preview.name}</p>
-                  <p className="text-sm text-ink-muted">/{preview.slug}</p>
-                </div>
-                <p className="text-sm font-medium text-ink">{preview.shortDescription ?? "—"}</p>
-                <p className="max-w-4xl whitespace-pre-wrap text-sm leading-6 text-ink-muted">
-                  {preview.description ?? "No description supplied."}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary">{preview.operatingModel}</Badge>
-                  <Badge variant={preview.storeActive ? "success" : "outline"}>
-                    Storefront {preview.storeActive ? "active" : "inactive"}
-                  </Badge>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Categories</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              {preview.categories.map((category) => (
-                <Badge
-                  key={category.slug}
-                  variant={category.slug === preview.primaryCategory?.slug ? "default" : "secondary"}
-                >
-                  {category.name}
-                  {category.slug === preview.primaryCategory?.slug ? " · Primary" : ""}
-                </Badge>
               ))}
-              {preview.categories.length === 0 && (
-                <p className="text-sm text-ink-muted">No categories supplied.</p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Public contact</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              {!hasContact && <p className="text-ink-muted">No public contact supplied.</p>}
-              {preview.contacts.phone && <p><span className="text-ink-muted">Phone:</span> {preview.contacts.phone}</p>}
-              {preview.contacts.email && <p><span className="text-ink-muted">Email:</span> {preview.contacts.email}</p>}
-              {preview.contacts.whatsapp && <p><span className="text-ink-muted">WhatsApp:</span> {preview.contacts.whatsapp}</p>}
-              {preview.websiteUrl && (
-                <p>
-                  <span className="text-ink-muted">Website:</span>{" "}
-                  <a href={preview.websiteUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                    {preview.websiteUrl}
-                  </a>
-                </p>
-              )}
-              {preview.contacts.instagram && <p><span className="text-ink-muted">Instagram:</span> {preview.contacts.instagram}</p>}
-              {preview.contacts.facebook && <p><span className="text-ink-muted">Facebook:</span> {preview.contacts.facebook}</p>}
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Core offerings ({preview.coreOfferings.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {preview.coreOfferings.map((offering) => (
-              <div key={offering.id} className="rounded-card border border-border p-3">
-                <p className="text-sm font-medium text-ink">{offering.name}</p>
-                {offering.description && (
-                  <p className="mt-1 text-xs leading-5 text-ink-muted">{offering.description}</p>
-                )}
-              </div>
-            ))}
-            {preview.coreOfferings.length === 0 && (
-              <p className="text-sm text-ink-muted">No core offerings supplied.</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Locations and branches ({preview.locations.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {preview.locations.map((location) => (
-              <div key={location.id} className="rounded-card border border-border p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-primary" />
-                      <p className="font-medium text-ink">{location.name}</p>
-                      {location.isPrimary && <Badge>Primary</Badge>}
-                    </div>
-                    <p className="mt-2 text-sm text-ink-muted">
-                      {nonEmpty([
-                        location.addressLine1,
-                        location.addressLine2,
-                        location.building,
-                        location.floorOrUnit,
-                        location.locality,
-                        location.city,
-                        location.countyOrRegion,
-                        location.postalCode,
-                        location.countryCode,
-                      ]) || "No address supplied"}
+            </div>
+          </section>
+        )}
+        <section className="border-t border-border pt-5">
+          <h3 className="text-lg font-semibold text-ink">Description</h3>
+          <p className="mt-3 whitespace-pre-line break-words text-base leading-relaxed text-ink-muted">
+            {preview.description ??
+              preview.shortDescription ??
+              "No description supplied."}
+          </p>
+          {preview.categories.length > 0 && (
+            <p className="mt-3 text-sm text-ink-muted">
+              {preview.categories.map((category) => category.name).join(", ")}
+            </p>
+          )}
+        </section>
+        <section className="border-t border-border pt-5">
+          <h3 className="text-lg font-semibold text-ink">Locations & hours</h3>
+          {preview.locations.length ? (
+            <div className="divide-y divide-border">
+              {preview.locations.map((location) => (
+                <div key={location.id} className="space-y-3 py-4">
+                  <h4 className="font-medium text-ink">
+                    {location.name}
+                    {location.isPrimary ? " · Primary" : ""}
+                  </h4>
+                  <p className="break-words text-base leading-relaxed text-ink-muted">
+                    {nonEmpty([
+                      location.addressLine1,
+                      location.addressLine2,
+                      location.building,
+                      location.floorOrUnit,
+                      location.locality,
+                      location.city,
+                      location.countyOrRegion,
+                      location.countryCode,
+                    ]) || "No address supplied."}
+                  </p>
+                  {location.landmark && (
+                    <p className="text-sm text-ink-muted">
+                      {location.landmark}
                     </p>
-                    {location.landmark && (
-                      <p className="mt-1 text-xs text-ink-muted">Landmark: {location.landmark}</p>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant={location.isPubliclyConfirmed ? "success" : "destructive"}>
-                      {location.isPubliclyConfirmed ? "Public location confirmed" : "Not confirmed"}
-                    </Badge>
-                    {location.acceptsAkibaPass && <Badge variant="secondary">Akiba Pass</Badge>}
-                    {location.acceptsVouchers && <Badge variant="secondary">Vouchers</Badge>}
-                  </div>
-                </div>
-
-                <div className="mt-3 grid gap-3 text-xs text-ink-muted md:grid-cols-2">
-                  <div>
-                    <p>Phone: {location.publicPhone ?? "—"}</p>
-                    <p>Email: {location.publicEmail ?? "—"}</p>
-                    <p>WhatsApp: {location.publicWhatsapp ?? "—"}</p>
-                  </div>
-                  <div>
-                    <p>Coordinates: {location.latitude != null && location.longitude != null ? `${location.latitude}, ${location.longitude}` : "—"}</p>
-                    <p>Timezone: {location.timezone ?? "—"}</p>
-                    {location.mapsUrl && (
-                      <a href={location.mapsUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
-                        Open map <ExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
-                  </div>
-                </div>
-                <details className="mt-3">
-                  <summary className="cursor-pointer text-xs font-medium text-ink-muted">
-                    Inspect opening hours
-                  </summary>
-                  <pre className="mt-2 overflow-x-auto rounded-card bg-surface-subtle p-3 text-xs text-ink-muted">
-                    {JSON.stringify(location.openingHours ?? {}, null, 2)}
-                  </pre>
-                </details>
-              </div>
-            ))}
-            {preview.locations.length === 0 && (
-              <div className="flex items-center gap-2 text-sm text-ink-muted">
-                <Globe2 className="h-4 w-4" />
-                Online-only profile; no public branch supplied.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Storefront products ({preview.products.length})</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {preview.products.map((product) => (
-                <div key={product.id} className="flex items-start justify-between gap-3 rounded-card border border-border p-3">
-                  <div>
-                    <p className="text-sm font-medium text-ink">{product.name}</p>
-                    <p className="text-xs text-ink-muted">{product.category ?? product.productType ?? "Uncategorised"}</p>
-                  </div>
-                  <p className="whitespace-nowrap text-sm font-medium text-ink">${product.priceCusd}</p>
+                  )}
+                  {safePublicUrl(location.mapsUrl) && (
+                    <a
+                      href={safePublicUrl(location.mapsUrl)!}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-primary"
+                    >
+                      Open map
+                      <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                    </a>
+                  )}
+                  <dl className="space-y-1 text-sm text-ink-muted">
+                    {openingHoursRows(location.openingHours).map((row) => (
+                      <div key={row.day} className="flex justify-between gap-3">
+                        <dt>{row.day}</dt>
+                        <dd>{row.hours}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  {location.publicPhone && (
+                    <p className="break-words text-sm text-ink-muted">
+                      Phone: {location.publicPhone}
+                    </p>
+                  )}
+                  {location.publicEmail && (
+                    <p className="break-words text-sm text-ink-muted">
+                      Email: {location.publicEmail}
+                    </p>
+                  )}
                 </div>
               ))}
-              {preview.products.length === 0 && (
+            </div>
+          ) : (
+            <p className="mt-3 text-base text-ink-muted">
+              No public branch supplied.
+            </p>
+          )}
+        </section>
+        <section className="border-t border-border pt-5">
+          <h3 className="text-lg font-semibold text-ink">Contact details</h3>
+          <dl className="mt-3 space-y-3 text-base text-ink-muted">
+            {Object.entries(preview.contacts ?? {})
+              .filter(([, value]) => value)
+              .map(([label, value]) => (
+                <div key={label}>
+                  <dt className="text-sm capitalize">{label}</dt>
+                  <dd className="break-words text-ink">{value}</dd>
+                </div>
+              ))}
+            {website && (
+              <div>
+                <dt className="text-sm">Website</dt>
+                <dd>
+                  <a
+                    href={website}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex min-h-11 items-center break-all text-primary underline"
+                  >
+                    {website}
+                  </a>
+                </dd>
+              </div>
+            )}
+            {!Object.values(preview.contacts ?? {}).some(Boolean) &&
+              !website && <p>No public contact supplied.</p>}
+          </dl>
+        </section>
+        {preview.coreOfferings.length > 0 && (
+          <section className="border-t border-border pt-5">
+            <h3 className="text-lg font-semibold text-ink">Offerings</h3>
+            <ul className="mt-3 space-y-3">
+              {preview.coreOfferings.map((item) => (
+                <li key={item.id}>
+                  <p className="font-medium text-ink">{item.name}</p>
+                  {item.description && (
+                    <p className="mt-1 text-sm text-ink-muted">
+                      {item.description}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        {!previewOnly && (
+          <>
+            <section
+              aria-label="Review decision"
+              className="rounded-card border border-border bg-white p-4 sm:p-5"
+            >
+              {canWrite ? (
+                <DirectoryReviewActions
+                  key={params.id}
+                  merchantId={params.id}
+                  merchantName={preview.name}
+                  status={settings.directory_status}
+                  canPublish={
+                    completeness.complete &&
+                    settings.partners?.status === "active"
+                  }
+                  profilePreviewHref={`${reviewUrl}&preview=1`}
+                  returnTo={back}
+                  nextMerchant={nextMerchant}
+                />
+              ) : (
                 <p className="text-sm text-ink-muted">
-                  No active products, or the merchant storefront is inactive.
+                  Read-only access. An operations admin must make this decision.
                 </p>
               )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Voucher templates ({vouchers.length})</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {vouchers.map((voucher) => (
-                <div key={voucher.id} className="flex items-center justify-between rounded-card border border-border p-3">
-                  <div>
-                    <p className="text-sm font-medium text-ink">{voucher.title}</p>
-                    <p className="text-xs text-ink-muted">{voucher.miles_cost} miles</p>
-                  </div>
-                  <Badge variant={voucher.active ? "success" : "secondary"}>
-                    {voucher.active ? "Active" : "Inactive"}
-                  </Badge>
+            </section>
+            <details className="rounded-card border border-border bg-white p-4">
+              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                More details & history
+              </summary>
+              <div className="space-y-5 pt-3">
+                <div className="flex flex-wrap gap-3">
+                  <Link
+                    href={`/merchants/${params.id}`}
+                    className="inline-flex min-h-11 items-center text-sm font-medium text-primary"
+                  >
+                    Merchant account
+                  </Link>
+                  {publicHref && settings.directory_status === "published" && (
+                    <a
+                      href={publicHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex min-h-11 items-center text-sm font-medium text-primary"
+                    >
+                      View public profile
+                    </a>
+                  )}
                 </div>
-              ))}
-              {vouchers.length === 0 && <p className="text-sm text-ink-muted">No vouchers offered.</p>}
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Review decision</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {canWrite ? (
-              <DirectoryReviewActions merchantId={params.id} status={settings.directory_status} />
-            ) : (
-              <p className="text-sm text-ink-muted">
-                You have read-only access. An operations admin must make the review decision.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Profile review history</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {events.map((event) => (
-              <div key={event.id} className="rounded-card border border-border bg-surface-subtle p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-medium text-ink">
-                    {directoryStatusLabel(event.action)}
-                    <span className="ml-2 font-normal text-ink-muted">
-                      {event.from_status ? `${directoryStatusLabel(event.from_status)} → ` : ""}
-                      {directoryStatusLabel(event.to_status)}
-                    </span>
-                  </p>
-                  <p className="text-xs text-ink-muted">{formatDateTime(event.created_at)}</p>
+                <div>
+                  <h3 className="font-medium text-ink">Vouchers</h3>
+                  {detail.vouchersError ? (
+                    <p className="mt-2 text-sm text-ink-muted">
+                      Vouchers unavailable.
+                    </p>
+                  ) : vouchers.length ? (
+                    <ul className="mt-2 space-y-2 text-sm text-ink-muted">
+                      {vouchers.map((voucher) => (
+                        <li key={voucher.id}>
+                          {voucher.title} · {voucher.miles_cost} Miles ·{" "}
+                          {voucher.active ? "Active" : "Inactive"}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-sm text-ink-muted">
+                      No vouchers offered.
+                    </p>
+                  )}
                 </div>
-                <p className="mt-1 text-xs text-ink-muted">
-                  Actor: {directoryStatusLabel(event.actor_type)}
-                  {event.actor_user_id ? ` · ${event.actor_user_id}` : ""}
-                </p>
-                {event.affected_sections.length > 0 && (
-                  <p className="mt-2 text-xs text-ink-muted">
-                    Sections: {event.affected_sections.map(directoryStatusLabel).join(", ")}
-                  </p>
-                )}
-                {event.merchant_safe_message && (
-                  <p className="mt-2 text-sm text-ink">
-                    <span className="font-medium">Merchant message:</span> {event.merchant_safe_message}
-                  </p>
-                )}
-                {event.internal_note && (
-                  <p className="mt-2 text-sm text-ink-muted">
-                    <span className="font-medium">Internal note:</span> {event.internal_note}
-                  </p>
-                )}
+                <div>
+                  <h3 className="font-medium text-ink">Review history</h3>
+                  {detail.eventsError ? (
+                    <p className="mt-2 text-sm text-ink-muted">
+                      History unavailable.
+                    </p>
+                  ) : events.length ? (
+                    <ul className="mt-2 divide-y divide-border">
+                      {events.map((event) => (
+                        <li key={event.id} className="space-y-1 py-3">
+                          <p className="text-sm font-medium text-ink">
+                            {directoryStatusLabel(event.action)} ·{" "}
+                            {directoryStatusLabel(event.to_status)}
+                          </p>
+                          <p className="text-xs text-ink-muted">
+                            {eatDate(event.created_at)}
+                          </p>
+                          {event.merchant_safe_message && (
+                            <p className="text-sm text-ink">
+                              {event.merchant_safe_message}
+                            </p>
+                          )}
+                          {event.internal_note && (
+                            <p className="text-sm text-ink-muted">
+                              Internal note: {event.internal_note}
+                            </p>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-sm text-ink-muted">
+                      No review history yet.
+                    </p>
+                  )}
+                </div>
               </div>
-            ))}
-            {events.length === 0 && <p className="text-sm text-ink-muted">No review events yet.</p>}
-          </CardContent>
-        </Card>
+            </details>
+          </>
+        )}
       </div>
     </div>
   );

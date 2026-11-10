@@ -40,9 +40,9 @@ const config: Config = {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
         // Shape scale — spec §8.3 (controls/cards/sheets)
-        control: "6px",
-        card: "10px",
-        sheet: "14px",
+        control: "12px",
+        card: "24px",
+        sheet: "24px",
       },
     },
   },

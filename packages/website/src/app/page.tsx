@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PlayStoreBadge } from "@/components/PlayStoreBadge";
+import { AppStoreBadges } from "@/components/AppStoreBadges";
 import { ArrowUpRight, BellRing, Check, Compass, Heart, Ticket, Wallet } from "lucide-react";
 import { ButtonLink } from "@/components/ButtonLink";
 import { Eyebrow } from "@/components/Eyebrow";
@@ -7,7 +7,7 @@ import { FaqAccordion } from "@/components/FaqAccordion";
 import { Panel } from "@/components/Panel";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { SectionHeader } from "@/components/SectionHeader";
-import { faqs, homeContent, pillars, siteConfig, APP_STORE_URL, PLAY_STORE_URL } from "@/content/site";
+import { faqs, homeContent, pillars, siteConfig } from "@/content/site";
 
 const pillarIcons = {
   discover: Compass,
@@ -24,7 +24,7 @@ export default function HomePage() {
     <main>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
         "@context": "https://schema.org", "@type": "SoftwareApplication", name: "Akiba",
-        applicationCategory: "ShoppingApplication", operatingSystem: "Android", installUrl: PLAY_STORE_URL,
+        applicationCategory: "ShoppingApplication", operatingSystem: "iOS, Android", installUrl: `${siteConfig.siteUrl}/download`,
         publisher: { "@type": "Organization", name: "Akiba Ecosystems Ltd" },
       }).replace(/</g, "\\u003c") }} />
       {/* Hero */}
@@ -44,7 +44,7 @@ export default function HomePage() {
                 {hero.secondaryCta}
               </ButtonLink>
             </div>
-            <PlayStoreBadge slot="hero" />
+            <AppStoreBadges slot="hero" />
             <ul className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-akiba-muted">
               {hero.assurances.map((item) => (
                 <li key={item} className="inline-flex items-center gap-1.5">
@@ -124,10 +124,7 @@ export default function HomePage() {
             </h2>
             <p className="max-w-xl text-lg leading-8 text-white/75">{app.body}</p>
 
-            <div className="flex flex-wrap gap-3">
-              <ButtonLink href={APP_STORE_URL} variant="onDark">Download on the App Store</ButtonLink>
-              <ButtonLink href={PLAY_STORE_URL} variant="onDark">Get it on Google Play</ButtonLink>
-            </div>
+            <AppStoreBadges slot="app_section" />
 
             <p className="text-sm text-white/60">
               {app.meanwhile} ·{" "}
@@ -267,7 +264,7 @@ export default function HomePage() {
             href="/for-business"
             className="inline-flex items-center gap-2 text-sm font-semibold text-akiba-teal no-underline"
           >
-            Become an Akiba merchant <ArrowUpRight className="h-4 w-4" />
+            Become an Akiba business <ArrowUpRight className="h-4 w-4" />
           </Link>
         </div>
       </Panel>

@@ -8,7 +8,7 @@ import { aboutContent, siteConfig } from "@/content/site";
 export const metadata: Metadata = {
   title: "About",
   description:
-    "Akiba is where shoppers find businesses worth going to and get rewarded for going. Merchant-funded Miles, portable vouchers, scheduled offers with reminders, and recommendations only verified customers can leave.",
+    "Akiba is where shoppers find businesses worth going to and get rewarded for going. Business-funded Miles, portable vouchers, scheduled offers with reminders, and recommendations only verified customers can leave.",
 };
 
 export default function AboutPage() {
@@ -32,7 +32,7 @@ export default function AboutPage() {
             />
             <PhoneFrame
               src="/app/merchant-profile.webp"
-              alt="An Akiba merchant profile with a verified visit recommendation"
+              alt="An Akiba business profile with a verified visit recommendation"
               className="hidden max-w-[220px] self-end sm:block"
             />
           </div>

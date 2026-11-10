@@ -12,6 +12,7 @@ interface MetricCardProps {
   icon?: LucideIcon;
   href?: string;
   className?: string;
+  compact?: boolean;
 }
 
 const TONE_CLASS: Record<NonNullable<MetricCardProps["tone"]>, string> = {
@@ -21,7 +22,9 @@ const TONE_CLASS: Record<NonNullable<MetricCardProps["tone"]>, string> = {
   success: "text-success",
 };
 
-const TONE_CARD_CLASS: Partial<Record<NonNullable<MetricCardProps["tone"]>, string>> = {
+const TONE_CARD_CLASS: Partial<
+  Record<NonNullable<MetricCardProps["tone"]>, string>
+> = {
   warning: "border-warning/30 bg-warning/5",
   danger: "border-danger/30 bg-danger/5",
 };
@@ -33,19 +36,59 @@ const TONE_ICON_CLASS: Record<NonNullable<MetricCardProps["tone"]>, string> = {
   success: "bg-success/10 text-success",
 };
 
-export function MetricCard({ label, value, sub, tone = "neutral", tintCard = false, icon: Icon, href, className }: MetricCardProps) {
+export function MetricCard({
+  label,
+  value,
+  sub,
+  tone = "neutral",
+  tintCard = false,
+  icon: Icon,
+  href,
+  className,
+  compact = false,
+}: MetricCardProps) {
   const content = (
-    <Card className={cn("h-full border-border bg-surface", tintCard && TONE_CARD_CLASS[tone], className)}>
-      <CardHeader className="flex-row items-center justify-between gap-2 p-4 pb-2 sm:p-6 sm:pb-2">
-        <CardTitle className="text-sm font-medium text-ink-muted">{label}</CardTitle>
+    <Card
+      className={cn(
+        "h-full border-border bg-surface",
+        tintCard && TONE_CARD_CLASS[tone],
+        className
+      )}
+    >
+      <CardHeader
+        className={cn(
+          "flex-row items-center justify-between gap-2 p-4 pb-2 sm:p-6 sm:pb-2",
+          compact && "p-3 pb-1 sm:p-4 sm:pb-1"
+        )}
+      >
+        <CardTitle className="text-sm font-medium leading-snug text-ink-muted">
+          {label}
+        </CardTitle>
         {Icon && (
-          <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-control", TONE_ICON_CLASS[tone])}>
+          <span
+            className={cn(
+              "flex h-8 w-8 shrink-0 items-center justify-center rounded-control",
+              TONE_ICON_CLASS[tone]
+            )}
+          >
             <Icon className="h-4 w-4" aria-hidden="true" />
           </span>
         )}
       </CardHeader>
-      <CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
-        <p className={cn("break-words text-xl font-bold tabular-nums sm:text-2xl", TONE_CLASS[tone])}>{value}</p>
+      <CardContent
+        className={cn(
+          "px-4 pb-4 sm:px-6 sm:pb-6",
+          compact && "px-3 pb-3 sm:px-4 sm:pb-4"
+        )}
+      >
+        <p
+          className={cn(
+            "break-words text-xl font-bold tabular-nums sm:text-2xl",
+            TONE_CLASS[tone]
+          )}
+        >
+          {value}
+        </p>
         {sub && <p className="mt-1 text-xs text-ink-muted">{sub}</p>}
       </CardContent>
     </Card>
@@ -54,7 +97,10 @@ export function MetricCard({ label, value, sub, tone = "neutral", tintCard = fal
   if (!href) return content;
 
   return (
-    <a href={href} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-card">
+    <a
+      href={href}
+      className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-card"
+    >
       {content}
     </a>
   );

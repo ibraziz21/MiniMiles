@@ -31,77 +31,138 @@ interface RuleSet {
 }
 
 function validDays(value: unknown, maximum: number): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value > 0 && value <= maximum;
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value > 0 &&
+    value <= maximum
+  );
 }
 
-async function evaluateRule(
+export async function evaluateGrantRule(
   rule: Record<string, unknown>,
   member: { hubUserId: string; canonicalId: string },
   merchantId: string,
-  profileCountryCode: string | null,
+  profileCountryCode: string | null
 ): Promise<boolean> {
   switch (rule.type) {
     case "country_in": {
-      const countries = Array.isArray(rule.countries) ? rule.countries : [];
-      return Boolean(profileCountryCode && countries.includes(profileCountryCode));
+      const countries = rule.countries;
+      if (
+        !Array.isArray(countries) ||
+        !countries.length ||
+        countries.some((c) => typeof c !== "string" || !/^[A-Z]{2}$/.test(c))
+      )
+        throw new Error("Invalid country policy");
+      return Boolean(
+        profileCountryCode && countries.includes(profileCountryCode)
+      );
+    }
+    case "claim_day_of_week": {
+      const days = rule.days;
+      if (
+        !Array.isArray(days) ||
+        !days.length ||
+        days.length > 7 ||
+        new Set(days).size !== days.length ||
+        days.some((d) => !Number.isInteger(d) || d < 0 || d > 6)
+      )
+        throw new Error("Invalid weekday policy");
+      const weekday = new Intl.DateTimeFormat("en-US", {
+        weekday: "short",
+        timeZone:
+          typeof rule.timezone === "string" ? rule.timezone : "Africa/Nairobi",
+      }).format(new Date());
+      return days.includes(
+        ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(weekday)
+      );
     }
     case "profile_country_set":
       return Boolean(profileCountryCode);
     case "pass_activated": {
-      const { count } = await supabase
+      const { count, error } = await supabase
         .from("hub_user_passes")
         .select("user_id", { count: "exact", head: true })
         .eq("user_id", member.hubUserId);
-      return (count ?? 0) > 0;
+      if (error || count === null)
+        throw new Error("Eligibility lookup unavailable");
+      return count > 0;
     }
     case "minimum_account_age_days": {
-      if (!validDays(rule.days, 3650)) return false;
-      const { data, error } = await supabase.auth.admin.getUserById(member.hubUserId);
-      if (error || !data.user?.created_at) return false;
-      return Date.now() - new Date(data.user.created_at).getTime() >= rule.days * 86_400_000;
+      if (!validDays(rule.days, 3650))
+        throw new Error("Invalid account age policy");
+      const { data, error } = await supabase.auth.admin.getUserById(
+        member.hubUserId
+      );
+      if (error) throw new Error("Member age unavailable");
+      if (!data.user?.created_at) return false;
+      return (
+        Date.now() - new Date(data.user.created_at).getTime() >=
+        rule.days * 86_400_000
+      );
     }
     case "verified_activity_completed": {
-      if (typeof rule.templateKey !== "string") return false;
-      const { count } = await supabase
-        .from("events")
+      if (typeof rule.templateKey !== "string" || !rule.templateKey.trim())
+        throw new Error("Invalid verification policy");
+      const template = await supabase
+        .from("verification_templates")
+        .select("template_key")
+        .eq("template_key", rule.templateKey)
+        .eq("status", "active")
+        .maybeSingle();
+      if (template.error || !template.data)
+        throw new Error("Eligibility policy unavailable");
+      const { count, error } = await supabase
+        .from("verifications")
         .select("id", { count: "exact", head: true })
-        .eq("event_type", rule.templateKey)
+        .eq("template_key", rule.templateKey)
+        .eq("status", "verified")
+        .not("verified_at", "is", null)
         .eq("user_id", member.hubUserId);
-      return (count ?? 0) > 0;
+      if (error || count === null)
+        throw new Error("Eligibility lookup unavailable");
+      return count > 0;
     }
     case "first_funded_voucher": {
-      const { count } = await supabase
+      const { count, error } = await supabase
         .from("voucher_claims")
         .select("id", { count: "exact", head: true })
         .eq("canonical_id", member.canonicalId);
-      return (count ?? 0) === 0;
+      if (error || count === null)
+        throw new Error("Eligibility lookup unavailable");
+      return count === 0;
     }
     case "no_prior_merchant_redemption": {
-      const { count } = await supabase
+      const { count, error } = await supabase
         .from("voucher_redemptions")
         .select("id", { count: "exact", head: true })
         .eq("merchant_id", merchantId)
         .eq("hub_user_id", member.hubUserId);
-      return (count ?? 0) === 0;
+      if (error || count === null)
+        throw new Error("Eligibility lookup unavailable");
+      return count === 0;
     }
     case "fund_claim_cooldown": {
-      if (!validDays(rule.days, 365)) return false;
+      if (!validDays(rule.days, 365))
+        throw new Error("Invalid cooldown policy");
       const since = new Date(Date.now() - rule.days * 86_400_000).toISOString();
-      const { count } = await supabase
+      const { count, error } = await supabase
         .from("voucher_claims")
         .select("id", { count: "exact", head: true })
         .eq("canonical_id", member.canonicalId)
         .gte("claimed_at", since);
-      return (count ?? 0) === 0;
+      if (error || count === null)
+        throw new Error("Eligibility lookup unavailable");
+      return count === 0;
     }
     default:
-      return false;
+      throw new Error("Unsupported eligibility policy");
   }
 }
 
 export async function previewVoucherGrant(
   allocationId: string,
-  memberUsername: string,
+  memberUsername: string
 ): Promise<VoucherGrantPreview> {
   const resolution = await resolveVoucherRecipientUsername(memberUsername);
   if (!resolution.ok) {
@@ -109,7 +170,12 @@ export async function previewVoucherGrant(
       eligible: false,
       code: resolution.errorCode,
       message: USERNAME_ERROR_MESSAGES[resolution.errorCode],
-      requirements: [{ label: "Active Akiba username resolves to one member", satisfied: false }],
+      requirements: [
+        {
+          label: "Active Akiba username resolves to one member",
+          satisfied: false,
+        },
+      ],
       member: null,
     };
   }
@@ -120,23 +186,26 @@ export async function previewVoucherGrant(
     canonicalId: resolution.canonicalId,
   };
 
-  const [{ data: allocation }, { data: availability }, { data: profile }] = await Promise.all([
-    supabase
-      .from("voucher_funding_allocations")
-      .select("id, program_id, merchant_id, state, distribution_modes, claim_starts_at, claim_ends_at, max_reimbursement_minor, eligibility_rule_set_id")
-      .eq("id", allocationId)
-      .maybeSingle(),
-    supabase
-      .from("v_voucher_funding_allocation_availability")
-      .select("quantity_remaining, available_budget_minor")
-      .eq("allocation_id", allocationId)
-      .maybeSingle(),
-    supabase
-      .from("hub_user_profiles")
-      .select("country_code")
-      .eq("user_id", member.hubUserId)
-      .maybeSingle(),
-  ]);
+  const [{ data: allocation }, { data: availability }, { data: profile }] =
+    await Promise.all([
+      supabase
+        .from("voucher_funding_allocations")
+        .select(
+          "id, program_id, merchant_id, state, distribution_modes, claim_starts_at, claim_ends_at, max_reimbursement_minor, eligibility_rule_set_id"
+        )
+        .eq("id", allocationId)
+        .maybeSingle(),
+      supabase
+        .from("v_voucher_funding_allocation_availability")
+        .select("quantity_remaining, available_budget_minor")
+        .eq("allocation_id", allocationId)
+        .maybeSingle(),
+      supabase
+        .from("hub_user_profiles")
+        .select("country_code")
+        .eq("user_id", member.hubUserId)
+        .maybeSingle(),
+    ]);
 
   if (!allocation) {
     return {
@@ -148,36 +217,51 @@ export async function previewVoucherGrant(
     };
   }
 
-  const [{ data: program }, { data: merchant }, ruleSetResult] = await Promise.all([
-    supabase
-      .from("voucher_funding_programs")
-      .select("state, starts_at, ends_at, country_code")
-      .eq("id", allocation.program_id)
-      .maybeSingle(),
-    supabase.from("partners").select("status").eq("id", allocation.merchant_id).maybeSingle(),
-    allocation.eligibility_rule_set_id
-      ? supabase
-          .from("voucher_eligibility_rule_sets")
-          .select("mode, rules")
-          .eq("id", allocation.eligibility_rule_set_id)
-          .maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-  ]);
+  const [{ data: program }, { data: merchant }, ruleSetResult] =
+    await Promise.all([
+      supabase
+        .from("voucher_funding_programs")
+        .select("state, starts_at, ends_at, country_code")
+        .eq("id", allocation.program_id)
+        .maybeSingle(),
+      supabase
+        .from("partners")
+        .select("status")
+        .eq("id", allocation.merchant_id)
+        .maybeSingle(),
+      allocation.eligibility_rule_set_id
+        ? supabase
+            .from("voucher_eligibility_rule_sets")
+            .select("mode, rules")
+            .eq("id", allocation.eligibility_rule_set_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+    ]);
 
   const now = Date.now();
-  const allocationLive = ["active", "scheduled"].includes(allocation.state)
-    && new Date(allocation.claim_starts_at).getTime() <= now
-    && new Date(allocation.claim_ends_at).getTime() > now;
+  const allocationLive =
+    ["active", "scheduled"].includes(allocation.state) &&
+    new Date(allocation.claim_starts_at).getTime() <= now &&
+    new Date(allocation.claim_ends_at).getTime() > now;
   const programLive = program
-    ? ["active", "scheduled"].includes(program.state)
-      && new Date(program.starts_at).getTime() <= now
-      && new Date(program.ends_at).getTime() > now
+    ? ["active", "scheduled"].includes(program.state) &&
+      new Date(program.starts_at).getTime() <= now &&
+      new Date(program.ends_at).getTime() > now
     : false;
-  const directIssueAllowed = (allocation.distribution_modes ?? []).includes("internal_grant");
+  const directIssueAllowed = (allocation.distribution_modes ?? []).includes(
+    "internal_grant"
+  );
   const quantityAvailable = Number(availability?.quantity_remaining ?? 0) > 0;
-  const budgetAvailable = Number(availability?.available_budget_minor ?? 0) >= Number(allocation.max_reimbursement_minor ?? 0);
-  const profileCountryCode = typeof profile?.country_code === "string" ? profile.country_code.toUpperCase() : null;
-  const countryMatches = Boolean(program?.country_code && profileCountryCode === program.country_code);
+  const budgetAvailable =
+    Number(availability?.available_budget_minor ?? 0) >=
+    Number(allocation.max_reimbursement_minor ?? 0);
+  const profileCountryCode =
+    typeof profile?.country_code === "string"
+      ? profile.country_code.toUpperCase()
+      : null;
+  const countryMatches = Boolean(
+    program?.country_code && profileCountryCode === program.country_code
+  );
 
   const requirements: VoucherGrantRequirement[] = [
     { label: "Active Akiba username resolves to one member", satisfied: true },
@@ -185,42 +269,65 @@ export async function previewVoucherGrant(
     { label: "Parent fund is live", satisfied: programLive },
     { label: "Direct issue is configured", satisfied: directIssueAllowed },
     { label: "Merchant is active", satisfied: merchant?.status === "active" },
-    { label: `Profile country matches ${program?.country_code ?? "the fund"}`, satisfied: countryMatches },
+    {
+      label: `Profile country matches ${program?.country_code ?? "the fund"}`,
+      satisfied: countryMatches,
+    },
     { label: "Voucher quantity remains", satisfied: quantityAvailable },
-    { label: "Funded reimbursement budget remains", satisfied: budgetAvailable },
+    {
+      label: "Funded reimbursement budget remains",
+      satisfied: budgetAvailable,
+    },
   ];
 
   const ruleSetCandidate = ruleSetResult.data as Partial<RuleSet> | null;
-  const ruleSet = ruleSetCandidate
-    && (ruleSetCandidate.mode === "all" || ruleSetCandidate.mode === "any")
-    && Array.isArray(ruleSetCandidate.rules)
-    && ruleSetCandidate.rules.every((rule) => rule !== null && typeof rule === "object" && !Array.isArray(rule))
-    ? ruleSetCandidate as RuleSet
-    : null;
+  const ruleSet =
+    ruleSetCandidate &&
+    (ruleSetCandidate.mode === "all" || ruleSetCandidate.mode === "any") &&
+    Array.isArray(ruleSetCandidate.rules) &&
+    ruleSetCandidate.rules.length > 0 &&
+    ruleSetCandidate.rules.every(
+      (rule) =>
+        rule !== null && typeof rule === "object" && !Array.isArray(rule)
+    )
+      ? (ruleSetCandidate as RuleSet)
+      : null;
   let rulePolicySatisfied = true;
   if (allocation.eligibility_rule_set_id && !ruleSet) {
-    requirements.push({ label: "Eligibility policy is available", satisfied: false });
+    requirements.push({
+      label: "Eligibility policy is available",
+      satisfied: false,
+    });
     rulePolicySatisfied = false;
   } else if (ruleSet) {
     const outcomes = await Promise.all(
       ruleSet.rules.map(async (rule) => ({
-        label: ELIGIBILITY_RULE_LABELS[rule.type as EligibilityRuleType] ?? "Supported eligibility requirement",
-        satisfied: await evaluateRule(rule, member, allocation.merchant_id, profileCountryCode),
-      })),
+        label:
+          ELIGIBILITY_RULE_LABELS[rule.type as EligibilityRuleType] ??
+          "Supported eligibility requirement",
+        satisfied: await evaluateGrantRule(
+          rule,
+          member,
+          allocation.merchant_id,
+          profileCountryCode
+        ),
+      }))
     );
     requirements.push(...outcomes);
-    rulePolicySatisfied = ruleSet.mode === "any"
-      ? outcomes.some((outcome) => outcome.satisfied)
-      : outcomes.every((outcome) => outcome.satisfied);
+    rulePolicySatisfied =
+      ruleSet.mode === "any"
+        ? outcomes.some((outcome) => outcome.satisfied)
+        : outcomes.every((outcome) => outcome.satisfied);
   }
 
-  const operationallyReady = allocationLive
-    && programLive
-    && directIssueAllowed
-    && merchant?.status === "active"
-    && countryMatches
-    && quantityAvailable
-    && budgetAvailable;
+  const operationallyReady =
+    allocationLive &&
+    programLive &&
+    directIssueAllowed &&
+    merchant?.status === "active" &&
+    countryMatches &&
+    quantityAvailable &&
+    budgetAvailable;
   const eligible = operationallyReady && rulePolicySatisfied;
 
   return {

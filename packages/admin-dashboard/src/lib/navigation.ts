@@ -111,7 +111,7 @@ const DESKTOP_PRIMARY_MODULES: NavNode[] = [
   {
     id: "rewards",
     label: "Vouchers",
-    icon: Tag,
+    icon: Ticket,
     targetRoute: "/vouchers",
     children: [
       { id: "rewards-overview", label: "Overview", icon: LayoutDashboard, targetRoute: "/vouchers", exact: true, permission: "vouchers.read" },

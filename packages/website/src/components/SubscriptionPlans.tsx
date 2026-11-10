@@ -79,7 +79,7 @@ export function SubscriptionPlans({ plans, merchantUrl }: SubscriptionPlansProps
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <p className="font-sterling text-lg font-medium text-akiba-ink">Included with every plan</p>
           <ul className="grid gap-x-6 gap-y-2 text-sm text-akiba-muted sm:grid-cols-2 lg:grid-cols-4">
-            {["Merchant dashboard", "Scan & Award", "Voucher management", "Activity reporting"].map((feature) => (
+            {["Business dashboard", "Scan & Award", "Voucher management", "Activity reporting"].map((feature) => (
               <li key={feature} className="flex items-center gap-2">
                 <Check className="h-4 w-4 shrink-0 text-akiba-teal" aria-hidden="true" />
                 {feature}

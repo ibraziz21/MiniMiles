@@ -1,95 +1,93 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
-import { PageHeader } from "@/components/shell/PageHeader";
-import { Badge } from "@/components/ui/badge";
-import { EmptyState } from "@/components/ui/empty-state";
-import { formatDate } from "@/lib/utils";
-
-async function getUsers() {
-  const [usersRes, flagsRes] = await Promise.all([
-    supabase.from("akiba_users").select("id, address, username, phone, created_at").order("created_at", { ascending: false }).limit(100),
-    supabase.from("wallet_risk_flags").select("user_address, flag_type").eq("is_active", true),
-  ]);
-  const flags: Record<string, string[]> = {};
-  for (const flag of flagsRes.data ?? []) {
-    const key = flag.user_address?.toLowerCase();
-    if (!key) continue;
-    flags[key] = [...(flags[key] ?? []), flag.flag_type];
-  }
-  return (usersRes.data ?? []).map((user) => ({
-    ...user,
-    flags: flags[(user.address ?? user.id ?? "").toLowerCase()] ?? [],
-  }));
-}
-
-export default async function UsersPage() {
+import { memberDirectory } from "@/lib/memberSupport";
+import { VoucherHeader } from "@/components/vouchers/VoucherHeader";
+export default async function UsersPage({
+  searchParams,
+}: {
+  searchParams: { q?: string; page?: string };
+}) {
   const session = await requireAdminSession("users.read");
   if (!session) redirect("/login");
-
-  const users = await getUsers();
-
+  const n = Number(searchParams.page ?? 1),
+    page = Number.isSafeInteger(n) && n > 0 ? n : 1;
+  const result = await memberDirectory(searchParams.q ?? "", page);
   return (
-    <div>
-      <PageHeader title="Members" subtitle="Member identity and active risk flags" />
-      <div className="p-4 sm:p-6">
-        {users.length === 0 ? (
-          <EmptyState message="No members found." isHealthy={false} />
+    <div className="min-h-screen bg-[#FAF8FF]">
+      <VoucherHeader title="Members" name={session.name} role={session.role} />
+      <div className="mx-auto max-w-3xl space-y-5 p-4 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-2xl font-semibold">Members</h2>
+          <Link href="/account-deletions" className="py-3 text-sm text-primary">
+            Deletion requests
+          </Link>
+        </div>
+        <form className="flex gap-2">
+          <input
+            name="q"
+            type="search"
+            aria-label="Search members"
+            placeholder="Username or member ID…"
+            defaultValue={searchParams.q}
+            className="min-h-12 min-w-0 flex-1 rounded-card border-0 bg-white px-4 text-base"
+          />
+          <button className="min-h-11 rounded-control bg-[#EAEDFF] px-4 text-sm">
+            Search
+          </button>
+        </form>
+        {result.error ? (
+          <p role="alert">Members could not be loaded. Refresh to retry.</p>
         ) : (
           <>
-            {/* Mobile: cards */}
-            <div className="space-y-3 lg:hidden">
-              {users.map((user) => (
-                <div key={user.id} className="rounded-card border border-border bg-surface p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="font-medium text-ink">{user.username ?? "Member"}</p>
-                      <p className="text-xs text-ink-muted">{user.phone ?? "—"}</p>
-                    </div>
-                    <p className="text-xs text-ink-muted">{formatDate(user.created_at)}</p>
-                  </div>
-                  <p className="mt-1 font-mono text-xs text-ink-muted">{user.address ?? "—"}</p>
-                  {user.flags.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {user.flags.map((flag) => <Badge key={flag} variant="warning">{flag}</Badge>)}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Desktop: table */}
-            <div className="hidden overflow-hidden rounded-card border border-border bg-surface lg:block">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-surface-subtle text-xs font-medium uppercase tracking-wider text-ink-muted">
-                    <th className="px-4 py-3 text-left">Member</th>
-                    <th className="px-4 py-3 text-left">Contact</th>
-                    <th className="px-4 py-3 text-left">Legacy identifier</th>
-                    <th className="px-4 py-3 text-left">Flags</th>
-                    <th className="px-4 py-3 text-left">Joined</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {users.map((user) => (
-                    <tr key={user.id} className="hover:bg-surface-subtle">
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-ink">{user.username ?? "Member"}</p>
-                        <p className="font-mono text-xs text-ink-muted">{user.id}</p>
-                      </td>
-                      <td className="px-4 py-3 text-ink-muted">{user.phone ?? "—"}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-ink-muted">{user.address ?? "—"}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1">
-                          {user.flags.length === 0 ? <span className="text-ink-muted">—</span> : user.flags.map((flag) => <Badge key={flag} variant="warning">{flag}</Badge>)}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-ink-muted">{formatDate(user.created_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <p className="text-xs text-ink-muted">
+              {result.count ?? 0} members · Page {page}
+            </p>
+            {result.data?.map((u) => (
+              <Link
+                key={u.canonical_id}
+                href={`/users/${u.canonical_id}`}
+                className="flex gap-3 rounded-card bg-white p-4 shadow-sm"
+              >
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#D9F9FC] text-primary">
+                  {u.username?.slice(0, 2).toUpperCase()}
+                </span>
+                <span className="min-w-0">
+                  <span className="block break-words font-semibold">
+                    @{u.username}
+                  </span>
+                  <span className="mt-1 block break-all text-xs text-ink-muted">
+                    {u.canonical_id}
+                  </span>
+                </span>
+              </Link>
+            ))}
+            {!result.data?.length && <p>No matching members.</p>}
+            <nav
+              className="flex justify-between gap-3 text-sm text-primary"
+              aria-label="Member pages"
+            >
+              {page > 1 && (
+                <Link
+                  className="py-3"
+                  href={`/users?q=${encodeURIComponent(
+                    searchParams.q ?? ""
+                  )}&page=${page - 1}`}
+                >
+                  Previous
+                </Link>
+              )}
+              {(result.count ?? 0) > page * 50 && (
+                <Link
+                  className="py-3"
+                  href={`/users?q=${encodeURIComponent(
+                    searchParams.q ?? ""
+                  )}&page=${page + 1}`}
+                >
+                  Next
+                </Link>
+              )}
+            </nav>
           </>
         )}
       </div>

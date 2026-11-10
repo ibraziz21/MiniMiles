@@ -5,6 +5,10 @@ Scope: `packages/admin-dashboard`
 Target: Mobile-first authenticated web application and installable PWA  
 Implementation stack: Next.js 14 App Router, React 18, Tailwind CSS 3, Radix UI, TanStack Query, Vitest
 
+## Mobile density update — 9 November 2026
+
+User-approved refinement superseding the earlier sizing requirements: mobile navigation targets are 56px high, with 24px icons, 12px labels and safe-area padding. The overview uses compact two-column metric cards from 320px. Chart inspection controls and the data table expand under Explore data; Needs attention is accessed through a top-bar bell with real pending counts and a review inbox; the overview does not show a standalone attention card. Desktop readability and existing permissions remain unchanged.
+
 ## Current product priorities — 24 October 2026
 
 These requirements supersede the earlier Home, queue and navigation priorities below:

@@ -5,7 +5,7 @@ export type CampaignCategory =
   | "Wallet Rewards"
   | "Partner Quests"
   | "Games"
-  | "Merchants & Vouchers"
+  | "Businesses & Vouchers"
   | "Rewards";
 
 export interface CampaignDetail {
@@ -105,7 +105,7 @@ export const campaigns: Campaign[] = [
     id: "leshan-group",
     title: "Leshan Group",
     partner: "Leshan Group",
-    category: "Merchants & Vouchers",
+    category: "Businesses & Vouchers",
     status: "coming-soon",
     rewardHighlight: "70% off",
     rewardLabel: "vouchers coming",

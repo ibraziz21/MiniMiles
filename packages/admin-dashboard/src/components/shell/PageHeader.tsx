@@ -7,6 +7,7 @@ interface PageHeaderProps {
   title: string;
   subtitle?: string;
   actions?: React.ReactNode;
+  headingLevel?: 1 | 2;
 }
 
 /**
@@ -16,13 +17,14 @@ interface PageHeaderProps {
  * heading. This component is the intended replacement once a page migrates
  * in Phase 2+ (at which point its TopBar usage is removed), kept ready now.
  */
-export function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, actions, headingLevel = 1 }: PageHeaderProps) {
   const onOpenSearch = useCommandSearchTrigger();
+  const Heading = headingLevel === 1 ? "h1" : "h2";
 
   return (
     <header className="sticky top-0 z-30 flex min-h-[56px] items-center gap-3 border-b border-border bg-surface px-4 py-2 sm:min-h-[64px] sm:px-6">
       <div className="min-w-0 flex-1">
-        <h1 className="truncate text-lg font-semibold text-ink sm:text-xl">{title}</h1>
+        <Heading className="truncate text-lg font-semibold tracking-tight text-ink sm:text-xl">{title}</Heading>
         {subtitle && <p className="truncate text-sm text-ink-muted">{subtitle}</p>}
       </div>
 

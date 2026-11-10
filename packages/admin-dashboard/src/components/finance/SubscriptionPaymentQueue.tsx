@@ -41,12 +41,17 @@ type Props = {
 };
 
 const SLA_BADGE: Record<string, string> = {
-  neutral: "bg-slate-100 text-slate-600",
+  neutral: "bg-[#EAEDFF] text-slate-600",
   amber: "bg-amber-100 text-amber-700",
   red: "bg-red-100 text-red-700",
 };
 
-export function SubscriptionPaymentQueue({ rows, view, canDecide, initialFilters }: Props) {
+export function SubscriptionPaymentQueue({
+  rows,
+  view,
+  canDecide,
+  initialFilters,
+}: Props) {
   const router = useRouter();
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const [pending, startTransition] = useTransition();
@@ -63,7 +68,9 @@ export function SubscriptionPaymentQueue({ rows, view, canDecide, initialFilters
     for (const [key, value] of Object.entries(filters)) {
       if (value) params.set(key, value);
     }
-    startTransition(() => router.push(`/finance/subscriptions?${params.toString()}`));
+    startTransition(() =>
+      router.push(`/finance/subscriptions?${params.toString()}`)
+    );
   }
 
   function reset() {
@@ -80,7 +87,11 @@ export function SubscriptionPaymentQueue({ rows, view, canDecide, initialFilters
       amountMax: "",
     });
     startTransition(() =>
-      router.push(view === "history" ? "/finance/subscriptions?view=history" : "/finance/subscriptions"),
+      router.push(
+        view === "history"
+          ? "/finance/subscriptions?view=history"
+          : "/finance/subscriptions"
+      )
     );
   }
 
@@ -94,7 +105,7 @@ export function SubscriptionPaymentQueue({ rows, view, canDecide, initialFilters
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ expectedVersion: row.version }),
-        },
+        }
       );
       const data = await res.json();
       if (!res.ok) {
@@ -113,13 +124,16 @@ export function SubscriptionPaymentQueue({ rows, view, canDecide, initialFilters
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <details className="rounded-card bg-white p-4">
+        <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium">
+          Search & filters
+        </summary>
         <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-4">
           <select
             value={filters.status}
             onChange={(e) => set("status", e.target.value)}
             aria-label="Filter by status"
-            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm"
+            className="min-h-11 rounded-control border border-slate-200 bg-white px-3 text-sm"
           >
             <option value="">Any status</option>
             {(view === "history"
@@ -135,7 +149,7 @@ export function SubscriptionPaymentQueue({ rows, view, canDecide, initialFilters
             value={filters.method}
             onChange={(e) => set("method", e.target.value)}
             aria-label="Filter by payment method"
-            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm"
+            className="min-h-11 rounded-control border border-slate-200 bg-white px-3 text-sm"
           >
             <option value="">Any method</option>
             {PAYMENT_METHODS.map((m) => (
@@ -197,11 +211,16 @@ export function SubscriptionPaymentQueue({ rows, view, canDecide, initialFilters
           <Button size="sm" onClick={apply} disabled={pending}>
             Apply filters
           </Button>
-          <Button size="sm" variant="outline" onClick={reset} disabled={pending}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={reset}
+            disabled={pending}
+          >
             Reset
           </Button>
         </div>
-      </div>
+      </details>
 
       {error && <p className="text-sm text-danger">{error}</p>}
 
@@ -215,26 +234,54 @@ export function SubscriptionPaymentQueue({ rows, view, canDecide, initialFilters
         {rows.map((row) => {
           const ageMin = minutesSince(row.submitted_at);
           const sla = slaState(row.submitted_at);
-          const stale = row.status === "under_review" && isStaleReview(row.review_started_at);
+          const stale =
+            row.status === "under_review" &&
+            isStaleReview(row.review_started_at);
           const flags = row.risk_flags ?? [];
           return (
-            <div key={row.payment_attempt_id} className="rounded-card border border-border bg-surface p-4">
+            <div
+              key={row.payment_attempt_id}
+              className="rounded-card bg-white p-5 shadow-sm"
+            >
               <div className="flex items-start justify-between gap-2">
                 <Link
                   href={`/finance/subscriptions/${row.payment_attempt_id}`}
-                  className="font-medium text-primary hover:underline"
+                  className="min-w-0 break-words text-base font-semibold text-ink hover:underline"
                 >
                   {row.merchant_name ?? row.partner_id}
                 </Link>
-                <span className={`inline-flex shrink-0 rounded-control px-1.5 py-0.5 text-xs font-medium ${SLA_BADGE[sla]}`}>
-                  {view === "history" ? formatDateTime(row.decided_at) : formatAge(ageMin)}
+                <span
+                  className={`inline-flex shrink-0 rounded-control px-1.5 py-0.5 text-xs font-medium ${SLA_BADGE[sla]}`}
+                >
+                  {view === "history"
+                    ? formatDateTime(row.decided_at)
+                    : formatAge(ageMin)}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-ink-muted">
-                {row.invoice_number ?? row.invoice_id.slice(0, 8)} · {row.invoice_type} ·{" "}
-                {row.submitted_amount ?? "—"} {row.submitted_currency ?? ""}
+              <p className="mt-2 text-xs text-ink-muted">
+                {row.invoice_number ?? row.invoice_id.slice(0, 8)} ·{" "}
+                {formatDateTime(row.submitted_at)}
               </p>
-              {stale && <p className="mt-1 text-xs text-warning">stale review &gt; {STALE_REVIEW_MINUTES}m</p>}
+              <div className="mt-4 grid grid-cols-2 gap-3 rounded-control bg-[#F2F3FF] p-3 text-sm">
+                <div>
+                  <p className="text-xs text-ink-muted">Submitted</p>
+                  <p className="mt-1 font-semibold">
+                    {row.submitted_currency ?? "KES"}{" "}
+                    {row.submitted_amount ?? "—"}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-ink-muted">Invoice amount</p>
+                  <p className="mt-1 font-semibold">
+                    KES {row.expected_amount ?? "—"}
+                  </p>
+                </div>
+              </div>
+              {stale && (
+                <p className="mt-1 text-xs text-warning">
+                  stale review &gt; {STALE_REVIEW_MINUTES}m
+                </p>
+              )}
               {flags.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1">
                   {flags.map((flag) => (
@@ -248,12 +295,20 @@ export function SubscriptionPaymentQueue({ rows, view, canDecide, initialFilters
                 {view === "history" ? (
                   <p className="text-xs text-ink-muted">
                     {row.status === "rejected"
-                      ? REJECTION_CODE_LABELS[row.decision_reason as keyof typeof REJECTION_CODE_LABELS] ?? row.decision_reason
+                      ? REJECTION_CODE_LABELS[
+                          row.decision_reason as keyof typeof REJECTION_CODE_LABELS
+                        ] ?? row.decision_reason
                       : row.receipt_number}
                   </p>
                 ) : row.status === "submitted" && canDecide ? (
-                  <Button size="sm" onClick={() => startReview(row)} disabled={claiming === row.payment_attempt_id}>
-                    {claiming === row.payment_attempt_id ? "Claiming…" : "Start review"}
+                  <Button
+                    size="sm"
+                    onClick={() => startReview(row)}
+                    disabled={claiming === row.payment_attempt_id}
+                  >
+                    {claiming === row.payment_attempt_id
+                      ? "Claiming…"
+                      : "Start review"}
                   </Button>
                 ) : (
                   <Link
@@ -290,7 +345,10 @@ export function SubscriptionPaymentQueue({ rows, view, canDecide, initialFilters
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={11} className="px-3 py-8 text-center text-slate-400">
+                <td
+                  colSpan={11}
+                  className="px-3 py-8 text-center text-slate-400"
+                >
                   Nothing in this {view === "history" ? "history" : "queue"}.
                 </td>
               </tr>
@@ -299,15 +357,21 @@ export function SubscriptionPaymentQueue({ rows, view, canDecide, initialFilters
               const ageMin = minutesSince(row.submitted_at);
               const sla = slaState(row.submitted_at);
               const stale =
-                row.status === "under_review" && isStaleReview(row.review_started_at);
+                row.status === "under_review" &&
+                isStaleReview(row.review_started_at);
               const flags = row.risk_flags ?? [];
               return (
-                <tr key={row.payment_attempt_id} className="border-t border-slate-100 align-top">
+                <tr
+                  key={row.payment_attempt_id}
+                  className="border-t border-slate-100 align-top"
+                >
                   <td className="px-3 py-2">
                     <span
                       className={`inline-flex rounded px-1.5 py-0.5 text-xs font-medium ${SLA_BADGE[sla]}`}
                     >
-                      {view === "history" ? formatDateTime(row.decided_at) : formatAge(ageMin)}
+                      {view === "history"
+                        ? formatDateTime(row.decided_at)
+                        : formatAge(ageMin)}
                     </span>
                     {stale && (
                       <span className="mt-1 block text-xs text-amber-600">
@@ -318,27 +382,33 @@ export function SubscriptionPaymentQueue({ rows, view, canDecide, initialFilters
                   <td className="px-3 py-2">
                     <Link
                       href={`/finance/subscriptions/${row.payment_attempt_id}`}
-                      className="font-medium text-primary hover:underline"
+                      className="min-w-0 break-words text-base font-semibold text-ink hover:underline"
                     >
                       {row.merchant_name ?? row.partner_id}
                     </Link>
                   </td>
                   <td className="px-3 py-2">
-                    <div>{row.invoice_number ?? row.invoice_id.slice(0, 8)}</div>
+                    <div>
+                      {row.invoice_number ?? row.invoice_id.slice(0, 8)}
+                    </div>
                     <div className="text-xs text-slate-400">
                       {row.invoice_type} · {row.short_payment_reference ?? "—"}
                     </div>
                   </td>
                   <td className="px-3 py-2">
                     {row.plan ?? "—"}
-                    <div className="text-xs text-slate-400">{row.billing_term ?? "—"}</div>
+                    <div className="text-xs text-slate-400">
+                      {row.billing_term ?? "—"}
+                    </div>
                   </td>
                   <td className="px-3 py-2 text-right font-mono">
                     {row.expected_amount ?? "—"}
                   </td>
                   <td className="px-3 py-2 text-right font-mono">
                     {row.submitted_amount ?? "—"}
-                    <div className="text-xs text-slate-400">{row.submitted_currency ?? ""}</div>
+                    <div className="text-xs text-slate-400">
+                      {row.submitted_currency ?? ""}
+                    </div>
                   </td>
                   <td className="px-3 py-2">
                     {row.payment_method ?? "—"}
@@ -346,15 +416,24 @@ export function SubscriptionPaymentQueue({ rows, view, canDecide, initialFilters
                       {row.provider_reference_masked ?? "—"}
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-xs">{formatDateTime(row.payment_date)}</td>
                   <td className="px-3 py-2 text-xs">
-                    {row.reviewer_name ?? (row.reviewer_admin_user_id ? "claimed" : "—")}
+                    {formatDateTime(row.payment_date)}
+                  </td>
+                  <td className="px-3 py-2 text-xs">
+                    {row.reviewer_name ??
+                      (row.reviewer_admin_user_id ? "claimed" : "—")}
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-1">
-                      {flags.length === 0 && <span className="text-xs text-slate-300">none</span>}
+                      {flags.length === 0 && (
+                        <span className="text-xs text-slate-300">none</span>
+                      )}
                       {flags.map((flag) => (
-                        <Badge key={flag} variant="warning" className="text-[10px]">
+                        <Badge
+                          key={flag}
+                          variant="warning"
+                          className="text-[10px]"
+                        >
                           {RISK_FLAG_LABELS[flag] ?? flag}
                         </Badge>
                       ))}
@@ -375,7 +454,9 @@ export function SubscriptionPaymentQueue({ rows, view, canDecide, initialFilters
                         onClick={() => startReview(row)}
                         disabled={claiming === row.payment_attempt_id}
                       >
-                        {claiming === row.payment_attempt_id ? "Claiming…" : "Start review"}
+                        {claiming === row.payment_attempt_id
+                          ? "Claiming…"
+                          : "Start review"}
                       </Button>
                     ) : (
                       <Link

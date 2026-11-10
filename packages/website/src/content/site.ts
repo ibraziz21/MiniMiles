@@ -16,7 +16,7 @@ export const navLinks = [
   { label: "Shops", href: "/shops" },
   { label: "What you get", href: "/#what-you-get" },
   { label: "Get the app", href: "/#app" },
-  { label: "For Merchants", href: "/for-business" },
+  { label: "For Business", href: "/for-business" },
   { label: "About", href: "/about" },
 ];
 
@@ -37,7 +37,7 @@ export const pillars = [
       "Opening hours and distance on every shop",
       "Directions, call or WhatsApp in one tap",
     ],
-    image: { src: "/app/merchants.webp", alt: "The Akiba merchant directory, with category and city filters" },
+    image: { src: "/app/merchants.webp", alt: "The Akiba business directory, with category and city filters" },
   },
   {
     id: "earn",
@@ -78,7 +78,7 @@ export const pillars = [
       "Real photos, and what to try when you go",
       "Your tip helps the next person choose",
     ],
-    image: { src: "/app/merchant-profile.webp", alt: "A merchant profile showing a verified visit recommendation" },
+    image: { src: "/app/merchant-profile.webp", alt: "A business profile showing a verified visit recommendation" },
   },
   {
     id: "offers",
@@ -102,7 +102,7 @@ export const homeContent = {
     title: "Find the good places. Get rewarded for going.",
     body: "Find shops near you, earn Miles when you spend, and turn them into discounts.",
     primaryCta: "Get your Akiba Pass",
-    secondaryCta: "I'm a merchant",
+    secondaryCta: "I'm a business",
     imageAlt: "The Akiba Explore screen showing business offers and places people loved",
     badge: "Android app now on Google Play",
     assurances: ["Free to join", "Miles never expire"],
@@ -194,12 +194,12 @@ export const rewardContent = {
     eyebrow: "Consumer rewards",
     title: "Every purchase earns something back.",
     body:
-      "Akiba issues instant, merchant-funded Miles every time you spend at an Akiba merchant. No points math, no expiry, no minimum. Spend Miles across the whole network on rewards you actually want.",
+      "Akiba issues instant, business-funded Miles every time you spend at an Akiba business. No points math, no expiry, no minimum. Spend Miles across the whole network on rewards you actually want.",
   },
   steps: [
     {
-      title: "Shop at Akiba merchants",
-      body: "Every qualifying purchase at a participating merchant (grocery, fuel, pharmacy, airtime, fast food) issues instant Miles. Nothing extra to do.",
+      title: "Shop at Akiba businesses",
+      body: "Every qualifying purchase at a participating business (grocery, fuel, pharmacy, airtime, fast food) issues instant Miles. Nothing extra to do.",
     },
     {
       title: "Stack your Miles",
@@ -207,7 +207,7 @@ export const rewardContent = {
     },
     {
       title: "Win real things",
-      body: "Spend Miles on raffle entries, merchant vouchers, and game sessions. Prize pools are funded by real merchant campaigns: cUSD, smartphones and laptops.",
+      body: "Spend Miles on raffle entries, business vouchers, and game sessions. Prize pools are funded by real business campaigns: cUSD, smartphones and laptops.",
     },
   ],
   featureBlocks: [
@@ -238,7 +238,7 @@ export const rewardContent = {
     "Cameras",
     "Gaming Chairs",
     "Home Appliances",
-    "Merchant Vouchers",
+    "Business Vouchers",
     "Nintendo Switch",
     "Gaming Accessories",
   ],
@@ -246,7 +246,7 @@ export const rewardContent = {
 
 export const partnerContent = {
   hero: {
-    eyebrow: "Merchants and growth partners",
+    eyebrow: "Businesses and growth partners",
     title: "Get discovered. Keep them coming back. Reach our users.",
     body:
       "Two ways to work with Akiba. Businesses get found by nearby shoppers and fund instant rewards that earn the second visit. Projects run performance campaigns to move real KPIs against 300K users.",
@@ -339,7 +339,7 @@ export const partnerContent = {
       faqs: [
         {
           question: "What does the monthly Miles allowance cover?",
-          answer: "It is the number of Miles your merchant account can issue to customers during each monthly usage period.",
+          answer: "It is the number of Miles your business account can issue to customers during each monthly usage period.",
         },
         {
           question: "Do unused Miles roll over?",
@@ -355,11 +355,11 @@ export const partnerContent = {
         },
         {
           question: "How are active voucher types counted?",
-          answer: "The limit applies across your entire merchant account, including all branches.",
+          answer: "The limit applies across your entire business account, including all branches.",
         },
         {
           question: "How do I pay my subscription invoice?",
-          answer: "Pay by M-Pesa or bank transfer using the payment details shown on the invoice generated in your merchant dashboard.",
+          answer: "Pay by M-Pesa or bank transfer using the payment details shown on the invoice generated in your business dashboard.",
         },
         {
           question: "When will I receive my renewal invoice?",
@@ -469,7 +469,7 @@ export const partnerContent = {
 
   form: {
     title: "Start the conversation",
-    body: "Tell us whether you are a merchant or a project partner, and what you want to launch. We will come back within 2 business days with a clear path forward.",
+    body: "Tell us whether you are a business or a project partner, and what you want to launch. We will come back within 2 business days with a clear path forward.",
     email: "hello.akibamiles@gmail.com",
   },
 };
@@ -505,13 +505,13 @@ export const aboutContent = {
   },
   surfaces: [
     "Discovery feed",
-    "Merchant profiles",
+    "Business profiles",
     "Akiba Pass",
     "Scan & Award",
     "Verified visits",
     "Business offers & reminders",
     "Voucher wallet",
-    "Merchant Dashboard",
+    "Business Dashboard",
     "Platform API",
     "Rewards ledger",
     "MiniPay Mini-App",
@@ -533,7 +533,7 @@ export function playStoreUrl(slot: string): string {
 
 export const appInstallContent = {
   badgeAlt: "Get it on Google Play",
-  trademark: "Google Play and the Google Play logo are trademarks of Google LLC.",
+  trademark: "Apple and the Apple logo are trademarks of Apple Inc. App Store is a service mark of Apple Inc. Google Play and the Google Play logo are trademarks of Google LLC.",
   waitlistTitle: "Get notified when Akiba launches on iOS",
   waitlistSubmit: "Notify me",
   waitlistSuccess: "You're on the list. We'll email you when Akiba launches on iOS.",

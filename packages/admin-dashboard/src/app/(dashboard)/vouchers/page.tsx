@@ -1,217 +1,351 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requireAdminSession } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
-import { PageHeader } from "@/components/shell/PageHeader";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { MetricCard } from "@/components/ui/metric-card";
-import { EmptyState } from "@/components/ui/empty-state";
-import { formatMoney, formatNumber } from "@/lib/utils";
-import { minorToKes } from "@/lib/voucherFunds";
-import { hasPermission } from "@/types";
 import {
+  CalendarDays,
+  Search,
+  ChevronRight,
+  CheckCircle2,
   ArrowRight,
-  BadgeCheck,
-  CircleDollarSign,
-  Clock3,
-  Landmark,
-  Send,
-  Store,
-  TicketCheck,
-  WalletCards,
 } from "lucide-react";
-
-interface FundRow {
-  id: string;
-  name: string;
-  state: string;
-  currency: string;
-  authorized_budget_minor: number;
-}
-
-interface BudgetRow {
-  program_id: string;
-  available_budget_minor: number;
-  committed_minor: number;
-}
-
-interface AllocationRow {
-  id: string;
-  program_id: string;
-  state: string;
-  partners: { name: string } | null;
-  voucher_funding_programs: { name: string } | null;
-}
-
-async function getRewardsDashboard(canReadFunds: boolean) {
-  const issuedPromise = supabase
-    .from("issued_vouchers")
-    .select("id, status, funding_mode, created_at")
-    .order("created_at", { ascending: false })
-    .limit(500);
-
-  if (!canReadFunds) {
-    const { data: issued } = await issuedPromise;
-    return { issued: issued ?? [], funds: [] as FundRow[], budgets: [] as BudgetRow[], allocations: [] as AllocationRow[] };
-  }
-
-  const [issuedRes, fundsRes, budgetsRes, allocationsRes] = await Promise.all([
-    issuedPromise,
-    supabase
-      .from("voucher_funding_programs")
-      .select("id, name, state, currency, authorized_budget_minor")
-      .in("state", ["pending_approval", "approved", "scheduled", "active", "paused"])
-      .order("created_at", { ascending: false })
-      .limit(6),
-    supabase.from("v_voucher_funding_program_budget").select("program_id, available_budget_minor, committed_minor"),
-    supabase
-      .from("voucher_funding_allocations")
-      .select("id, program_id, state, partners!voucher_funding_allocations_merchant_id_fkey(name), voucher_funding_programs(name)")
-      .in("state", ["draft", "pending_approval", "approved", "paused"])
-      .order("updated_at", { ascending: false })
-      .limit(6),
-  ]);
-
-  return {
-    issued: issuedRes.data ?? [],
-    funds: (fundsRes.data ?? []) as FundRow[],
-    budgets: (budgetsRes.data ?? []) as BudgetRow[],
-    allocations: (allocationsRes.data ?? []) as unknown as AllocationRow[],
-  };
-}
-
-const STATE_VARIANT: Record<string, "secondary" | "success" | "warning" | "destructive" | "outline"> = {
-  active: "success",
-  scheduled: "outline",
-  approved: "outline",
-  pending_approval: "warning",
-  paused: "warning",
-  draft: "secondary",
-};
-
-export default async function VouchersPage() {
+import { requireAdminSession } from "@/lib/auth";
+import { hasPermission } from "@/types";
+import { formatDate, formatNumber } from "@/lib/utils";
+import {
+  loadVoucherCatalogue,
+  voucherCodeMatches,
+} from "@/lib/voucherCatalogue";
+import {
+  inVoucherPeriod,
+  voucherKind,
+  voucherPeriod,
+  voucherState,
+  voucherBenefit,
+} from "@/lib/voucherPresentation";
+import { VoucherHeader } from "@/components/vouchers/VoucherHeader";
+import {
+  voucherCanvas,
+  voucherCard,
+  VoucherSymbol,
+  VoucherStatus,
+} from "@/components/vouchers/VoucherUi";
+import { QueueLoadError } from "@/components/queue/QueueLoadError";
+export default async function VouchersPage({
+  searchParams,
+}: {
+  searchParams: { q?: string; kind?: string; period?: string; page?: string };
+}) {
   const session = await requireAdminSession();
   if (!session) redirect("/login");
-
-  const canReadVouchers = hasPermission(session.role, "vouchers.read");
-  const canReadFunds = hasPermission(session.role, "voucher_funds.read");
-  if (!canReadVouchers && !canReadFunds) redirect("/overview");
-
-  const canAllocate = hasPermission(session.role, "voucher_funds.write");
-  const canIssue = hasPermission(session.role, "voucher_funds.grant");
-  const { issued, funds, budgets, allocations } = await getRewardsDashboard(canReadFunds);
-  const fundedIssued = issued.filter((voucher) => voucher.funding_mode === "akiba_reimbursement" || voucher.funding_mode === "sponsor_reimbursement");
-  const redeemed = fundedIssued.filter((voucher) => voucher.status === "redeemed").length;
-  const live = fundedIssued.filter((voucher) => voucher.status === "issued").length;
-  const expiredOrRevoked = fundedIssued.filter((voucher) => voucher.status === "expired" || voucher.status === "revoked").length;
-  const budgetByFund = new Map(budgets.map((budget) => [budget.program_id, budget]));
-
-  return (
-    <div>
-      <PageHeader
-        title="Rewards"
-        subtitle="Reimbursable voucher lifecycle and reward operations"
-      />
-
-      <div className="space-y-5 p-4 sm:p-6 lg:space-y-6">
-        {canReadFunds ? (
-          <section className="overflow-hidden rounded-[18px] border border-primary/15 bg-primary/[0.045] p-5 shadow-[0_22px_55px_-40px_rgba(15,118,110,0.7)] sm:p-6">
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-              <div>
-                <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.15em] text-primary">
-                  <WalletCards className="h-4 w-4" aria-hidden="true" /> Reimbursable vouchers
-                </div>
-                <h2 className="text-xl font-semibold tracking-[-0.02em] text-ink sm:text-2xl">Control inventory before money moves.</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-muted">Create and allocate approved funds, issue to eligible members, and monitor voucher states. Reimbursement payment stays in Finance.</p>
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                {canAllocate && <Button asChild variant="outline" size="lg" className="min-h-11"><Link href="/vouchers/funds"><Landmark className="h-4 w-4" aria-hidden="true" />Allocate fund</Link></Button>}
-                {canIssue && <Button asChild size="lg" className="min-h-11"><Link href="/vouchers/grants"><Send className="h-4 w-4" aria-hidden="true" />Issue voucher</Link></Button>}
-              </div>
-            </div>
-          </section>
-        ) : null}
-
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <MetricCard label="Available to members" value={formatNumber(live)} icon={TicketCheck} />
-          <MetricCard label="Redeemed" value={formatNumber(redeemed)} icon={BadgeCheck} />
-          <MetricCard label="Expired or revoked" value={formatNumber(expiredOrRevoked)} icon={Clock3} className="col-span-2 sm:col-span-1" />
+  const canRead = hasPermission(session.role, "vouchers.read"),
+    canFunds = hasPermission(session.role, "voucher_funds.read");
+  if (!canRead && !canFunds) redirect("/overview");
+  const q = (searchParams.q ?? "").trim().slice(0, 100),
+    kind = ["free", "miles", "reimbursable"].includes(searchParams.kind ?? "")
+      ? searchParams.kind!
+      : "all",
+    period = voucherPeriod(searchParams.period);
+  let data, matches;
+  try {
+    [data, matches] = await Promise.all([
+      loadVoucherCatalogue(),
+      voucherCodeMatches(q),
+    ]);
+  } catch {
+    return (
+      <div className={voucherCanvas}>
+        <VoucherHeader
+          title="Vouchers"
+          name={session.name}
+          role={session.role}
+        />
+        <div className="p-4">
+          <QueueLoadError title="Couldn’t load vouchers" />
         </div>
-
-        {canReadFunds && (
-          <div className="grid gap-5 xl:grid-cols-2">
-            <Card className="overflow-hidden border-border shadow-[0_16px_45px_-32px_rgba(15,23,42,0.45)]">
-              <div className="flex items-center justify-between border-b border-border px-4 py-4 sm:px-5">
-                <div>
-                  <h2 className="text-sm font-semibold text-ink">Fund health</h2>
-                  <p className="text-xs text-ink-muted">Active budgets and remaining availability</p>
-                </div>
-                <Button asChild variant="ghost" size="sm"><Link href="/vouchers/funds">All funds<ArrowRight className="h-4 w-4" aria-hidden="true" /></Link></Button>
-              </div>
-              {funds.length === 0 ? (
-                <EmptyState icon={Landmark} message="No active or pending voucher funds." className="border-0" />
-              ) : (
-                <ul className="divide-y divide-border">
-                  {funds.map((fund) => {
-                    const budget = budgetByFund.get(fund.id);
-                    const available = budget?.available_budget_minor ?? fund.authorized_budget_minor;
-                    const utilization = fund.authorized_budget_minor > 0 ? Math.min(100, Math.round(((fund.authorized_budget_minor - available) / fund.authorized_budget_minor) * 100)) : 0;
-                    return (
-                      <li key={fund.id}>
-                        <Link href={`/vouchers/funds/${fund.id}`} className="block px-4 py-3 transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary sm:px-5">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="min-w-0"><p className="truncate text-sm font-medium text-ink">{fund.name}</p><p className="text-xs text-ink-muted">{formatMoney(minorToKes(available), fund.currency)} available</p></div>
-                            <Badge variant={STATE_VARIANT[fund.state] ?? "secondary"}>{fund.state.replaceAll("_", " ")}</Badge>
-                          </div>
-                          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-subtle" aria-label={`${utilization}% of budget committed`} role="img"><div className="h-full rounded-full bg-primary" style={{ width: `${utilization}%` }} /></div>
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </Card>
-
-            <Card className="overflow-hidden border-border shadow-[0_16px_45px_-32px_rgba(15,23,42,0.45)]">
-              <div className="flex items-center justify-between border-b border-border px-4 py-4 sm:px-5">
-                <div><h2 className="text-sm font-semibold text-ink">Allocations requiring action</h2><p className="text-xs text-ink-muted">Draft, approval, and paused inventory</p></div>
-                <Button asChild variant="ghost" size="sm"><Link href="/vouchers/allocations">All allocations<ArrowRight className="h-4 w-4" aria-hidden="true" /></Link></Button>
-              </div>
-              {allocations.length === 0 ? (
-                <EmptyState icon={Store} message="No allocations require action." className="border-0" />
-              ) : (
-                <ul className="divide-y divide-border">
-                  {allocations.map((allocation) => (
-                    <li key={allocation.id}>
-                      <Link href={`/vouchers/funds/${allocation.program_id}/allocations/${allocation.id}`} className="flex min-h-[64px] items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary sm:px-5">
-                        <span className="flex h-9 w-9 items-center justify-center rounded-control bg-primary/10 text-primary"><Store className="h-4 w-4" aria-hidden="true" /></span>
-                        <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-ink">{allocation.partners?.name ?? "Unknown merchant"}</span><span className="block truncate text-xs text-ink-muted">{allocation.voucher_funding_programs?.name ?? "Voucher fund"}</span></span>
-                        <Badge variant={STATE_VARIANT[allocation.state] ?? "secondary"}>{allocation.state.replaceAll("_", " ")}</Badge>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
+      </div>
+    );
+  }
+  const allowed = data.offers.filter((v) =>
+    voucherKind(v) === "reimbursable" ? canFunds : canRead
+  );
+  const ids = new Set(allowed.map((v) => v.id));
+  const activity = data.activity.filter((v) => ids.has(v.voucher_template_id));
+  const issued = activity.filter(
+    (v) =>
+      ["issued", "redeemed", "expired", "revoked"].includes(v.status) &&
+      inVoucherPeriod(v.created_at, period.from)
+  ).length;
+  const redeemed = activity.filter(
+    (v) =>
+      v.status === "redeemed" && inVoucherPeriod(v.redeemed_at, period.from)
+  ).length;
+  const offers = allowed
+    .filter(
+      (v) =>
+        (kind === "all" || voucherKind(v) === kind) &&
+        (!q ||
+          `${v.title} ${
+            data.merchants.find((m) => m.id === v.partner_id)?.name ?? ""
+          }`
+            .toLowerCase()
+            .includes(q.toLowerCase()) ||
+          matches.has(v.id))
+    )
+    .sort(
+      (a, b) =>
+        Number(voucherState(b) === "Active") -
+        Number(voucherState(a) === "Active")
+    );
+  const page = Math.max(
+    1,
+    Math.min(
+      Math.ceil(offers.length / 20) || 1,
+      Number.isInteger(Number(searchParams.page))
+        ? Number(searchParams.page)
+        : 1
+    )
+  );
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (kind !== "all") params.set("kind", kind);
+  if (period.key !== "month") params.set("period", period.key);
+  if (page > 1) params.set("page", String(page));
+  const self = `/vouchers${params.size ? `?${params}` : ""}`;
+  const url = (key: string, value: string) => {
+    const next = new URLSearchParams(params);
+    next.delete("page");
+    if (value === "all" && key === "kind") next.delete(key);
+    else next.set(key, value);
+    return `/vouchers?${next}`;
+  };
+  return (
+    <div className={voucherCanvas}>
+      <VoucherHeader title="Vouchers" name={session.name} role={session.role} />
+      <div className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <form className="flex min-h-11 items-center gap-2 rounded-full bg-[#F2F3FF] px-3 text-sm">
+            <CalendarDays className="h-4 w-4 text-primary" aria-hidden="true" />
+            <label className="sr-only" htmlFor="voucher-period">
+              Reporting period
+            </label>
+            <select
+              id="voucher-period"
+              name="period"
+              defaultValue={period.key}
+              className="min-h-11 min-w-0 bg-transparent text-sm outline-primary"
+            >
+              <option value="month">This month</option>
+              <option value="30d">Last 30 days</option>
+              <option value="all">All time</option>
+            </select>
+            {q && <input type="hidden" name="q" value={q} />}
+            <input type="hidden" name="kind" value={kind} />
+            <button className="min-h-11 rounded-control px-2 text-xs font-medium text-primary focus-visible:ring-2 focus-visible:ring-primary">
+              Apply
+            </button>
+          </form>
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary-strong">
+            <span className="h-2 w-2 rounded-full bg-primary" />
+            Updated now
+          </span>
+        </div>
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          {[
+            [
+              "Active offers",
+              allowed.filter((v) => voucherState(v) === "Active").length,
+            ],
+            ["Issued", issued],
+            ["Redeemed", redeemed],
+          ].map(([label, value]) => (
+            <section
+              key={String(label)}
+              className="rounded-card bg-white p-3 shadow-sm sm:p-4"
+            >
+              <h2 className="text-xs text-ink-muted sm:text-sm">{label}</h2>
+              <p
+                className={`mt-2 flex items-center gap-1 text-xl font-semibold tabular-nums sm:text-2xl ${
+                  label === "Redeemed" ? "text-primary-strong" : "text-ink"
+                }`}
+              >
+                {formatNumber(Number(value))}
+                {label === "Active offers" && (
+                  <CheckCircle2
+                    className="h-3.5 w-3.5 text-primary"
+                    aria-hidden="true"
+                  />
+                )}
+              </p>
+            </section>
+          ))}
+        </div>
+        <form className="flex min-h-12 items-center gap-2 rounded-control bg-white px-3 shadow-sm">
+          <button
+            aria-label="Search vouchers"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-control focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <Search className="h-5 w-5 text-ink-muted" />
+          </button>
+          <label className="sr-only" htmlFor="voucher-search">
+            Search merchant, voucher name or code
+          </label>
+          <input
+            id="voucher-search"
+            name="q"
+            type="search"
+            defaultValue={q}
+            placeholder="Merchant, voucher name or code…"
+            className="h-12 min-w-0 flex-1 bg-transparent text-base outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+          />
+          <input type="hidden" name="kind" value={kind} />
+          <input type="hidden" name="period" value={period.key} />
+        </form>
+        <nav
+          aria-label="Voucher model"
+          className="flex gap-2 overflow-x-auto pb-1"
+        >
+          {[
+            ["all", "All"],
+            ["free", "Free"],
+            ["miles", "Miles"],
+            ["reimbursable", "Reimbursable"],
+          ]
+            .filter(
+              ([value]) =>
+                value === "all" ||
+                (value === "reimbursable" ? canFunds : canRead)
+            )
+            .map(([value, label]) => (
+              <Link
+                key={value}
+                href={url("kind", value)}
+                aria-current={kind === value ? "page" : undefined}
+                className={`inline-flex min-h-11 shrink-0 items-center rounded-full px-4 text-sm font-medium focus-visible:ring-2 focus-visible:ring-primary ${
+                  kind === value
+                    ? "bg-[#005C55] text-white"
+                    : "bg-[#F2F3FF] text-ink"
+                }`}
+              >
+                {label}
+              </Link>
+            ))}
+        </nav>
+        <ul className="space-y-3">
+          {offers.slice((page - 1) * 20, page * 20).map((v) => {
+            const merchant = data.merchants.find((m) => m.id === v.partner_id),
+              k = voucherKind(v),
+              end = v.end_at || v.expires_at;
+            return (
+              <li key={v.id}>
+                <Link
+                  href={`/vouchers/${v.id}?returnTo=${encodeURIComponent(
+                    self
+                  )}`}
+                  className={`${voucherCard} flex items-start gap-3 hover:bg-[#F2F3FF] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary`}
+                >
+                  <VoucherSymbol kind={k} />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-start justify-between gap-2">
+                      <span className="min-w-0 truncate font-semibold">
+                        {v.title}
+                      </span>
+                      <VoucherStatus status={voucherState(v)} />
+                    </span>
+                    <span className="mt-1 block text-sm text-ink-muted">
+                      {merchant?.name ?? "Merchant unavailable"}
+                    </span>
+                    <span className="mt-2 block text-sm font-medium text-primary-strong">
+                      {k === "miles"
+                        ? `${formatNumber(v.miles_cost)} Miles`
+                        : k === "free"
+                        ? voucherBenefit(v) === "Merchant offer"
+                          ? "Free offer"
+                          : `Free offer (${voucherBenefit(v)})`
+                        : `Reimbursable (${voucherBenefit(v)})`}
+                    </span>
+                    {end && (
+                      <span className="mt-1 block text-xs text-ink-muted">
+                        {Date.parse(end) <= Date.now() ? "Expired" : "Expires"}{" "}
+                        {formatDate(end)}
+                      </span>
+                    )}
+                  </span>
+                  <ChevronRight
+                    className="mt-7 h-4 w-4 shrink-0 text-ink-muted"
+                    aria-hidden="true"
+                  />
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+        {!offers.length && (
+          <div className={`${voucherCard} text-sm text-ink-muted`}>
+            No voucher offers match. Try another search or model.
           </div>
         )}
-
-        <Card className="grid gap-3 border-border p-4 shadow-none sm:grid-cols-2 sm:p-5">
-          {canReadVouchers && (
-            <Link href="/vouchers/pricing" className="group flex min-h-[64px] items-center gap-3 rounded-card border border-border p-3 transition-colors hover:border-primary/25 hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-              <span className="flex h-10 w-10 items-center justify-center rounded-control bg-surface-subtle text-primary"><CircleDollarSign className="h-5 w-5" aria-hidden="true" /></span>
-              <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-ink">Miles voucher pricing</span><span className="block text-xs text-ink-muted">Manage current Miles-to-voucher rates</span></span>
-              <ArrowRight className="h-4 w-4 text-ink-muted transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+        <nav
+          aria-label="Voucher offer pages"
+          className="flex flex-wrap items-center justify-center gap-3 py-2 text-sm text-ink-muted"
+        >
+          <span>
+            Showing {offers.length ? (page - 1) * 20 + 1 : 0}–
+            {Math.min(page * 20, offers.length)} of {offers.length} offers
+          </span>
+          {page > 1 && (
+            <Link
+              href={url("page", String(page - 1))}
+              className="inline-flex min-h-11 items-center px-3 font-medium text-primary"
+            >
+              Previous
             </Link>
           )}
-          <Link href="/referrals" className="group flex min-h-[64px] items-center gap-3 rounded-card border border-border p-3 transition-colors hover:border-primary/25 hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-            <span className="flex h-10 w-10 items-center justify-center rounded-control bg-surface-subtle text-primary"><BadgeCheck className="h-5 w-5" aria-hidden="true" /></span>
-            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-ink">Referral rewards</span><span className="block text-xs text-ink-muted">Review funnel and pending rewards</span></span>
-            <ArrowRight className="h-4 w-4 text-ink-muted transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-          </Link>
-        </Card>
+          {page * 20 < offers.length && (
+            <Link
+              href={url("page", String(page + 1))}
+              className="inline-flex min-h-11 items-center px-3 font-medium text-primary"
+            >
+              Next
+            </Link>
+          )}
+        </nav>
+        <details className={voucherCard}>
+          <summary className="min-h-11 cursor-pointer text-sm font-medium focus-visible:outline-primary">
+            Voucher tools
+          </summary>
+          <nav
+            aria-label="Voucher tools"
+            className="mt-3 grid divide-y divide-[#EAEDFF]"
+          >
+            {[
+              ["/vouchers/issued", "Issued vouchers", canFunds || canRead],
+              ["/vouchers/funds", "Reimbursable funds", canFunds],
+              ["/vouchers/allocations", "Merchant allocations", canFunds],
+              [
+                "/vouchers/grants",
+                "Issue voucher",
+                hasPermission(session.role, "voucher_funds.grant"),
+              ],
+              ["/vouchers/programs", "Voucher programs", canRead],
+              ["/vouchers/pricing", "Miles pricing", canRead],
+              [
+                "/referrals",
+                "Referral rewards",
+                hasPermission(session.role, "referrals.read"),
+              ],
+            ]
+              .filter(([, , allowed]) => allowed)
+              .map(([path, label]) => (
+                <Link
+                  key={String(path)}
+                  href={String(path)}
+                  className="flex min-h-12 items-center justify-between gap-2 text-sm text-primary"
+                >
+                  {label}
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              ))}
+          </nav>
+        </details>
       </div>
     </div>
   );

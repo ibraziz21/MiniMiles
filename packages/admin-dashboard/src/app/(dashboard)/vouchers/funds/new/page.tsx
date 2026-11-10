@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
-import { PageHeader } from "@/components/shell/PageHeader";
+import { VoucherHeader } from "@/components/vouchers/VoucherHeader";
+import { voucherCanvas } from "@/components/vouchers/VoucherUi";
 import { FundForm } from "@/components/vouchers/FundForm";
 
 export default async function NewVoucherFundPage() {
@@ -8,8 +9,13 @@ export default async function NewVoucherFundPage() {
   if (!session) redirect("/login");
 
   return (
-    <div>
-      <PageHeader title="New Voucher Fund" subtitle="Step 1 of the fund creation workflow — fund details" />
+    <div className={voucherCanvas}>
+      <VoucherHeader
+        title="Create Fund"
+        backHref={`/vouchers/funds`}
+        name={session.name}
+        role={session.role}
+      />
       <FundForm />
     </div>
   );

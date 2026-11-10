@@ -1,292 +1,303 @@
+import { fundDate, fundMoney } from "@/lib/voucherFundNavigation";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { CalendarDays, Wallet, Plus, Store, ChevronRight } from "lucide-react";
 import { requireAdminSession } from "@/lib/auth";
 import { hasPermission } from "@/types";
 import { supabase } from "@/lib/supabase";
-import { ALLOCATION_BENEFIT_COLUMNS, allocationBenefitLabel, minorToKes } from "@/lib/voucherFunds";
-import { PageHeader } from "@/components/shell/PageHeader";
-import { DetailHeader } from "@/components/shell/DetailHeader";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { voucherReadAll } from "@/lib/voucherCatalogue";
+import { fundReturnPath } from "@/lib/voucherFundNavigation";
+import { VoucherHeader } from "@/components/vouchers/VoucherHeader";
+import {
+  voucherCanvas,
+  voucherCard,
+  VoucherStatus,
+  VoucherFacts,
+} from "@/components/vouchers/VoucherUi";
+import { QueueLoadError } from "@/components/queue/QueueLoadError";
 import { FundActions } from "@/components/vouchers/FundActions";
-import { IssuedVouchersPanel, type IssuedVoucherRow } from "@/components/vouchers/IssuedVouchersPanel";
-import { getVoucherMemberDetails } from "@/lib/voucherMemberDetails";
-import { formatDateTime, formatMoney, formatNumber } from "@/lib/utils";
-
-const STATE_VARIANT: Record<string, "secondary" | "success" | "warning" | "destructive" | "outline"> = {
-  draft: "secondary",
-  pending_approval: "warning",
-  approved: "outline",
-  scheduled: "outline",
-  active: "success",
-  paused: "warning",
-  exhausted: "warning",
-  ended: "destructive",
-  cancelled: "destructive",
-};
-
-interface AllocationRow {
-  id: string;
-  state: string;
-  quantity_cap: number;
-  max_reimbursement_minor: number;
-  authorized_budget_minor: number;
-  claim_starts_at: string;
-  claim_ends_at: string;
-  spend_voucher_templates: {
-    title: string;
-    voucher_type: string | null;
-    discount_kes: number | null;
-    discount_percent: number | null;
-    maximum_discount_kes: number | null;
-    minimum_spend_kes: number;
-  } | null;
-  partners: { name: string } | null;
-}
-
-interface AvailabilityRow {
-  allocation_id: string;
-  quantity_claimed_total: number;
-  quantity_remaining: number;
-  active_reserved_minor: number;
-  realized_cost_minor: number;
-  available_budget_minor: number;
-}
-
-export default async function VoucherFundDetailPage({ params }: { params: Promise<{ fundId: string }> }) {
+export default async function VoucherFundDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { fundId: string };
+  searchParams: { returnTo?: string };
+}) {
   const session = await requireAdminSession("voucher_funds.read");
   if (!session) redirect("/login");
-  const { fundId } = await params;
-
-  const [{ data: fund }, { data: budget }, { data: allocations }, { data: availability }, { data: ruleSets }] =
-    await Promise.all([
-      supabase.from("voucher_funding_programs").select("*").eq("id", fundId).single(),
-      supabase.from("v_voucher_funding_program_budget").select("*").eq("program_id", fundId).single(),
-      supabase
-        .from("voucher_funding_allocations")
-        .select(
-          `id, state, quantity_cap, max_reimbursement_minor, authorized_budget_minor, claim_starts_at, claim_ends_at, spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, ${ALLOCATION_BENEFIT_COLUMNS}, minimum_spend_kes), partners!voucher_funding_allocations_merchant_id_fkey(name)`,
-        )
-        .eq("program_id", fundId)
-        .order("created_at", { ascending: false }),
-      supabase.from("v_voucher_funding_allocation_availability").select("*"),
-      supabase
-        .from("voucher_eligibility_rule_sets")
-        .select("id, version, mode, rules, customer_copy")
-        .eq("program_id", fundId)
-        .order("version", { ascending: false }),
-    ]);
-
-  if (!fund) notFound();
-
-  const campaignTitle = typeof fund.metadata?.public_campaign_title === "string" ? fund.metadata.public_campaign_title : null;
-  const availabilityByAllocation = new Map<string, AvailabilityRow>();
-  for (const row of (availability ?? []) as AvailabilityRow[]) availabilityByAllocation.set(row.allocation_id, row);
-
-  const allocationIds = (allocations ?? []).map((a) => a.id);
-  const { data: issuedVouchers } =
-    allocationIds.length > 0
-      ? await supabase
-          .from("issued_vouchers")
-          .select("id, code, status, expires_at, created_at, revoked_reason, partners(name)")
-          .in("funding_allocation_id", allocationIds)
-          .order("created_at", { ascending: false })
-          .limit(200)
-      : { data: [] as unknown[] };
-
-  const memberDetailsByVoucher = await getVoucherMemberDetails(
-    (issuedVouchers ?? []).map((voucher) => (voucher as { id: string }).id),
+  const { fundId } = params;
+  const back = fundReturnPath(searchParams.returnTo);
+  const header = (
+    <VoucherHeader
+      title="Fund Detail"
+      backHref={back}
+      name={session.name}
+      role={session.role}
+    />
   );
-
-  const voucherRows: IssuedVoucherRow[] = (issuedVouchers ?? []).map((v) => {
-    const row = v as unknown as {
-      id: string;
-      code: string;
-      status: string;
-      expires_at: string | null;
-      created_at: string;
-      revoked_reason: string | null;
-      partners: { name: string } | null;
-    };
-    const memberDetails = memberDetailsByVoucher.get(row.id);
-    return {
-      id: row.id,
-      code: row.code,
-      status: row.status,
-      expires_at: row.expires_at,
-      created_at: row.created_at,
-      revoked_reason: row.revoked_reason,
-      merchant_name: row.partners?.name ?? "Unknown merchant",
-      username: memberDetails?.username ?? null,
-      account_created_at: memberDetails?.accountCreatedAt ?? null,
-      account_age_days: memberDetails?.accountAgeDays ?? null,
-      country: memberDetails?.country ?? null,
-      spend_miles_earned: memberDetails?.spendMilesEarned ?? 0,
-    };
-  });
-  const statusCounts = voucherRows.reduce<Record<string, number>>((acc, v) => {
-    acc[v.status] = (acc[v.status] ?? 0) + 1;
-    return acc;
-  }, {});
-
-  const canWrite = hasPermission(session.role, "voucher_funds.write");
-  const canApprove = hasPermission(session.role, "voucher_funds.approve");
-  const canPublish = hasPermission(session.role, "voucher_funds.publish");
-
-  return (
-    <div>
-      <PageHeader title={fund.name} subtitle={`${fund.country_code} · ${fund.currency} · ${fund.sponsorship_label ?? "Funded by Akiba"}`} />
-      <div className="space-y-6 p-4 sm:p-6">
-        <DetailHeader
-          backHref="/vouchers/funds"
-          backLabel="Back to funds"
-          title={fund.name}
-          badges={<Badge variant={STATE_VARIANT[fund.state] ?? "secondary"}>{fund.state.replaceAll("_", " ")}</Badge>}
-        />
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Summary</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {campaignTitle ? <>
-              <Stat label="Public voucher campaign" value={campaignTitle} />
-              <Stat label="Vouchers allocated" value={formatNumber((allocations ?? []).reduce((total, allocation) => total + allocation.quantity_cap, 0))} />
-            </> : null}
-            <Stat label="Authorized budget" value={formatMoney(minorToKes(fund.authorized_budget_minor), fund.currency)} />
-            <Stat
-              label="Committed"
-              value={formatMoney(minorToKes(budget?.committed_minor ?? 0), fund.currency)}
-            />
-            <Stat
-              label="Available"
-              value={formatMoney(minorToKes(budget?.available_budget_minor ?? fund.authorized_budget_minor), fund.currency)}
-            />
-            <Stat label="Merchants" value={formatNumber(allocations?.length ?? 0)} />
-            <Stat label="Schedule" value={`${formatDateTime(fund.starts_at)} → ${formatDateTime(fund.ends_at)}`} />
-            <Stat label="Cost center" value={fund.cost_center_reference ?? "—"} />
-            <Stat label="Approval revision" value={String(fund.approval_revision)} />
-            <Stat label="Approved by" value={fund.approved_by ? `${fund.approved_by} · ${formatDateTime(fund.approved_at)}` : "—"} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Voucher activity</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <Stat label="Issued" value={formatNumber(statusCounts.issued ?? 0)} />
-            <Stat label="Redeemed" value={formatNumber(statusCounts.redeemed ?? 0)} />
-            <Stat label="Expired" value={formatNumber(statusCounts.expired ?? 0)} />
-            <Stat label="Revoked" value={formatNumber(statusCounts.revoked ?? 0)} />
-          </CardContent>
-        </Card>
-
-        <FundActions
-          fundId={fund.id}
-          state={fund.state}
-          approvalRevision={fund.approval_revision}
-          version={fund.version}
-          startsAt={fund.starts_at}
-          endsAt={fund.ends_at}
-          canWrite={canWrite}
-          canApprove={canApprove}
-          canPublish={canPublish}
-        />
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Merchant allocations</CardTitle>
-            {canWrite && ["approved", "scheduled", "active", "paused"].includes(fund.state) && (
-              <Button asChild size="sm">
-                <Link href={`/vouchers/funds/${fund.id}/allocations/new`}>Add allocation</Link>
-              </Button>
-            )}
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {(!allocations || allocations.length === 0) && (
-              <p className="text-sm text-ink-muted">
-                {["approved", "scheduled", "active", "paused"].includes(fund.state)
-                  ? "No merchant allocations yet."
-                  : "Fund must be approved before allocations can be added."}
-              </p>
-            )}
-            {(allocations as unknown as AllocationRow[] | null)?.map((allocation) => {
-              const avail = availabilityByAllocation.get(allocation.id);
-              return (
-                <Link
-                  key={allocation.id}
-                  href={`/vouchers/funds/${fund.id}/allocations/${allocation.id}`}
-                  className="flex flex-wrap items-center gap-3 rounded-lg border border-border px-3 py-3 text-sm hover:border-primary/30 hover:bg-surface-subtle"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-ink">{allocation.partners?.name ?? "Unknown merchant"}</p>
-                    <p className="text-xs text-ink-muted">
-                      {allocation.spend_voucher_templates?.title} ·{" "}
-                      {allocation.spend_voucher_templates
-                        ? allocationBenefitLabel({
-                            voucherType: allocation.spend_voucher_templates.voucher_type,
-                            discountKes: allocation.spend_voucher_templates.discount_kes,
-                            discountPercent: allocation.spend_voucher_templates.discount_percent,
-                            maximumDiscountKes: allocation.spend_voucher_templates.maximum_discount_kes,
-                          })
-                        : "—"}
-                      · min KES {allocation.spend_voucher_templates?.minimum_spend_kes}
-                    </p>
-                  </div>
-                  <div className="text-right text-xs text-ink-muted">
-                    <p>
-                      {formatNumber(avail?.quantity_claimed_total ?? 0)}/{formatNumber(allocation.quantity_cap)} issued
-                    </p>
-                    <p>Available: {formatMoney(minorToKes(avail?.available_budget_minor ?? 0), fund.currency)}</p>
-                  </div>
-                  <Badge variant={STATE_VARIANT[allocation.state] ?? "secondary"}>
-                    {allocation.state.replaceAll("_", " ")}
-                  </Badge>
-                </Link>
-              );
-            })}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Eligibility rule sets</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            {(!ruleSets || ruleSets.length === 0) && (
-              <p className="text-ink-muted">No eligibility rule sets yet — create one when adding an allocation.</p>
-            )}
-            {ruleSets?.map((rs) => (
-              <div key={rs.id} className="rounded-lg border border-border px-3 py-2">
-                <p className="font-medium">
-                  v{rs.version} · match {rs.mode}
-                </p>
-                <p className="text-xs text-ink-muted">{rs.customer_copy ?? "No customer-facing copy set."}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Issued vouchers</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <IssuedVouchersPanel fundId={fund.id} vouchers={voucherRows} canRevoke={canPublish} />
-          </CardContent>
-        </Card>
+  const fail = () => (
+    <div className={voucherCanvas}>
+      {header}
+      <div className="p-4">
+        <QueueLoadError title="Couldn’t load fund" />
       </div>
     </div>
   );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
+  const fundRes = await supabase
+    .from("voucher_funding_programs")
+    .select("*")
+    .eq("id", fundId)
+    .maybeSingle();
+  if (fundRes.error) return fail();
+  if (!fundRes.data) notFound();
+  const fund = fundRes.data;
+  const [budgetRes, allocationsRes, rulesRes] = await Promise.all([
+    supabase
+      .from("v_voucher_funding_program_budget")
+      .select("*")
+      .eq("program_id", fundId)
+      .maybeSingle(),
+    voucherReadAll((from, to) =>
+      supabase
+        .from("voucher_funding_allocations")
+        .select(
+          "id,state,merchant_id,authorized_budget_minor,quantity_cap,partners!voucher_funding_allocations_merchant_id_fkey(name),spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title)"
+        )
+        .eq("program_id", fundId)
+        .order("created_at", { ascending: false })
+        .order("id")
+        .range(from, to)
+    )
+      .then((data) => ({ data, error: null }))
+      .catch(() => ({ data: [], error: true })),
+    supabase
+      .from("voucher_eligibility_rule_sets")
+      .select("id,version,mode,customer_copy")
+      .eq("program_id", fundId)
+      .order("version", { ascending: false }),
+  ]);
+  if (allocationsRes.error) return fail();
+  const budget = budgetRes.data,
+    allocations = allocationsRes.data,
+    percent =
+      budget && fund.authorized_budget_minor > 0
+        ? Math.min(
+            100,
+            Math.max(
+              0,
+              Math.round(
+                (Number(budget.committed_minor) /
+                  Number(fund.authorized_budget_minor)) *
+                  100
+              )
+            )
+          )
+        : null;
+  const canWrite = hasPermission(session.role, "voucher_funds.write"),
+    canAdd =
+      canWrite &&
+      ["approved", "scheduled", "active", "paused"].includes(fund.state);
+  const money = (minor: number) => fundMoney(minor, fund.currency);
   return (
-    <div>
-      <p className="text-xs text-ink-muted">{label}</p>
-      <p className="text-sm font-medium text-ink">{value}</p>
+    <div className={voucherCanvas}>
+      {header}
+      <div className="mx-auto max-w-3xl space-y-5 p-4 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <VoucherStatus status={fund.state} />
+          <p className="flex items-center gap-2 text-xs text-ink-muted">
+            <CalendarDays className="h-4 w-4 text-primary" aria-hidden="true" />
+            {fundDate(fund.starts_at)} – {fundDate(fund.ends_at)}
+          </p>
+        </div>
+        <h2 className="text-3xl font-semibold leading-tight tracking-tight">
+          {fund.name}
+        </h2>
+        {typeof fund.metadata?.notes === "string" && fund.metadata.notes && (
+          <p className="text-sm leading-6 text-ink-muted">
+            {fund.metadata.notes}
+          </p>
+        )}
+        <section className="rounded-card bg-[#F2F3FF] p-5">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-medium text-ink-muted">
+              Total fund budget
+            </h3>
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#EAEDFF] text-primary">
+              <Wallet className="h-5 w-5" aria-hidden="true" />
+            </span>
+          </div>
+          <p className="mt-2 break-words text-3xl font-semibold tracking-tight tabular-nums sm:text-4xl">
+            {money(fund.authorized_budget_minor)}
+          </p>
+          {percent != null && (
+            <progress
+              aria-label="Fund budget committed"
+              value={percent}
+              max={100}
+              className="mt-5 h-2 w-full overflow-hidden rounded-full [&::-webkit-progress-bar]:bg-[#DAE2FD] [&::-webkit-progress-value]:bg-primary [&::-moz-progress-bar]:bg-primary"
+            />
+          )}
+          <dl className="mt-5 grid grid-cols-2 gap-3">
+            {[
+              [
+                "Committed",
+                budget ? money(budget.committed_minor) : "Unavailable",
+                percent != null ? `${percent}% committed` : null,
+              ],
+              [
+                "Available",
+                budget ? money(budget.available_budget_minor) : "Unavailable",
+                percent != null
+                  ? `${Math.round(
+                      (Number(budget.available_budget_minor) /
+                        Number(fund.authorized_budget_minor)) *
+                        100
+                    )}% remaining`
+                  : null,
+              ],
+            ].map(([label, value, description]) => (
+              <div
+                key={label}
+                className="rounded-control bg-white p-3 shadow-sm"
+              >
+                <dt className="text-sm text-ink-muted">{label}</dt>
+                <dd
+                  className={`mt-2 break-words text-lg font-semibold tabular-nums ${
+                    label === "Available" ? "text-primary-strong" : ""
+                  }`}
+                >
+                  {value}
+                  {description && (
+                    <span className="mt-1 block text-xs font-normal text-ink-muted">
+                      {description}
+                    </span>
+                  )}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          {(!budget || budgetRes.error) && (
+            <p role="alert" className="mt-3 text-sm text-ink-muted">
+              Budget availability could not be loaded.
+            </p>
+          )}
+        </section>
+        {canAdd && (
+          <Link
+            href={`/vouchers/funds/${fund.id}/allocations/new`}
+            className="flex min-h-12 items-center justify-center gap-2 rounded-control bg-[#005C55] px-4 text-base font-medium text-white focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <Plus className="h-5 w-5" aria-hidden="true" />
+            Add allocation
+          </Link>
+        )}
+        <div className="flex items-center gap-2">
+          <h3 className="text-xl font-semibold">Merchant allocations</h3>
+          <span className="rounded-full bg-[#DAE2FD] px-2 py-0.5 text-sm">
+            {allocations.length}
+          </span>
+        </div>
+        <ul className="space-y-3">
+          {allocations.map((allocation) => {
+            const merchant = allocation.partners as unknown as {
+              name: string;
+            } | null;
+            return (
+              <li key={allocation.id}>
+                <Link
+                  href={`/vouchers/funds/${fund.id}/allocations/${allocation.id}/review`}
+                  className={`${voucherCard} flex items-center gap-3 focus-visible:ring-2 focus-visible:ring-primary`}
+                >
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-control bg-[#EAEDFF] text-primary">
+                    <Store className="h-6 w-6" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block break-words font-semibold">
+                      {merchant?.name ?? "Merchant unavailable"}
+                    </span>
+                    <span className="mt-1 block text-sm text-ink-muted">
+                      Allocated ·{" "}
+                      <span className="font-medium text-ink">
+                        {money(allocation.authorized_budget_minor)}
+                      </span>
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 flex-col items-end gap-2">
+                    <VoucherStatus status={allocation.state} />
+                    <ChevronRight
+                      className="h-4 w-4 text-ink-muted"
+                      aria-hidden="true"
+                    />
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+        {!allocations.length && (
+          <div className={`${voucherCard} text-sm text-ink-muted`}>
+            {canAdd
+              ? "No merchant allocations yet."
+              : "Publish the fund before adding merchant allocations."}
+          </div>
+        )}
+        <details className={voucherCard}>
+          <summary className="min-h-11 cursor-pointer font-medium focus-visible:outline-primary">
+            Fund details & actions
+          </summary>
+          <div className="mt-3 space-y-5">
+            <VoucherFacts
+              items={[
+                {
+                  label: "Sponsorship",
+                  value: fund.sponsorship_label || "Funded by Akiba",
+                },
+                { label: "Country", value: fund.country_code },
+                {
+                  label: "Cost center",
+                  value: fund.cost_center_reference || "Not supplied",
+                },
+                {
+                  label: "Publication revision",
+                  value: String(fund.approval_revision),
+                },
+              ]}
+            />
+            <FundActions
+              fundId={fund.id}
+              state={fund.state}
+              approvalRevision={fund.approval_revision}
+              version={fund.version}
+              startsAt={fund.starts_at}
+              endsAt={fund.ends_at}
+              canWrite={canWrite}
+              canApprove={hasPermission(session.role, "voucher_funds.approve")}
+              canPublish={hasPermission(session.role, "voucher_funds.publish")}
+            />
+            <Link
+              href={`/vouchers/issued?fund=${fund.id}`}
+              className="inline-flex min-h-11 items-center text-sm font-medium text-primary"
+            >
+              Issued vouchers
+            </Link>
+            <div>
+              <h4 className="text-sm font-medium">Eligibility rule sets</h4>
+              {rulesRes.error ? (
+                <p role="alert" className="mt-2 text-sm text-ink-muted">
+                  Eligibility rules could not be loaded.
+                </p>
+              ) : (
+                (rulesRes.data ?? []).map((rule) => (
+                  <p key={rule.id} className="mt-2 text-sm text-ink-muted">
+                    v{rule.version} ·{" "}
+                    {rule.customer_copy || `Match ${rule.mode}`}
+                  </p>
+                ))
+              )}
+            </div>
+          </div>
+        </details>
+      </div>
     </div>
   );
 }

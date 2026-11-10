@@ -29,7 +29,7 @@ const categoryAccent: Record<
   "Wallet Rewards":       { border: "border-l-blue-400",   highlight: "bg-blue-50 text-blue-700",    label: "bg-blue-50 text-blue-600" },
   "Partner Quests":       { border: "border-l-purple-400", highlight: "bg-purple-50 text-purple-700", label: "bg-purple-50 text-purple-600" },
   Games:                  { border: "border-l-orange-400", highlight: "bg-orange-50 text-orange-700", label: "bg-orange-50 text-orange-600" },
-  "Merchants & Vouchers": { border: "border-l-pink-400",   highlight: "bg-pink-50 text-pink-700",    label: "bg-pink-50 text-pink-600" },
+  "Businesses & Vouchers": { border: "border-l-pink-400",   highlight: "bg-pink-50 text-pink-700",    label: "bg-pink-50 text-pink-600" },
   Rewards:                { border: "border-l-akiba-teal", highlight: "bg-akiba-tint text-akiba-teal", label: "bg-akiba-tint text-akiba-teal" },
 };
 

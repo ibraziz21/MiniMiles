@@ -2,8 +2,12 @@ import { notFound, redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { minorToKes } from "@/lib/voucherFunds";
-import { PageHeader } from "@/components/shell/PageHeader";
-import { AllocationForm, type MerchantOption } from "@/components/vouchers/AllocationForm";
+import { VoucherHeader } from "@/components/vouchers/VoucherHeader";
+import { voucherCanvas } from "@/components/vouchers/VoucherUi";
+import {
+  AllocationForm,
+  type MerchantOption,
+} from "@/components/vouchers/AllocationForm";
 
 export default async function EditVoucherAllocationPage({
   params,
@@ -17,27 +21,36 @@ export default async function EditVoucherAllocationPage({
   const { data: allocation, error: allocationError } = await supabase
     .from("voucher_funding_allocations")
     .select(
-      "id, version, state, metadata, merchant_id, quantity_cap, authorized_budget_minor, claim_starts_at, claim_ends_at, voucher_validity_seconds, distribution_modes, recycle_expired_inventory, program_id, spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, description, terms_text, voucher_type, discount_kes, discount_percent, maximum_discount_kes, minimum_spend_kes), partners!voucher_funding_allocations_merchant_id_fkey(name), voucher_funding_programs(country_code), voucher_eligibility_rule_sets(mode, rules, customer_copy)",
+      "id, version, state, metadata, merchant_id, quantity_cap, authorized_budget_minor, claim_starts_at, claim_ends_at, voucher_validity_seconds, distribution_modes, recycle_expired_inventory, program_id, spend_voucher_templates!voucher_funding_allocations_voucher_template_id_fkey(title, description, terms_text, voucher_type, discount_kes, discount_percent, maximum_discount_kes, minimum_spend_kes), partners!voucher_funding_allocations_merchant_id_fkey(name), voucher_funding_programs(country_code,name,starts_at,ends_at), voucher_eligibility_rule_sets(mode, rules, customer_copy)"
     )
     .eq("id", allocationId)
     .single();
 
-  if (allocationError && allocationError.code !== "PGRST116") throw new Error("Allocation details are temporarily unavailable");
+  if (allocationError && allocationError.code !== "PGRST116")
+    throw new Error("Allocation details are temporarily unavailable");
   if (!allocation || allocation.program_id !== fundId) notFound();
-  if (allocation.state !== "draft") redirect(`/vouchers/funds/${fundId}/allocations/${allocationId}`);
+  if (allocation.state !== "draft")
+    redirect(`/vouchers/funds/${fundId}/allocations/${allocationId}`);
 
   // Membership is editable while the allocation is draft, so the form needs
   // the persisted set and the merchant options to render it. Reading what was
   // saved, not what the operator last typed.
-  const [{ data: additionalMerchants, error: membershipError }, { data: partners, error: partnersError }] = await Promise.all([
+  const [
+    { data: additionalMerchants, error: membershipError },
+    { data: partners, error: partnersError },
+  ] = await Promise.all([
     supabase
       .from("voucher_allocation_merchants")
       .select("partner_id")
       .eq("allocation_id", allocationId),
-    supabase.from("partners").select("id, name, country, status").order("name"),
+    supabase
+      .from("partners")
+      .select("id, name, country, status,banner_url,logo_url,image_url")
+      .order("name"),
   ]);
 
-  if (membershipError || partnersError) throw new Error("Allocation merchants are temporarily unavailable");
+  if (membershipError || partnersError)
+    throw new Error("Allocation merchants are temporarily unavailable");
 
   const template = allocation.spend_voucher_templates as unknown as {
     title: string;
@@ -55,17 +68,36 @@ export default async function EditVoucherAllocationPage({
     customer_copy: string | null;
   } | null;
   const merchant = allocation.partners as unknown as { name: string } | null;
-  const fund = allocation.voucher_funding_programs as unknown as { country_code: string } | null;
+  const fund = allocation.voucher_funding_programs as unknown as {
+    country_code: string;
+    name?: string;
+    starts_at?: string;
+    ends_at?: string;
+  } | null;
 
   return (
-    <div>
-      <PageHeader title={`Edit allocation — ${merchant?.name ?? ""}`} subtitle="Only draft allocations can be edited" />
+    <div className={voucherCanvas}>
+      <VoucherHeader
+        title="Edit Allocation"
+        backHref={`/vouchers/funds/${fundId}/allocations/${allocationId}/review`}
+        name={session.name}
+        role={session.role}
+      />
       <AllocationForm
         fundId={fundId}
         fundCountryCode={fund?.country_code ?? "KE"}
-        merchants={(partners ?? []) as MerchantOption[]}
+        fundName={fund?.name}
+        fundStartsAt={fund?.starts_at}
+        fundEndsAt={fund?.ends_at}
+        merchants={
+          (partners ?? []).map((p) => ({
+            ...p,
+            image_url: p.banner_url || p.image_url || p.logo_url,
+          })) as MerchantOption[]
+        }
         initial={{
-          showInBusinessOffers: allocation.metadata?.show_in_business_offers === true,
+          showInBusinessOffers:
+            allocation.metadata?.show_in_business_offers === true,
           redemptionSchedule: allocation.metadata?.redemption_schedule ?? null,
           eligibilityRules: ruleSet?.rules ?? [],
           eligibilityMode: ruleSet?.mode ?? null,
@@ -78,7 +110,9 @@ export default async function EditVoucherAllocationPage({
           description: template?.description ?? "",
           termsText: template?.terms_text ?? "",
           voucherType: template?.voucher_type ?? "fixed_off",
-          additionalMerchantIds: (additionalMerchants ?? []).map((row) => row.partner_id as string),
+          additionalMerchantIds: (additionalMerchants ?? []).map(
+            (row) => row.partner_id as string
+          ),
           discountKes: template?.discount_kes ?? 0,
           discountPercent: template?.discount_percent ?? null,
           maximumDiscountKes: template?.maximum_discount_kes ?? null,
@@ -87,7 +121,9 @@ export default async function EditVoucherAllocationPage({
           authorizedBudgetKes: minorToKes(allocation.authorized_budget_minor),
           claimStartsAt: allocation.claim_starts_at,
           claimEndsAt: allocation.claim_ends_at,
-          voucherValidityDays: Math.round(allocation.voucher_validity_seconds / 86400),
+          voucherValidityDays: Math.round(
+            allocation.voucher_validity_seconds / 86400
+          ),
           distributionModes: allocation.distribution_modes,
           recycleExpiredInventory: allocation.recycle_expired_inventory,
         }}

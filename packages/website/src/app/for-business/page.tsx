@@ -11,7 +11,7 @@ import { SubscriptionPlans } from "@/components/SubscriptionPlans";
 import { partnerContent, siteConfig } from "@/content/site";
 
 export const metadata: Metadata = {
-  title: "Merchants",
+  title: "For Business",
   description:
     "Get discovered by shoppers near you and earn the second visit. Rewards at the counter, vouchers, offer days with reminders, and recommendations only real customers can leave. No hardware, no POS integration.",
 };
@@ -199,7 +199,7 @@ export default function MerchantsPage() {
       <Panel id="contact" tone="ink">
         <div className="grid items-start gap-8 lg:grid-cols-[0.9fr_1.1fr]">
           <div>
-            <Eyebrow tone="onDark">Merchant intake</Eyebrow>
+            <Eyebrow tone="onDark">Business intake</Eyebrow>
             <h2 className="mt-5 font-sterling text-[2.35rem] font-medium leading-[1.05] tracking-[-0.015em] sm:text-[2.75rem]">
               Reward your customers. Drive repeat spend.
             </h2>
@@ -208,7 +208,7 @@ export default function MerchantsPage() {
             </p>
             <ul className="mt-7 space-y-3">
               {[
-                "Merchant profile, branches and opening hours published to Explore",
+                "Business profile, branches and opening hours published to Explore",
                 "Scan & Award setup, voucher and offer-day configuration",
                 "M-Pesa and mobile-money purchase event integration",
                 "Analytics, repeat-customer insights, and Miles usage reporting",
@@ -227,7 +227,7 @@ export default function MerchantsPage() {
             </p>
           </div>
           <PartnerLeadForm
-            eyebrow="Merchant intake"
+            eyebrow="Business intake"
             title="Get your business on Akiba"
             body="Share your store details and we will come back within 2 business days with a setup path, reward rate guidance, and onboarding options."
             source="website_merchants_page"
@@ -235,7 +235,7 @@ export default function MerchantsPage() {
             intentOptions={merchantIntentOptions}
             messageLabel="Tell us about your store"
             messagePlaceholder="Example: We run a pharmacy chain in Nairobi with 3 locations. We process ~500 M-Pesa transactions per day and want to offer cashback to repeat customers. Include your transaction volume, category, and timing."
-            submitLabel="Request merchant onboarding"
+            submitLabel="Request business onboarding"
             successMessage="Thanks. We will review your details and follow up within 2 business days."
             className="shadow-none"
           />

@@ -2,7 +2,14 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BellRing, CheckCircle2, ExternalLink, Loader2, Send, Users } from "lucide-react";
+import {
+  BellRing,
+  CheckCircle2,
+  ExternalLink,
+  Loader2,
+  Send,
+  Users,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,7 +27,12 @@ const TYPE_LABELS: Record<PushCampaignType, string> = {
   general: "General update",
 };
 
-export function PushCampaignComposer({ audienceCount }: { audienceCount: number }) {
+export function PushCampaignComposer({
+  audienceCount,
+}: {
+  audienceCount: number;
+}) {
+  const lock = useRef(false);
   const router = useRouter();
   const idempotencyKey = useRef(crypto.randomUUID());
   const [campaignType, setCampaignType] = useState<PushCampaignType>("feature");
@@ -48,7 +60,8 @@ export function PushCampaignComposer({ audienceCount }: { audienceCount: number 
   }
 
   async function sendCampaign() {
-    if (!valid) return;
+    if (!valid || lock.current) return;
+    lock.current = true;
     setSending(true);
     setError(null);
     try {
@@ -72,7 +85,7 @@ export function PushCampaignComposer({ audienceCount }: { audienceCount: number 
       setSuccess(
         result.queuedCount === 1
           ? "Notification queued for 1 user."
-          : `Notifications queued for ${result.queuedCount} users.`,
+          : `Notifications queued for ${result.queuedCount} users.`
       );
       setTitle("");
       setBody("");
@@ -81,144 +94,159 @@ export function PushCampaignComposer({ audienceCount }: { audienceCount: number 
       idempotencyKey.current = crypto.randomUUID();
       router.refresh();
     } catch {
-      setError("Network error. The campaign was not confirmed; retrying is safe.");
+      setError(
+        "Network error. The campaign was not confirmed; retrying is safe."
+      );
     } finally {
+      lock.current = false;
       setSending(false);
     }
   }
 
+  const preview = (
+    <section className="rounded-card bg-[#EAEDFF] p-5">
+      <p className="text-sm font-medium text-primary">Akiba · Preview</p>
+      <h3 className="mt-3 break-words font-semibold">
+        {title || "Notification title"}
+      </h3>
+      <p className="mt-2 break-words text-sm leading-6 text-ink-muted">
+        {body || "Your message appears here."}
+      </p>
+    </section>
+  );
+  if (success)
+    return (
+      <section className="mx-auto max-w-xl space-y-5 py-12 text-center">
+        <CheckCircle2
+          className="mx-auto h-16 w-16 text-primary"
+          aria-hidden="true"
+        />
+        <h2 className="text-3xl font-semibold">Notification queued</h2>
+        <p role="status" className="text-sm text-ink-muted">
+          {success}
+        </p>
+        <p className="text-sm text-ink-muted">
+          Queueing does not confirm delivery to a device.
+        </p>
+        <Button className="min-h-12 w-full" onClick={() => setSuccess(null)}>
+          Compose another
+        </Button>
+        <a
+          href="/push-notifications"
+          className="flex min-h-11 items-center justify-center text-primary"
+        >
+          Back to notifications
+        </a>
+      </section>
+    );
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
-        <div className="mb-5 flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-base font-semibold text-ink">Compose announcement</h2>
-            <p className="mt-1 text-sm text-ink-muted">
-              Sends only to users who enabled announcement notifications.
+    <div className="mx-auto max-w-2xl space-y-5">
+      <h2 className="text-2xl font-semibold">
+        {reviewing ? "Review and send" : "Compose notification"}
+      </h2>
+      {reviewing ? (
+        <>
+          {preview}
+          <section className="space-y-4 rounded-card bg-white p-5 text-sm">
+            <p>
+              Audience:{" "}
+              <strong>{audienceCount.toLocaleString()} opted-in users</strong>
             </p>
+            <p className="break-all">Destination: {deepLink}</p>
+            <p>Send time: Immediate</p>
+          </section>
+          <p className="text-sm text-ink-muted">
+            Confirm the message and audience. This cannot be recalled.
+          </p>
+        </>
+      ) : (
+        <>
+          <div className="rounded-card bg-white p-4 text-sm">
+            Audience: {audienceCount.toLocaleString()} opted-in users
           </div>
-          <div className="flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary-strong">
-            <Users className="h-3.5 w-3.5" />
-            {audienceCount.toLocaleString()} opted in
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-medium text-ink">
+          <label className="block text-sm font-medium">
             Announcement type
-            <Select value={campaignType} onValueChange={(value) => { setCampaignType(value as PushCampaignType); edit(); }}>
-              <SelectTrigger className="mt-1.5">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="feature">Feature launch</SelectItem>
-                <SelectItem value="merchant">New merchant</SelectItem>
-                <SelectItem value="general">General update</SelectItem>
-              </SelectContent>
-            </Select>
+            <select
+              value={campaignType}
+              onChange={(e) =>
+                setCampaignType(e.target.value as PushCampaignType)
+              }
+              className="mt-2 min-h-12 w-full rounded-control border-0 bg-white px-3 text-base"
+            >
+              {Object.entries(TYPE_LABELS).map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
           </label>
-
-          <label className="text-sm font-medium text-ink">
-            Opens in Akiba at
-            <div className="relative mt-1.5">
-              <Input
-                value={deepLink}
-                onChange={(event) => { setDeepLink(event.target.value); edit(); }}
-                placeholder="/merchants/new-merchant"
-                maxLength={500}
-                className="pr-9 font-mono text-xs"
-              />
-              <ExternalLink className="absolute right-3 top-2.5 h-4 w-4 text-ink-muted" />
-            </div>
-          </label>
-        </div>
-
-        <label className="mt-4 block text-sm font-medium text-ink">
-          Notification title
-          <Input
-            value={title}
-            onChange={(event) => { setTitle(event.target.value); edit(); }}
-            placeholder="A new way to earn Miles"
-            maxLength={60}
-            className="mt-1.5"
-          />
-          <span className="mt-1 block text-right text-xs text-ink-muted">{title.length}/60</span>
-        </label>
-
-        <label className="mt-2 block text-sm font-medium text-ink">
-          Message
-          <textarea
-            value={body}
-            onChange={(event) => { setBody(event.target.value); edit(); }}
-            placeholder="Tell members what is new and why they should open Akiba."
-            maxLength={160}
-            rows={4}
-            className="mt-1.5 w-full resize-none rounded-card border border-border bg-surface px-3 py-2 text-sm text-ink shadow-sm placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-          <span className="mt-1 block text-right text-xs text-ink-muted">{body.length}/160</span>
-        </label>
-
-        {audienceCount === 0 && (
-          <p className="mt-3 rounded-card bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            Nobody has opted into announcements on an active device yet. The send action will unlock when the audience is non-zero.
-          </p>
-        )}
-        {error && <p className="mt-3 text-sm text-red-600" role="alert">{error}</p>}
-        {success && (
-          <p className="mt-3 flex items-center gap-2 text-sm text-emerald-700" role="status">
-            <CheckCircle2 className="h-4 w-4" /> {success}
-          </p>
-        )}
-
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          {!reviewing ? (
-            <Button onClick={() => setReviewing(true)} disabled={!valid}>
-              <BellRing className="h-4 w-4" /> Review notification
-            </Button>
-          ) : (
-            <>
-              <Button onClick={sendCampaign} disabled={sending || !valid}>
-                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                {sending ? "Queueing…" : `Send to ${audienceCount.toLocaleString()} users`}
-              </Button>
-              <Button variant="outline" onClick={() => setReviewing(false)} disabled={sending}>Keep editing</Button>
-            </>
-          )}
-          {reviewing && (
-            <span className="text-xs font-medium text-amber-700">
-              Confirm the preview and audience before sending. This cannot be recalled.
+          <label className="block text-sm font-medium">
+            Notification title{" "}
+            <span className="float-right text-xs text-ink-muted">
+              {title.length}/60
             </span>
-          )}
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-border bg-slate-950 p-5 text-white shadow-sm">
-        <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-ink-muted">Phone preview</p>
-        <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary">
-              <BellRing className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="text-xs font-semibold text-white">Akiba</p>
-                <span className="text-[10px] text-ink-muted">now</span>
-              </div>
-              <p className="mt-1 break-words text-sm font-semibold text-white">
-                {title.trim() || TYPE_LABELS[campaignType]}
-              </p>
-              <p className="mt-1 break-words text-xs leading-5 text-slate-300">
-                {body.trim() || "Your message will appear here."}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="mt-5 space-y-2 text-xs text-ink-muted">
-          <p>Type: <span className="text-slate-200">{TYPE_LABELS[campaignType]}</span></p>
-          <p>Destination: <span className="break-all font-mono text-slate-200">{deepLink || "—"}</span></p>
-          <p>Delivery: <span className="text-slate-200">Queued within one minute</span></p>
-        </div>
-      </div>
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              maxLength={60}
+              className="mt-2 min-h-12 border-0 bg-white text-base"
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Message{" "}
+            <span className="float-right text-xs text-ink-muted">
+              {body.length}/160
+            </span>
+            <textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              maxLength={160}
+              rows={4}
+              className="mt-2 w-full rounded-card border-0 bg-white p-4 text-base focus-visible:outline-primary"
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Destination in Akiba
+            <Input
+              value={deepLink}
+              onChange={(e) => setDeepLink(e.target.value)}
+              maxLength={500}
+              className="mt-2 min-h-12 border-0 bg-white text-base"
+            />
+            <span className="mt-1 block text-xs text-ink-muted">
+              Relative app path, e.g. /merchants
+            </span>
+          </label>
+          {preview}
+        </>
+      )}
+      {!audienceCount && (
+        <p className="text-sm text-ink-muted">
+          No active opted-in users are available.
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
+      <Button
+        className="min-h-12 w-full"
+        disabled={!valid || sending}
+        onClick={() => (reviewing ? void sendCampaign() : setReviewing(true))}
+      >
+        {sending ? "Queueing…" : reviewing ? "Send notification" : "Review"}
+      </Button>
+      {reviewing && (
+        <Button
+          className="min-h-12 w-full bg-[#EAEDFF]"
+          variant="secondary"
+          disabled={sending}
+          onClick={() => setReviewing(false)}
+        >
+          Back to edit
+        </Button>
+      )}
     </div>
   );
 }

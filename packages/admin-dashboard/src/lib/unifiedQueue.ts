@@ -5,15 +5,18 @@ import { hasPermission, type AdminRole } from "@/types";
 import type { QueueItem, QueueSourceId } from "@/lib/queueTypes";
 
 function minutesAgo(iso: string): number {
-  return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  return Math.max(
+    0,
+    Math.round((Date.now() - new Date(iso).getTime()) / 60000)
+  );
 }
-
-
 
 async function profileReviewItems(): Promise<QueueItem[]> {
   const { data, error } = await supabase
     .from("partner_settings")
-    .select("partner_id, directory_status, directory_submitted_at, directory_updated_at, partners(name)")
+    .select(
+      "partner_id, directory_status, directory_submitted_at, directory_updated_at, partners(name)"
+    )
     .eq("directory_status", "pending_review")
     .order("directory_submitted_at", { ascending: true })
     .limit(150);
@@ -55,7 +58,9 @@ async function discoveryPhotoItems(): Promise<QueueItem[]> {
       title: partner?.name ?? "Photo submission",
       subtitle: "Merchant visit photo",
       statusLabel: row.moderation_status,
-      href: "/discovery-photos",
+      href: `/discovery-photos?photo=${row.id}&returnTo=${encodeURIComponent(
+        "/ops-queue?type=discovery_photos"
+      )}`,
       createdAt: at,
       ageMinutes: minutesAgo(at),
       state: row.moderation_status === "pending" ? "open" : "resolved",
@@ -64,44 +69,89 @@ async function discoveryPhotoItems(): Promise<QueueItem[]> {
   });
 }
 
-
 async function reportItems(): Promise<QueueItem[]> {
-  const { data, error } = await supabase.from("merchant_verified_visit_reports")
+  const { data, error } = await supabase
+    .from("merchant_verified_visit_reports")
     .select("id, contribution_id, reason_code, status, created_at")
-    .eq("status", "pending").order("created_at").limit(150);
+    .eq("status", "pending")
+    .order("created_at")
+    .limit(150);
   if (error) throw new Error("Report reviews could not be loaded.");
-  return (data ?? []).map(row => ({
-    key: `discovery_reports:${row.id}`, source: "discovery_reports",
-    title: row.reason_code.replaceAll("_", " "), subtitle: `Visit ${row.contribution_id}`,
-    statusLabel: row.status, href: "/discovery-reports", createdAt: row.created_at,
-    ageMinutes: minutesAgo(row.created_at), state: "open", urgent: false,
+  return (data ?? []).map((row) => ({
+    key: `discovery_reports:${row.id}`,
+    source: "discovery_reports",
+    title: row.reason_code.replaceAll("_", " "),
+    subtitle: `Visit ${row.contribution_id}`,
+    statusLabel: row.status,
+    href: `/discovery-reports?report=${row.id}&returnTo=${encodeURIComponent(
+      "/ops-queue?type=discovery_reports"
+    )}`,
+    createdAt: row.created_at,
+    ageMinutes: minutesAgo(row.created_at),
+    state: "open",
+    urgent: false,
   }));
 }
 
 async function verifiedVisitItems(): Promise<QueueItem[]> {
-  const { data, error } = await supabase.from("merchant_discovery_contributions")
+  const { data, error } = await supabase
+    .from("merchant_discovery_contributions")
     .select("id, submitted_at, would_recommend, partners(name)")
-    .is("withdrawn_at", null).is("suppressed_at", null)
-    .order("submitted_at", { ascending: false }).limit(150);
+    .is("withdrawn_at", null)
+    .is("suppressed_at", null)
+    .order("submitted_at", { ascending: false })
+    .limit(150);
   if (error) throw new Error("Verified visits could not be loaded.");
-  return (data ?? []).map(row => ({
-    key: `verified_visits:${row.id}`, source: "verified_visits",
-    title: (row.partners as unknown as { name: string } | null)?.name ?? "Verified merchant visit",
-    subtitle: "Automatically verified visit", statusLabel: "verified", href: `/verified-visits?visit=${row.id}`,
-    createdAt: row.submitted_at, ageMinutes: minutesAgo(row.submitted_at),
-    state: "resolved", urgent: false,
+  return (data ?? []).map((row) => ({
+    key: `verified_visits:${row.id}`,
+    source: "verified_visits",
+    title:
+      (row.partners as unknown as { name: string } | null)?.name ??
+      "Verified merchant visit",
+    subtitle: "Automatically verified visit",
+    statusLabel: "verified",
+    href: `/verified-visits?visit=${row.id}`,
+    createdAt: row.submitted_at,
+    ageMinutes: minutesAgo(row.submitted_at),
+    state: "resolved",
+    urgent: false,
   }));
 }
 
 const SOURCE_PERMISSIONS: Record<QueueSourceId, string> = {
-  profile_reviews: "merchants.read", discovery_photos: "discovery.read",
-  discovery_reports: "discovery.read", verified_visits: "discovery.read",
+  profile_reviews: "merchants.read",
+  discovery_photos: "discovery.read",
+  discovery_reports: "discovery.read",
+  verified_visits: "discovery.read",
 };
 export async function getQueueItems(role: AdminRole): Promise<QueueItem[]> {
   const fetchers: Array<[QueueSourceId, () => Promise<QueueItem[]>]> = [
-    ["profile_reviews", profileReviewItems], ["discovery_photos", discoveryPhotoItems],
-    ["discovery_reports", reportItems], ["verified_visits", verifiedVisitItems],
+    ["profile_reviews", profileReviewItems],
+    ["discovery_photos", discoveryPhotoItems],
+    ["discovery_reports", reportItems],
+    ["verified_visits", verifiedVisitItems],
   ];
-  const results = await Promise.all(fetchers.filter(([id]) => hasPermission(role, SOURCE_PERMISSIONS[id])).map(([, fetch]) => fetch()));
+  const results = await Promise.all(
+    fetchers
+      .filter(([id]) => hasPermission(role, SOURCE_PERMISSIONS[id]))
+      .map(([, fetch]) => fetch())
+  );
+  return results.flat();
+}
+
+/** The operational queue excludes automatically verified visits. */
+export async function getPendingQueueItems(
+  role: AdminRole
+): Promise<QueueItem[]> {
+  const fetchers: Array<[QueueSourceId, () => Promise<QueueItem[]>]> = [
+    ["profile_reviews", profileReviewItems],
+    ["discovery_photos", discoveryPhotoItems],
+    ["discovery_reports", reportItems],
+  ];
+  const results = await Promise.all(
+    fetchers
+      .filter(([id]) => hasPermission(role, SOURCE_PERMISSIONS[id]))
+      .map(([, fetch]) => fetch())
+  );
   return results.flat();
 }

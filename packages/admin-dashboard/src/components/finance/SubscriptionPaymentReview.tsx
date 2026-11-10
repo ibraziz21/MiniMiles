@@ -41,16 +41,28 @@ const CHECKLIST = [
 
 export function SubscriptionPaymentReview(props: Props) {
   const router = useRouter();
-  const { attemptId, version, status, canDecide, isSuperAdmin, claimedByMe, staleClaim } = props;
+  const {
+    attemptId,
+    version,
+    status,
+    canDecide,
+    isSuperAdmin,
+    claimedByMe,
+    staleClaim,
+  } = props;
 
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [evidenceUrl, setEvidenceUrl] = useState<string | null>(null);
 
   // Confirm form state
-  const [checks, setChecks] = useState<boolean[]>(() => CHECKLIST.map(() => false));
+  const [checks, setChecks] = useState<boolean[]>(() =>
+    CHECKLIST.map(() => false)
+  );
   const [confirmedReference, setConfirmedReference] = useState("");
-  const [confirmedAmount, setConfirmedAmount] = useState(props.balance ?? props.expectedAmount ?? "");
+  const [confirmedAmount, setConfirmedAmount] = useState(
+    props.balance ?? props.expectedAmount ?? ""
+  );
   const [paymentDate, setPaymentDate] = useState("");
   const [evidenceNote, setEvidenceNote] = useState("");
   const [override, setOverride] = useState(false);
@@ -73,15 +85,22 @@ export function SubscriptionPaymentReview(props: Props) {
     );
   }, [checks, confirmedReference, confirmedAmount, paymentDate, evidenceNote]);
 
-  async function call(path: string, body: Record<string, unknown>, label: string) {
+  async function call(
+    path: string,
+    body: Record<string, unknown>,
+    label: string
+  ) {
     setBusy(label);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/subscription-payments/${attemptId}/${path}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      const res = await fetch(
+        `/api/admin/subscription-payments/${attemptId}/${path}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }
+      );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error ?? `${label} failed`);
@@ -103,7 +122,7 @@ export function SubscriptionPaymentReview(props: Props) {
     try {
       const res = await fetch(
         `/api/admin/subscription-payments/${attemptId}/evidence-url`,
-        { method: "POST" },
+        { method: "POST" }
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -121,19 +140,29 @@ export function SubscriptionPaymentReview(props: Props) {
 
   if (!canDecide) {
     return (
-      <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">
-        You have read-only finance access. A finance admin or super admin must action this review.
+      <p className="rounded-control bg-[#F2F3FF] p-3 text-sm text-slate-500">
+        You have read-only finance access. A finance admin or super admin must
+        action this review.
       </p>
     );
   }
 
   return (
-    <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+    <div className="space-y-3 rounded-control border border-slate-200 bg-[#F2F3FF] p-3">
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       {props.hasEvidence && (
-        <Button size="sm" variant="outline" onClick={loadEvidence} disabled={busy === "evidence"}>
-          {busy === "evidence" ? "Signing…" : evidenceUrl ? "Re-open evidence" : "Open evidence"}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={loadEvidence}
+          disabled={busy === "evidence"}
+        >
+          {busy === "evidence"
+            ? "Signing…"
+            : evidenceUrl
+            ? "Re-open evidence"
+            : "Open evidence"}
         </Button>
       )}
 
@@ -141,7 +170,9 @@ export function SubscriptionPaymentReview(props: Props) {
       {status === "submitted" && (
         <Button
           size="sm"
-          onClick={() => call("start-review", { expectedVersion: version }, "start")}
+          onClick={() =>
+            call("start-review", { expectedVersion: version }, "start")
+          }
           disabled={busy === "start"}
         >
           {busy === "start" ? "Claiming…" : "Start review"}
@@ -149,15 +180,21 @@ export function SubscriptionPaymentReview(props: Props) {
       )}
 
       {status === "under_review" && !claimedByMe && (
-        <div className="rounded bg-white p-2 text-sm">
+        <div className="rounded bg-white p-2 text-base">
           <p className="text-slate-600">
             Claimed by {props.claimedByName ?? "another reviewer"}.
-            {staleClaim ? " Claim is stale and can be taken over." : " Open read-only until released."}
+            {staleClaim
+              ? " Claim is stale and can be taken over."
+              : " Open read-only until released."}
           </p>
           {staleClaim && (
             <TakeOverForm
               onSubmit={(reason) =>
-                call("take-over", { reason, expectedVersion: version }, "takeover")
+                call(
+                  "take-over",
+                  { reason, expectedVersion: version },
+                  "takeover"
+                )
               }
               busy={busy === "takeover"}
             />
@@ -174,7 +211,7 @@ export function SubscriptionPaymentReview(props: Props) {
               variant={mode === "confirm" ? "default" : "outline"}
               onClick={() => setMode("confirm")}
             >
-              Confirm payment
+              Accept payment
             </Button>
             <Button
               size="sm"
@@ -186,17 +223,22 @@ export function SubscriptionPaymentReview(props: Props) {
           </div>
 
           {mode === "confirm" && (
-            <div className="space-y-2 rounded-lg bg-white p-3">
+            <div className="space-y-2 rounded-control bg-white p-3">
               <p className="text-xs font-semibold uppercase text-slate-400">
                 Reconciliation checklist
               </p>
               {CHECKLIST.map((item, i) => (
-                <label key={i} className="flex items-start gap-2 text-sm text-slate-700">
+                <label
+                  key={i}
+                  className="flex items-start gap-2 text-sm text-slate-700"
+                >
                   <input
                     type="checkbox"
                     checked={checks[i]}
                     onChange={(e) =>
-                      setChecks((c) => c.map((v, idx) => (idx === i ? e.target.checked : v)))
+                      setChecks((c) =>
+                        c.map((v, idx) => (idx === i ? e.target.checked : v))
+                      )
                     }
                     className="mt-0.5"
                   />
@@ -228,7 +270,7 @@ export function SubscriptionPaymentReview(props: Props) {
                 placeholder="Internal evidence note (required)"
                 value={evidenceNote}
                 onChange={(e) => setEvidenceNote(e.target.value)}
-                className="min-h-[64px] w-full rounded-lg border border-slate-200 p-2 text-sm"
+                className="min-h-[64px] w-full rounded-control border border-slate-200 p-2 text-base"
               />
               {isSuperAdmin && (
                 <label className="flex items-center gap-2 text-xs text-slate-600">
@@ -245,7 +287,7 @@ export function SubscriptionPaymentReview(props: Props) {
                 disabled={!confirmReady || busy === "confirm"}
                 onClick={() => setConfirmDialogOpen(true)}
               >
-                {busy === "confirm" ? "Confirming…" : "Confirm payment"}
+                {busy === "confirm" ? "Confirming…" : "Accept payment"}
               </Button>
               <ConfirmActionDialog
                 open={confirmDialogOpen}
@@ -253,8 +295,9 @@ export function SubscriptionPaymentReview(props: Props) {
                 title="Confirm this payment?"
                 description={
                   <>
-                    This marks the invoice as paid and applies the subscription effect immediately. This
-                    decision is immutable once confirmed.
+                    This marks the invoice as paid and applies the subscription
+                    effect immediately. This decision is immutable once
+                    confirmed.
                     {override && (
                       <span className="mt-2 block font-medium text-warning">
                         Recording as a super-admin override.
@@ -262,7 +305,7 @@ export function SubscriptionPaymentReview(props: Props) {
                     )}
                   </>
                 }
-                confirmLabel="Confirm payment"
+                confirmLabel="Accept payment"
                 onConfirm={async () => {
                   const amount = normalizeDecimalString(confirmedAmount);
                   await call(
@@ -276,26 +319,29 @@ export function SubscriptionPaymentReview(props: Props) {
                       evidenceNote: evidenceNote.trim(),
                       superAdminOverride: override,
                     },
-                    "confirm",
+                    "confirm"
                   );
                   setConfirmDialogOpen(false);
                 }}
               />
               {!confirmReady && (
                 <p className="text-xs text-slate-400">
-                  Complete every checklist item and required field to enable confirmation.
+                  Complete every checklist item and required field to enable
+                  confirmation.
                 </p>
               )}
             </div>
           )}
 
           {mode === "reject" && (
-            <div className="space-y-2 rounded-lg bg-white p-3">
+            <div className="space-y-2 rounded-control bg-white p-3">
               <select
                 value={rejectionCode}
-                onChange={(e) => setRejectionCode(e.target.value as RejectionCode)}
+                onChange={(e) =>
+                  setRejectionCode(e.target.value as RejectionCode)
+                }
                 aria-label="Rejection code"
-                className="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm"
+                className="min-h-12 w-full rounded-control border border-slate-200 px-3 text-base"
               >
                 <option value="">Select a rejection code…</option>
                 {REJECTION_CODES.map((code) => (
@@ -308,14 +354,14 @@ export function SubscriptionPaymentReview(props: Props) {
                 placeholder="Merchant-safe message (shown to the merchant)"
                 value={merchantMessage}
                 onChange={(e) => setMerchantMessage(e.target.value)}
-                className="min-h-[56px] w-full rounded-lg border border-slate-200 p-2 text-sm"
+                className="min-h-[56px] w-full rounded-control border border-slate-200 p-2 text-base"
                 maxLength={500}
               />
               <textarea
                 placeholder="Internal note"
                 value={internalNote}
                 onChange={(e) => setInternalNote(e.target.value)}
-                className="min-h-[56px] w-full rounded-lg border border-slate-200 p-2 text-sm"
+                className="min-h-[56px] w-full rounded-control border border-slate-200 p-2 text-base"
                 maxLength={2000}
               />
               <Button
@@ -324,7 +370,8 @@ export function SubscriptionPaymentReview(props: Props) {
                 disabled={
                   !rejectionCode ||
                   merchantMessage.trim().length === 0 ||
-                  (rejectionCode === "other" && internalNote.trim().length === 0) ||
+                  (rejectionCode === "other" &&
+                    internalNote.trim().length === 0) ||
                   busy === "reject"
                 }
                 onClick={() => setRejectDialogOpen(true)}
@@ -347,7 +394,7 @@ export function SubscriptionPaymentReview(props: Props) {
                       merchantMessage: merchantMessage.trim(),
                       internalNote: internalNote.trim() || null,
                     },
-                    "reject",
+                    "reject"
                   );
                   setRejectDialogOpen(false);
                 }}
@@ -358,7 +405,9 @@ export function SubscriptionPaymentReview(props: Props) {
       )}
 
       {(status === "confirmed" || status === "rejected") && (
-        <p className="text-sm text-slate-500">This attempt is {status}. The decision is immutable.</p>
+        <p className="text-sm text-slate-500">
+          This attempt is {status}. The decision is immutable.
+        </p>
       )}
     </div>
   );
@@ -379,7 +428,11 @@ function TakeOverForm({
         value={reason}
         onChange={(e) => setReason(e.target.value)}
       />
-      <Button size="sm" disabled={!reason.trim() || busy} onClick={() => onSubmit(reason.trim())}>
+      <Button
+        size="sm"
+        disabled={!reason.trim() || busy}
+        onClick={() => onSubmit(reason.trim())}
+      >
         {busy ? "Taking over…" : "Take over"}
       </Button>
     </div>

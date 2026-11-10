@@ -7,9 +7,10 @@ test.describe("Dashboard priorities", () => {
       await page.goto("/overview");
       const metrics = page.getByRole("region", { name: "Key performance indicators" });
       await expect(metrics).toBeVisible();
-      for (const label of ["Total Pass users", "New users this week", "Average spend this week", "Total users awarded", "Total miles awarded", "Vouchers redeemed"]) {
+      for (const label of ["Total Pass users", "New users this week", "Average Miles per earner", "Total users awarded", "Vouchers redeemed"]) {
         await expect(metrics.getByRole("heading", { name: label, exact: true })).toBeVisible();
       }
+      await expect(page.getByRole("heading", { name: "Miles awarded", exact: true })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       const nav = page.locator('nav[aria-label="Primary"]:visible');
       for (const target of await nav.locator("a, button").all()) {
