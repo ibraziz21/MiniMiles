@@ -17,8 +17,9 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { produceMilesEarnedNotification, type MilesCreditedEvent } from "@/lib/akiba/milesEarnedNotification";
-import { recordVerifiedEarningForDiscovery, type EarningChannel } from "@/lib/akiba/discoveryEarningIngestion";
+import { recordVerifiedEarningForDiscovery } from "@/lib/akiba/discoveryEarningIngestion";
 import { isValidInternalApiKey } from "@/lib/akiba/internalApiAuth";
+import { loadPurchaseEvidence } from "@/lib/akiba/purchaseEarningChannel";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ALLOWED_SOURCES = new Set(["merchant_scan", "merchant_purchase"]);
@@ -51,7 +52,9 @@ function validate(body: RequestBody): { ok: true; event: MilesCreditedEvent } | 
   if (body.canonicalId !== undefined && typeof body.canonicalId !== "string") {
     return { ok: false, error: "invalid_canonical_id" };
   }
-  if (body.purchaseEventId !== undefined && typeof body.purchaseEventId !== "string") {
+  // Malformed is a permanent 400, never a silent "no purchase": a producer
+  // that sends one has a bug the outbox should surface, not retry around.
+  if (body.purchaseEventId !== undefined && (typeof body.purchaseEventId !== "string" || !UUID_RE.test(body.purchaseEventId))) {
     return { ok: false, error: "invalid_purchase_event_id" };
   }
   if (body.channel !== undefined && !ALLOWED_CHANNELS.has(body.channel)) {
@@ -91,16 +94,14 @@ function validate(body: RequestBody): { ok: true; event: MilesCreditedEvent } | 
   };
 }
 
-// A scan proves physical presence by construction — never take the body's
-// word for it either way. A purchase's channel is the producer's own
-// authoritative claim (already Bearer-authenticated as a trusted caller
-// above); absent that claim, default to "unknown" rather than guessing —
-// "unknown" simply never qualifies for a discovery contribution request
-// (§8.1) until Akiba-Platform starts supplying it (§21.4).
-function resolveDiscoveryChannel(event: MilesCreditedEvent): EarningChannel {
-  if (event.source === "merchant_scan") return "in_store";
-  return event.channel ?? "unknown";
-}
+// Ownership and channel both come from purchase_visit_evidence
+// (Akiba-Platform 172), the rule every reader shares; see
+// lib/akiba/purchaseEarningChannel.ts.
+//
+// Producers: Akiba-Platform's notification worker is the only live one and
+// always sends purchaseEventId. An event without one (an older producer) is
+// still notified — it was Bearer-authenticated as a trusted producer — but it
+// is never purchase-backed, so it can't open a verified visit.
 
 export async function POST(request: Request) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
@@ -135,18 +136,41 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: validated.error }, { status: 400 });
   }
 
-  const result = await produceMilesEarnedNotification(validated.event);
+  const event = validated.event;
 
-  // Independent of the notification outcome above (§8.1) — never lets a
-  // discovery-ingestion failure affect this route's response. The function
-  // itself already guards against throwing; the try/catch here is defense
-  // in depth against that guarantee being removed later.
-  try {
-    await recordVerifiedEarningForDiscovery(validated.event, resolveDiscoveryChannel(validated.event));
-  } catch (err) {
-    console.error("[miles-credited] recordVerifiedEarningForDiscovery threw unexpectedly:", err);
+  if (event.purchaseEventId) {
+    let evidence;
+    try {
+      evidence = await loadPurchaseEvidence(event.purchaseEventId, event.hubUserId, event.merchantId);
+    } catch (err) {
+      // Transient: nothing sent, and a 500 so the producer's outbox retries.
+      console.error("[miles-credited] purchase evidence lookup failed:", err);
+      return NextResponse.json({ error: "purchase_lookup_failed" }, { status: 500 });
+    }
+    if (!evidence.owned) {
+      // Permanent: the purchase doesn't exist, belongs to another merchant or
+      // member, or the member has no identity to check it against. Answered
+      // 200 so the producer stops retrying; nothing is sent.
+      console.warn("[miles-credited] not sent:", evidence.ownership, event.eventId);
+      return NextResponse.json({ ok: true, eventId: event.eventId, notified: false, skipped: evidence.ownership });
+    }
+
+    const result = await produceMilesEarnedNotification(event);
+    // Independent of the notification outcome (§8.1); a discovery failure
+    // never affects this response.
+    try {
+      await recordVerifiedEarningForDiscovery(event, evidence.channel);
+    } catch (err) {
+      console.error("[miles-credited] recordVerifiedEarningForDiscovery threw unexpectedly:", err);
+    }
+    if (!result.ok && result.skipped === "insert_failed") {
+      return NextResponse.json({ error: "insert_failed" }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true, eventId: event.eventId, notified: result.ok });
   }
 
+  // Legacy event, no purchase: notification only, never a verified visit.
+  const result = await produceMilesEarnedNotification(event);
   if (!result.ok && result.skipped === "insert_failed") {
     // Retryable per the doc comment above — caller's outbox should retry.
     return NextResponse.json({ error: "insert_failed" }, { status: 500 });

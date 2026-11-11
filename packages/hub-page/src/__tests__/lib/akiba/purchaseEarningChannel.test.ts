@@ -1,64 +1,42 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const { from, query } = vi.hoisted(() => {
-  const query = { select: vi.fn(), eq: vi.fn(), maybeSingle: vi.fn() };
-  return { from: vi.fn(() => query), query };
-});
-vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ from }) }));
-import { resolvePurchaseEarningChannel } from "@/lib/akiba/purchaseEarningChannel";
 
-const voucherId = "10000000-0000-4000-8000-000000000001";
-const purchase = { merchant_id: "merchant", source_app: "merchant_voucher_checkout", raw_metadata: { voucherId } };
-beforeEach(() => {
-  vi.clearAllMocks();
-  query.select.mockReturnValue(query);
-  query.eq.mockReturnValue(query);
-  query.maybeSingle.mockResolvedValue({ data: { redemption_channel: "merchant_scan" }, error: null });
+const rpc = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ rpc }) }));
+import { loadPurchaseEvidence, resolvePurchaseEarningChannel } from "@/lib/akiba/purchaseEarningChannel";
+
+// The rule itself lives in SQL (Akiba-Platform 172, purchase_visit_evidence)
+// and is tested against the real award chain in
+// __tests__/integration/till-proof-and-visit-evidence.test.ts. These check
+// the Hub's reading of its answer.
+beforeEach(() => rpc.mockReset());
+
+describe("loadPurchaseEvidence", () => {
+  it("asks the shared evidence function about this purchase, member and merchant", async () => {
+    rpc.mockResolvedValue({ data: { found: true, owned: true, ownership: "owned_canonical", channel: "in_store" }, error: null });
+    expect(await loadPurchaseEvidence("p1", "member", "merchant")).toEqual({
+      found: true, owned: true, ownership: "owned_canonical", channel: "in_store",
+    });
+    expect(rpc).toHaveBeenCalledWith("purchase_visit_evidence", {
+      p_purchase_event_id: "p1", p_hub_user_id: "member", p_merchant_id: "merchant",
+    });
+  });
+
+  it("never passes on a channel for a purchase the member doesn't own", async () => {
+    rpc.mockResolvedValue({ data: { found: true, owned: false, ownership: "recipient_mismatch", channel: "in_store" }, error: null });
+    expect(await loadPurchaseEvidence("p1", "member", "merchant")).toMatchObject({ owned: false, channel: "unknown" });
+  });
+
+  it("throws on a database error so the caller can retry", async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: "connection reset" } });
+    await expect(loadPurchaseEvidence("p1", "member", null)).rejects.toThrow(/connection reset/);
+  });
 });
+
 describe("resolvePurchaseEarningChannel", () => {
-  it("recovers only from a redemption scoped to the voucher, merchant and member", async () => {
-    expect(await resolvePurchaseEarningChannel(purchase, "member")).toBe("in_store");
-    expect(query.eq.mock.calls).toEqual([
-      ["issued_voucher_id", voucherId], ["merchant_id", "merchant"], ["hub_user_id", "member"],
-    ]);
-  });
-  it("does not infer a visit from the checkout source alone", async () => {
-    query.maybeSingle.mockResolvedValue({ data: null, error: null });
-    expect(await resolvePurchaseEarningChannel(purchase, "member")).toBe("unknown");
-  });
-  it("preserves explicit online evidence without a redemption lookup", async () => {
-    expect(await resolvePurchaseEarningChannel({ ...purchase, raw_metadata: { voucherId, channel: "online" } }, "member")).toBe("online");
-    expect(from).not.toHaveBeenCalled();
-  });
-  it("does not turn an online redemption into a visit", async () => {
-    query.maybeSingle.mockResolvedValue({ data: { redemption_channel: "online_order" }, error: null });
-    expect(await resolvePurchaseEarningChannel(purchase, "member")).toBe("online");
-  });
-  it("never takes a caller's own in_store tag as a visit", async () => {
-    expect(await resolvePurchaseEarningChannel(
-      { merchant_id: "merchant", source_app: "partner_pos", raw_metadata: { channel: "in_store" } }, "member",
-    )).toBe("unknown");
-    expect(await resolvePurchaseEarningChannel(
-      { ...purchase, raw_metadata: { voucherId, channel: "in_store" } }, "member",
-    )).toBe("in_store"); // still from the redemption row, not the tag
-    query.maybeSingle.mockResolvedValue({ data: null, error: null });
-    expect(await resolvePurchaseEarningChannel(
-      { ...purchase, raw_metadata: { voucherId, channel: "in_store" } }, "member",
-    )).toBe("unknown");
-  });
-  it("counts a till source label as a visit, unless the payload says online", async () => {
-    for (const source of ["scan_award", "merchant_dashboard", "merchant_scan"]) {
-      expect(await resolvePurchaseEarningChannel({ merchant_id: "merchant", source_app: source, raw_metadata: {} }, "member")).toBe("in_store");
-    }
-    expect(await resolvePurchaseEarningChannel(
-      { merchant_id: "merchant", source_app: "scan_award", raw_metadata: { channel: "online" } }, "member",
-    )).toBe("unknown");
-    expect(await resolvePurchaseEarningChannel(
-      { merchant_id: "merchant", source_app: "scan_award_unsigned", raw_metadata: { channel: "in_store" } }, "member",
-    )).toBe("unknown");
-    expect(from).not.toHaveBeenCalled();
-  });
-  it("surfaces lookup errors so recovery can retry", async () => {
-    query.maybeSingle.mockResolvedValue({ data: null, error: { message: "offline" } });
-    await expect(resolvePurchaseEarningChannel(purchase, "member")).rejects.toThrow("offline");
+  it("is the owned purchase's channel, and unknown otherwise", async () => {
+    rpc.mockResolvedValueOnce({ data: { found: true, owned: true, ownership: "owned_identity", channel: "online" }, error: null });
+    expect(await resolvePurchaseEarningChannel({ id: "p1", merchant_id: "m" }, "member")).toBe("online");
+    rpc.mockResolvedValueOnce({ data: { found: false, owned: false, ownership: "purchase_not_found", channel: "unknown" }, error: null });
+    expect(await resolvePurchaseEarningChannel({ id: "p2", merchant_id: "m" }, "member")).toBe("unknown");
   });
 });

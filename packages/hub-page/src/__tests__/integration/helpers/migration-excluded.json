@@ -278,5 +278,40 @@
     "repo": "minimiles",
     "file": "108_admin_account_deletion_fulfilment.sql",
     "error": "relation \"public.admin_users\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "115_verified_visits_enabled_by_default.sql",
+    "error": "column \"contributions_enabled\" of relation \"merchant_discovery_settings\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "116_verified_visit_public_display_enabled_by_default.sql",
+    "error": "column \"structured_proof_enabled\" of relation \"merchant_discovery_settings\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "117_approved_visit_photos_enabled_by_default.sql",
+    "error": "column \"contributions_enabled\" of relation \"merchant_discovery_settings\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "118_admin_pass_demographics.sql",
+    "error": "relation \"public.hub_user_wallets\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "122_voucher_purchase_digest_schema.sql",
+    "error": "function \"public.reserve_voucher_purchase(uuid,text,text[],text,uuid,uuid,text,integer,text,text,text,uuid,boolean,numeric)\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "124_native_push_receipts.sql",
+    "error": "relation \"native_push_deliveries\" does not exist"
+  },
+  {
+    "repo": "minimiles",
+    "file": "127_push_delivery_tokens_and_scan_locks.sql",
+    "error": "relation \"native_push_deliveries\" does not exist"
   }
 ]

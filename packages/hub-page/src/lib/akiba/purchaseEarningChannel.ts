@@ -1,48 +1,60 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { EarningChannel } from "./discoveryEarningIngestion";
 
-type Purchase = { merchant_id: string; source_app: string | null; raw_metadata: unknown };
-
-// Till source labels — the in-store evidence. Akiba-Platform accepts them only
-// from the merchant till's signed server requests (Platform
-// lib/tillAttestation.ts, lib/purchaseRewards.ts TILL_SOURCE_APPS), so unlike
-// a caller's own metadata they can't be claimed by a partner API key or a
-// merchant calling the API directly. Keep this list in step with Platform's.
-// merchant_voucher_checkout is handled separately below: it is written by the
-// redemption function itself and confirmed against the redemption row.
-const TILL_SOURCE_APPS = new Set(["scan_award", "merchant_dashboard", "merchant_scan"]);
-
 /**
- * How a purchase was made, for verified-visit recommendations. The same rule
- * as Akiba-Platform's notification worker (lib/milesNotificationDelivery.ts
- * purchaseChannel):
- *   - in store only on server-recorded evidence: a till source label, or a
- *     voucher checkout whose redemption row says merchant_scan;
- *   - the caller's own `channel` tag is never evidence of in store — it is
- *     stored as sent, so anyone could write "in_store" there;
- *   - it may still say "online", which only ever withholds a recommendation;
- *   - a till label the payload contradicts ("online") is unknown.
+ * What a purchase proves about a member's visit, from Akiba-Platform's
+ * purchase_visit_evidence (migration 172). That one database function is the
+ * rule for the Platform notification worker, the miles-credited endpoint,
+ * reconciliation and on-demand recovery, so none of them can accept evidence
+ * another would refuse:
+ *
+ *   ownership — the purchase's recorded recipient is this member (canonical
+ *     identity, or a recorded identity matching their email, phone or verified wallet);
+ *   in store — a till purchase with a proof row written in the same
+ *     transaction as its award (never a source label or metadata alone), or a
+ *     voucher checkout whose redemption row for this purchase says
+ *     merchant_scan.
  */
-export async function resolvePurchaseEarningChannel(purchase: Purchase, hubUserId: string): Promise<EarningChannel> {
-  const metadata = purchase.raw_metadata && typeof purchase.raw_metadata === "object" && !Array.isArray(purchase.raw_metadata)
-    ? purchase.raw_metadata as Record<string, unknown> : {};
-  const source = (purchase.source_app ?? "").trim().toLowerCase();
-  const taggedOnline = metadata.channel === "online";
+export type PurchaseEvidence = {
+  found: boolean;
+  owned: boolean;
+  ownership:
+    | "owned_canonical"
+    | "owned_identity"
+    | "purchase_not_found"
+    | "merchant_mismatch"
+    | "member_identity_unavailable"
+    | "recipient_mismatch";
+  channel: EarningChannel;
+};
 
-  if (TILL_SOURCE_APPS.has(source)) return taggedOnline ? "unknown" : "in_store";
-  if (taggedOnline) return "online";
-  if (source !== "merchant_voucher_checkout") return "unknown";
-  if (typeof metadata.voucherId !== "string") return "unknown";
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(metadata.voucherId)) return "unknown";
+/** Throws on a database error, so callers can retry rather than treat it as "no". */
+export async function loadPurchaseEvidence(
+  purchaseEventId: string,
+  hubUserId: string,
+  merchantId: string | null,
+): Promise<PurchaseEvidence> {
+  const { data, error } = await createAdminClient().rpc("purchase_visit_evidence", {
+    p_purchase_event_id: purchaseEventId,
+    p_hub_user_id: hubUserId,
+    p_merchant_id: merchantId,
+  });
+  if (error) throw new Error(`purchase evidence lookup failed: ${error.message}`);
+  const row = (data ?? {}) as Partial<PurchaseEvidence>;
+  const channel: EarningChannel = row.channel === "in_store" || row.channel === "online" ? row.channel : "unknown";
+  return {
+    found: row.found === true,
+    owned: row.owned === true,
+    ownership: (row.ownership ?? "purchase_not_found") as PurchaseEvidence["ownership"],
+    // Defence in depth: a channel only ever counts for the member's own purchase.
+    channel: row.owned === true ? channel : "unknown",
+  };
+}
 
-  const { data, error } = await createAdminClient()
-    .from("voucher_redemptions")
-    .select("redemption_channel")
-    .eq("issued_voucher_id", metadata.voucherId)
-    .eq("merchant_id", purchase.merchant_id)
-    .eq("hub_user_id", hubUserId)
-    .maybeSingle();
-  if (error) throw new Error(`redemption channel lookup failed: ${error.message}`);
-  return data?.redemption_channel === "merchant_scan" ? "in_store"
-    : data?.redemption_channel === "online_order" ? "online" : "unknown";
+/** The channel of the member's own purchase; "unknown" for anyone else's. */
+export async function resolvePurchaseEarningChannel(
+  purchase: { id: string; merchant_id: string },
+  hubUserId: string,
+): Promise<EarningChannel> {
+  return (await loadPurchaseEvidence(purchase.id, hubUserId, purchase.merchant_id)).channel;
 }

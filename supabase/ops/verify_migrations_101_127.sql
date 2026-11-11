@@ -21,7 +21,7 @@ WITH fn AS (
        'claim_akiba_funded_voucher_atomic', 'voucher_allocation_eligible_merchants',
        'create_voucher_funding_allocation_atomic', 'snapshot_funded_allocation_merchants',
        'funded_redemption_day_allowed', 'initialize_merchant_verified_visits',
-       'get_admin_pass_demographics', 'reserve_voucher_purchase'
+       'get_admin_pass_demographics', 'reserve_voucher_purchase', '_resolve_purchase_event_hub_user_id'
      )
 )
 SELECT migration, check_name, ok FROM (VALUES
@@ -94,6 +94,15 @@ SELECT migration, check_name, ok FROM (VALUES
      EXISTS (SELECT 1 FROM information_schema.columns
               WHERE table_schema = 'public' AND table_name = 'native_push_deliveries' AND column_name = 'purpose')),
   ('127', 'offer scans serialised',
-     EXISTS (SELECT 1 FROM fn WHERE proname = 'record_offer_sightings' AND body LIKE '%pg_advisory_xact_lock%'))
+     EXISTS (SELECT 1 FROM fn WHERE proname = 'record_offer_sightings' AND body LIKE '%pg_advisory_xact_lock%')),
+
+  -- Akiba-Platform 172: atomic till proofs and shared recipient evidence
+  ('Platform 172', 'purchase_till_proofs table', to_regclass('public.purchase_till_proofs') IS NOT NULL),
+  ('Platform 172', 'atomic till award RPC',
+     EXISTS (SELECT 1 FROM fn WHERE proname = 'award_till_purchase_atomic' AND body LIKE '%purchase_till_proofs%')),
+  ('Platform 172', 'shared purchase visit evidence RPC',
+     EXISTS (SELECT 1 FROM fn WHERE proname = 'purchase_visit_evidence' AND body LIKE '%purchase_till_proofs%')),
+  ('Platform 172', 'outbox checks shared recipient evidence',
+     EXISTS (SELECT 1 FROM fn WHERE proname = '_resolve_purchase_event_hub_user_id' AND body LIKE '%purchase_visit_evidence%'))
 ) AS checks(migration, check_name, ok)
 ORDER BY migration, check_name;

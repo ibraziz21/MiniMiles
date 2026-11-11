@@ -169,3 +169,31 @@ pnpm --filter @akibamiles/hub-page test:integration   # needs local Postgres
   is missing MiniMiles 115–126 and Platform 166–171.
 - Supabase custom domain (`auth.akibamiles.com`) decided but not started.
 - `001onboard.zip` (design export) sits untracked at the repo root.
+
+### Follow-up on verified visits and Miles notification ownership
+
+Akiba-Platform migration `172_till_purchase_proofs_and_visit_evidence.sql`
+writes proof by purchase event ID inside `award_till_purchase_atomic`.
+The worker, Hub notification endpoint, reconciliation and recommendation
+recovery use `purchase_visit_evidence`. A matching canonical ID, email,
+phone or uniquely verified wallet establishes ownership. Voucher checkout
+uses the redemption linked to the exact purchase event.
+
+- **Accepted purchase.** The dashboard signs the till request. The API verifies
+  it and calls the atomic award RPC. In the database test, the purchase, Miles,
+  notification outbox row and proof committed together. Worker and Hub route
+  tests verified that the worker forwards the purchase ID and Hub checks the
+  same evidence before notifying the member and opening a verified visit.
+- **Rejected purchase.** A signed till attempt with different purchase details
+  reused an old reference. The real award RPC returned an idempotency conflict.
+  The test confirmed that the original purchase, Miles and outbox row were
+  unchanged and that the old purchase acquired no proof. There is no new
+  worker delivery or Hub notification from that attempt.
+- **Wallet recipient.** The database suite checks that a matching verified
+  wallet still establishes ownership when the canonical mapping is unavailable.
+  Revoking the wallet link removes that evidence.
+
+The database and HTTP boundaries were exercised in separate local suites.
+Production migrations, existing verified-visit requests, and real push
+delivery were not checked or changed. The deployment sequence and migration
+checks are in `launch-setup-checklist.md`.

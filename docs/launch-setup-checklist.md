@@ -35,7 +35,7 @@ Tick them off as they're done.
 
 Apply in order, then deploy hub-page, then Akiba-Platform:
 
-Check first with `supabase/ops/verify_migrations_101_127.sql` (read-only).
+Check first with `supabase/ops/verify_migrations_101_127.sql` (read-only; also checks Akiba-Platform 172).
 All applied to production on 2026-11-11 and verified (every check true).
 
 - [x] `121_edit_saved_verified_visits.sql` (private note on recommendations — the web and app edit forms send it)
@@ -57,13 +57,20 @@ All applied to production on 2026-11-11 and verified (every check true).
 - [ ] Deploy Akiba-Platform (branch `merchant-mobile`): its public funded-offer listing now
       hides `auto_award`-only allocations (code done, not yet committed).
 
-## 5. Akiba-Platform fault fixes (branch `merchant-mobile`, not yet committed)
+## 5. Deploy order (Akiba-Platform `merchant-mobile` + MiniMiles hub-page)
 
-- [ ] Commit and deploy the api and dashboard-merchant changes.
-- [ ] Set **`TILL_ATTESTATION_SECRET`** to the same random value (e.g. `openssl rand -hex 32`) on
-      both the **api** and **dashboard-merchant** Vercel projects, before deploying either.
-      Without it the till still records purchases and awards Miles, but they no longer count
-      as in-store visits, so no recommendation requests (the dashboard logs an error).
+1. [ ] Apply MiniMiles migration **127** and Akiba-Platform migration **172**
+       (`172_till_purchase_proofs_and_visit_evidence.sql`). Run
+       `supabase/ops/verify_migrations_101_127.sql` before deploying.
+2. [ ] Set the same random `TILL_ATTESTATION_SECRET` on the API and merchant dashboard.
+3. [ ] Deploy the merchant dashboard and API, then hub-page. Either Platform service
+       can deploy first. The old API accepts the dashboard's additional header,
+       and the new API awards Miles from an unsigned merchant till request with
+       a neutral source label. Till proof starts when both deployments are live
+       and the signing secret matches.
+4. [ ] Verify a signed till award and a merchant voucher redemption. Check that
+       Miles and the verified-visit prompt reach the recorded recipient.
+
 - [ ] Check `CRON_SECRET` is set on the api Vercel project (the webhook and reward
       jobs now run on Vercel Cron with it, and the expiry job is newly scheduled).
 - [ ] After deploy, in Vercel → Crons, confirm webhook-worker, reward-worker and
