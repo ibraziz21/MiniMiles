@@ -6,7 +6,8 @@ Tick them off as they're done.
 
 ## 1. Firebase Analytics (app)
 
-- [ ] Firebase console → Project settings → Integrations → turn on **Google Analytics**.
+- [x] Firebase console → Project settings → Integrations → turn on **Google Analytics** (already on).
+- [ ] Google Analytics → Admin → Data retention: 14 months; Google signals: off.
 - [x] Add the **iOS app** in Firebase with bundle ID `com.akibamiles.akiba`.
 - [x] Download its `GoogleService-Info.plist` into `packages/akiba-app/` (checked: bundle ID and
       project `akiba-7bd7a` match). Commit it — EAS cloud builds only see committed files.
@@ -34,10 +35,14 @@ Tick them off as they're done.
 
 Apply in order, then deploy hub-page, then Akiba-Platform:
 
-- [ ] `123_contribution_request_push.sql`
-- [ ] `124_native_push_receipts.sql`
-- [ ] `125_saved_place_offers_and_voucher_expiry_push.sql`
-- [ ] `126_welcome_offer_enrolment.sql` (needs Akiba-Platform 154/155 already applied)
+Check first with `supabase/ops/verify_migrations_101_126.sql` (read-only).
+All applied to production on 2026-11-11 and verified (every check true).
+
+- [x] `121_edit_saved_verified_visits.sql` (private note on recommendations — the web and app edit forms send it)
+- [x] `123_contribution_request_push.sql`
+- [x] `124_native_push_receipts.sql`
+- [x] `125_saved_place_offers_and_voucher_expiry_push.sql`
+- [x] `126_welcome_offer_enrolment.sql` (needs Akiba-Platform 154/155 already applied)
 
 ## 4. Welcome offer (BDR-008)
 
