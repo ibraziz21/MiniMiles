@@ -7,9 +7,9 @@ Tick them off as they're done.
 ## 1. Firebase Analytics (app)
 
 - [ ] Firebase console → Project settings → Integrations → turn on **Google Analytics**.
-- [ ] Add the **iOS app** in Firebase with bundle ID `com.akibamiles.akiba`.
-- [ ] Download its `GoogleService-Info.plist` into `packages/akiba-app/`.
-      **iOS builds fail until this file exists** (`app.json` → `ios.googleServicesFile`).
+- [x] Add the **iOS app** in Firebase with bundle ID `com.akibamiles.akiba`.
+- [x] Download its `GoogleService-Info.plist` into `packages/akiba-app/` (checked: bundle ID and
+      project `akiba-7bd7a` match). Commit it — EAS cloud builds only see committed files.
 - [ ] New native build (EAS, or local Android on JDK 17). An over-the-air update is not enough.
 - [ ] App Store privacy: "Analytics — product interaction, not linked to identity, not used for tracking".
       Google Play Data safety: matching entry.
@@ -51,7 +51,17 @@ Apply in order, then deploy hub-page, then Akiba-Platform:
 - [ ] Deploy Akiba-Platform (branch `merchant-mobile`): its public funded-offer listing now
       hides `auto_award`-only allocations (code done, not yet committed).
 
-## 5. Supabase custom domain (paused)
+## 5. Akiba-Platform fault fixes (branch `merchant-mobile`, not yet committed)
+
+- [ ] Commit and deploy the api and dashboard-merchant changes.
+- [ ] Check `CRON_SECRET` is set on the api Vercel project (the webhook and reward
+      jobs now run on Vercel Cron with it, and the expiry job is newly scheduled).
+- [ ] After deploy, in Vercel → Crons, confirm webhook-worker, reward-worker and
+      voucher-funding-expiry-worker return 200, not 401/405.
+- [ ] Tell staff: only `super_admin`, `admin` and `finance` can now create or
+      reverse Miles; `ops`, `support` and `viewer` are read-only for those.
+
+## 6. Supabase custom domain (paused)
 
 Decided: custom domain `auth.akibamiles.com`; keep merchants signed in by pinning
 the dashboards' sign-in cookie name. Not started — pick up when ready.
