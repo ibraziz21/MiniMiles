@@ -3,6 +3,13 @@
 Status: Product specification; implementation and launch verification pending.
 Date: 2026-11-07 (Africa/Nairobi)
 
+> **Narrowed by [BDR-008](BDR-008-new-user-welcome-offer.md) (2026-11-10):**
+> the offer is usable on any one purchase in the first 7 days ("first welcome
+> redemption", not strict first purchase); the merchant set is every
+> reimbursement-ready merchant, frozen at approval; the 1,000 cap can be raised
+> later with a budget top-up; the 7-day clock starts at issue. Where this spec
+> and BDR-008 differ, BDR-008 wins.
+
 ## Objective and agreed offer
 
 Increase app downloads and convert new users into their first Akiba-recorded

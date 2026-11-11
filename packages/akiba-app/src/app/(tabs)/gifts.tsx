@@ -3,7 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
-import { ProfileButton } from '@/components/profile-button';
+import { MilesBalanceButton } from '@/components/miles-balance-button';
 import { useFeatureFlags } from '@/config';
 import { Icon, colors, fontFamily, shadows } from '@/design-system';
 
@@ -40,7 +40,7 @@ export default function GiftsScreen() {
     <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.page} style={styles.screen}>
       <View style={styles.screenHeader}>
         <Text style={styles.screenTitle}>Gifts</Text>
-        <ProfileButton />
+        <MilesBalanceButton />
       </View>
 
       <View style={styles.heroCarousel}>

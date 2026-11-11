@@ -9,9 +9,18 @@ export class ApiRequestError extends Error {
     readonly status: number,
     readonly body: unknown,
   ) {
-    super(message);
+    // Mutation screens render error.message directly. Preserve the API's
+    // explanation (for example, insufficient Miles), rather than only HTTP 422.
+    super(serverErrorMessage(body) ?? message);
     this.name = 'ApiRequestError';
   }
+}
+
+function serverErrorMessage(body: unknown): string | null {
+  if (!body || typeof body !== 'object' || !('error' in body)) return null;
+  const error = body.error;
+  if (!error || typeof error !== 'object' || !('message' in error)) return null;
+  return typeof error.message === 'string' && error.message.trim() ? error.message : null;
 }
 
 /**

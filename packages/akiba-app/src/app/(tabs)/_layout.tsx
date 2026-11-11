@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/auth';
 import { ConnectionErrorScreen, LaunchLoadingScreen } from '@/components/launch-screens';
+import { FloatingPassButton } from '@/components/floating-pass-button';
 import { PassTabBar } from '@/components/pass-tab-bar';
 import { useFeatureFlags } from '@/config';
 import { useMember } from '@/member';
@@ -45,8 +46,9 @@ export default function TabsLayout() {
         <Tabs.Screen name="pass" options={{ title: 'Pass' }} />
         <Tabs.Screen name="offers" options={{ href: gifts ? null : undefined, title: 'Offers' }} />
         <Tabs.Screen name="gifts" options={{ href: gifts ? undefined : null, title: 'Gifts' }} />
-        <Tabs.Screen name="profile" options={{ href: null }} />
+        <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
       </Tabs>
+      <FloatingPassButton />
     </SafeAreaView>
   );
 }

@@ -5,8 +5,7 @@
 // the route-group guards take it from there.
 import { useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Platform, StyleSheet, TextInput } from 'react-native';
 
 import { track } from '@/analytics';
 import {
@@ -19,19 +18,8 @@ import {
   toVerificationCode,
   useResendCountdown,
 } from '@/auth';
-import {
-  Card,
-  FormField,
-  PrimaryButton,
-  ScrollView,
-  Text,
-  TextButton,
-  View,
-  colors,
-  fontFamily,
-  spacing,
-  typography,
-} from '@/design-system';
+import { OnboardingScreen } from '@/components/onboarding/chrome';
+import { Text, TextButton, View, colors, fontFamily, spacing, typography } from '@/design-system';
 
 export default function VerifyScreen() {
   const params = useLocalSearchParams<{ email: string; sentAt?: string }>();
@@ -108,157 +96,185 @@ export default function VerifyScreen() {
     track('otp_sent');
   }
 
+
   const canResend = secondsLeft === 0 && !resending && !verifying;
+  // After a wrong code, Verify stays off until the member changes it —
+  // resubmitting the same six digits can only fail the same way. Typing
+  // clears the error, which re-enables it.
+  const rejected = !!fieldError && code.length === CODE_LENGTH;
 
   return (
-    <SafeAreaView edges={['top', 'bottom']} style={styles.shell}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.shell}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          style={styles.scroll}>
-          <View style={styles.content}>
-            <Text accessibilityRole="header" style={styles.eyebrow}>
-              AKIBA
-            </Text>
+    <OnboardingScreen
+      body={
+        <>
+          {'Sent to '}
+          <Text style={styles.email}>{email}</Text>
+        </>
+      }
+      layout="form"
+      onBack={() => router.back()}
+      onPrimary={() => void verify(code)}
+      primaryBusy={verifying}
+      primaryBusyLabel="Verifying…"
+      primaryDisabled={code.length !== CODE_LENGTH || rejected}
+      primaryLabel="Verify"
+      title="Enter your code">
+      <View style={styles.changeRow}>
+        <TextButton
+          accessibilityHint="Goes back to sign in with a different email address"
+          label="Change email"
+          onPress={() => router.back()}
+        />
+      </View>
 
-            <Card style={styles.card}>
-              <Text accessibilityRole="header" style={styles.title}>
-                Enter your code
-              </Text>
+      <View style={styles.codeBlock}>
+        <CodeBoxes code={code} invalid={!!fieldError} />
+        {/* One real input laid over the boxes: it is what the keyboard,
+            iOS "From Mail" / Android SMS autofill and screen readers talk
+            to. The boxes are only a picture of its value. */}
+        <TextInput
+          accessibilityHint={`Enter the ${CODE_LENGTH}-digit code from your email`}
+          accessibilityLabel="Verification code"
+          aria-invalid={!!fieldError}
+          autoComplete={Platform.OS === 'ios' ? 'one-time-code' : 'sms-otp'}
+          autoFocus
+          caretHidden
+          inputMode="numeric"
+          keyboardType="number-pad"
+          maxLength={CODE_LENGTH}
+          onChangeText={(value) => {
+            setCode(toVerificationCode(value));
+            if (fieldError) setFieldError(null);
+          }}
+          selectionColor="transparent"
+          style={styles.hiddenInput}
+          textContentType="oneTimeCode"
+          value={code}
+        />
+      </View>
 
-              <View style={styles.sentTo}>
-                <Text style={styles.label}>Email</Text>
-                <Text style={styles.email}>{email}</Text>
-                <Text style={styles.body}>
-                  We sent a {CODE_LENGTH}-digit code. It can take a minute to arrive — check your spam folder
-                  if you don’t see it.
-                </Text>
-              </View>
+      <View style={styles.status}>
+        {fieldError ? (
+          <Text accessibilityLiveRegion="polite" accessibilityRole="alert" style={styles.error}>
+            {fieldError}
+          </Text>
+        ) : null}
+        {notice ? (
+          <Text accessibilityLiveRegion="polite" style={styles.notice}>
+            {notice}
+          </Text>
+        ) : null}
+        {canResend ? (
+          <TextButton
+            accessibilityHint="Sends a new code to the same address"
+            label="Resend code"
+            onPress={() => void resend()}
+          />
+        ) : (
+          <Text style={styles.countdown}>
+            {resending ? 'Sending…' : `Resend code in ${formatCountdown(secondsLeft)}`}
+          </Text>
+        )}
+        {fieldError ? <Text style={styles.spam}>Didn’t get it? Check your spam folder.</Text> : null}
+      </View>
+    </OnboardingScreen>
+  );
+}
 
-              <FormField
-                autoComplete={Platform.OS === 'ios' ? 'one-time-code' : 'sms-otp'}
-                autoFocus
-                error={fieldError}
-                inputMode="numeric"
-                keyboardType="number-pad"
-                label="Verification code"
-                onChangeText={(value) => {
-                  setCode(toVerificationCode(value));
-                  if (fieldError) setFieldError(null);
-                }}
-                placeholder="123456"
-                style={styles.codeInput}
-                textContentType="oneTimeCode"
-                value={code}
-              />
+function formatCountdown(seconds: number): string {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
 
-              {notice ? (
-                <Text accessibilityLiveRegion="polite" style={styles.notice}>
-                  {notice}
-                </Text>
-              ) : null}
-
-              <PrimaryButton
-                busy={verifying}
-                busyLabel="Verifying…"
-                disabled={code.length !== CODE_LENGTH}
-                label="Verify"
-                onPress={() => void verify(code)}
-              />
-
-              <View style={styles.actions}>
-                <TextButton
-                  accessibilityHint={
-                    canResend ? 'Sends a new code to the same address' : `Available in ${secondsLeft} seconds`
-                  }
-                  disabled={!canResend}
-                  label={
-                    resending ? 'Sending…' : secondsLeft > 0 ? `Resend code in ${secondsLeft}s` : 'Resend code'
-                  }
-                  onPress={() => void resend()}
-                />
-                <TextButton
-                  accessibilityHint="Goes back to sign in with a different email address"
-                  label="Change email"
-                  onPress={() => router.back()}
-                  tone="muted"
-                />
-              </View>
-            </Card>
+function CodeBoxes({ code, invalid }: { code: string; invalid: boolean }) {
+  return (
+    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.boxes}>
+      {Array.from({ length: CODE_LENGTH }, (_, index) => {
+        const digit = code[index];
+        const active = !invalid && index === code.length;
+        return (
+          <View key={index} style={[styles.box, active && styles.boxActive, invalid && styles.boxInvalid]}>
+            <Text style={styles.digit}>{digit ?? ''}</Text>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        );
+      })}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  shell: {
-    backgroundColor: colors.paper,
-    flex: 1,
-  },
-  scroll: {
-    backgroundColor: colors.paper,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: spacing.xl,
-  },
-  content: {
-    alignSelf: 'center',
-    gap: spacing.md,
-    maxWidth: 520,
-    width: '100%',
-  },
-  eyebrow: {
-    color: colors.tealDark,
-    fontFamily: fontFamily.sansBold,
-    fontSize: typography.caption,
-    letterSpacing: 1.5,
-  },
-  card: {
-    gap: spacing.lg,
-  },
-  title: {
-    color: colors.ink,
-    fontFamily: fontFamily.sterlingSemiBold,
-    fontSize: typography.title,
-  },
-  sentTo: {
-    gap: spacing.xs,
-    marginTop: -spacing.sm,
-  },
-  label: {
-    color: colors.ink,
-    fontFamily: fontFamily.sansSemiBold,
-    fontSize: typography.small,
-  },
   email: {
     color: colors.ink,
-    fontFamily: fontFamily.sansMedium,
-    fontSize: typography.body,
+    fontFamily: fontFamily.sansSemiBold,
   },
-  body: {
-    color: colors.muted,
-    fontFamily: fontFamily.sans,
-    fontSize: typography.small,
-    lineHeight: 21,
+  changeRow: {
+    alignItems: 'center',
+    marginTop: -spacing.xl,
   },
-  codeInput: {
+  codeBlock: {
+    justifyContent: 'center',
+  },
+  boxes: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'center',
+  },
+  box: {
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderColor: colors.line,
+    borderCurve: 'continuous',
+    borderRadius: 14,
+    borderWidth: 1,
+    flex: 1,
+    height: 56,
+    justifyContent: 'center',
+    maxWidth: 52,
+  },
+  boxActive: {
+    borderColor: colors.teal,
+    borderWidth: 2,
+  },
+  boxInvalid: {
+    borderColor: colors.danger,
+    borderWidth: 2,
+  },
+  digit: {
+    color: colors.ink,
     fontFamily: fontFamily.sansBold,
     fontSize: typography.title,
-    letterSpacing: 8,
+  },
+  hiddenInput: {
+    ...StyleSheet.absoluteFill,
+    color: 'transparent',
+    opacity: 0.02,
+  },
+  status: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: -spacing.md,
+  },
+  error: {
+    color: colors.danger,
+    fontFamily: fontFamily.sansMedium,
+    fontSize: typography.small,
     textAlign: 'center',
   },
   notice: {
     color: colors.tealDark,
     fontFamily: fontFamily.sansMedium,
     fontSize: typography.small,
+    textAlign: 'center',
   },
-  actions: {
-    alignItems: 'center',
-    gap: spacing.xs,
+  countdown: {
+    color: colors.muted,
+    fontFamily: fontFamily.sans,
+    fontSize: typography.small,
+    paddingVertical: spacing.md,
+  },
+  spam: {
+    color: colors.muted,
+    fontFamily: fontFamily.sans,
+    fontSize: typography.small,
+    textAlign: 'center',
   },
 });

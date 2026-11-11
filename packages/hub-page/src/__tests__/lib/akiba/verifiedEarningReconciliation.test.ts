@@ -40,12 +40,19 @@ describe("milesCreditedEventFromPurchase", () => {
     });
   });
 
-  it("rejects online, reversed, refunded and non-positive rewards", () => {
+  it("keeps online credits eligible for notifications without asserting a visit", () => {
     expect(milesCreditedEventFromPurchase(
       { ...purchase, raw_metadata: { channel: "online" } },
       "hub-user-1",
       "Arabica",
-    )).toBeNull();
+    )).toMatchObject({ channel: "online", milesAwarded: 5 });
+    expect(milesCreditedEventFromPurchase(
+      { ...purchase, source_app: "merchant_voucher_checkout", raw_metadata: {} },
+      "hub-user-1", "Arabica",
+    )).toMatchObject({ channel: "unknown", source: "merchant_purchase" });
+  });
+
+  it("rejects reversed, refunded and non-positive rewards", () => {
     expect(milesCreditedEventFromPurchase(
       { ...purchase, miles_reversed: 5 },
       "hub-user-1",
@@ -69,5 +76,11 @@ describe("milesCreditedEventFromPurchase", () => {
       "hub-user-1",
       "Arabica",
     )).toBeNull();
+  });
+
+  it("shares the Hub order producer's notification key on replay", () => {
+    expect(milesCreditedEventFromPurchase({
+      ...purchase, source_app: "hub", raw_metadata: { orderId: "order-1", channel: "online" },
+    }, "hub-user-1", "Arabica")).toMatchObject({ eventId: "hub-order:order-1", channel: "online" });
   });
 });

@@ -17,16 +17,20 @@ export type RegistrationOutcome =
  * Asks for notification permission if it has not been decided yet, then
  * registers this install's Expo push token with the Hub.
  *
- * Never called at cold start. The caller mounts below the onboarding gate,
- * so the prompt lands after the member has seen what the app is for
- * (AKIBA-MOB-001 §3) rather than on first launch, which is the pattern that
- * gets permanently denied.
+ * Never called at cold start. The prompt is asked from the onboarding
+ * notifications step, behind an explanation the member has just read
+ * (BDR-007), rather than on first launch, which is the pattern that gets
+ * permanently denied. PushRegistrar passes `prompt: false` when the member
+ * chose "Not now" there, so it only registers an already-granted device.
  *
  * `getPermissionsAsync` first is what keeps this safe to call on every
  * launch: once the member has answered, this never prompts again, so a
  * re-register after a token rotation costs nothing visible.
  */
-export async function registerForPushNotifications(accessToken: string): Promise<RegistrationOutcome> {
+export async function registerForPushNotifications(
+  accessToken: string,
+  { prompt = true }: { prompt?: boolean } = {},
+): Promise<RegistrationOutcome> {
   if (Platform.OS !== 'ios' && Platform.OS !== 'android') return { status: 'unsupported' };
 
   const existing = await Notifications.getPermissionsAsync();
@@ -39,7 +43,7 @@ export async function registerForPushNotifications(accessToken: string): Promise
     // Only ask when iOS still allows it. Re-requesting after a denial is a
     // no-op that returns the denial, so this avoids a pointless round trip
     // and keeps the analytics honest about who was actually asked.
-    if (!existing.canAskAgain) return { status: 'denied' };
+    if (!existing.canAskAgain || !prompt) return { status: 'denied' };
 
     track('push_permission_requested');
     const result = await Notifications.requestPermissionsAsync({

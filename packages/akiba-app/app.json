@@ -12,8 +12,8 @@
       "appleTeamId": "6DQJX4ZG84",
       "bundleIdentifier": "com.akibamiles.akiba",
       "buildNumber": "1",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "associatedDomains": [
-        "applinks:pass.akibamiles.com",
         "applinks:pass.akibamiles.com"
       ],
       "infoPlist": {
@@ -73,6 +73,9 @@
         {
           "android": {
             "enableMinifyInReleaseBuilds": true
+          },
+          "ios": {
+            "useFrameworks": "dynamic"
           }
         }
       ],
@@ -107,7 +110,9 @@
           "defaultChannel": "default"
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "@react-native-firebase/app",
+      "@react-native-firebase/analytics"
     ],
     "experiments": {
       "typedRoutes": true,

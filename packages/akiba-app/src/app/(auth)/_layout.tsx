@@ -7,5 +7,13 @@ export default function AuthLayout() {
   if (loading) return null;
   if (session) return <Redirect href="/" />;
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  // Sign-in is declared first so it is the group's initial route. A device
+  // that hasn't seen the intro is redirected there by sign-in itself.
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="sign-in" />
+      <Stack.Screen name="intro" />
+      <Stack.Screen name="verify" />
+    </Stack>
+  );
 }

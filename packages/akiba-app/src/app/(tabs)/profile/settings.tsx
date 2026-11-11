@@ -8,9 +8,9 @@ import { Alert, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, Style
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { createApiClient, ApiRequestError } from '@/api';
-import { supabase, useAuth } from '@/auth';
+import { changePassword, passwordChangeErrorMessage, passwordProblem, requestPasswordChangeCode, useAuth } from '@/auth';
 import { useAppConfig } from '@/config';
-import { sendTestNotification } from '@/push';
+import { runPushTest, sendTestNotification } from '@/push';
 import type { MobileSettings } from '@/contracts';
 import { ActivityIndicator, Icon, ListGroup, ListRow, ScrollView, colors, fontFamily } from '@/design-system';
 
@@ -56,6 +56,7 @@ export default function SettingsScreen() {
 function SettingsContent({ accessToken, initial, onSignOut }: { accessToken: string | null; initial: MobileSettings; onSignOut: () => void }) {
   const [data, setData] = useState(initial);
   const [editor, setEditor] = useState<Editor>(null);
+  const [testingPush, setTestingPush] = useState(false);
   const helpLinks = useHelpLinks();
   const profile = data.profile;
   const identity = profile.username ? `@${profile.username}` : profile.displayName;
@@ -66,7 +67,25 @@ function SettingsContent({ accessToken, initial, onSignOut }: { accessToken: str
 
     <SettingsSection title="Profile details"><ListRow icon="at-sign" label="Username" description={profile.username ? `@${profile.username}` : 'Choose a username'} onPress={() => setEditor('username')} /><ListRow icon="phone" label="Phone number" description={profile.phone ?? 'Add a phone number'} onPress={() => setEditor('phone')} /><ListRow icon="map-pin" label="Location" description={location} onPress={() => setEditor('location')} /></SettingsSection>
     <SettingsSection title="Notifications">
-      <ListRow icon="bell" label="Notifications" description="Reward and account updates" onPress={() => Linking.openSettings()} />
+      <ListRow icon="bell" label="Notifications" description="Choose what Akiba tells you about" onPress={() => router.push('/profile/notifications')} />
+      {/* A real push through Expo and Apple/Google to this phone — the quickest
+          way for a member (or us, on their phone) to tell "notifications are
+          off" from "this phone isn't registered" from "it's our side". */}
+      <ListRow
+        icon="send"
+        label="Send a test notification"
+        description={testingPush ? 'Sending…' : 'Check that notifications reach this phone'}
+        onPress={async () => {
+          if (!accessToken || testingPush) return;
+          setTestingPush(true);
+          try {
+            const { title, message } = await runPushTest(accessToken);
+            Alert.alert(title, message);
+          } finally {
+            setTestingPush(false);
+          }
+        }}
+      />
       {/* Development builds only. `__DEV__` is false in any release build, so
           this never reaches a store binary. Fires a *local* notification
           shaped like a real earned-Miles push: it proves permission, the
@@ -75,8 +94,8 @@ function SettingsContent({ accessToken, initial, onSignOut }: { accessToken: str
       {__DEV__ ? (
         <ListRow
           icon="bell"
-          label="Send a test notification"
-          description="Local only — does not test push delivery"
+          label="Local test notification"
+          description="Development only — does not test push delivery"
           onPress={async () => {
             const result = await sendTestNotification();
             if (!result.ok) {
@@ -137,11 +156,7 @@ function EditSheet({ accessToken, editor, onClose, onSaved, profile }: { accessT
     if (!editor || !accessToken) return;
     setSaving(true); setError(null);
     try {
-      if (editor === 'security') {
-        if (draft.length < 8) throw new Error('Use at least 8 characters.');
-        const { error: authError } = await supabase.auth.updateUser({ password: draft });
-        if (authError) throw authError;
-      } else {
+      {
         const input = editor === 'username' ? { username: draft.trim().toLowerCase() } : editor === 'phone' ? { phone: draft.trim() } : { country: 'Kenya', city: city.trim() };
         const result = await createApiClient({ accessToken }).updateSettings(input);
         onSaved(editor === 'username' ? { username: result.username ?? draft.trim().toLowerCase() } : editor === 'phone' ? { phone: result.phone ?? null } : { country: 'Kenya', city: result.city ?? null });
@@ -154,8 +169,9 @@ function EditSheet({ accessToken, editor, onClose, onSaved, profile }: { accessT
     } finally { setSaving(false); }
   };
   if (!editor) return null;
+  if (editor === 'security') return <PasswordSheet email={profile.email} onClose={onClose} />;
   const usernameValid = /^[a-z0-9_]{3,20}$/.test(draft.trim().toLowerCase());
-  const canSave = editor === 'username' ? usernameValid : editor === 'location' ? true : editor === 'security' ? draft.length >= 8 : Boolean(draft.trim());
+  const canSave = editor === 'username' ? usernameValid : editor === 'location' ? true : Boolean(draft.trim());
   return <Modal animationType="slide" onRequestClose={onClose} transparent visible>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.scrim}>
       <Pressable onPress={onClose} style={StyleSheet.absoluteFill} />
@@ -163,10 +179,69 @@ function EditSheet({ accessToken, editor, onClose, onSaved, profile }: { accessT
         <View style={styles.handle} /><View style={styles.sheetHeader}><Text style={styles.sheetTitle}>{titles[editor]}</Text><Pressable onPress={onClose} style={styles.close}><Icon name="x" size={20} color={colors.ink} /></Pressable></View>
         {editor === 'username' ? <><Text style={styles.sheetCopy}>Your identity across Akiba. Use 3–20 lowercase letters, numbers or underscores.</Text><View style={styles.prefixedInput}><Text style={styles.prefix}>@</Text><TextInput autoCapitalize="none" maxLength={20} onChangeText={setDraft} placeholder="username" placeholderTextColor="#8B8888" style={styles.inputBare} value={draft} /></View>{draft.length > 0 && !usernameValid ? <Text style={styles.validation}>3–20 lowercase letters, numbers or underscores.</Text> : null}</>
           : editor === 'phone' ? <><Text style={styles.sheetCopy}>Used for order updates and future reward matching. Verification is coming soon.</Text><TextInput keyboardType="phone-pad" onChangeText={setDraft} placeholder="e.g. 0712 345 678" placeholderTextColor="#8B8888" style={styles.input} value={draft} /></>
-            : editor === 'location' ? <><Text style={styles.sheetCopy}>Akiba is currently available in Kenya. Add your city to surface nearby places.</Text><View style={styles.fixedCountry}><Text style={styles.fieldLabel}>Country</Text><Text style={styles.fixedCountryValue}>Kenya</Text></View><Text style={styles.fieldLabel}>City (optional)</Text><TextInput autoCapitalize="words" onChangeText={setCity} placeholder="e.g. Nairobi" placeholderTextColor="#8B8888" style={styles.input} value={city} /></>
-              : <><Text style={styles.sheetCopy}>Set a password for email sign-in. Use at least 8 characters.</Text><TextInput autoCapitalize="none" onChangeText={setDraft} placeholder="New password" placeholderTextColor="#8B8888" secureTextEntry style={styles.input} value={draft} /></>}
+            : <><Text style={styles.sheetCopy}>Akiba is currently available in Kenya. Add your city to surface nearby places.</Text><View style={styles.fixedCountry}><Text style={styles.fieldLabel}>Country</Text><Text style={styles.fixedCountryValue}>Kenya</Text></View><Text style={styles.fieldLabel}>City (optional)</Text><TextInput autoCapitalize="words" onChangeText={setCity} placeholder="e.g. Nairobi" placeholderTextColor="#8B8888" style={styles.input} value={city} /></>}
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
-        <Pressable disabled={!canSave || saving} onPress={save} style={({ pressed }) => [styles.save, (!canSave || saving) && styles.saveDisabled, pressed && styles.pressed]}>{saving ? <ActivityIndicator color={colors.white} size="small" /> : <Text style={styles.saveText}>{editor === 'security' ? 'Set password' : 'Save changes'}</Text>}</Pressable>
+        <Pressable disabled={!canSave || saving} onPress={save} style={({ pressed }) => [styles.save, (!canSave || saving) && styles.saveDisabled, pressed && styles.pressed]}>{saving ? <ActivityIndicator color={colors.white} size="small" /> : <Text style={styles.saveText}>Save changes</Text>}</Pressable>
+      </View>
+    </KeyboardAvoidingView>
+  </Modal>;
+}
+
+// Settings → Security. A new password needs a fresh code emailed to the
+// account first (src/auth/password-change.ts), so an unlocked phone alone
+// can't be used to take the account over.
+function PasswordSheet({ email, onClose }: { email: string | null; onClose: () => void }) {
+  const insets = useSafeAreaInsets();
+  const [stage, setStage] = useState<'request' | 'confirm'>('request');
+  const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const problem = passwordProblem(password, confirmation);
+  const codeReady = /^\d{6,10}$/.test(code.trim());
+
+  const sendCode = async () => {
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      await requestPasswordChangeCode();
+      setStage('confirm');
+      setNotice(`We sent a code to ${email ?? 'your email'}.`);
+    } catch (caught) { setError(passwordChangeErrorMessage(caught)); } finally { setBusy(false); }
+  };
+  const save = async () => {
+    if (problem || !codeReady) return;
+    setBusy(true); setError(null);
+    try {
+      await changePassword(password, code);
+      onClose();
+      Alert.alert('Password changed', 'Use your new password next time you sign in with a password.');
+    } catch (caught) { setError(passwordChangeErrorMessage(caught)); } finally { setBusy(false); }
+  };
+
+  return <Modal animationType="slide" onRequestClose={onClose} transparent visible>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.scrim}>
+      <Pressable onPress={onClose} style={StyleSheet.absoluteFill} />
+      <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+        <View style={styles.handle} /><View style={styles.sheetHeader}><Text style={styles.sheetTitle}>Security</Text><Pressable accessibilityLabel="Close" onPress={onClose} style={styles.close}><Icon name="x" size={20} color={colors.ink} /></Pressable></View>
+        {stage === 'request' ? <>
+          <Text style={styles.sheetCopy}>To set a new password, first confirm it’s you. We’ll email a code to {email ?? 'your account email'}.</Text>
+          {error ? <Text accessibilityRole="alert" style={styles.errorText}>{error}</Text> : null}
+          <Pressable disabled={busy} onPress={() => void sendCode()} style={({ pressed }) => [styles.save, busy && styles.saveDisabled, pressed && styles.pressed]}>{busy ? <ActivityIndicator color={colors.white} size="small" /> : <Text style={styles.saveText}>Email me a code</Text>}</Pressable>
+        </> : <>
+          {notice ? <Text style={styles.sheetCopy}>{notice} Enter it below with your new password.</Text> : null}
+          <Text style={styles.fieldLabel}>Code from your email</Text>
+          <TextInput accessibilityLabel="Code from your email" autoComplete="one-time-code" keyboardType="number-pad" maxLength={10} onChangeText={(value) => setCode(value.replace(/\D/g, ''))} placeholder="123456" placeholderTextColor="#8B8888" style={styles.input} textContentType="oneTimeCode" value={code} />
+          <Text style={styles.fieldLabel}>New password</Text>
+          <TextInput accessibilityLabel="New password" autoCapitalize="none" autoComplete="new-password" onChangeText={setPassword} placeholder="At least 8 characters" placeholderTextColor="#8B8888" secureTextEntry style={styles.input} textContentType="newPassword" value={password} />
+          <Text style={styles.fieldLabel}>Confirm new password</Text>
+          <TextInput accessibilityLabel="Confirm new password" autoCapitalize="none" autoComplete="new-password" onChangeText={setConfirmation} placeholder="Type it again" placeholderTextColor="#8B8888" secureTextEntry style={styles.input} textContentType="newPassword" value={confirmation} />
+          {password.length > 0 && confirmation.length > 0 && problem ? <Text style={styles.validation}>{problem}</Text> : null}
+          {error ? <Text accessibilityRole="alert" style={styles.errorText}>{error}</Text> : null}
+          <Pressable disabled={busy || !!problem || !codeReady} onPress={() => void save()} style={({ pressed }) => [styles.save, (busy || !!problem || !codeReady) && styles.saveDisabled, pressed && styles.pressed]}>{busy ? <ActivityIndicator color={colors.white} size="small" /> : <Text style={styles.saveText}>Set password</Text>}</Pressable>
+          <Pressable disabled={busy} onPress={() => void sendCode()} style={styles.resend}><Text style={styles.resendText}>Send a new code</Text></Pressable>
+        </>}
       </View>
     </KeyboardAvoidingView>
   </Modal>;
@@ -178,4 +253,5 @@ const styles = StyleSheet.create({
   screen: { backgroundColor: colors.paper }, page: { alignSelf: 'center', maxWidth: 720, paddingBottom: 36, paddingHorizontal: 16, width: '100%' }, back: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 6, minHeight: 44, paddingRight: 12 }, backText: { color: colors.muted, fontFamily: fontFamily.sansMedium, fontSize: 14 }, pressed: { opacity: 0.76, transform: [{ scale: 0.99 }] }, heading: { marginBottom: 24, marginTop: 4 }, title: { color: colors.ink, fontFamily: fontFamily.sterlingSemiBold, fontSize: 30 }, subtitle: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 14, marginTop: 4 }, centered: { alignItems: 'center', minHeight: 420, justifyContent: 'center' }, content: { gap: 28 }, flex: { flex: 1 },
   profileCard: { alignItems: 'center', backgroundColor: colors.white, borderColor: colors.line, borderCurve: 'continuous', borderRadius: 16, borderWidth: 1, flexDirection: 'row', gap: 16, padding: 16 }, avatar: { alignItems: 'center', backgroundColor: colors.teal, borderRadius: 999, height: 64, justifyContent: 'center', overflow: 'hidden', width: 64 }, avatarImage: { height: '100%', width: '100%' }, avatarInitial: { color: colors.white, fontFamily: fontFamily.sansSemiBold, fontSize: 18 }, identity: { color: colors.ink, fontFamily: fontFamily.sterlingSemiBold, fontSize: 18 }, meta: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 12, marginTop: 2 }, section: { gap: 11 }, sectionTitle: { color: colors.muted, fontFamily: fontFamily.sansSemiBold, fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
   scrim: { backgroundColor: 'rgba(13,14,12,0.42)', flex: 1, justifyContent: 'flex-end' }, sheet: { backgroundColor: colors.white, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 8 }, handle: { alignSelf: 'center', backgroundColor: colors.line, borderRadius: 99, height: 4, width: 42 }, sheetHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14, marginTop: 8 }, sheetTitle: { color: colors.ink, fontFamily: fontFamily.sterlingSemiBold, fontSize: 23 }, close: { alignItems: 'center', height: 44, justifyContent: 'center', width: 44 }, sheetCopy: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 12, lineHeight: 18, marginBottom: 13 }, input: { borderColor: colors.line, borderRadius: 12, borderWidth: 1, color: colors.ink, fontFamily: fontFamily.sans, fontSize: 14, minHeight: 48, paddingHorizontal: 14 }, prefixedInput: { alignItems: 'center', borderColor: colors.line, borderRadius: 12, borderWidth: 1, flexDirection: 'row', minHeight: 48, paddingHorizontal: 14 }, prefix: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 14 }, inputBare: { color: colors.ink, flex: 1, fontFamily: fontFamily.sans, fontSize: 14, minHeight: 46, paddingLeft: 5 }, validation: { color: colors.danger, fontFamily: fontFamily.sans, fontSize: 11, marginTop: 6 }, fieldLabel: { color: colors.muted, fontFamily: fontFamily.sansMedium, fontSize: 11, marginBottom: 6, marginTop: 8 }, fixedCountry: { marginBottom: 5 }, fixedCountryValue: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 12, borderWidth: 1, color: colors.ink, fontFamily: fontFamily.sansMedium, fontSize: 14, overflow: 'hidden', paddingHorizontal: 14, paddingVertical: 14 }, errorText: { backgroundColor: colors.dangerTint, borderRadius: 8, color: colors.danger, fontFamily: fontFamily.sans, fontSize: 12, marginTop: 10, padding: 10 }, save: { alignItems: 'center', backgroundColor: colors.teal, borderRadius: 12, justifyContent: 'center', marginTop: 16, minHeight: 48 }, saveDisabled: { opacity: 0.45 }, saveText: { color: colors.white, fontFamily: fontFamily.sansSemiBold, fontSize: 14 }, errorState: { alignItems: 'center', minHeight: 360, justifyContent: 'center' }, retry: { backgroundColor: colors.teal, borderRadius: 999, marginTop: 14, paddingHorizontal: 20, paddingVertical: 11 },
+  resend: { alignItems: 'center', justifyContent: 'center', minHeight: 44, marginTop: 4 }, resendText: { color: colors.tealDark, fontFamily: fontFamily.sansSemiBold, fontSize: 14 },
 });

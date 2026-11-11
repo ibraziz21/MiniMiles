@@ -76,6 +76,70 @@ describe("renderTemplate — referral templates", () => {
   });
 });
 
+describe("renderTemplate — contribution_requested", () => {
+  it("asks about the named place", () => {
+    expect(renderTemplate("contribution_requested", { merchantName: "Kahawa Corner" })).toEqual({
+      title: "How was Kahawa Corner?",
+      body: "Share a quick recommendation to help other Akiba members find good places.",
+    });
+  });
+
+  it("falls back to a generic title without a merchant name", () => {
+    expect(renderTemplate("contribution_requested", {})?.title).toBe("How was your visit?");
+  });
+});
+
+describe("renderTemplate — saved_place_offer", () => {
+  it("names the place and the offer", () => {
+    expect(renderTemplate("saved_place_offer", { merchantName: "Kahawa Corner", offerTitle: "20% off brunch" })).toEqual({
+      title: "New offer at Kahawa Corner",
+      body: "20% off brunch",
+    });
+  });
+
+  it("still reads well with nothing to name", () => {
+    expect(renderTemplate("saved_place_offer", {})).toEqual({
+      title: "New offer at a place you saved",
+      body: "A place you saved has a new offer. Open Akiba to see it.",
+    });
+  });
+});
+
+describe("renderTemplate — voucher_expiring", () => {
+  // 12:00 on 10 Nov in Nairobi (UTC+3).
+  const NOW = Date.parse("2026-11-10T09:00:00Z");
+
+  it("says tomorrow, in Nairobi time", () => {
+    expect(
+      renderTemplate(
+        "voucher_expiring",
+        { count: 1, title: "25% off", merchantName: "Kahawa Corner", expiresAt: "2026-11-11T07:00:00+00:00" },
+        NOW,
+      ),
+    ).toEqual({ title: "Your voucher expires tomorrow", body: "25% off at Kahawa Corner: use it before 10:00 am." });
+  });
+
+  it("says today when it ends later the same Nairobi day", () => {
+    const rendered = renderTemplate("voucher_expiring", { count: 1, title: "25% off", expiresAt: "2026-11-10T17:30:00Z" }, NOW);
+    expect(rendered).toEqual({ title: "Your voucher expires today", body: "25% off: use it before 8:30 pm." });
+  });
+
+  it("covers several vouchers in one push", () => {
+    const rendered = renderTemplate("voucher_expiring", { count: 3, expiresAt: "2026-11-10T17:30:00Z" }, NOW);
+    expect(rendered).toEqual({
+      title: "3 vouchers expire soon",
+      body: "The first one ends today at 8:30 pm. Open Akiba to use them in time.",
+    });
+  });
+
+  it("falls back when the expiry is missing", () => {
+    expect(renderTemplate("voucher_expiring", {}, NOW)).toEqual({
+      title: "Your voucher expires soon",
+      body: "Your voucher: use it before it expires.",
+    });
+  });
+});
+
 describe("renderTemplate — announcement templates", () => {
   it.each(["feature_announcement", "merchant_announcement", "general_announcement"])(
     "renders safe admin-authored copy for %s",

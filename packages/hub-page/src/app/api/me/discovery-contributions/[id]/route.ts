@@ -10,28 +10,9 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkAllRateLimits } from "@/lib/rateLimit";
 import { isSameOriginRequest } from "@/lib/push/origin";
+import { parseContributionAnswers, submitDiscoveryContribution } from "@/lib/discovery/contributions";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const MAX_LABEL_LENGTH = 80;
-const ALLOWED_ITEM_SOURCES = new Set(["event_confirmation", "customer_input", "existing_selection"]);
-
-function rpcErrorResponse(error: { code?: string; message?: string }) {
-  if (error.code === "P0002") {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
-  }
-  if (error.code === "55000") {
-    return NextResponse.json({ error: "expired" }, { status: 410 });
-  }
-  if (error.code === "22023") {
-    return NextResponse.json({ error: "invalid_state" }, { status: 409 });
-  }
-  if (error.code === "23514") {
-    return NextResponse.json({ error: error.message ?? "invalid_answer" }, { status: 422 });
-  }
-  console.error("[discovery-contributions] submit failed:", error.code, error.message);
-  return NextResponse.json({ error: "internal_error" }, { status: 500 });
-}
-
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   if (!UUID_RE.test(params.id)) {
     return NextResponse.json({ error: "invalid_id" }, { status: 400 });
@@ -78,33 +59,6 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   });
 }
 
-type ContributionItemInput = {
-  clientItemKey: string;
-  rawLabel: string;
-  source: string;
-  isRecommended: boolean;
-};
-
-function validateItems(raw: unknown): { ok: true; items: ContributionItemInput[] } | { ok: false; error: string } {
-  if (raw === undefined || raw === null) return { ok: true, items: [] };
-  if (!Array.isArray(raw)) return { ok: false, error: "invalid_items" };
-  if (raw.length > 4) return { ok: false, error: "too_many_items" };
-
-  const items: ContributionItemInput[] = [];
-  for (const entry of raw) {
-    if (typeof entry !== "object" || entry === null) return { ok: false, error: "invalid_items" };
-    const { clientItemKey, rawLabel, source, isRecommended } = entry as Record<string, unknown>;
-    if (typeof clientItemKey !== "string" || !clientItemKey.trim()) return { ok: false, error: "invalid_items" };
-    if (typeof rawLabel !== "string" || !rawLabel.trim() || rawLabel.length > MAX_LABEL_LENGTH) {
-      return { ok: false, error: "invalid_items" };
-    }
-    if (typeof source !== "string" || !ALLOWED_ITEM_SOURCES.has(source)) return { ok: false, error: "invalid_items" };
-    if (isRecommended !== undefined && typeof isRecommended !== "boolean") return { ok: false, error: "invalid_items" };
-    items.push({ clientItemKey, rawLabel, source, isRecommended: Boolean(isRecommended) });
-  }
-  return { ok: true, items };
-}
-
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   if (!isSameOriginRequest(req)) {
     return NextResponse.json({ error: "Cross-origin request rejected" }, { status: 403 });
@@ -126,70 +80,14 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
-  const body = await req.json().catch(() => null);
-  if (!body || typeof body !== "object") {
-    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
-  }
+  // Validation and the RPC call are shared with the native route
+  // (/api/v1/me/discovery-contributions/:id) via lib/discovery/contributions.
+  const parsed = parseContributionAnswers(await req.json().catch(() => null));
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
-  const { wouldRecommend, negativeReasonId, partySize, partySizeIsSixPlus, experienceOptionIds, items, idempotencyKey, privateNote } =
-    body as Record<string, unknown>;
-
-  // Required per §11.2 — a bare network retry of an identical submit must
-  // be a no-op, not a second edit that bumps answer_version again.
-  if (typeof idempotencyKey !== "string" || !idempotencyKey.trim() || idempotencyKey.length > 200) {
-    return NextResponse.json({ error: "invalid_idempotency_key" }, { status: 400 });
-  }
-
-  if (wouldRecommend !== null && typeof wouldRecommend !== "boolean") {
-    return NextResponse.json({ error: "invalid_would_recommend" }, { status: 400 });
-  }
-  if (negativeReasonId !== undefined && negativeReasonId !== null && typeof negativeReasonId !== "string") {
-    return NextResponse.json({ error: "invalid_negative_reason_id" }, { status: 400 });
-  }
-  if (
-    partySize !== undefined &&
-    partySize !== null &&
-    (!Number.isInteger(partySize) || (partySize as number) < 1 || (partySize as number) > 5)
-  ) {
-    return NextResponse.json({ error: "invalid_party_size" }, { status: 400 });
-  }
-  if (partySizeIsSixPlus !== undefined && typeof partySizeIsSixPlus !== "boolean") {
-    return NextResponse.json({ error: "invalid_party_size_is_six_plus" }, { status: 400 });
-  }
-  if (
-    experienceOptionIds !== undefined &&
-    (!Array.isArray(experienceOptionIds) || experienceOptionIds.some((id) => typeof id !== "string"))
-  ) {
-    return NextResponse.json({ error: "invalid_experience_option_ids" }, { status: 400 });
-  }
-
-  if (privateNote !== undefined && (typeof privateNote !== "string" || privateNote.length > 300)) {
-    return NextResponse.json({ error: "invalid_private_note" }, { status: 400 });
-  }
-
-  const validatedItems = validateItems(items);
-  if (!validatedItems.ok) {
-    return NextResponse.json({ error: validatedItems.error }, { status: 400 });
-  }
-
-  const admin = createAdminClient();
-  const { data, error } = await admin.rpc("submit_discovery_contribution", {
-    p_request_id: params.id,
-    p_hub_user_id: user.id,
-    p_would_recommend: wouldRecommend ?? null,
-    p_negative_reason_id: negativeReasonId ?? null,
-    p_party_size: partySize ?? null,
-    p_party_size_is_six_plus: Boolean(partySizeIsSixPlus),
-    p_experience_option_ids: (experienceOptionIds as string[] | undefined) ?? [],
-    p_items: validatedItems.items,
-    p_idempotency_key: idempotencyKey,
-    ...(typeof privateNote === "string" ? { p_private_note: privateNote } : {}),
-  });
-
-  if (error) return rpcErrorResponse(error);
-
-  const result = (Array.isArray(data) ? data[0] : data) as { ok: boolean; contribution_id: string } | undefined;
-  return NextResponse.json({ ok: true, contributionId: result?.contribution_id });
+  const outcome = await submitDiscoveryContribution(user.id, params.id, parsed.answers);
+  if (!outcome.ok) return NextResponse.json({ error: outcome.error }, { status: outcome.status });
+  return NextResponse.json({ ok: true, contributionId: outcome.contributionId ?? undefined });
 }
 
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {

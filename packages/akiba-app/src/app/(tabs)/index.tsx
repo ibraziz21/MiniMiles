@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
   claimTitle: { flex: 1, color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 16 },
   closeClaim: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: colors.tint },
   screen: { backgroundColor: colors.paper },
-  page: { paddingBottom: 28, paddingTop: 12 },
+  page: { paddingBottom: 88, paddingTop: 12 },
   contentShell: { alignSelf: 'center', maxWidth: 840, width: '100%' },
   centered: { alignItems: 'center', justifyContent: 'center', minHeight: 360 },
   toolbarWrap: { marginBottom: 16, marginHorizontal: 16 },

@@ -1,4 +1,14 @@
+import { profileActivitySchema, profileSharesSchema, savedPlacesSchema } from '@/contracts/profile-library';
 import { voucherPresentationSchema, voucherPresentationStatusSchema } from '@/contracts/owned-vouchers';
+import { welcomeOfferResponseSchema, type WelcomeOffer } from '@/contracts/welcome-offer';
+import {
+  contributionRequestSchema,
+  contributionSubmitResultSchema,
+  merchantContributionStatusSchema,
+  type ContributionAnswers,
+  type ContributionRequest,
+  type MerchantContributionStatus,
+} from '@/contracts/contribution';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import type { z } from 'zod';
@@ -12,6 +22,7 @@ import {
   mobileSettingsSchema,
   settingsUpdateSchema,
   deviceRegistrationSchema,
+  testPushResultSchema,
   notificationPreferencesSchema,
   merchantDirectoryResponseSchema,
   voucherCatalogueSchema,
@@ -47,6 +58,7 @@ import {
   type MobileSettings,
   type SettingsUpdate,
   type DeviceRegistration,
+  type TestPushResult,
   type NotificationPreferences,
   type NotificationCategory,
   type MerchantDirectoryResponse,
@@ -232,6 +244,32 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
     completeOnboarding(): Promise<OnboardingCompletion> {
       return mutate('POST', '/api/v1/me/onboarding/complete', onboardingCompletionSchema);
     },
+    // ── Recommendations (verified visits) ────────────────────────────
+    // Which visit, if any, this member can recommend this place from.
+    getMerchantContribution(slug: string): Promise<MerchantContributionStatus> {
+      return get(
+        `/api/v1/me/discovery-contributions/merchant/${encodeURIComponent(slug)}`,
+        merchantContributionStatusSchema,
+      );
+    },
+    async getContributionRequest(requestId: string): Promise<ContributionRequest> {
+      return (await get(`/api/v1/me/discovery-contributions/${encodeURIComponent(requestId)}`, contributionRequestSchema)).request;
+    },
+    async submitContribution(requestId: string, answers: ContributionAnswers): Promise<string | null> {
+      return (
+        await mutate(
+          'PUT',
+          `/api/v1/me/discovery-contributions/${encodeURIComponent(requestId)}`,
+          contributionSubmitResultSchema,
+          answers,
+        )
+      ).contributionId;
+    },
+    // Issues the new-member welcome offer if the member qualifies, or returns
+    // the one they already have (BDR-008). Safe to repeat.
+    async enrolWelcomeOffer(): Promise<WelcomeOffer> {
+      return (await mutate('POST', '/api/v1/me/welcome-offer', welcomeOfferResponseSchema, {})).welcomeOffer;
+    },
     // ── Account deletion (AKIBA-MOB-002 §7) ──────────────────────────
     getAccountDeletionSummary(): Promise<AccountDeletionSummary> {
       if (!accessToken) {
@@ -308,6 +346,11 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
     unregisterDevice(installationId: string): Promise<DeviceRegistration> {
       return mutate('DELETE', '/api/v1/me/devices', deviceRegistrationSchema, { installationId });
     },
+    // A real push to this member's own registered devices, answered with
+    // what happened (server switch off, no device, Expo refused, sent).
+    sendTestPush(): Promise<TestPushResult> {
+      return mutate('POST', '/api/v1/me/devices/test-push', testPushResultSchema, {});
+    },
     getNotificationPreferences(): Promise<NotificationPreferences> {
       if (!accessToken) {
         return Promise.reject(new Error('getNotificationPreferences requires an authenticated access token'));
@@ -337,6 +380,9 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
       if (isScreenshotModeEnabled()) return Promise.resolve(getScreenshotVoucherState());
       return get('/api/v1/me/voucher-state', voucherStateSchema);
     },
+    getSavedPlaces(offset = 0) { return get(`/api/v1/me/saved-places?offset=${offset}`, savedPlacesSchema); },
+    getProfileActivity() { return get('/api/v1/me/activity', profileActivitySchema); },
+    getProfileShares(offset = 0) { return get(`/api/v1/me/community-shares?offset=${offset}`, profileSharesSchema); },
     getOverview(): Promise<MobileOverview> {
       if (!accessToken) {
         return Promise.reject(new Error('getOverview requires an authenticated access token'));
@@ -465,7 +511,7 @@ export function createApiClient({ accessToken }: ApiClientOptions = {}) {
       if (isScreenshotModeEnabled()) {
         const result = getScreenshotOwnedVouchers();
         const vouchers = params.status
-          ? result.vouchers.filter((voucher) => voucher.status === params.status)
+          ? result.vouchers.filter((voucher) => params.status === 'active' ? ['issued', 'pending', 'claiming'].includes(voucher.status) : voucher.status === params.status)
           : result.vouchers;
         return Promise.resolve({ vouchers, next_cursor: null });
       }

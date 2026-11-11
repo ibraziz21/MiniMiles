@@ -9,7 +9,7 @@ import { createApiClient } from '@/api';
 import { useAuth } from '@/auth';
 import { MilesAmount } from '@/components/miles-amount';
 import { campaignInventoryLabel, groupVoucherCampaigns } from '@/lib/voucher-campaigns';
-import { ProfileButton } from '@/components/profile-button';
+import { MilesBalanceButton } from '@/components/miles-balance-button';
 import { fundedBenefit } from '@/contracts';
 import type { ClaimFriction, FundedOffer, LoyaltyOffer, OwnedVoucherSummary, VoucherCatalogue, VoucherTemplate } from '@/contracts';
 import { ActivityIndicator, Icon, ScrollView, colors, fontFamily, shadows } from '@/design-system';
@@ -43,7 +43,7 @@ export default function RewardsScreen() {
   }, [load]));
 
   return <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.page} style={styles.screen}>
-    <View style={styles.screenHeader}><Text style={styles.screenTitle}>Rewards</Text><ProfileButton /></View>
+    <View style={styles.screenHeader}><Text style={styles.screenTitle}>Rewards</Text><MilesBalanceButton /></View>
     {state.status === 'loading' ? <View style={styles.centered}><ActivityIndicator color={colors.teal} /></View>
       : state.status === 'error' ? <ErrorState message={state.message} onRetry={load} />
         : <RewardsContent catalogue={state.catalogue} overlay={state.overlay} owned={state.owned} />}
@@ -185,7 +185,7 @@ function progressLabel(outcome: LoyaltyOffer['progress'][number]) { return outco
 function progressPercent(outcome: LoyaltyOffer['progress'][number]) { if (outcome.satisfied || outcome.minimum <= 0) return 100; return Math.min(100, Math.max(0, Math.floor(((outcome.actual ?? 0) / outcome.minimum) * 100))); }
 
 const styles = StyleSheet.create({
-  screen: { backgroundColor: colors.paper }, page: { alignSelf: 'center', maxWidth: 760, padding: 16, paddingBottom: 32, width: '100%' }, centered: { alignItems: 'center', justifyContent: 'center', minHeight: 480 }, flex: { flex: 1 }, pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] },
+  screen: { backgroundColor: colors.paper }, page: { alignSelf: 'center', maxWidth: 760, padding: 16, paddingBottom: 88, width: '100%' }, centered: { alignItems: 'center', justifyContent: 'center', minHeight: 480 }, flex: { flex: 1 }, pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] },
   screenHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }, screenTitle: { color: colors.ink, fontFamily: fontFamily.sterlingSemiBold, fontSize: 28, lineHeight: 34 },
   balanceCard: { borderColor: 'rgba(35,141,157,0.16)', borderCurve: 'continuous', borderRadius: 22, borderWidth: 1, marginBottom: 14, padding: 16 }, balanceRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }, balanceLabel: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 12, marginBottom: 4 }, balanceUnavailable: { color: colors.ink, fontFamily: fontFamily.sterlingSemiBold, fontSize: 26 }, balanceIcon: { alignItems: 'center', backgroundColor: colors.teal, borderRadius: 999, height: 44, justifyContent: 'center', width: 44 }, balanceCopy: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 12, lineHeight: 18, marginTop: 8 },
   modeTabs: { backgroundColor: colors.white, borderColor: 'rgba(35,141,157,0.22)', borderCurve: 'continuous', borderRadius: 16, borderWidth: 1, flexDirection: 'row', gap: 4, marginBottom: 22, padding: 4 }, modeTab: { alignItems: 'center', borderRadius: 12, flex: 1, flexDirection: 'row', gap: 5, justifyContent: 'center', minHeight: 48, paddingHorizontal: 5 }, modeTabSelected: { backgroundColor: colors.teal }, modeTabPressed: { opacity: 0.78 }, modeTabText: { flexShrink: 1, textAlign: 'center', color: colors.teal, fontFamily: fontFamily.sansSemiBold, fontSize: 11 }, modeTabTextSelected: { color: colors.white }, modeCount: { backgroundColor: colors.tint, borderRadius: 99, color: colors.teal, fontFamily: fontFamily.sansBold, fontSize: 9, minWidth: 18, overflow: 'hidden', paddingHorizontal: 5, paddingVertical: 2, textAlign: 'center' }, modeCountSelected: { backgroundColor: colors.white, color: colors.teal },

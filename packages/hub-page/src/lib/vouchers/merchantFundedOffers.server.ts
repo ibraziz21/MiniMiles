@@ -69,6 +69,8 @@ export async function getMerchantFundedOffers(merchantId: string): Promise<Funde
 
   const { data, error } = await query
     .in("state", ["active", "scheduled"])
+    // Claimable offers only — never the auto_award welcome allocation (126).
+    .contains("distribution_modes", ["self_claim"])
     .gt("claim_ends_at", nowIso)
     .order("claim_ends_at", { ascending: true });
 

@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FundedDiscoveryUnavailable, fundedDiscoveryResult } from "@/lib/vouchers/fundedDiscovery";
-const state = vi.hoisted(() => ({ fail: "", rows: [] as unknown[], memberships: [] as unknown[], profiles: [] as unknown[], inventory: [] as unknown[] }));
+const state = vi.hoisted(() => ({ fail: "", rows: [] as unknown[], memberships: [] as unknown[], profiles: [] as unknown[], inventory: [] as unknown[], contains: [] as Array<[string, string, unknown]> }));
 vi.mock("@/lib/featureFlags.server", () => ({ akibaFundedVouchersHubFlag: () => ({ enabled: true }) }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({
   from: (table: string) => {
     const chain: Record<string, unknown> = {};
     for (const name of ["select", "in", "eq", "gt", "order", "or"]) chain[name] = () => chain;
+    chain.contains = (column: string, value: unknown) => { state.contains.push([table, column, value]); return chain; };
     chain.then = (resolve: (value: unknown) => unknown) => Promise.resolve({
       data: table === "voucher_funding_allocations" ? state.rows : table === "voucher_allocation_merchants" ? state.memberships : table === "v_voucher_funding_allocation_availability" ? state.inventory : state.profiles,
       error: table === state.fail ? { message: "Offline" } : null,
@@ -17,7 +18,15 @@ const { getFundedOffers } = await import("@/lib/vouchers/catalogue.server");
 const { getMerchantFundedOffers } = await import("@/lib/vouchers/merchantFundedOffers.server");
 const { resolveAllocationParticipants } = await import("@/lib/vouchers/fundedOfferMerchants.server");
 describe("funded discovery availability", () => {
-  beforeEach(() => { state.fail = ""; state.rows = []; state.memberships = []; state.profiles = []; state.inventory = []; });
+  beforeEach(() => { state.fail = ""; state.rows = []; state.memberships = []; state.profiles = []; state.inventory = []; state.contains = []; });
+  it("lists only claimable allocations, never the auto_award welcome offer", async () => {
+    await getFundedOffers();
+    await getMerchantFundedOffers("merchant");
+    expect(state.contains).toEqual([
+      ["voucher_funding_allocations", "distribution_modes", ["self_claim"]],
+      ["voucher_funding_allocations", "distribution_modes", ["self_claim"]],
+    ]);
+  });
   it("distinguishes a genuine empty catalogue from an outage", async () => {
     expect(await fundedDiscoveryResult(getFundedOffers)).toEqual({ offers: [], unavailable: false });
     state.fail = "voucher_funding_allocations";

@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockUpsert = vi.fn();
 const mockFrom = vi.fn(() => ({ upsert: mockUpsert }));
+const mockGetUserById = vi.fn();
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({ from: mockFrom }),
+  createAdminClient: () => ({ from: mockFrom, auth: { admin: { getUserById: mockGetUserById } } }),
 }));
 
 const mockGetNextRewardSummary = vi.fn();
@@ -12,8 +13,10 @@ vi.mock("@/lib/akiba/nextReward", () => ({
 }));
 
 const mockIsEnabled = vi.fn();
+const mockAllowlistInUse = vi.fn(() => false);
 vi.mock("@/lib/akiba/milesEarnedNotificationsRollout", () => ({
   isMilesEarnedNotificationEnabledFor: (...args: unknown[]) => mockIsEnabled(...args),
+  milesEarnedAllowlistInUse: () => mockAllowlistInUse(),
 }));
 
 const { produceMilesEarnedNotification } = await import("@/lib/akiba/milesEarnedNotification");
@@ -41,6 +44,20 @@ describe("produceMilesEarnedNotification (§6.1-§6.4)", () => {
     const result = await produceMilesEarnedNotification(BASE_EVENT);
     expect(result).toEqual({ ok: false, skipped: "notifications_disabled" });
     expect(mockFrom).not.toHaveBeenCalled();
+    // No allowlist in use, so no auth lookup on the hot path.
+    expect(mockGetUserById).not.toHaveBeenCalled();
+  });
+
+  it("matches an email allowlist entry by looking the member's email up", async () => {
+    mockAllowlistInUse.mockReturnValueOnce(true);
+    mockGetUserById.mockResolvedValueOnce({ data: { user: { email: "pilot@akiba.test" } } });
+    mockIsEnabled.mockImplementation((member: { email?: string }) => member.email === "pilot@akiba.test");
+
+    const result = await produceMilesEarnedNotification(BASE_EVENT);
+
+    expect(mockGetUserById).toHaveBeenCalledWith("user-1");
+    expect(mockIsEnabled).toHaveBeenLastCalledWith({ hubUserId: "user-1", email: "pilot@akiba.test" }, "merchant-1");
+    expect(result).toEqual({ ok: true });
   });
 
   it("does not notify for a zero or non-integer amount", async () => {

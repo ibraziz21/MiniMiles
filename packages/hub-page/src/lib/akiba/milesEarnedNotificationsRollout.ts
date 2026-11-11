@@ -53,9 +53,37 @@ export function getMilesEarnedRolloutConfig(env: RolloutEnvironment = process.en
   return { enabled: isTruthy(env.HUB_MILES_EARNED_NOTIFICATIONS_ENABLED), percentage, allowlist, merchantAllowlist };
 }
 
-/** identifier: prefer email; falls back to hubUserId for email-less lookups. */
+/**
+ * The member a decision is about. The capability check (which tells the app
+ * the feature is on) and the send-time check must agree on every member, so
+ * both pass the same thing: the Hub user id always, the email when known.
+ *
+ * They previously disagreed — capabilities hashed the email, the producer
+ * hashed the user id — so under a partial rollout a member could be told
+ * the feature was on and never be sent anything, and an email in the
+ * allowlist never matched at send time.
+ */
+export type RolloutMember = { hubUserId: string; email?: string | null };
+
+function memberEnabled(config: MilesEarnedRolloutConfig, member: RolloutMember): boolean {
+  const id = member.hubUserId.trim().toLowerCase();
+  const email = member.email?.trim().toLowerCase();
+  // The allowlist may name members either way; operators reach for emails.
+  if (config.allowlist.has(id) || (email && config.allowlist.has(email))) return true;
+  if (config.percentage >= 100) return true;
+  if (config.percentage <= 0) return false;
+  // The bucket is always the user id: it is the one identifier both callers
+  // have, and it doesn't move when a member changes their email.
+  return rolloutBucket(id) < config.percentage;
+}
+
+/** Whether the allowlist is in use, i.e. whether an email could change the answer. */
+export function milesEarnedAllowlistInUse(env: RolloutEnvironment = process.env): boolean {
+  return getMilesEarnedRolloutConfig(env).allowlist.size > 0;
+}
+
 export function isMilesEarnedNotificationEnabledFor(
-  identifier: string,
+  member: RolloutMember,
   merchantId: string,
   env: RolloutEnvironment = process.env,
 ): boolean {
@@ -68,11 +96,7 @@ export function isMilesEarnedNotificationEnabledFor(
     return false;
   }
 
-  const idLc = identifier.trim().toLowerCase();
-  if (config.allowlist.has(idLc)) return true;
-  if (config.percentage >= 100) return true;
-  if (config.percentage <= 0) return false;
-  return rolloutBucket(idLc) < config.percentage;
+  return memberEnabled(config, member);
 }
 
 /**
@@ -80,19 +104,13 @@ export function isMilesEarnedNotificationEnabledFor(
  * without the merchant pilot-cohort gate `isMilesEarnedNotificationEnabledFor`
  * applies at send-time. For callers (e.g. the mobile capability service)
  * that need to answer "is this notification class live for this member at
- * all" without a specific merchant in hand. identifier: prefer email; falls
- * back to hubUserId for email-less lookups.
+ * all" without a specific merchant in hand.
  */
 export function isMilesEarnedNotificationsEnabledForMember(
-  identifier: string,
+  member: RolloutMember,
   env: RolloutEnvironment = process.env,
 ): boolean {
   const config = getMilesEarnedRolloutConfig(env);
   if (!config.enabled) return false;
-
-  const idLc = identifier.trim().toLowerCase();
-  if (config.allowlist.has(idLc)) return true;
-  if (config.percentage >= 100) return true;
-  if (config.percentage <= 0) return false;
-  return rolloutBucket(idLc) < config.percentage;
+  return memberEnabled(config, member);
 }

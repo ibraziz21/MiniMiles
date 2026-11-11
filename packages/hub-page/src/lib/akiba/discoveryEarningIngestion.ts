@@ -21,6 +21,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { MilesCreditedEvent } from "@/lib/akiba/milesEarnedNotification";
 import { isDiscoveryContributionsEnabledFor } from "@/lib/akiba/discoveryContributionsRollout";
+import { queueContributionRequestNotification } from "@/lib/akiba/contributionRequestNotification";
 
 export type EarningChannel = "in_store" | "online" | "unknown";
 
@@ -80,13 +81,44 @@ export async function recordVerifiedEarningForDiscovery(
       return;
     }
 
-    const { error: requestError } = await admin.rpc("create_discovery_contribution_request", {
+    // A callback may have arrived before the merchant redemption proof.
+    // Recovery can promote unknown evidence, but cannot rewrite online
+    // evidence or change the member/merchant attached to the original event.
+    const { error: channelError } = await admin
+      .from("verified_earning_events")
+      .update({ channel: "in_store" })
+      .eq("id", earningEventId)
+      .eq("hub_user_id", event.hubUserId)
+      .eq("partner_id", event.merchantId)
+      .eq("channel", "unknown");
+    if (channelError) {
+      console.error("[discovery-ingestion] channel recovery failed:", channelError.message);
+      return;
+    }
+
+    const { data: created, error: requestError } = await admin.rpc("create_discovery_contribution_request", {
       p_earning_event_id: earningEventId,
       p_hub_user_id: event.hubUserId,
       p_partner_id: event.merchantId,
     });
     if (requestError) {
       console.error("[discovery-ingestion] create_discovery_contribution_request failed:", requestError.message);
+      return;
+    }
+
+    // Only a request this call actually opened gets a push. `already_exists`
+    // is a retry of the same visit, and the refusals (cooldown, open request,
+    // contributions off for the merchant) are not asks at all.
+    const result = (Array.isArray(created) ? created[0] : created) as
+      | { ok?: boolean; request_id?: string | null; reason?: string | null }
+      | null;
+    if (result?.ok && result.request_id && result.reason !== "already_exists") {
+      await queueContributionRequestNotification({
+        requestId: result.request_id,
+        hubUserId: event.hubUserId,
+        merchantId: event.merchantId,
+        merchantName: event.merchantName,
+      });
     }
   } catch (err) {
     console.error("[discovery-ingestion] recordVerifiedEarningForDiscovery failed:", err);

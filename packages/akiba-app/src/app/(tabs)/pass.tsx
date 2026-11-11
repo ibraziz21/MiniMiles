@@ -19,7 +19,7 @@ import {
 } from '@/design-system';
 import { useAuth } from '@/auth';
 import { createApiClient } from '@/api';
-import { ProfileButton } from '@/components/profile-button';
+import { MilesBalanceButton } from '@/components/miles-balance-button';
 import type { MobilePass, PassPresentation } from '@/contracts';
 import { isScreenshotModeEnabled } from '@/fixtures/screenshot-commerce';
 
@@ -137,7 +137,7 @@ export default function PassScreen() {
       <View style={styles.content}>
         <View style={styles.screenHeader}>
           <Text style={styles.screenTitle}>Pass</Text>
-          <ProfileButton />
+          <MilesBalanceButton />
         </View>
 
         <Card style={styles.card}>

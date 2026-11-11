@@ -7,7 +7,8 @@ import { DMSans_500Medium } from '@expo-google-fonts/dm-sans/500Medium';
 import { DMSans_600SemiBold } from '@expo-google-fonts/dm-sans/600SemiBold';
 import { DMSans_700Bold } from '@expo-google-fonts/dm-sans/700Bold';
 
-import { AuthProvider } from '@/auth';
+import { useScreenTracking } from '@/analytics';
+import { AuthProvider, useAuth } from '@/auth';
 import { AppConfigProvider } from '@/config';
 import { MemberProvider } from '@/member';
 
@@ -44,9 +45,27 @@ export default function RootLayout() {
     <AuthProvider>
       <AppConfigProvider>
         <MemberProvider>
-          <Stack screenOptions={{ headerShown: false }} />
+          <RootStack />
         </MemberProvider>
       </AppConfigProvider>
     </AuthProvider>
+  );
+}
+
+// The (auth) group is protected rather than only redirecting from inside its
+// layout: a plain redirect leaves the group's sign-in → verify history in the
+// root stack, so signing out resumed on the stale "Enter your code" screen.
+// Dropping the guard removes the group from history, so every sign-out
+// starts again at sign-in.
+function RootStack() {
+  const { session } = useAuth();
+  useScreenTracking();
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(tabs)" />
+      <Stack.Protected guard={!session}>
+        <Stack.Screen name="(auth)" />
+      </Stack.Protected>
+    </Stack>
   );
 }

@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordVerifiedEarningForDiscovery } from "@/lib/akiba/discoveryEarningIngestion";
 import { produceMilesEarnedNotification, type MilesCreditedEvent } from "@/lib/akiba/milesEarnedNotification";
+import { resolvePurchaseEarningChannel } from "./purchaseEarningChannel";
 
 const RECONCILIATION_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -44,9 +45,8 @@ function nonPositive(value: number | string | null): boolean {
 
 /**
  * Rebuild the authoritative miles_credited contract from an already committed
- * purchase row. This is intentionally stricter than merely checking that a
- * ledger credit exists: only active, positive, explicitly in-store evidence
- * can become a verified visit.
+ * purchase row. All channels can produce a credit notification; only
+ * independently verified in-store evidence can become a verified visit.
  */
 export function milesCreditedEventFromPurchase(
   purchase: ReconciliablePurchase,
@@ -59,7 +59,7 @@ export function milesCreditedEventFromPurchase(
   if (!positiveInteger(purchase.net_miles_awarded)) return null;
   if (!nonPositive(purchase.miles_reversed)) return null;
   if (["refunded", "reversed", "fully_refunded"].includes(purchase.refund_status ?? "")) return null;
-  if (metadataString(purchase.raw_metadata, "channel") !== "in_store") return null;
+  const channel = metadataString(purchase.raw_metadata, "channel");
 
   const source =
     purchase.source_app === "scan_award" || metadataString(purchase.raw_metadata, "source") === "scan_award"
@@ -67,9 +67,10 @@ export function milesCreditedEventFromPurchase(
       : "merchant_purchase" as const;
 
   const paidAmount = Number(purchase.amount);
+  const hubOrderId = purchase.source_app === "hub" ? metadataString(purchase.raw_metadata, "orderId") : null;
 
   return {
-    eventId: `purchase-event:${purchase.id}`,
+    eventId: hubOrderId ? `hub-order:${hubOrderId}` : `purchase-event:${purchase.id}`,
     hubUserId,
     canonicalId: purchase.canonical_id,
     merchantId: purchase.merchant_id,
@@ -78,7 +79,7 @@ export function milesCreditedEventFromPurchase(
     source,
     occurredAt: purchase.occurred_at,
     purchaseEventId: purchase.id,
-    channel: "in_store",
+    channel: channel === "in_store" || channel === "online" ? channel : "unknown",
     paidAmountMinor: Number.isFinite(paidAmount) && paidAmount >= 0 ? Math.round(paidAmount * 100) : undefined,
     currency: purchase.currency ?? undefined,
     sourceItemRef: purchase.external_purchase_id || `purchase_event:${purchase.id}`,
@@ -128,8 +129,7 @@ export async function reconcileRecentVerifiedEarnings(
       positiveInteger(purchase.miles_awarded) &&
       positiveInteger(purchase.net_miles_awarded) &&
       nonPositive(purchase.miles_reversed) &&
-      !["refunded", "reversed", "fully_refunded"].includes(purchase.refund_status ?? "") &&
-      metadataString(purchase.raw_metadata, "channel") === "in_store",
+      !["refunded", "reversed", "fully_refunded"].includes(purchase.refund_status ?? ""),
     ),
   );
 
@@ -181,7 +181,14 @@ export async function reconcileRecentVerifiedEarnings(
     } catch (notificationError) {
       console.error("[verified-earning-reconciliation] notification replay failed:", notificationError);
     }
-    await recordVerifiedEarningForDiscovery(event, "in_store");
+    // Delivery of a credit confirmation does not depend on visit evidence.
+    // Failed evidence lookups remain retryable on the next worker pass.
+    try {
+      const channel = await resolvePurchaseEarningChannel(purchase, hubUserId);
+      if (channel !== "unknown") await recordVerifiedEarningForDiscovery(event, channel);
+    } catch (evidenceError) {
+      console.error("[verified-earning-reconciliation] channel lookup failed:", evidenceError);
+    }
     reconciled++;
   }
 

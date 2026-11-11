@@ -1,17 +1,19 @@
+import { rememberServerReminder, forgetServerReminder } from '@/lib/profile-offer-library';
 // GET /api/v1/merchants/:slug + private merchant-state overlay. This is a
 // native translation of hub-page's current merchant profile, not a separate
 // mobile information architecture.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image } from 'expo-image';
 import * as Notifications from 'expo-notifications';
-import * as WebBrowser from 'expo-web-browser';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { Alert, AppState, Linking, Modal, Platform, Pressable, ScrollView as HorizontalScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Alert, Modal, Platform, Pressable, ScrollView as HorizontalScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { createApiClient } from '@/api';
 import { fundedOfferReminderId, scheduleFundedOfferReminder } from '@/push/funded-offer-reminder';
 import { useAuth } from '@/auth';
 import { useFeatureFlags } from '@/config';
+import { ContributionCard, ContributionSheet, useContributionSheet } from '@/components/contribution-prompt';
+import { useContributionSaved } from '@/features/recommend/saved-events';
 import { FundedOfferCard } from '@/components/funded-offer-card';
 import { MilesAmount } from '@/components/miles-amount';
 import { PlaceShareSheet, publicPlaceLink, type PlaceShareContent } from '@/components/place-share-sheet';
@@ -29,6 +31,7 @@ import type {
   VerifiedVisit,
 } from '@/contracts';
 import { ActivityIndicator, Icon, ScrollView, colors, fontFamily } from '@/design-system';
+import { openExternalUrl, safeExternalUrl } from '@/lib/external-link';
 import { merchantOfferAvailability } from '@/lib/merchant-offer-availability';
 
 type ScreenState =
@@ -227,46 +230,60 @@ function MerchantProfile({
   // on the hub-page side (isDiscoveryContributionsEnabledFor). It doubles as
   // the kill switch: turning it off stops new uploads without a store release.
   const { discoveryContributions } = useFeatureFlags();
+  const { session } = useAuth();
+  const canRecommend = Boolean(accessToken && discoveryContributions && overlay?.openContributionRequest);
+  // Arriving from the "How was it?" push already lands on the Verified tab
+  // with the card in view, so the sheet would only repeat it.
+  const recommendSheet = useContributionSheet(session?.user.id ?? null, merchant.slug, canRecommend && initialTab !== 'verified');
 
+  // Recommending happens in the app's own form (merchants/visit/[requestId]).
+  // The server finds the visit to recommend from — an open request, or one
+  // opened from a recent eligible in-store purchase — exactly as the web
+  // entry page does.
+  const [opening, setOpening] = useState(false);
   const addVerifiedVisit = useCallback(async () => {
-    const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.trim().replace(/\/$/, '');
-    if (!baseUrl) {
-      Alert.alert('Could not open your visit', 'The Akiba Hub URL is not configured.');
-      return;
-    }
-
+    if (!accessToken || opening) return;
+    setOpening(true);
     try {
-      await WebBrowser.openBrowserAsync(`${baseUrl}/visit/merchant/${encodeURIComponent(merchant.slug)}`);
+      const result = await createApiClient({ accessToken }).getMerchantContribution(merchant.slug);
+      if (result.status === 'ready' && result.requestId) {
+        router.push({ pathname: '/merchants/visit/[requestId]', params: { requestId: result.requestId } });
+      } else if (result.status === 'lookup_failed') {
+        Alert.alert('We couldn’t check your visit', 'Please try again in a moment.');
+      } else {
+        Alert.alert(
+          'Nothing to add yet',
+          `After you earn Miles from an in-store purchase at ${merchant.name}, you can recommend it here.`,
+        );
+      }
     } catch {
-      Alert.alert('Could not open your visit', 'Please try again.');
+      Alert.alert('We couldn’t check your visit', 'Check your connection and try again.');
+    } finally {
+      setOpening(false);
     }
-  }, [merchant.slug]);
+  }, [accessToken, merchant.name, merchant.slug, opening]);
 
-  const refreshAfterEdit = useRef(false);
-  const editVerifiedVisit = async () => {
+  const editVerifiedVisit = () => {
     const requestId = overlay?.verifiedVisit?.requestId;
     if (!requestId) return;
-    const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.trim().replace(/\/$/, '') || 'https://pass.akibamiles.com';
-    try {
-      refreshAfterEdit.current = Platform.OS === 'android';
-      await WebBrowser.openBrowserAsync(`${baseUrl}/visit/${encodeURIComponent(requestId)}?step=edit`);
-      if (Platform.OS === 'ios') await onRefresh();
-    } catch {
-      refreshAfterEdit.current = false;
-      Alert.alert('Could not open your visit', 'Please try again.');
-    }
+    router.push({ pathname: '/merchants/visit/[requestId]', params: { requestId, edit: '1' } });
   };
 
+  // Back from the form: show the saved visit, and open the photo sheet when
+  // the member chose "Add photos" — once the refreshed visit is there to
+  // attach them to.
+  const openPhotosAfterRefresh = useRef(false);
+  useContributionSaved((event) => {
+    if (event.merchantSlug !== merchant.slug) return;
+    if (event.openPhotos) openPhotosAfterRefresh.current = true;
+    void onRefresh();
+  });
   useEffect(() => {
-    if (Platform.OS !== 'android') return;
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active' && refreshAfterEdit.current) {
-        refreshAfterEdit.current = false;
-        void onRefresh();
-      }
-    });
-    return () => subscription.remove();
-  }, [onRefresh]);
+    if (openPhotosAfterRefresh.current && overlay?.verifiedVisit) {
+      openPhotosAfterRefresh.current = false;
+      setPhotoSheetOpen(true);
+    }
+  }, [overlay?.verifiedVisit]);
 
   const addVerifiedVisitPhotos = useCallback(() => setPhotoSheetOpen(true), []);
 
@@ -368,7 +385,15 @@ function MerchantProfile({
         <QuickActions merchant={merchant} />
       </View>
 
-      <View style={styles.tabs}>
+      {canRecommend ? <ContributionCard onPress={() => void addVerifiedVisit()} /> : null}
+      <ContributionSheet
+        merchantName={merchant.name}
+        onClose={recommendSheet.close}
+        onRecommend={() => void addVerifiedVisit()}
+        visible={recommendSheet.open}
+      />
+
+      <View style={[styles.tabs, canRecommend && styles.tabsAfterPrompt]}>
         {availableTabs.map((tab) => (
           <TabButton key={tab} active={activeTab === tab} tab={tab} onPress={() => setActiveTab(tab)} />
         ))}
@@ -459,7 +484,7 @@ function Pill({ label, tone = 'neutral' }: { label: string; tone?: 'neutral' | '
 
 function QuickActions({ merchant }: { merchant: MerchantDetail['merchant'] }) {
   const primaryLocation = merchant.locations.find((location) => location.isPrimary) ?? merchant.locations[0];
-  const actions = [
+  const candidateActions = [
     primaryLocation ? { label: 'Directions', icon: 'navigation' as const, primary: true, url: directionsUrl(primaryLocation) } : null,
     merchant.contacts.phone ? { label: 'Call', icon: 'phone' as const, url: `tel:${merchant.contacts.phone}` } : null,
     merchant.contacts.whatsapp ? { label: 'WhatsApp', icon: 'message-circle' as const, url: `https://wa.me/${merchant.contacts.whatsapp.replace(/[^\d]/g, '')}` } : null,
@@ -468,6 +493,8 @@ function QuickActions({ merchant }: { merchant: MerchantDetail['merchant'] }) {
     merchant.contacts.facebook ? { label: 'Facebook', icon: 'facebook' as const, compact: true, url: merchant.contacts.facebook } : null,
     merchant.contacts.email ? { label: 'Email', icon: 'mail' as const, compact: true, url: `mailto:${merchant.contacts.email}` } : null,
   ].filter(Boolean) as { label: string; icon: 'navigation' | 'phone' | 'message-circle' | 'globe' | 'instagram' | 'facebook' | 'mail'; primary?: boolean; compact?: boolean; url: string }[];
+  // A link the app won't open isn't offered as a button at all.
+  const actions = candidateActions.filter((action) => safeExternalUrl(action.url) !== null);
 
   if (actions.length === 0) return null;
   return (
@@ -476,7 +503,7 @@ function QuickActions({ merchant }: { merchant: MerchantDetail['merchant'] }) {
         <Pressable
           accessibilityLabel={action.label}
           key={action.label}
-          onPress={() => Linking.openURL(action.url)}
+          onPress={() => void openExternalUrl(action.url)}
           style={({ pressed }) => [styles.action, action.primary && styles.actionPrimary, action.compact && styles.actionCompact, pressed && styles.pressed]}>
           <Icon name={action.icon} size={16} color={action.primary ? colors.white : colors.ink} />
           {!action.compact ? <Text style={[styles.actionText, action.primary && styles.actionTextPrimary]}>{action.label}</Text> : null}
@@ -550,13 +577,6 @@ function VerifiedPanel({
   return (
     <View style={styles.panel}>
       {sharedVisitId && !sharedVisit ? <Text style={styles.cardBody}>This shared visit is no longer available.</Text> : null}
-      {discoveryContributions && overlay?.openContributionRequest ? (
-        <Pressable accessibilityHint="Opens the verified visit form" accessibilityRole="button" onPress={onAddVisit} style={({ pressed }) => [styles.contributionCard, pressed && styles.pressed]}>
-          <View style={styles.roundIcon}><Icon name="message-square" size={20} color={colors.teal} /></View>
-          <View style={styles.flex}><Text style={styles.cardTitle}>Your Akiba visit is verified</Text><Text style={styles.cardBody}>Add what you tried, what you would recommend and optional photos.</Text></View>
-          <View style={styles.contributionAction}><Text style={styles.contributionActionText}>Add visit</Text><Icon name="chevron-right" size={16} color={colors.white} /></View>
-        </Pressable>
-      ) : null}
       {overlay?.verifiedVisit ? (
         <View style={styles.privateVisitCard}>
           <View style={styles.privateVisit}>
@@ -663,7 +683,7 @@ function OffersPanel({ balance, businessOffers, claimedIds, fundedOffers, initia
           {showBusinessGroup ? (
             <View style={styles.offerGroup}>
               {showGroupLabels ? <Text style={styles.offerGroupTitle}>From {merchantName}</Text> : null}
-              {businessOffers.map((offer) => <BusinessOfferCard key={offer.id} initialReminderSet={initialReminderIds.has(offer.id) || offer.reminderSet} offer={offer} />)}
+              {businessOffers.map((offer) => <BusinessOfferCard key={offer.id} initialReminderSet={initialReminderIds.has(offer.id) || offer.reminderSet} offer={offer} merchantName={merchantName} />)}
               {businessFunded.map((offer) => <BusinessFundedOffer key={offer.allocationId} offer={offer} claimed={claimedIds.has(offer.allocationId)} />)}
               {businessCount === 0 ? <InlineEmpty text="No business offers right now." /> : null}
             </View>
@@ -711,8 +731,9 @@ function OffersPanel({ balance, businessOffers, claimedIds, fundedOffers, initia
   );
 }
 
-function BusinessOfferCard({ initialReminderSet, offer }: { initialReminderSet: boolean; offer: MerchantOffer }) {
-  const { accessToken } = useAuth();
+function BusinessOfferCard({ initialReminderSet, offer, merchantName }: { initialReminderSet: boolean; offer: MerchantOffer; merchantName: string }) {
+  const { accessToken, session } = useAuth();
+  const { slug } = useLocalSearchParams<{ slug: string }>();
   const availability = merchantOfferAvailability(offer);
   const [termsExpanded, setTermsExpanded] = useState(false);
   const [reminderSet, setReminderSet] = useState(initialReminderSet);
@@ -726,6 +747,7 @@ function BusinessOfferCard({ initialReminderSet, offer }: { initialReminderSet: 
     setReminderPending(true);
     try {
       await createApiClient({ accessToken }).setOfferReminder(offer.id, leadMinutes);
+      if (session?.user.id) await rememberServerReminder(session.user.id, { id: offer.id, title: offer.title, merchantName, merchantSlug: slug, leadMinutes });
       setReminderSet(true);
     } catch (error) {
       Alert.alert('Reminder not saved', error instanceof Error ? error.message : 'Please try again.');
@@ -739,6 +761,7 @@ function BusinessOfferCard({ initialReminderSet, offer }: { initialReminderSet: 
     setReminderPending(true);
     try {
       await createApiClient({ accessToken }).removeOfferReminder(offer.id);
+      if (session?.user.id) await forgetServerReminder(session.user.id, offer.id);
       setReminderSet(false);
     } catch (error) {
       Alert.alert('Reminder not removed', error instanceof Error ? error.message : 'Please try again.');
@@ -796,6 +819,7 @@ function BusinessOfferCard({ initialReminderSet, offer }: { initialReminderSet: 
 }
 
 function BusinessFundedOffer({ offer, claimed }: { offer: MerchantDetail['fundedOffers'][number]; claimed: boolean }) {
+  const { session } = useAuth();
   const [savedOpening, setSavedOpening] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -824,7 +848,7 @@ function BusinessFundedOffer({ offer, claimed }: { offer: MerchantDetail['funded
         await Notifications.cancelScheduledNotificationAsync(id);
         setSavedOpening(null);
       } else {
-        await scheduleFundedOfferReminder(offer);
+        await scheduleFundedOfferReminder(offer, 0, session?.user.id);
         setSavedOpening(openingAt ?? null);
       }
     } catch (error) {
@@ -896,7 +920,7 @@ function LocationsPanel({ locations }: { locations: MerchantLocation[] }) {
 function BranchCard({ location }: { location: MerchantLocation }) {
   const hours = todayHours(location);
   return (
-    <View style={styles.branchCard}><View style={styles.branchTitleRow}><Text style={styles.branchName}>{location.name}</Text>{hours.open != null ? <Pill label={hours.open ? 'Open now' : 'Closed'} tone={hours.open ? 'teal' : 'neutral'} /> : null}</View><View style={styles.addressRow}><Icon name="map-pin" size={14} color={colors.muted} /><Text style={styles.address}>{formatAddress(location)}{location.landmark ? `\nNear ${location.landmark}` : ''}</Text></View><Text style={styles.hours}>{hours.label}</Text><View style={styles.branchActions}><SmallAction icon="navigation" label="Directions" onPress={() => Linking.openURL(directionsUrl(location))} />{location.publicPhone ? <SmallAction icon="phone" label="Call" onPress={() => Linking.openURL(`tel:${location.publicPhone}`)} /> : null}{location.publicWhatsapp ? <SmallAction icon="message-circle" label="WhatsApp" onPress={() => Linking.openURL(`https://wa.me/${location.publicWhatsapp?.replace(/[^\d]/g, '')}`)} /> : null}</View><View style={styles.chipRow}>{location.acceptsAkibaPass ? <Pill label="Accepts Akiba Pass" /> : null}{location.acceptsVouchers ? <Pill label="Accepts vouchers" /> : null}</View></View>
+    <View style={styles.branchCard}><View style={styles.branchTitleRow}><Text style={styles.branchName}>{location.name}</Text>{hours.open != null ? <Pill label={hours.open ? 'Open now' : 'Closed'} tone={hours.open ? 'teal' : 'neutral'} /> : null}</View><View style={styles.addressRow}><Icon name="map-pin" size={14} color={colors.muted} /><Text style={styles.address}>{formatAddress(location)}{location.landmark ? `\nNear ${location.landmark}` : ''}</Text></View><Text style={styles.hours}>{hours.label}</Text><View style={styles.branchActions}><SmallAction icon="navigation" label="Directions" onPress={() => void openExternalUrl(directionsUrl(location))} />{location.publicPhone ? <SmallAction icon="phone" label="Call" onPress={() => void openExternalUrl(`tel:${location.publicPhone}`)} /> : null}{location.publicWhatsapp ? <SmallAction icon="message-circle" label="WhatsApp" onPress={() => void openExternalUrl(`https://wa.me/${location.publicWhatsapp?.replace(/[^\d]/g, '')}`)} /> : null}</View><View style={styles.chipRow}>{location.acceptsAkibaPass ? <Pill label="Accepts Akiba Pass" /> : null}{location.acceptsVouchers ? <Pill label="Accepts vouchers" /> : null}</View></View>
   );
 }
 
@@ -906,7 +930,7 @@ function EmptyPanel({ body, icon, title }: { body: string; icon: 'check-circle' 
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) { return <View style={styles.errorState}><Icon name="shopping-bag" size={42} color={colors.line} /><Text style={styles.emptyTitle}>Merchant temporarily unavailable</Text><Text style={styles.emptyBody}>{message}</Text><Pressable onPress={onRetry} style={styles.retryButton}><Text style={styles.retryText}>Retry</Text></Pressable></View>; }
 
 function memberVisitCopy(visit: NonNullable<MerchantStateDetail['verifiedVisit']>, merchantName: string) { if (visit.recommendation === 'recommended') return `You’d recommend ${merchantName}.`; if (visit.recommendation === 'not_recommended') return 'Your private feedback was saved.'; return 'Your verified visit details were saved.'; }
-function directionsUrl(location: MerchantLocation) { if (location.mapsUrl) return location.mapsUrl; if (location.latitude != null && location.longitude != null) return `https://www.google.com/maps/search/?api=1&query=${location.latitude},${location.longitude}`; return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formatAddress(location))}`; }
+function directionsUrl(location: MerchantLocation) { if (safeExternalUrl(location.mapsUrl)) return location.mapsUrl as string; if (location.latitude != null && location.longitude != null) return `https://www.google.com/maps/search/?api=1&query=${location.latitude},${location.longitude}`; return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formatAddress(location))}`; }
 function formatAddress(location: MerchantLocation) { return [location.addressLine1, location.addressLine2, location.building, location.floorOrUnit, location.locality, location.city].filter(Boolean).join(', '); }
 function todayHours(location: MerchantLocation): { label: string; open: boolean | null } { const day = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: location.timezone }).format(new Date()).toLowerCase() as keyof MerchantLocation['openingHours']; const ranges = location.openingHours[day]; if (!Array.isArray(ranges) || ranges.length === 0) return { label: location.openingHours.notes ?? 'Hours unavailable', open: null }; const time = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: location.timezone }).format(new Date()); const open = ranges.some((range) => time >= range.opens && time <= range.closes); return { label: `Today · ${ranges.map((range) => `${range.opens}–${range.closes}`).join(', ')}`, open }; }
 
@@ -923,8 +947,9 @@ const styles = StyleSheet.create({
   identity: { paddingBottom: 12, paddingHorizontal: 16 }, identityRow: { alignItems: 'flex-start', flexDirection: 'row', gap: 12 }, identityBody: { flex: 1, minWidth: 0 }, nameRow: { alignItems: 'flex-start', flexDirection: 'row', gap: 10 }, merchantName: { color: colors.ink, flex: 1, fontFamily: fontFamily.sterlingSemiBold, fontSize: 22, lineHeight: 26 }, saveButton: { alignItems: 'center', backgroundColor: colors.white, borderColor: colors.line, borderRadius: 999, borderWidth: 1, height: 36, justifyContent: 'center', width: 36 }, saveButtonActive: { backgroundColor: colors.tint, borderColor: colors.teal }, shortDescription: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 14, lineHeight: 19, marginTop: 4 }, chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }, pill: { backgroundColor: colors.card, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 }, pillTeal: { backgroundColor: colors.tint }, pillText: { color: colors.muted, fontFamily: fontFamily.sansMedium, fontSize: 11 }, pillTextTeal: { color: colors.teal, fontFamily: fontFamily.sansSemiBold },
   disclosure: { marginTop: 10 }, description: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 13, lineHeight: 20 }, offerings: { marginTop: 10 }, microHeading: { color: colors.muted, fontFamily: fontFamily.sansSemiBold, fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase' }, seeMore: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 3, minHeight: 36 }, seeMoreText: { color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 12 },
   actionRow: { gap: 8, paddingTop: 10 }, action: { alignItems: 'center', backgroundColor: colors.white, borderColor: colors.line, borderRadius: 999, borderWidth: 1, flexDirection: 'row', gap: 6, minHeight: 40, paddingHorizontal: 16 }, actionPrimary: { backgroundColor: colors.ink, borderColor: colors.ink }, actionCompact: { height: 40, justifyContent: 'center', paddingHorizontal: 0, width: 40 }, actionText: { color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 14 }, actionTextPrimary: { color: colors.white },
+  tabsAfterPrompt: { marginTop: 12 },
   tabs: { backgroundColor: 'rgba(252,252,252,0.96)', borderBottomColor: colors.line, borderBottomWidth: 1, borderTopColor: colors.line, borderTopWidth: 1, flexDirection: 'row' }, tab: { alignItems: 'center', flex: 1, gap: 4, justifyContent: 'center', minHeight: 58, position: 'relative' }, tabPressed: { backgroundColor: colors.card }, tabText: { color: colors.muted, fontFamily: fontFamily.sansSemiBold, fontSize: 11 }, tabTextActive: { color: colors.ink }, tabIndicator: { backgroundColor: 'transparent', bottom: -1, height: 2, left: 8, position: 'absolute', right: 8 }, tabIndicatorActive: { backgroundColor: colors.teal },
-  panel: { gap: 12, padding: 16 }, contributionCard: { alignItems: 'center', backgroundColor: colors.tint, borderColor: 'rgba(35,141,157,0.20)', borderCurve: 'continuous', borderRadius: 16, borderWidth: 1, flexDirection: 'row', gap: 12, padding: 14 }, contributionAction: { alignItems: 'center', backgroundColor: colors.ink, borderRadius: 999, flexDirection: 'row', gap: 3, minHeight: 38, paddingHorizontal: 12 }, contributionActionText: { color: colors.white, fontFamily: fontFamily.sansSemiBold, fontSize: 11 }, privateVisit: { alignItems: 'center', flexDirection: 'row', gap: 12, minHeight: 72, padding: 16 }, roundIcon: { alignItems: 'center', backgroundColor: colors.white, borderRadius: 999, height: 40, justifyContent: 'center', width: 40 }, roundIconTint: { alignItems: 'center', backgroundColor: colors.tint, borderRadius: 999, height: 40, justifyContent: 'center', width: 40 }, cardTitle: { color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 14 }, cardBody: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 13, lineHeight: 19, marginTop: 3 }, privateBadge: { alignSelf: 'flex-start', backgroundColor: colors.card, borderRadius: 999, color: colors.muted, fontFamily: fontFamily.sansSemiBold, fontSize: 10, marginTop: 4, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 2 },
+  panel: { gap: 12, padding: 16 }, privateVisit: { alignItems: 'center', flexDirection: 'row', gap: 12, minHeight: 72, padding: 16 }, roundIconTint: { alignItems: 'center', backgroundColor: colors.tint, borderRadius: 999, height: 40, justifyContent: 'center', width: 40 }, cardTitle: { color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 14 }, cardBody: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 13, lineHeight: 19, marginTop: 3 }, privateBadge: { alignSelf: 'flex-start', backgroundColor: colors.card, borderRadius: 999, color: colors.muted, fontFamily: fontFamily.sansSemiBold, fontSize: 10, marginTop: 4, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 2 },
   businessPanel: { paddingBottom: 16 }, panelIntro: { alignItems: 'flex-start', flexDirection: 'row', gap: 16, justifyContent: 'space-between', padding: 16 }, panelIntroText: { color: colors.muted, flex: 1, fontFamily: fontFamily.sans, fontSize: 13, lineHeight: 19 }, panelCount: { color: colors.ink, fontFamily: fontFamily.sansSemiBold, fontSize: 12 }, photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 1 }, gridPhotoButton: { aspectRatio: 1, backgroundColor: colors.card, flexBasis: '33%', flexGrow: 1, maxWidth: '33.2%', position: 'relative' }, galleryModal: { backgroundColor: '#000', flex: 1 }, galleryHeader: { alignItems: 'center', borderBottomColor: 'rgba(255,255,255,0.10)', borderBottomWidth: 1, flexDirection: 'row', justifyContent: 'space-between', padding: 16, paddingTop: 54 }, galleryMerchant: { color: colors.white, fontFamily: fontFamily.sansSemiBold, fontSize: 16 }, gallerySource: { color: 'rgba(255,255,255,0.65)', fontFamily: fontFamily.sans, fontSize: 12 }, galleryClose: { alignItems: 'center', height: 44, justifyContent: 'center', width: 44 }, galleryImage: { flex: 1, width: '100%' }, galleryCaption: { color: colors.white, fontFamily: fontFamily.sans, fontSize: 14, padding: 18, textAlign: 'center' },
   panelHeading: { alignItems: 'flex-start', flexDirection: 'row', gap: 12 }, panelTitle: { color: colors.ink, fontFamily: fontFamily.sterlingSemiBold, fontSize: 19 }, panelDescription: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 14, lineHeight: 19, marginTop: 3 }, emptyPanel: { alignItems: 'center', borderColor: colors.line, borderCurve: 'continuous', borderRadius: 16, borderWidth: 1, padding: 28 }, emptyIcon: { alignItems: 'center', backgroundColor: colors.white, borderColor: colors.line, borderRadius: 999, borderWidth: 1, height: 48, justifyContent: 'center', width: 48 }, emptyTitle: { color: colors.ink, fontFamily: fontFamily.sterlingSemiBold, fontSize: 19, marginTop: 10, textAlign: 'center' }, emptyBody: { color: colors.muted, fontFamily: fontFamily.sans, fontSize: 14, lineHeight: 20, marginTop: 3, textAlign: 'center' },
   offerToolbar: { alignItems: 'center', flexDirection: 'row', minHeight: 44 }, offerCount: { color: colors.muted, fontFamily: fontFamily.sansSemiBold, fontSize: 12, marginLeft: 'auto', marginRight: 10 }, offerFilterButton: { alignItems: 'center', backgroundColor: colors.white, borderColor: colors.line, borderRadius: 999, borderWidth: 1, height: 44, justifyContent: 'center', position: 'relative', width: 44 }, offerFilterButtonActive: { backgroundColor: colors.ink, borderColor: colors.ink }, offerFilterDot: { backgroundColor: colors.teal, borderRadius: 999, height: 6, position: 'absolute', right: 7, top: 7, width: 6 },

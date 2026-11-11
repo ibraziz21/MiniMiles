@@ -40,7 +40,9 @@ export type VoucherTemplate = {
 };
 
 export async function getAllTemplates(hubUserId: string | null): Promise<VoucherTemplate[]> {
-  const admin = createAdminClient();
+  // Availability changes on publication, claims and inventory exhaustion.
+  // Keep database reads fresh; the public API owns the bounded CDN cache.
+  const admin = createAdminClient({ noStore: true });
   const { data: availability, error: availabilityError } = await admin.rpc(
     "list_available_voucher_template_ids_hub",
     { p_hub_user_id: hubUserId },
@@ -120,6 +122,9 @@ export async function getFundedOffers(): Promise<FundedOffer[]> {
       voucher_eligibility_rule_sets ( customer_copy, rules )
     `)
     .in("state", ["active", "scheduled"])
+    // Only offers a member can claim. The welcome offer's allocation is
+    // auto_award only (migration 126) and must never be listed.
+    .contains("distribution_modes", ["self_claim"])
     .gt("claim_ends_at", nowIso);
 
   if (error || !Array.isArray(data)) {
