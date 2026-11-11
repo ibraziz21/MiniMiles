@@ -29,7 +29,7 @@ reminders — `packages/akiba-app/src/features/profile/*`, `/api/v1/me/activity`
 ### Deployment state (2026-11-11)
 
 - Database: MiniMiles migrations **121, 123, 124, 125, 126 applied to
-  production**. Verified with `supabase/ops/verify_migrations_101_126.sql`
+  production**. Verified with `supabase/ops/verify_migrations_101_127.sql`
   (read-only; every row true).
 - hub-page, Akiba-Platform and the app: **not yet deployed / built** at the
   time of writing.

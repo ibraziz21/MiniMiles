@@ -35,7 +35,7 @@ Tick them off as they're done.
 
 Apply in order, then deploy hub-page, then Akiba-Platform:
 
-Check first with `supabase/ops/verify_migrations_101_126.sql` (read-only).
+Check first with `supabase/ops/verify_migrations_101_127.sql` (read-only).
 All applied to production on 2026-11-11 and verified (every check true).
 
 - [x] `121_edit_saved_verified_visits.sql` (private note on recommendations — the web and app edit forms send it)
@@ -43,6 +43,7 @@ All applied to production on 2026-11-11 and verified (every check true).
 - [x] `124_native_push_receipts.sql`
 - [x] `125_saved_place_offers_and_voucher_expiry_push.sql`
 - [x] `126_welcome_offer_enrolment.sql` (needs Akiba-Platform 154/155 already applied)
+- [ ] `127_push_delivery_tokens_and_scan_locks.sql` (audit fixes; apply before deploying hub-page — the new code writes `push_token` and test deliveries)
 
 ## 4. Welcome offer (BDR-008)
 

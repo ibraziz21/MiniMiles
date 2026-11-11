@@ -5,7 +5,9 @@
 // sent. The one thing it can't report straight away is final delivery —
 // that comes back as a receipt about 15 minutes later
 // (src/lib/push/receipts.ts) — so a test that says "sent" but never arrives
-// points at APNs/FCM credentials.
+// points at APNs/FCM credentials. Each accepted test is recorded as a
+// delivery with purpose 'test' (migration 127) so that receipt is checked
+// and shows up in push health.
 //
 // Deliberately bypasses notification preferences and the outbox: the member
 // asked for this one, and it must not show up in their notification history.
@@ -60,8 +62,22 @@ export async function sendTestPush(admin: SupabaseClient, hubUserId: string): Pr
 
   let accepted = 0;
   const errors: string[] = [];
+  const now = new Date().toISOString();
+  const deliveries: Record<string, unknown>[] = [];
   for (let index = 0; index < devices.length; index += 1) {
+    const device = devices[index];
     const outcome = classifyExpoTicket(tickets[index]);
+    deliveries.push({
+      job_id: null,
+      purpose: "test",
+      device_id: device.id,
+      push_token: device.expo_push_token,
+      status: outcome.status,
+      attempts: 1,
+      provider_ticket: outcome.ticketId,
+      last_error: outcome.error ? outcome.error.slice(0, 2000) : null,
+      accepted_at: outcome.status === "accepted" ? now : null,
+    });
     if (outcome.status === "accepted") {
       accepted++;
       continue;
@@ -70,10 +86,16 @@ export async function sendTestPush(admin: SupabaseClient, hubUserId: string): Pr
     if (outcome.retireDevice) {
       await admin
         .from("hub_user_devices")
-        .update({ status: "invalid", last_failure_at: new Date().toISOString() })
-        .eq("id", devices[index].id);
+        .update({ status: "invalid", last_failure_at: now })
+        .eq("id", device.id)
+        .eq("expo_push_token", device.expo_push_token);
     }
   }
+
+  // Best effort: the member already has their answer, and a lost record only
+  // means this one test isn't followed up by a receipt.
+  const { error: recordError } = await admin.from("native_push_deliveries").insert(deliveries);
+  if (recordError) console.error("[test-push] could not record deliveries:", recordError.message);
 
   return accepted > 0
     ? { status: "sent", devices: devices.length, accepted, errors }

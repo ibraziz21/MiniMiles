@@ -112,7 +112,7 @@ export async function sendNativePush(
       if (transportError?.retryable ?? true) anyRetryable = true;
 
       for (const device of chunk) {
-        await recordDelivery(admin, job.job_id, device.id, existing.get(device.id), {
+        await recordDelivery(admin, job.job_id, device, existing.get(device.id), {
           status: transportError?.retryable ?? true ? "retry" : "failed",
           providerStatus: transportError?.statusCode ?? null,
           ticketId: null,
@@ -139,7 +139,10 @@ export async function sendNativePush(
             last_failure_at: new Date().toISOString(),
             failure_count: device.failure_count + 1,
           })
-          .eq("id", device.id);
+          .eq("id", device.id)
+          // Only while it still holds the token that was just rejected; the
+          // member may have re-registered with a new one in the meantime.
+          .eq("expo_push_token", device.expo_push_token);
       } else if (outcome.status === "accepted") {
         await admin
           .from("hub_user_devices")
@@ -155,7 +158,7 @@ export async function sendNativePush(
           .eq("id", device.id);
       }
 
-      await recordDelivery(admin, job.job_id, device.id, existing.get(device.id), {
+      await recordDelivery(admin, job.job_id, device, existing.get(device.id), {
         status: outcome.status,
         providerStatus: null,
         ticketId: outcome.ticketId,
@@ -170,7 +173,7 @@ export async function sendNativePush(
 async function recordDelivery(
   admin: SupabaseClient,
   jobId: string,
-  deviceId: string,
+  device: Pick<DeviceRow, "id" | "expo_push_token">,
   prior: { id: string; attempts: number } | undefined,
   outcome: {
     status: "accepted" | "retry" | "gone" | "failed";
@@ -183,7 +186,10 @@ async function recordDelivery(
     {
       id: prior?.id,
       job_id: jobId,
-      device_id: deviceId,
+      device_id: device.id,
+      // The token this attempt went to, so a late receipt can't retire a
+      // token the device registered afterwards (migration 127).
+      push_token: device.expo_push_token,
       status: outcome.status,
       attempts: (prior?.attempts ?? 0) + 1,
       provider_status: outcome.providerStatus,

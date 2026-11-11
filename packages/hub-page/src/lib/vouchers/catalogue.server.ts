@@ -39,7 +39,15 @@ export type VoucherTemplate = {
   } | null;
 };
 
-export async function getAllTemplates(hubUserId: string | null): Promise<VoucherTemplate[]> {
+/**
+ * `strict` throws on a failed read instead of returning [] — for callers
+ * that act on the list (the saved-place offer scanner), where an empty
+ * answer after an outage would be read as "no vouchers are live".
+ */
+export async function getAllTemplates(
+  hubUserId: string | null,
+  options: { strict?: boolean } = {},
+): Promise<VoucherTemplate[]> {
   // Availability changes on publication, claims and inventory exhaustion.
   // Keep database reads fresh; the public API owns the bounded CDN cache.
   const admin = createAdminClient({ noStore: true });
@@ -49,6 +57,7 @@ export async function getAllTemplates(hubUserId: string | null): Promise<Voucher
   );
   if (availabilityError) {
     console.error("[vouchers] availability query failed:", availabilityError.message);
+    if (options.strict) throw new Error(`voucher availability unavailable: ${availabilityError.message}`);
     return [];
   }
   const templateIds = (availability ?? []).map(
@@ -57,7 +66,7 @@ export async function getAllTemplates(hubUserId: string | null): Promise<Voucher
   );
   if (templateIds.length === 0) return [];
 
-  const { data } = await admin
+  const { data, error: templatesError } = await admin
     .from("spend_voucher_templates")
     .select(`
       id, title, voucher_type, miles_cost, discount_percent, discount_cusd,
@@ -67,6 +76,10 @@ export async function getAllTemplates(hubUserId: string | null): Promise<Voucher
     .in("id", templateIds)
     .not("partner_id", "in", HIDDEN_PARTNER_FILTER)
     .order("miles_cost", { ascending: true });
+  if (templatesError) {
+    console.error("[vouchers] template query failed:", templatesError.message);
+    if (options.strict) throw new Error(`voucher templates unavailable: ${templatesError.message}`);
+  }
 
   return ((data ?? []) as unknown[]).map((item) => {
     const d = item as Record<string, unknown>;

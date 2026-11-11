@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/lib/merchants/publicOffers", () => ({ listPublicMerchantOffers: vi.fn() }));
 vi.mock("@/lib/vouchers/catalogue.server", () => ({ getAllTemplates: vi.fn(), getFundedOffers: vi.fn() }));
+const fundedFlag = vi.hoisted(() => ({ enabled: true }));
+vi.mock("@/lib/featureFlags.server", () => ({ akibaFundedVouchersHubFlag: () => fundedFlag }));
 
 import { listPublicMerchantOffers } from "@/lib/merchants/publicOffers";
 import { getAllTemplates, getFundedOffers } from "@/lib/vouchers/catalogue.server";
@@ -35,6 +37,26 @@ describe("offer loaders", () => {
       { key: "merchant_offer:o1", title: "Brunch deal", merchants: [MERCHANT] },
     ]);
     expect(await OFFER_LOADERS.template()).toEqual([{ key: "template:t1", title: "Free coffee", merchants: [MERCHANT] }]);
+  });
+
+  it("reads every source strictly, so a failed read is never taken for an empty list", async () => {
+    vi.mocked(listPublicMerchantOffers).mockClear();
+    vi.mocked(getAllTemplates).mockClear();
+    vi.mocked(listPublicMerchantOffers).mockResolvedValue([]);
+    vi.mocked(getAllTemplates).mockResolvedValue([]);
+    await OFFER_LOADERS.merchant_offer();
+    await OFFER_LOADERS.template();
+    expect(listPublicMerchantOffers).toHaveBeenCalledWith(50, { strict: true });
+    expect(getAllTemplates).toHaveBeenCalledWith(null, { strict: true });
+  });
+
+  it("treats switched-off funded vouchers as unavailable, not as no offers", async () => {
+    fundedFlag.enabled = false;
+    try {
+      await expect(OFFER_LOADERS.funded()).rejects.toThrow(/switched off/);
+    } finally {
+      fundedFlag.enabled = true;
+    }
   });
 
   it("names every participating merchant of a funded offer, and skips sold-out campaigns", async () => {

@@ -26,7 +26,14 @@ const RECEIPT_READY_AFTER_MS = 15 * 60 * 1000;
 const RECEIPT_KEPT_FOR_MS = 24 * 60 * 60 * 1000;
 const BATCH_SIZE = EXPO_RECEIPT_CHUNK_SIZE;
 
-type PendingDelivery = { id: string; device_id: string; provider_ticket: string; accepted_at: string };
+type PendingDelivery = {
+  id: string;
+  device_id: string;
+  /** Null for deliveries recorded before migration 127. */
+  push_token: string | null;
+  provider_ticket: string;
+  accepted_at: string;
+};
 
 export type ReceiptRunResult = {
   checked: number;
@@ -48,7 +55,7 @@ export async function processPushReceipts(
 
   const { data, error } = await admin
     .from("native_push_deliveries")
-    .select("id, device_id, provider_ticket, accepted_at")
+    .select("id, device_id, push_token, provider_ticket, accepted_at")
     .eq("status", "accepted")
     .not("provider_ticket", "is", null)
     .is("receipt_checked_at", null)
@@ -103,14 +110,20 @@ export async function processPushReceipts(
 
     if (outcome.configError) {
       result.configErrors++;
-    } else if (outcome.retireDevice) {
-      const { error: retireError } = await admin
+    } else if (outcome.retireDevice && delivery.push_token) {
+      // Only while the device still holds the token this receipt is about.
+      // Re-registering swaps the token on the same row, and a late receipt
+      // for the old token must not disable the new one. Deliveries recorded
+      // before migration 127 have no token and never retire a device.
+      const { data: retired, error: retireError } = await admin
         .from("hub_user_devices")
         .update({ status: "invalid", last_failure_at: checkedAt })
         .eq("id", delivery.device_id)
-        .eq("status", "active");
+        .eq("status", "active")
+        .eq("expo_push_token", delivery.push_token)
+        .select("id");
       if (retireError) console.error("[push-receipts] device retire failed:", retireError.message);
-      else result.retiredDevices++;
+      else if ((retired ?? []).length > 0) result.retiredDevices++;
     }
   }
 

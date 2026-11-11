@@ -3,23 +3,36 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { sendTestPush } from "@/lib/push/testPush";
 
 function fakeAdmin(devices: unknown[]) {
-  const retired: string[] = [];
+  const retired: { id: string; token: string }[] = [];
+  const recorded: Record<string, unknown>[] = [];
   const select = {
     eq: () => select,
     not: async () => ({ data: devices, error: null }),
   };
   const admin = {
-    from: () => ({
+    from: (table: string) => ({
       select: () => select,
-      update: () => ({
-        eq: async (_column: string, id: string) => {
-          retired.push(id);
-          return { error: null };
-        },
-      }),
+      update: () => {
+        const filters: Record<string, string> = {};
+        const chain = {
+          eq(column: string, value: string) {
+            filters[column] = value;
+            return chain;
+          },
+          then(resolve: (value: unknown) => void) {
+            retired.push({ id: filters.id, token: filters.expo_push_token });
+            resolve({ error: null });
+          },
+        };
+        return chain;
+      },
+      insert: async (rows: Record<string, unknown>[]) => {
+        if (table === "native_push_deliveries") recorded.push(...rows);
+        return { error: null };
+      },
     }),
   };
-  return { admin: admin as never, retired };
+  return { admin: admin as never, retired, recorded };
 }
 
 const fetchMock = vi.fn();
@@ -54,9 +67,15 @@ describe("sendTestPush", () => {
       json: async () => ({ data: [{ status: "ok", id: "t1" }, { status: "ok", id: "t2" }] }),
     });
 
-    const result = await sendTestPush(fakeAdmin([ANDROID, IOS]).admin, "user-1");
+    const { admin, recorded } = fakeAdmin([ANDROID, IOS]);
+    const result = await sendTestPush(admin, "user-1");
 
     expect(result).toEqual({ status: "sent", devices: 2, accepted: 2, errors: [] });
+    // Recorded as test deliveries with their tickets, so receipts get checked.
+    expect(recorded).toEqual([
+      expect.objectContaining({ purpose: "test", job_id: null, device_id: "dev-a", push_token: ANDROID.expo_push_token, status: "accepted", provider_ticket: "t1" }),
+      expect.objectContaining({ purpose: "test", job_id: null, device_id: "dev-i", push_token: IOS.expo_push_token, status: "accepted", provider_ticket: "t2" }),
+    ]);
     const messages = JSON.parse(fetchMock.mock.calls[0][1].body as string);
     expect(messages[0]).toMatchObject({ to: ANDROID.expo_push_token, channelId: "default" });
     expect(messages[1]).not.toHaveProperty("channelId");
@@ -72,6 +91,7 @@ describe("sendTestPush", () => {
     const result = await sendTestPush(admin, "user-1");
 
     expect(result).toEqual({ status: "failed", devices: 1, errors: ["DeviceNotRegistered: gone"] });
-    expect(retired).toEqual(["dev-a"]);
+    // Only while it still holds the token Expo rejected.
+    expect(retired).toEqual([{ id: "dev-a", token: ANDROID.expo_push_token }]);
   });
 });

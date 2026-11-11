@@ -1,7 +1,7 @@
--- verify_migrations_101_126.sql
+-- verify_migrations_101_127.sql
 -- READ-ONLY. Paste into the Supabase SQL editor (production) and run.
 --
--- Checks that MiniMiles migrations 101–126 are live (101–122 are what
+-- Checks that MiniMiles migrations 101–127 are live (101–122 are what
 -- 123–126 build on; 120 is a one-off data fix and isn't checked) by looking for what each
 -- one creates, rather than trusting supabase_migrations.schema_migrations:
 -- the two repositories number independently against one database, and a
@@ -84,6 +84,16 @@ SELECT migration, check_name, ok FROM (VALUES
   ('126', 'enrol_welcome_offer function', EXISTS (SELECT 1 FROM fn WHERE proname = 'enrol_welcome_offer')),
   ('126', 'get_welcome_offer function', EXISTS (SELECT 1 FROM fn WHERE proname = 'get_welcome_offer')),
   ('126', 'claim RPC allows auto_award only for the welcome enrolment',
-     EXISTS (SELECT 1 FROM fn WHERE proname = 'claim_akiba_funded_voucher_atomic' AND body LIKE '%akiba.welcome_enrolment%'))
+     EXISTS (SELECT 1 FROM fn WHERE proname = 'claim_akiba_funded_voucher_atomic' AND body LIKE '%akiba.welcome_enrolment%')),
+
+  -- 127 audit fixes
+  ('127', 'native_push_deliveries.push_token column',
+     EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'native_push_deliveries' AND column_name = 'push_token')),
+  ('127', 'native_push_deliveries.purpose column',
+     EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'native_push_deliveries' AND column_name = 'purpose')),
+  ('127', 'offer scans serialised',
+     EXISTS (SELECT 1 FROM fn WHERE proname = 'record_offer_sightings' AND body LIKE '%pg_advisory_xact_lock%'))
 ) AS checks(migration, check_name, ok)
 ORDER BY migration, check_name;

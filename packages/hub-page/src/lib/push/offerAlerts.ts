@@ -11,13 +11,17 @@
  * who saved a participating merchant (at most one a day per member, never
  * between 21:00 and 09:00 Nairobi time).
  *
- * Each source is recorded separately. A source whose loader fails is skipped
- * for this run rather than reported as empty, and an empty list never
- * removes anything — sightings are only ever added.
+ * Each source is recorded separately. Every loader is called in strict mode,
+ * so a failed read throws and that source is skipped for this run — it is
+ * never recorded as empty. That matters most on a source's first run, which
+ * silently records what is live as the baseline: a baseline taken from a
+ * failed read would make every existing offer look new the next time.
+ * An empty list never removes anything — sightings are only ever added.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { listPublicMerchantOffers } from "@/lib/merchants/publicOffers";
+import { akibaFundedVouchersHubFlag } from "@/lib/featureFlags.server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAllTemplates, getFundedOffers } from "@/lib/vouchers/catalogue.server";
 
@@ -37,24 +41,29 @@ type Loader = () => Promise<SightedOffer[]>;
 
 export const OFFER_LOADERS: Record<OfferSource, Loader> = {
   merchant_offer: async () =>
-    (await listPublicMerchantOffers(50)).map((offer) => ({
+    (await listPublicMerchantOffers(50, { strict: true })).map((offer) => ({
       key: `merchant_offer:${offer.id}`,
       title: offer.title,
       merchants: [{ id: offer.partner.id, name: offer.partner.name, slug: offer.partner.slug }],
     })),
 
-  funded: async () =>
-    (await getFundedOffers())
+  funded: async () => {
+    // Switched off reads as an empty list; for the scanner it must read as
+    // "unknown", or turning funded vouchers back on would announce every
+    // offer that was live all along.
+    if (!akibaFundedVouchersHubFlag().enabled) throw new Error("funded vouchers are switched off");
+    return (await getFundedOffers())
       // A sold-out campaign isn't something a member can act on.
       .filter((offer) => offer.quantityRemaining !== 0)
       .map((offer) => ({
         key: `funded:${offer.allocationId}`,
         title: offer.title,
         merchants: offer.merchants.map(({ id, name, slug }) => ({ id, name, slug })),
-      })),
+      }));
+  },
 
   template: async () =>
-    (await getAllTemplates(null)).flatMap((template) =>
+    (await getAllTemplates(null, { strict: true })).flatMap((template) =>
       template.partners
         ? [{
             key: `template:${template.id}`,

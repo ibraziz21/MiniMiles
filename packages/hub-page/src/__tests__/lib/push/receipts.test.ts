@@ -8,8 +8,12 @@ const minutesAgo = (minutes: number) => new Date(NOW - minutes * 60_000).toISOSt
 
 type Update = { table: string; values: Record<string, unknown>; id: string };
 
-/** Just enough of the Supabase client for the poller: one select, many updates. */
-function fakeAdmin(pending: unknown[]) {
+/**
+ * Just enough of the Supabase client for the poller: one select, many
+ * updates. `deviceTokens` is each device's current token; a device update
+ * filtered on `expo_push_token` only lands when it matches, as in Postgres.
+ */
+function fakeAdmin(pending: unknown[], deviceTokens: Record<string, string> = { dev1: "tok-1", dev2: "tok-2" }) {
   const updates: Update[] = [];
   const admin = {
     from(table: string) {
@@ -20,12 +24,24 @@ function fakeAdmin(pending: unknown[]) {
       return {
         select: () => select,
         update(values: Record<string, unknown>) {
+          const filters: Record<string, string> = {};
+          const matched = () => {
+            if (!filters.id) return [];
+            if (table === "hub_user_devices" && "expo_push_token" in filters
+                && deviceTokens[filters.id] !== filters.expo_push_token) return [];
+            updates.push({ table, values, id: filters.id });
+            return [{ id: filters.id }];
+          };
           const chain = {
             eq(column: string, value: string) {
-              if (column === "id") updates.push({ table, values, id: value });
+              filters[column] = value;
               return chain;
             },
-            then: (resolve: (value: unknown) => void) => resolve({ error: null }),
+            select: async () => ({ data: matched(), error: null }),
+            then: (resolve: (value: unknown) => void) => {
+              matched();
+              resolve({ error: null });
+            },
           };
           return chain;
         },
@@ -62,7 +78,7 @@ describe("classifyExpoReceipt", () => {
 
 describe("processPushReceipts", () => {
   it("records a delivered push", async () => {
-    const { admin, updates } = fakeAdmin([{ id: "d1", device_id: "dev1", provider_ticket: "t1", accepted_at: minutesAgo(20) }]);
+    const { admin, updates } = fakeAdmin([{ id: "d1", device_id: "dev1", push_token: "tok-1", provider_ticket: "t1", accepted_at: minutesAgo(20) }]);
     receipts({ t1: { status: "ok" } });
 
     const result = await processPushReceipts(admin, NOW);
@@ -78,7 +94,7 @@ describe("processPushReceipts", () => {
   });
 
   it("retires an uninstalled device and marks the delivery gone", async () => {
-    const { admin, updates } = fakeAdmin([{ id: "d1", device_id: "dev1", provider_ticket: "t1", accepted_at: minutesAgo(20) }]);
+    const { admin, updates } = fakeAdmin([{ id: "d1", device_id: "dev1", push_token: "tok-1", provider_ticket: "t1", accepted_at: minutesAgo(20) }]);
     receipts({ t1: { status: "error", message: "not registered", details: { error: "DeviceNotRegistered" } } });
 
     const result = await processPushReceipts(admin, NOW);
@@ -91,8 +107,37 @@ describe("processPushReceipts", () => {
     expect(updates).toContainEqual({ table: "hub_user_devices", id: "dev1", values: expect.objectContaining({ status: "invalid" }) });
   });
 
+  it("leaves a device alone when the rejected token is no longer its token", async () => {
+    // The member re-registered: dev1 now holds tok-new, and this receipt is
+    // about the old tok-1.
+    const { admin, updates } = fakeAdmin(
+      [{ id: "d1", device_id: "dev1", push_token: "tok-1", provider_ticket: "t1", accepted_at: minutesAgo(20) }],
+      { dev1: "tok-new" },
+    );
+    receipts({ t1: { status: "error", message: "not registered", details: { error: "DeviceNotRegistered" } } });
+
+    const result = await processPushReceipts(admin, NOW);
+
+    expect(result).toMatchObject({ failed: 1, retiredDevices: 0 });
+    expect(updates.some((update) => update.table === "hub_user_devices")).toBe(false);
+    expect(updates).toContainEqual({
+      table: "native_push_deliveries", id: "d1",
+      values: expect.objectContaining({ receipt_status: "error", status: "gone" }),
+    });
+  });
+
+  it("never retires a device from a delivery recorded before tokens were kept", async () => {
+    const { admin, updates } = fakeAdmin([{ id: "d1", device_id: "dev1", push_token: null, provider_ticket: "t1", accepted_at: minutesAgo(20) }]);
+    receipts({ t1: { status: "error", message: "not registered", details: { error: "DeviceNotRegistered" } } });
+
+    const result = await processPushReceipts(admin, NOW);
+
+    expect(result.retiredDevices).toBe(0);
+    expect(updates.some((update) => update.table === "hub_user_devices")).toBe(false);
+  });
+
   it("flags a credential failure without retiring the device", async () => {
-    const { admin, updates } = fakeAdmin([{ id: "d1", device_id: "dev1", provider_ticket: "t1", accepted_at: minutesAgo(20) }]);
+    const { admin, updates } = fakeAdmin([{ id: "d1", device_id: "dev1", push_token: "tok-1", provider_ticket: "t1", accepted_at: minutesAgo(20) }]);
     receipts({ t1: { status: "error", message: "no FCM key", details: { error: "InvalidCredentials" } } });
 
     const result = await processPushReceipts(admin, NOW);
@@ -104,8 +149,8 @@ describe("processPushReceipts", () => {
 
   it("waits for a receipt that isn't ready, and gives up on one Expo has discarded", async () => {
     const { admin, updates } = fakeAdmin([
-      { id: "fresh", device_id: "dev1", provider_ticket: "t1", accepted_at: minutesAgo(20) },
-      { id: "stale", device_id: "dev2", provider_ticket: "t2", accepted_at: minutesAgo(25 * 60) },
+      { id: "fresh", device_id: "dev1", push_token: "tok-1", provider_ticket: "t1", accepted_at: minutesAgo(20) },
+      { id: "stale", device_id: "dev2", push_token: "tok-2", provider_ticket: "t2", accepted_at: minutesAgo(25 * 60) },
     ]);
     receipts({});
 
@@ -118,7 +163,7 @@ describe("processPushReceipts", () => {
   });
 
   it("changes nothing when Expo can't be reached", async () => {
-    const { admin, updates } = fakeAdmin([{ id: "d1", device_id: "dev1", provider_ticket: "t1", accepted_at: minutesAgo(20) }]);
+    const { admin, updates } = fakeAdmin([{ id: "d1", device_id: "dev1", push_token: "tok-1", provider_ticket: "t1", accepted_at: minutesAgo(20) }]);
     fetchMock.mockRejectedValue(new Error("network down"));
 
     const result = await processPushReceipts(admin, NOW).catch(() => null);

@@ -83,10 +83,18 @@ function isVisiblePartner(partner: PartnerRow): boolean {
 /**
  * Public merchant-owned offers for discovery surfaces. Failures intentionally
  * collapse to an empty list so Explore can omit the optional rail.
+ *
+ * `strict` is for callers that act on the list rather than show it — the
+ * saved-place offer scanner (src/lib/push/offerAlerts.ts). They get an error
+ * instead of the fallback, and never the development fixtures, so a failed
+ * read can't be mistaken for "these are all the live offers".
  */
-export async function listPublicMerchantOffers(limit = 10): Promise<PublicMerchantOfferFeedItem[]> {
+export async function listPublicMerchantOffers(
+  limit = 10,
+  options: { strict?: boolean } = {},
+): Promise<PublicMerchantOfferFeedItem[]> {
   const safeLimit = Math.min(Math.max(Math.floor(limit), 1), 50);
-  const developmentFixtures = getDevelopmentMerchantOfferFixtures();
+  const developmentFixtures = options.strict ? [] : getDevelopmentMerchantOfferFixtures();
   const admin = createAdminClient();
 
   try {
@@ -107,6 +115,7 @@ export async function listPublicMerchantOffers(limit = 10): Promise<PublicMercha
 
     if (error) {
       console.error("[merchant-offers] public query failed:", error.message);
+      if (options.strict) throw new Error(`merchant offers unavailable: ${error.message}`);
       return developmentFixtures.slice(0, safeLimit);
     }
 
@@ -180,6 +189,7 @@ export async function listPublicMerchantOffers(limit = 10): Promise<PublicMercha
       .map(({ offer }) => offer);
   } catch (error) {
     console.error("[merchant-offers] public projection failed:", error);
+    if (options.strict) throw error;
     return developmentFixtures.slice(0, safeLimit);
   }
 }
