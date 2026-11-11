@@ -60,6 +60,10 @@ All applied to production on 2026-11-11 and verified (every check true).
 ## 5. Akiba-Platform fault fixes (branch `merchant-mobile`, not yet committed)
 
 - [ ] Commit and deploy the api and dashboard-merchant changes.
+- [ ] Set **`TILL_ATTESTATION_SECRET`** to the same random value (e.g. `openssl rand -hex 32`) on
+      both the **api** and **dashboard-merchant** Vercel projects, before deploying either.
+      Without it the till still records purchases and awards Miles, but they no longer count
+      as in-store visits, so no recommendation requests (the dashboard logs an error).
 - [ ] Check `CRON_SECRET` is set on the api Vercel project (the webhook and reward
       jobs now run on Vercel Cron with it, and the expiry job is newly scheduled).
 - [ ] After deploy, in Vercel → Crons, confirm webhook-worker, reward-worker and

@@ -33,6 +33,30 @@ describe("resolvePurchaseEarningChannel", () => {
     query.maybeSingle.mockResolvedValue({ data: { redemption_channel: "online_order" }, error: null });
     expect(await resolvePurchaseEarningChannel(purchase, "member")).toBe("online");
   });
+  it("never takes a caller's own in_store tag as a visit", async () => {
+    expect(await resolvePurchaseEarningChannel(
+      { merchant_id: "merchant", source_app: "partner_pos", raw_metadata: { channel: "in_store" } }, "member",
+    )).toBe("unknown");
+    expect(await resolvePurchaseEarningChannel(
+      { ...purchase, raw_metadata: { voucherId, channel: "in_store" } }, "member",
+    )).toBe("in_store"); // still from the redemption row, not the tag
+    query.maybeSingle.mockResolvedValue({ data: null, error: null });
+    expect(await resolvePurchaseEarningChannel(
+      { ...purchase, raw_metadata: { voucherId, channel: "in_store" } }, "member",
+    )).toBe("unknown");
+  });
+  it("counts a till source label as a visit, unless the payload says online", async () => {
+    for (const source of ["scan_award", "merchant_dashboard", "merchant_scan"]) {
+      expect(await resolvePurchaseEarningChannel({ merchant_id: "merchant", source_app: source, raw_metadata: {} }, "member")).toBe("in_store");
+    }
+    expect(await resolvePurchaseEarningChannel(
+      { merchant_id: "merchant", source_app: "scan_award", raw_metadata: { channel: "online" } }, "member",
+    )).toBe("unknown");
+    expect(await resolvePurchaseEarningChannel(
+      { merchant_id: "merchant", source_app: "scan_award_unsigned", raw_metadata: { channel: "in_store" } }, "member",
+    )).toBe("unknown");
+    expect(from).not.toHaveBeenCalled();
+  });
   it("surfaces lookup errors so recovery can retry", async () => {
     query.maybeSingle.mockResolvedValue({ data: null, error: { message: "offline" } });
     await expect(resolvePurchaseEarningChannel(purchase, "member")).rejects.toThrow("offline");
