@@ -7,3 +7,4 @@ export {
   type OnboardingStep,
 } from './steps';
 export { clearOnboardingStep, loadOnboardingStep, saveOnboardingStep } from './progress';
+export { hasSeenIntro, markIntroSeen } from './intro';

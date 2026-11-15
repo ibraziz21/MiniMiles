@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Icon, colors, fontFamily, shadows } from '@/design-system';
 
-import { ProfileButton } from './profile-button';
+import { MilesBalanceButton } from './miles-balance-button';
 
 type DiscoveryToolbarProps = {
   activeFilterCount?: number;
@@ -62,7 +62,7 @@ export function DiscoveryToolbar({
         ) : null}
       </Pressable>
 
-      {showProfile ? <ProfileButton /> : null}
+      {showProfile ? <MilesBalanceButton /> : null}
     </View>
   );
 }

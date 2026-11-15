@@ -1,5 +1,5 @@
 import { Card, ScrollView, StyleSheet, Text, View, colors, spacing, typography } from '@/design-system';
-import { ProfileButton } from '@/components/profile-button';
+import { MilesBalanceButton } from '@/components/miles-balance-button';
 
 type ComingSoonScreenProps = {
   title: string;
@@ -15,7 +15,7 @@ export function ComingSoonScreen({ title, description = 'Coming soon' }: ComingS
       <View style={styles.content}>
         <View style={styles.screenHeader}>
           <Text style={styles.screenTitle}>{title}</Text>
-          <ProfileButton />
+          <MilesBalanceButton />
         </View>
         <Card style={styles.card}>
           <Text style={styles.body}>{description}</Text>

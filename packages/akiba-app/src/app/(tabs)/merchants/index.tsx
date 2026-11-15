@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { createApiClient } from '@/api';
 import { DiscoveryToolbar } from '@/components/discovery-toolbar';
-import { ProfileButton } from '@/components/profile-button';
+import { MilesBalanceButton } from '@/components/miles-balance-button';
 import { MerchantDirectoryCard } from '@/components/merchant-card';
 import type { MerchantValueSummary } from '@/contracts';
 import { ActivityIndicator, FlatList, Icon, colors, fontFamily } from '@/design-system';
@@ -238,7 +238,7 @@ function DirectoryHeader({
           <Text accessibilityRole="header" style={styles.directoryTitle}>Places</Text>
           <Text style={styles.subtitle}>Find places to earn AkibaMiles and use rewards.</Text>
         </View>
-        <ProfileButton />
+        <MilesBalanceButton />
       </View>
       <DiscoveryToolbar showFilterLabel showProfile={false} activeFilterCount={activeFilterCount} onChangeText={onChangeQuery} onOpenFilters={onOpenFilters} value={filters.q} />
       {categories.length ? (
@@ -407,7 +407,7 @@ function ItemSeparator() {
 
 const styles = StyleSheet.create({
   screen: { backgroundColor: colors.paper, flex: 1 },
-  listContent: { alignSelf: 'center', maxWidth: 960, paddingBottom: 28, width: '100%' },
+  listContent: { alignSelf: 'center', maxWidth: 960, paddingBottom: 88, width: '100%' },
   directoryTitle: { color: colors.ink, fontFamily: fontFamily.sterlingSemiBold, fontSize: 28 },
   titleRow: { alignItems: 'flex-start', flexDirection: 'row', gap: 12, marginBottom: 14 },
   titleCopy: { flex: 1, gap: 4 },

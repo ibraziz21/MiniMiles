@@ -31,7 +31,8 @@ const TEMPLATES: Record<string, RenderedNotification> = {
 
 export function renderTemplate(
   template: string,
-  metadata: Record<string, unknown> = {}
+  metadata: Record<string, unknown> = {},
+  now: number = Date.now(),
 ): RenderedNotification | null {
   if (["feature_announcement", "merchant_announcement", "general_announcement"].includes(template)) {
     const title = typeof metadata.title === "string" ? metadata.title.trim() : "";
@@ -62,7 +63,81 @@ export function renderTemplate(
     return renderMilesEarned(metadata);
   }
 
+  if (template === "contribution_requested") {
+    // Lock-screen safe: names the place only, never what was bought.
+    const merchantName = typeof metadata.merchantName === "string" && metadata.merchantName.trim()
+      ? metadata.merchantName.trim().slice(0, 60)
+      : "your visit";
+    return {
+      title: `How was ${merchantName}?`,
+      body: "Share a quick recommendation to help other Akiba members find good places.",
+    };
+  }
+
+  if (template === "saved_place_offer") {
+    // The offer title is public catalogue copy, so it is safe on a lock screen.
+    const merchantName = text(metadata.merchantName, 60);
+    const offerTitle = text(metadata.offerTitle, 100);
+    return {
+      title: merchantName ? `New offer at ${merchantName}` : "New offer at a place you saved",
+      body: offerTitle ?? "A place you saved has a new offer. Open Akiba to see it.",
+    };
+  }
+
+  if (template === "voucher_expiring") {
+    return renderVoucherExpiring(metadata, now);
+  }
+
   return TEMPLATES[template] ?? null;
+}
+
+function text(value: unknown, maxLength: number): string | null {
+  return typeof value === "string" && value.trim() ? value.trim().slice(0, maxLength) : null;
+}
+
+const NAIROBI_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Nairobi" });
+const NAIROBI_TIME = new Intl.DateTimeFormat("en-KE", {
+  timeZone: "Africa/Nairobi",
+  hour: "numeric",
+  minute: "2-digit",
+  hour12: true,
+});
+
+// "today at 7:00 pm" / "tomorrow at 10:00 am", in Nairobi time. Migration 125
+// only queues vouchers expiring 2–26 hours ahead, so those are the two cases.
+function expiryMoment(expiresAt: unknown, now: number): { day: "today" | "tomorrow"; time: string } | null {
+  if (typeof expiresAt !== "string") return null;
+  const at = Date.parse(expiresAt);
+  if (!Number.isFinite(at)) return null;
+  return {
+    day: NAIROBI_DAY.format(at) === NAIROBI_DAY.format(now) ? "today" : "tomorrow",
+    // ICU may separate "am" with a narrow no-break space.
+    time: NAIROBI_TIME.format(at).replace(/\s+/g, " ").toLowerCase(),
+  };
+}
+
+function renderVoucherExpiring(metadata: Record<string, unknown>, now: number): RenderedNotification {
+  const count = typeof metadata.count === "number" && Number.isFinite(metadata.count) ? metadata.count : 1;
+  const when = expiryMoment(metadata.expiresAt, now);
+
+  if (count > 1) {
+    return {
+      title: `${count} vouchers expire soon`,
+      body: when
+        ? `The first one ends ${when.day} at ${when.time}. Open Akiba to use them in time.`
+        : "Open Akiba to use them before they expire.",
+    };
+  }
+
+  const title = text(metadata.title, 80);
+  const merchantName = text(metadata.merchantName, 60);
+  const what = title && merchantName
+    ? `${title} at ${merchantName}`
+    : title ?? (merchantName ? `Your ${merchantName} voucher` : "Your voucher");
+  return {
+    title: when ? `Your voucher expires ${when.day}` : "Your voucher expires soon",
+    body: when ? `${what}: use it before ${when.time}.` : `${what}: use it before it expires.`,
+  };
 }
 
 // miles_earned copy states (§6.5) — built purely from the metadata snapshot

@@ -158,6 +158,7 @@ export async function getRecentActivity(opts: {
   /** Enables merchant scan-award events from the Platform miles ledger */
   email?: string | null;
   limit?: number;
+  strict?: boolean;
 }): Promise<ActivityItem[]> {
   const { userId, walletAddress, email = null, limit = 20 } = opts;
   const admin = createAdminClient();
@@ -167,7 +168,7 @@ export async function getRecentActivity(opts: {
     ? `hub_user_id.eq.${userId},user_address.eq.${wallet}`
     : `hub_user_id.eq.${userId}`;
 
-  const [dailyRes, partnerRes, mintRes, voucherRes] = await Promise.allSettled([
+  const [dailyRes, partnerRes, mintRes, voucherRes, redemptionRes] = await Promise.allSettled([
     wallet
       ? admin
           .from("daily_engagements")
@@ -206,7 +207,18 @@ export async function getRecentActivity(opts: {
       .or(voucherFilter)
       .order("created_at", { ascending: false })
       .limit(limit),
+    // A voucher issued months ago can be redeemed today. History must page
+    // redemptions by redemption time, not only by the voucher issue time.
+    opts.strict ? admin.from("issued_vouchers")
+      .select("id, created_at, redeemed_at, acquisition_source, sponsor, spend_voucher_templates ( title, partners ( name ) )")
+      .or(voucherFilter).not("redeemed_at", "is", null)
+      .order("redeemed_at", { ascending: false }).limit(limit)
+      : Promise.resolve({ data: [], error: null }),
   ]);
+
+  if (opts.strict && [dailyRes, partnerRes, mintRes, voucherRes, redemptionRes].some(
+    (result) => result.status === "rejected" || result.value.error,
+  )) throw new Error("Activity sources unavailable");
 
   const items: ActivityItem[] = [];
 
@@ -250,7 +262,9 @@ export async function getRecentActivity(opts: {
   }
 
   if (voucherRes.status === "fulfilled" && !voucherRes.value.error) {
-    for (const row of (voucherRes.value.data ?? []) as any[]) {
+    const redemptionRows = redemptionRes.status === "fulfilled" && !redemptionRes.value.error ? redemptionRes.value.data ?? [] : [];
+    const voucherRows = [...new Map([...(voucherRes.value.data ?? []), ...redemptionRows].map((row: any) => [row.id, row])).values()];
+    for (const row of voucherRows as any[]) {
       const tpl = row.spend_voucher_templates;
       const voucherTitle: string = tpl?.title ?? "Voucher";
       const partnerName: string | null = tpl?.partners?.name ?? null;
@@ -293,15 +307,16 @@ export async function getRecentActivity(opts: {
     if (wallet) identityFilters.push(`and(identity_type.eq.wallet,identity_value.eq.${wallet})`);
 
     if (identityFilters.length > 0) {
-      const { data: links } = await admin
+      const { data: links, error: linksError } = await admin
         .from("identity_links")
         .select("canonical_id")
         .or(identityFilters.join(","));
 
+      if (opts.strict && linksError) throw linksError;
       const canonicalIds = [...new Set((links ?? []).map((l: any) => l.canonical_id))];
 
       if (canonicalIds.length > 0) {
-        const { data: ledger } = await admin
+        const { data: ledger, error: ledgerError } = await admin
           .from("miles_ledger")
           .select("id, amount, direction, source_type, partner_id, note, created_at, partners ( name )")
           .in("canonical_id", canonicalIds)
@@ -309,6 +324,7 @@ export async function getRecentActivity(opts: {
           .order("created_at", { ascending: false })
           .limit(limit);
 
+        if (opts.strict && ledgerError) throw ledgerError;
         for (const row of (ledger ?? []) as any[]) {
           const partnerName: string | null = row.partners?.name ?? null;
           const isCredit = row.direction === "credit";
@@ -326,7 +342,7 @@ export async function getRecentActivity(opts: {
                 : partnerName
                   ? `Spent at ${partnerName}`
                   : "Miles spent",
-            detail: isSkillGame ? "Rule Tap / Memory Flip" : isCredit ? "In-store award" : "Redemption",
+            detail: isSkillGame ? "Rule Tap / Memory Flip" : isCredit ? "Miles earned" : "Redemption",
             miles: isCredit ? Number(row.amount) : -Number(row.amount),
           });
         }
@@ -334,6 +350,7 @@ export async function getRecentActivity(opts: {
     }
   } catch (err) {
     console.error("[activity] miles_ledger source failed:", err);
+    if (opts.strict) throw err;
   }
 
   return items

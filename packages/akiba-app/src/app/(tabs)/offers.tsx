@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { saveLikedOffer, removeLikedOffer, rememberServerReminder } from '@/lib/profile-offer-library';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
@@ -16,9 +17,9 @@ import { createApiClient } from '@/api';
 import { useAuth } from '@/auth';
 import { VoucherCampaignRail } from '@/components/voucher-campaign-rail';
 import { groupVoucherCampaigns, type VoucherCampaign } from '@/lib/voucher-campaigns';
-import { ProfileButton } from '@/components/profile-button';
+import { MilesBalanceButton } from '@/components/miles-balance-button';
 import { fundedBenefit, type FundedOffer, type MerchantOfferFeedItem } from '@/contracts';
-import { scheduleFundedOfferReminder } from '@/push/funded-offer-reminder';
+import { scheduleFundedOfferReminder, scheduleOfferReminder } from '@/push/funded-offer-reminder';
 import { ActivityIndicator, Icon, colors, fontFamily, shadows } from '@/design-system';
 import { loadOfferDecisionState, saveOfferDecisionState } from '@/lib/offer-decision-storage';
 import {
@@ -88,6 +89,7 @@ export default function OffersScreen() {
   const [state, setState] = useState<ScreenState>({ status: 'loading' });
   const [lastChoice, setLastChoice] = useState<LastChoice | null>(null);
   const [reminderPending, setReminderPending] = useState(false);
+  const choiceBusy = useRef(false);
 
   const load = useCallback(async () => {
     setState({ status: 'loading' });
@@ -121,34 +123,46 @@ export default function OffersScreen() {
     void load();
   }, [load]);
 
-  const commitChoice = useCallback((decision: OfferDecision) => {
-    if (state.status !== 'ready' || state.deck.length === 0) return;
+  const commitChoice = useCallback(async (decision: OfferDecision) => {
+    if (state.status !== 'ready' || state.deck.length === 0 || choiceBusy.current) return;
+    choiceBusy.current = true;
     const [offer, ...deck] = state.deck;
+    if (decision === 'interested') {
+      try { await saveLikedOffer(scope, { id: offer.id, title: offer.title, merchantName: offer.partner.name, merchantSlug: offer.partner.slug, allocationId: offer.fundedOffer?.allocationId }); }
+      catch { choiceBusy.current = false; Alert.alert('Offer not saved', 'Please try again.'); return; }
+    }
     const decisions = recordOfferDecision(state.decisions, offer.id, decision);
     setState({ ...state, deck, decisions });
     setLastChoice({ offer, decision });
+    choiceBusy.current = false;
     void saveOfferDecisionState(scope, decisions);
   }, [scope, state]);
 
-  const undoLastChoice = useCallback(() => {
-    if (!lastChoice) return;
+  const undoLastChoice = useCallback(async () => {
+    if (!lastChoice || choiceBusy.current) return;
     if (state.status !== 'ready') return;
+    choiceBusy.current = true;
+    if (lastChoice.decision === 'interested') {
+      try { await removeLikedOffer(scope, lastChoice.offer.id); }
+      catch { choiceBusy.current = false; Alert.alert('Couldn’t undo', 'Please try again.'); return; }
+    }
     const decisions = removeOfferDecision(state.decisions, lastChoice.offer.id);
     setState({ ...state, deck: [lastChoice.offer, ...state.deck], decisions });
     setLastChoice(null);
+    choiceBusy.current = false;
     void saveOfferDecisionState(scope, decisions);
   }, [lastChoice, scope, state]);
 
   const reviewAgain = useCallback(() => {
-    if (state.status !== 'ready') return;
+    if (state.status !== 'ready' || choiceBusy.current) return;
     const decisions = clearOfferDecisions(state.decisions, state.allOffers.map((offer) => offer.id));
     setState({ ...state, deck: state.allOffers, decisions });
     setLastChoice(null);
+    choiceBusy.current = false;
     void saveOfferDecisionState(scope, decisions);
   }, [scope, state]);
 
   const chooseReminder = useCallback((offer: DeckOffer) => {
-    if (!offer.remindersEnabled) return;
     if (!accessToken) {
       Alert.alert('Sign in required', 'Sign in to save an offer reminder.');
       return;
@@ -157,10 +171,19 @@ export default function OffersScreen() {
     const save = async (leadMinutes: 30 | 60 | 1440) => {
       setReminderPending(true);
       try {
-        if (offer.fundedOffer) {
-          await scheduleFundedOfferReminder(offer.fundedOffer, leadMinutes);
+        if (!offer.remindersEnabled) {
+          await scheduleOfferReminder({
+            id: `offer-${offer.id}`,
+            title: offer.title,
+            merchantSlug: offer.partner.slug,
+            ownerId: scope,
+            date: new Date(Date.now() + leadMinutes * 60_000),
+          });
+        } else if (offer.fundedOffer) {
+          await scheduleFundedOfferReminder(offer.fundedOffer, leadMinutes, scope);
         } else {
           await createApiClient({ accessToken }).setOfferReminder(offer.id, leadMinutes);
+          await rememberServerReminder(scope, { id: offer.id, title: offer.title, merchantName: offer.partner.name, merchantSlug: offer.partner.slug, leadMinutes });
         }
         commitChoice('reminder');
       } catch (error) {
@@ -170,13 +193,23 @@ export default function OffersScreen() {
       }
     };
 
+    if (!offer.remindersEnabled) {
+      Alert.alert('Remind me', 'When would you like to check this offer again?', [
+        { text: 'In 30 minutes', onPress: () => void save(30) },
+        { text: 'In 1 hour', onPress: () => void save(60) },
+        { text: 'In 1 day', onPress: () => void save(1440) },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+      return;
+    }
+
     Alert.alert('Remind me', 'Choose a time.', [
       { text: '30 minutes before', onPress: () => void save(30) },
       { text: '1 hour before', onPress: () => void save(60) },
       { text: '1 day before', onPress: () => void save(1440) },
       { text: 'Cancel', style: 'cancel' },
     ]);
-  }, [accessToken, commitChoice]);
+  }, [accessToken, commitChoice, scope]);
 
   const cardWidth = Math.min(width - 32, 520);
   const cardHeight = Math.min(Math.max(height - 320, 400), 550);
@@ -249,7 +282,7 @@ function Header({ state }: { state: ScreenState }) {
     <View style={styles.header}>
       <Text style={styles.headerTitle}>Business offers</Text>
       <Text style={styles.progress}>{progress}</Text>
-      <ProfileButton />
+      <MilesBalanceButton />
     </View>
   );
 }
@@ -330,9 +363,7 @@ function OfferDeck({ cardHeight, cardWidth, current, next, onDismiss, onInterest
 
       <View style={styles.actions}>
         <CircleAction accessibilityLabel="Not interested" icon="x" onPress={() => finishSwipe(-1)} />
-        {current.remindersEnabled ? (
-          <CircleAction accessibilityLabel="Remind me" busy={reminderPending} icon="bell" onPress={onReminder} />
-        ) : null}
+        <CircleAction accessibilityLabel="Remind me" busy={reminderPending} icon="bell" onPress={onReminder} />
         <CircleAction accessibilityLabel="Interested" icon="heart" onPress={() => finishSwipe(1)} primary />
       </View>
     </View>

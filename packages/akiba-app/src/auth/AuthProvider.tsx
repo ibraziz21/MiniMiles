@@ -1,3 +1,4 @@
+import { cancelMemberOfferReminders } from '@/push/funded-offer-reminder';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 
@@ -64,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Best effort by design: a failure here must never block signing out,
       // and it is bounded by the API client's request timeout.
       const token = session?.access_token;
+      if (session?.user.id) await cancelMemberOfferReminders(session.user.id).catch(() => undefined);
       if (token) await unregisterPushNotifications(token);
 
       // Signing out has to work on a stalled network. The global call

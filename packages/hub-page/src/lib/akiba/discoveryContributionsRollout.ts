@@ -34,7 +34,7 @@ function rolloutBucket(identifier: string): number {
 export function getDiscoveryContributionsRolloutConfig(
   env: RolloutEnvironment = process.env,
 ): DiscoveryContributionsRolloutConfig {
-  const requestedPercentage = Number(env.HUB_DISCOVERY_CONTRIBUTIONS_ROLLOUT_PERCENT ?? "0");
+  const requestedPercentage = Number(env.HUB_DISCOVERY_CONTRIBUTIONS_ROLLOUT_PERCENT ?? "100");
   const percentage = Number.isFinite(requestedPercentage)
     ? Math.min(100, Math.max(0, Math.trunc(requestedPercentage)))
     : 0;
@@ -45,7 +45,7 @@ export function getDiscoveryContributionsRolloutConfig(
       .filter(Boolean),
   );
 
-  return { enabled: isTruthy(env.HUB_DISCOVERY_CONTRIBUTIONS_ENABLED), percentage, allowlist };
+  return { enabled: isTruthy(env.HUB_DISCOVERY_CONTRIBUTIONS_ENABLED ?? "true"), percentage, allowlist };
 }
 
 /** identifier: the Hub user id (auth.users.id) of the potential contributor. */

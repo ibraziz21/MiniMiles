@@ -49,6 +49,14 @@ export function resolveNotificationRoute(deepLink: unknown): string {
 
   if (path === '/') return DEFAULT_ROUTE;
 
+  // /my-vouchers?voucher=<id> — the "your voucher expires" push. The web Hub
+  // has no per-voucher page, so the id rides in the query; natively it opens
+  // that voucher.
+  if (path === '/my-vouchers') {
+    const voucherId = new URLSearchParams(trimmed.split('#')[0].split('?')[1] ?? '').get('voucher');
+    if (voucherId && ID_SEGMENT.test(voucherId)) return `/vouchers/${voucherId}`;
+  }
+
   const staticMatch = STATIC_ROUTES[path];
   if (staticMatch) return staticMatch;
 
@@ -61,9 +69,13 @@ export function resolveNotificationRoute(deepLink: unknown): string {
     return `/vouchers/purchase/${segments[1]}`;
   }
 
-  // /merchants/<slug> — merchant profile, same shape on both sides.
+  // /merchants/<slug> — merchant profile, same shape on both sides. The one
+  // query kept is `tab=verified`, which the "How was it?" recommendation push
+  // uses to open on the form; anything else is dropped like before.
   if (segments.length === 2 && segments[0] === 'merchants' && ID_SEGMENT.test(segments[1])) {
-    return `/merchants/${segments[1]}`;
+    const query = trimmed.split('#')[0].split('?')[1] ?? '';
+    const verified = new URLSearchParams(query).get('tab') === 'verified';
+    return `/merchants/${segments[1]}${verified ? '?tab=verified' : ''}`;
   }
 
   return DEFAULT_ROUTE;
@@ -80,7 +92,8 @@ export function resolveNotificationRoute(deepLink: unknown): string {
  * notice it.
  */
 export function notificationRouteShape(route: string): string {
-  const segments = route.split('/');
+  // The query (`?tab=verified`) is not part of the shape.
+  const segments = route.split('?')[0].split('/');
   if (segments.length < 2) return route;
   return segments
     .map((segment, index) => (index > 0 && ID_SEGMENT.test(segment) && !KNOWN_SEGMENTS.has(segment) ? ':id' : segment))

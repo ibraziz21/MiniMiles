@@ -7,12 +7,12 @@ import {
 const USER = "10000000-0000-4000-8000-000000000001";
 
 describe("discoveryContributionsRollout", () => {
-  it("is disabled by default with no env configured", () => {
-    expect(isDiscoveryContributionsEnabledFor(USER, {})).toBe(false);
+  it("enables verified visits by default with no env configured", () => {
+    expect(isDiscoveryContributionsEnabledFor(USER, {})).toBe(true);
   });
 
   it("stays disabled even at 100% when the global kill switch is off", () => {
-    const env = { HUB_DISCOVERY_CONTRIBUTIONS_ROLLOUT_PERCENT: "100" };
+    const env = { HUB_DISCOVERY_CONTRIBUTIONS_ENABLED: "false", HUB_DISCOVERY_CONTRIBUTIONS_ROLLOUT_PERCENT: "100" };
     expect(isDiscoveryContributionsEnabledFor(USER, env)).toBe(false);
   });
 

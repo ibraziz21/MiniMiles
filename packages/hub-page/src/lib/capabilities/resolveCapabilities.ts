@@ -45,7 +45,9 @@ export function resolveNativeFeatureFlags(actor: RequestActor | null): NativeFea
     akibaFundedVouchers: akibaFundedVouchersHubFlag().enabled,
     quests: identifier ? isHubQuestsEnabledFor(identifier) : false,
     discoveryContributions: actor ? isDiscoveryContributionsEnabledFor(actor.userId) : false,
-    milesEarnedNotifications: identifier ? isMilesEarnedNotificationsEnabledForMember(identifier) : false,
+    milesEarnedNotifications: actor
+      ? isMilesEarnedNotificationsEnabledForMember({ hubUserId: actor.userId, email: actor.email })
+      : false,
     gifts: nativeGiftsFlag().enabled,
   };
 }

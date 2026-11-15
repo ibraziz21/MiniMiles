@@ -69,7 +69,7 @@ export type SavedMerchantSummary = {
  * Excludes merchants that are no longer active, without deleting the saved
  * row itself (the save/follow relationship is the member's own history).
  */
-export async function listSavedMerchants(userId: string): Promise<SavedMerchantSummary[]> {
+export async function listSavedMerchants(userId: string, options: { strict?: boolean; offset?: number; limit?: number } = {}): Promise<SavedMerchantSummary[]> {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("hub_user_saved_merchants")
@@ -82,10 +82,11 @@ export async function listSavedMerchants(userId: string): Promise<SavedMerchantS
     .eq("hub_user_id", userId)
     .eq("partners.status", "active")
     .order("created_at", { ascending: false })
-    .limit(100);
+    .range(options.offset ?? 0, (options.offset ?? 0) + (options.limit ?? 100) - 1);
 
   if (error) {
     console.error("[savedMerchants] list query failed:", error.message);
+    if (options.strict) throw error;
     return [];
   }
 

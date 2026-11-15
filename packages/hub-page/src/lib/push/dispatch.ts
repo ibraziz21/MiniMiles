@@ -1,4 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { contributionRequestStillOpen } from "@/lib/akiba/contributionRequestNotification";
+import { merchantStillSaved } from "./offerAlerts";
+import { anyVoucherStillUsable } from "./voucherExpiry";
 import { vapidConfigured } from "./vapid";
 import { nativePushConfigured } from "./expo";
 import { renderTemplate } from "./templates";
@@ -139,6 +142,42 @@ export async function processPushJobs(): Promise<{
       if (typeof amountMiles === "number") {
         renderMetadata = { ...renderMetadata, amountMiles };
       }
+    }
+
+    // The "How was it?" push is sent 45 minutes after the visit (migration
+    // 123); by then the member may already have recommended the place from
+    // the store page, or the request may have expired.
+    if (
+      job.template === "contribution_requested" &&
+      !(await contributionRequestStillOpen(admin, renderMetadata.requestId))
+    ) {
+      await admin.rpc("complete_web_push_job", {
+        p_job_id: job.job_id,
+        p_outcome: "suppressed",
+        p_error: "contribution request no longer open",
+      });
+      suppressed++;
+      continue;
+    }
+
+    // Migration 125's pushes are queued a minute or so before they send;
+    // don't announce a place the member has just unsaved, or remind them of
+    // a voucher they have just used.
+    const staleReason =
+      job.template === "saved_place_offer" &&
+      !(await merchantStillSaved(admin, job.hub_user_id, renderMetadata.merchantId))
+        ? "place no longer saved"
+        : job.template === "voucher_expiring" && !(await anyVoucherStillUsable(admin, renderMetadata.voucherIds))
+          ? "voucher no longer usable"
+          : null;
+    if (staleReason) {
+      await admin.rpc("complete_web_push_job", {
+        p_job_id: job.job_id,
+        p_outcome: "suppressed",
+        p_error: staleReason,
+      });
+      suppressed++;
+      continue;
     }
 
     const rendered = renderTemplate(job.template, renderMetadata);

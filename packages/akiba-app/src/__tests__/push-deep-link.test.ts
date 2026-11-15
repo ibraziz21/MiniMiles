@@ -19,6 +19,21 @@ describe('resolveNotificationRoute', () => {
     expect(resolveNotificationRoute('/merchants/java-house')).toBe('/merchants/java-house');
   });
 
+  it('keeps the Verified tab for the recommendation push, and nothing else from the query', () => {
+    expect(resolveNotificationRoute('/merchants/java-house?tab=verified')).toBe('/merchants/java-house?tab=verified');
+    expect(resolveNotificationRoute('/merchants/java-house?tab=vouchers')).toBe('/merchants/java-house');
+    expect(resolveNotificationRoute('/merchants/java-house?tab=verified&x=1#top')).toBe('/merchants/java-house?tab=verified');
+    expect(notificationRouteShape('/merchants/java-house?tab=verified')).toBe('/merchants/:id');
+  });
+
+  it('opens the voucher named by the expiry push, and the list otherwise', () => {
+    const id = '0b6a1c2e-5f3d-4c1a-9e8b-7d6c5b4a3f21';
+    expect(resolveNotificationRoute(`/my-vouchers?voucher=${id}`)).toBe(`/vouchers/${id}`);
+    expect(resolveNotificationRoute('/my-vouchers')).toBe('/vouchers');
+    expect(resolveNotificationRoute('/my-vouchers?voucher=../../pass')).toBe('/vouchers');
+    expect(notificationRouteShape(`/vouchers/${id}`)).toBe('/vouchers/:id');
+  });
+
   it('ignores a query string and a fragment', () => {
     expect(resolveNotificationRoute('/me/activity?utm_source=push')).toBe('/vouchers');
     expect(resolveNotificationRoute('/vouchers/abc?x=1#y')).toBe('/vouchers/purchase/abc');

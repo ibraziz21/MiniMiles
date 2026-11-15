@@ -1,10 +1,13 @@
+import { notificationRouteShape } from '@/push/deep-link';
+
 import type { AnalyticsEvent, AnalyticsProps } from './events';
+import { sendFirebaseEvent, sendFirebaseScreenView } from './firebase';
 
 /**
  * Single analytics call site for the native app, mirroring hub-page's
- * src/lib/analytics/track.ts: no provider is wired up yet, so events log in
- * development and are a deliberate no-op in production until one is
- * configured. Having one call site is the point — it's also where the §6
+ * src/lib/analytics/track.ts: events log in development and go to Firebase
+ * Analytics in release builds (./firebase.ts). Having one call site is the
+ * point — it's also where the §6
  * "do not send email addresses, OTPs, access tokens, or precise
  * coordinates" rule is enforced, so no screen can leak PII by forgetting.
  */
@@ -56,7 +59,23 @@ export function track(event: AnalyticsEvent, props?: AnalyticsProps): void {
   const safe = scrubProps(props);
   if (process.env.NODE_ENV !== 'production') {
     console.debug('[track]', event, safe);
+    return;
   }
-  // TODO: forward to the chosen provider once one is configured for native
-  // (the same decision hub-page's track() is waiting on).
+  // Firebase Analytics, release builds only so development taps never land
+  // in the real numbers. Never sees anything scrubProps removed.
+  sendFirebaseEvent(event, safe);
+}
+
+/**
+ * A screen view, by route shape — `/merchants/:id`, never the slug or id
+ * itself (AKIBA-MOB-002 §14), so screens can be counted without recording
+ * which voucher or visit a member opened.
+ */
+export function trackScreen(pathname: string): void {
+  const screen = notificationRouteShape(pathname || '/');
+  if (process.env.NODE_ENV !== 'production') {
+    console.debug('[screen]', screen);
+    return;
+  }
+  sendFirebaseScreenView(screen);
 }

@@ -21,6 +21,18 @@
       "schedule": "*/1 * * * *"
     },
     {
+      "path": "/api/internal/process-push-receipts",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/internal/process-offer-alerts",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/internal/queue-voucher-expiry-reminders",
+      "schedule": "5 * * * *"
+    },
+    {
       "path": "/api/internal/process-referral-reward-jobs",
       "schedule": "*/5 * * * *"
     },

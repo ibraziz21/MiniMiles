@@ -17,7 +17,10 @@
  */
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getNextRewardSummary } from "@/lib/akiba/nextReward";
-import { isMilesEarnedNotificationEnabledFor } from "@/lib/akiba/milesEarnedNotificationsRollout";
+import {
+  isMilesEarnedNotificationEnabledFor,
+  milesEarnedAllowlistInUse,
+} from "@/lib/akiba/milesEarnedNotificationsRollout";
 
 // Authoritative event contract (§6.2). The discovery-* fields are optional
 // extensions for verified-discovery-acquisition-v1-spec.md §10.4/§11.1 —
@@ -50,10 +53,28 @@ export type ProduceMilesEarnedResult =
   | { ok: true }
   | { ok: false; skipped: "notifications_disabled" | "non_positive_amount" | "exceeds_cap" | "insert_failed" };
 
+/**
+ * The event carries only the user id. An allowlist written in emails would
+ * never match that, so the email is looked up — but only when the id alone
+ * says no and an allowlist is actually set, which keeps the common path
+ * (allowlist empty, rollout at a percentage) free of an auth lookup.
+ */
+async function milesEarnedEnabledForEvent(event: MilesCreditedEvent): Promise<boolean> {
+  if (isMilesEarnedNotificationEnabledFor({ hubUserId: event.hubUserId }, event.merchantId)) return true;
+  if (!milesEarnedAllowlistInUse()) return false;
+  try {
+    const { data } = await createAdminClient().auth.admin.getUserById(event.hubUserId);
+    const email = data?.user?.email ?? null;
+    return !!email && isMilesEarnedNotificationEnabledFor({ hubUserId: event.hubUserId, email }, event.merchantId);
+  } catch {
+    return false;
+  }
+}
+
 export async function produceMilesEarnedNotification(
   event: MilesCreditedEvent,
 ): Promise<ProduceMilesEarnedResult> {
-  if (!isMilesEarnedNotificationEnabledFor(event.hubUserId, event.merchantId)) {
+  if (!(await milesEarnedEnabledForEvent(event))) {
     return { ok: false, skipped: "notifications_disabled" };
   }
   if (!Number.isInteger(event.milesAwarded) || event.milesAwarded <= 0) {

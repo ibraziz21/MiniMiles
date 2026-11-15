@@ -11,3 +11,9 @@ export {
   type SessionNotice,
 } from './session-notice';
 export { AuthProvider, useAuth } from './AuthProvider';
+export {
+  changePassword,
+  passwordChangeErrorMessage,
+  passwordProblem,
+  requestPasswordChangeCode,
+} from './password-change';

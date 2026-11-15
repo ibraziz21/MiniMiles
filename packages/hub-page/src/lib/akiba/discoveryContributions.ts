@@ -7,6 +7,7 @@
  * home nudge IS prompting the member, whichever surface does it first.
  */
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolvePurchaseEarningChannel } from "./purchaseEarningChannel";
 
 export type NextDiscoveryContributionRequest = {
   id: string;
@@ -302,6 +303,12 @@ export async function resolveMerchantContributionFromMilesIssuance(input: {
         return { status: "lookup_failed", requestId: null, issuanceFound: true };
       }
       purchaseEvents = (data ?? []) as PurchaseEventEvidence[];
+      purchaseEvents = await Promise.all(purchaseEvents.map(async (purchase) => {
+        const channel = await resolvePurchaseEarningChannel(purchase, input.hubUserId);
+        const metadata = purchase.raw_metadata && typeof purchase.raw_metadata === "object" && !Array.isArray(purchase.raw_metadata)
+          ? purchase.raw_metadata as Record<string, unknown> : {};
+        return { ...purchase, raw_metadata: { ...metadata, channel } };
+      }));
     }
 
     const purchaseEventsById = new Map(purchaseEvents.map((event) => [String(event.id), event]));

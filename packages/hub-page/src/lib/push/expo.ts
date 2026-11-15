@@ -110,6 +110,67 @@ export class ExpoPushTransportError extends Error {
   }
 }
 
+const EXPO_RECEIPTS_URL = "https://exp.host/--/api/v2/push/getReceipts";
+// Expo accepts at most 1,000 receipt ids per request.
+export const EXPO_RECEIPT_CHUNK_SIZE = 1000;
+
+export type ExpoPushReceipt =
+  | { status: "ok" }
+  | { status: "error"; message: string; details?: { error?: string } };
+
+/**
+ * What a receipt says about the device and about us. `configError` is the
+ * one that matters most: InvalidCredentials means APNs/FCM credentials for
+ * the app are missing or wrong in EAS, which fails every device the same way
+ * and is invisible from tickets alone.
+ */
+export function classifyExpoReceipt(receipt: ExpoPushReceipt): {
+  ok: boolean;
+  retireDevice: boolean;
+  configError: boolean;
+  error: string | null;
+} {
+  if (receipt.status === "ok") return { ok: true, retireDevice: false, configError: false, error: null };
+  const code = receipt.details?.error ?? null;
+  const error = code ? `${code}: ${receipt.message}` : receipt.message;
+  return {
+    ok: false,
+    retireDevice: code === "DeviceNotRegistered",
+    configError: code === "InvalidCredentials" || code === "MismatchSenderId",
+    error,
+  };
+}
+
+/** Receipts keyed by ticket id. A ticket missing from the map isn't ready yet. */
+export async function fetchExpoPushReceipts(ticketIds: string[]): Promise<Record<string, ExpoPushReceipt>> {
+  const accessToken = process.env.EXPO_ACCESS_TOKEN?.trim();
+  const response = await fetch(EXPO_RECEIPTS_URL, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    body: JSON.stringify({ ids: ticketIds }),
+  });
+  if (!response.ok) {
+    throw new ExpoPushTransportError(
+      `expo receipts responded ${response.status}`,
+      response.status,
+      true,
+      response.status === 401 || response.status === 403,
+    );
+  }
+  const body = (await response.json().catch(() => null)) as
+    | { data?: Record<string, ExpoPushReceipt>; errors?: { message?: string }[] }
+    | null;
+  if (body?.errors?.length) {
+    const message = body.errors.map((entry) => entry.message ?? "unknown").join("; ");
+    throw new ExpoPushTransportError(`expo receipts rejected the request: ${message}`, response.status, true);
+  }
+  return body?.data ?? {};
+}
+
 /**
  * Sends one chunk and returns its tickets, positionally aligned with
  * `messages`. Throws ExpoPushTransportError when the whole request failed,

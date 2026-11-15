@@ -1,8 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockRpc = vi.fn();
+// What purchase_visit_evidence (Akiba-Platform 172) answers; null makes the
+// call fail like a dropped connection.
+const db = vi.hoisted(() => ({ evidence: null as unknown, evidenceError: false }));
+const evidenceCalls: unknown[] = [];
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({ rpc: mockRpc }),
+  createAdminClient: () => ({
+    rpc: (name: string, args: unknown) => {
+      if (name === "purchase_visit_evidence") {
+        evidenceCalls.push(args);
+        return Promise.resolve(db.evidenceError
+          ? { data: null, error: { message: "connection reset" } }
+          : { data: db.evidence, error: null });
+      }
+      return mockRpc(name, args);
+    },
+  }),
 }));
 
 const mockProduce = vi.fn();
@@ -124,19 +138,72 @@ describe("POST /api/internal/miles-credited", () => {
   });
 
   describe("discovery-event ingestion channel resolution", () => {
-    it("resolves merchant_scan to in_store regardless of any body-supplied channel", async () => {
-      await POST(request({ ...VALID_EVENT, channel: "online" }));
-      expect(mockRecordDiscovery).toHaveBeenCalledWith(expect.anything(), "in_store");
+    const PURCHASE_ID = "30000000-0000-4000-8000-000000000003";
+    const owned = (channel: string) => ({ found: true, owned: true, ownership: "owned_canonical", channel });
+    const withPurchase = { ...VALID_EVENT, source: "merchant_purchase", purchaseEventId: PURCHASE_ID };
+
+    beforeEach(() => {
+      db.evidence = owned("in_store");
+      db.evidenceError = false;
+      evidenceCalls.length = 0;
     });
 
-    it("resolves merchant_purchase to the producer-supplied channel", async () => {
-      await POST(request({ ...VALID_EVENT, source: "merchant_purchase", channel: "in_store" }));
-      expect(mockRecordDiscovery).toHaveBeenCalledWith(expect.anything(), "in_store");
+    it("notifies the owner and opens the visit with the shared evidence channel", async () => {
+      const res = await POST(request(withPurchase));
+      expect(res.status).toBe(200);
+      expect(evidenceCalls).toEqual([{ p_purchase_event_id: PURCHASE_ID, p_hub_user_id: VALID_EVENT.hubUserId, p_merchant_id: VALID_EVENT.merchantId }]);
+      expect(mockProduce).toHaveBeenCalledTimes(1);
+      expect(mockRecordDiscovery).toHaveBeenLastCalledWith(expect.anything(), "in_store");
     });
 
-    it("defaults merchant_purchase to unknown when no channel is supplied", async () => {
-      await POST(request({ ...VALID_EVENT, source: "merchant_purchase" }));
-      expect(mockRecordDiscovery).toHaveBeenCalledWith(expect.anything(), "unknown");
+    it("ignores the event's own source and channel — only the purchase decides", async () => {
+      db.evidence = owned("unknown");
+      await POST(request({ ...withPurchase, source: "merchant_scan", channel: "in_store" }));
+      expect(mockRecordDiscovery).toHaveBeenLastCalledWith(expect.anything(), "unknown");
+    });
+
+    it.each([
+      ["recipient_mismatch", "a different member"],
+      ["merchant_mismatch", "a different merchant"],
+      ["purchase_not_found", "a missing purchase row"],
+      ["member_identity_unavailable", "a member with no identity mapping"],
+    ])("sends nothing for %s (%s), and doesn't ask to be retried", async (ownership) => {
+      db.evidence = { found: ownership !== "purchase_not_found", owned: false, ownership, channel: "unknown" };
+      const res = await POST(request(withPurchase));
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ notified: false, skipped: ownership });
+      expect(mockProduce).not.toHaveBeenCalled();
+      expect(mockRecordDiscovery).not.toHaveBeenCalled();
+    });
+
+    it("answers a transient lookup failure with 500 and sends nothing, then succeeds on retry", async () => {
+      db.evidenceError = true;
+      const failed = await POST(request(withPurchase));
+      expect(failed.status).toBe(500);
+      expect(mockProduce).not.toHaveBeenCalled();
+      expect(mockRecordDiscovery).not.toHaveBeenCalled();
+
+      db.evidenceError = false;
+      const retried = await POST(request(withPurchase));
+      expect(retried.status).toBe(200);
+      expect(mockProduce).toHaveBeenCalledTimes(1);
+      expect(mockRecordDiscovery).toHaveBeenLastCalledWith(expect.anything(), "in_store");
+    });
+
+    it("rejects a malformed purchase id outright", async () => {
+      const res = await POST(request({ ...withPurchase, purchaseEventId: "not-a-uuid" }));
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: "invalid_purchase_event_id" });
+      expect(evidenceCalls).toEqual([]);
+      expect(mockProduce).not.toHaveBeenCalled();
+    });
+
+    it("still notifies a legacy event with no purchase id, but never opens a visit for it", async () => {
+      const res = await POST(request({ ...VALID_EVENT, channel: "in_store" }));
+      expect(res.status).toBe(200);
+      expect(evidenceCalls).toEqual([]);
+      expect(mockProduce).toHaveBeenCalledTimes(1);
+      expect(mockRecordDiscovery).not.toHaveBeenCalled();
     });
 
     it("rejects an unrecognized channel value", async () => {
@@ -147,7 +214,7 @@ describe("POST /api/internal/miles-credited", () => {
 
     it("never lets a discovery-ingestion failure affect the response", async () => {
       mockRecordDiscovery.mockRejectedValue(new Error("boom"));
-      const res = await POST(request(VALID_EVENT));
+      const res = await POST(request(withPurchase));
       expect(res.status).toBe(200);
     });
   });

@@ -8,6 +8,7 @@ import { useAuth } from '@/auth';
 import { useMember } from '@/member';
 
 import { notificationRouteShape, resolveNotificationRoute } from './deep-link';
+import { hasDeferredPushPrompt } from './deferral';
 import { registerForPushNotifications } from './register';
 
 /**
@@ -47,6 +48,7 @@ export function PushRegistrar() {
   const { accessToken } = useAuth();
   const { state } = useMember();
   const nativePush = state.status === 'ready' ? state.bootstrap.capabilities.nativePush : false;
+  const userId = state.status === 'ready' ? state.bootstrap.user.id : null;
   // Null until an attempt has been made for this token; then whether it
   // succeeded. A success is what stops further attempts — a failure is
   // deliberately left retryable, because the usual cause is being offline
@@ -58,12 +60,13 @@ export function PushRegistrar() {
     if (!nativePush || !accessToken) return;
     if (registered.current?.token === accessToken && registered.current.done) return;
 
-    const outcome = await registerForPushNotifications(accessToken);
+    const prompt = !userId || !hasDeferredPushPrompt(userId);
+    const outcome = await registerForPushNotifications(accessToken, { prompt });
     // 'denied' and 'unsupported' are settled answers, not transient ones:
     // retrying either would never prompt again and never mint a token.
     const settled = outcome.status === 'registered' || outcome.status === 'denied' || outcome.status === 'unsupported';
     registered.current = { token: accessToken, done: settled };
-  }, [accessToken, nativePush]);
+  }, [accessToken, nativePush, userId]);
 
   // ── Registration ──────────────────────────────────────────────────────
   useEffect(() => {

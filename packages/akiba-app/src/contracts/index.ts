@@ -26,7 +26,9 @@ export {
 export { mobileSettingsSchema, type MobileSettings, settingsUpdateSchema, type SettingsUpdate } from './settings';
 export {
   deviceRegistrationSchema,
+  testPushResultSchema,
   type DeviceRegistration,
+  type TestPushResult,
   notificationPreferencesSchema,
   type NotificationPreferences,
   type NotificationCategory,

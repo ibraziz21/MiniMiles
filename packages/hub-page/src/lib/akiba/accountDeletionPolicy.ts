@@ -256,10 +256,13 @@ export const DELETION_INVENTORY: InventoryRow[] = [
   {
     id: "active_vouchers",
     dataClass: "Active account-bound vouchers",
-    targets: ["issued_vouchers", "voucher_claim_intents"],
+    targets: ["issued_vouchers", "voucher_claim_intents", "welcome_offer_enrolments"],
     action: "revoke",
     retention: null,
-    notes: "TBD: period for the issuance/redemption audit that must survive voiding.",
+    notes:
+      "TBD: period for the issuance/redemption audit that must survive voiding. " +
+      "welcome_offer_enrolments (126) loses its hub_user_id with the account (ON DELETE SET NULL) " +
+      "but keeps canonical_id, which is what stops the same person earning the welcome offer twice.",
   },
   {
     id: "reward_ledger",
