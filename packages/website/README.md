@@ -59,3 +59,22 @@ Confirmed install conversion requires additional mobile instrumentation.
 The route currently sends visitors to stores even if Akiba is installed.
 The QR on the fallback page is the general download URL and starts a fresh
 untagged request when scanned from another device.
+
+## Merchant order research
+
+The shareable survey is at `/for-business/order-research`. Apply
+`sql/004_merchant_order_research.sql` to the Supabase project configured for
+the website before deploying the survey. Production submissions use the
+existing public and server Turnstile keys and the server-only Supabase service
+role. Review responses in `merchant_order_research_responses` in Supabase.
+
+Use separate share links with `?cohort=online-hybrid`, `?cohort=physical-only`,
+or `?cohort=external-seller`. For known Akiba merchants, append
+`&merchant_id=<merchant UUID>`. These parameters label the response and are
+provided by the invite link. They do not verify the respondent’s identity.
+
+Aim for 30–50 responses across the three cohorts. Count usable follow-up
+opt-ins as the primary signal, especially merchants who can be contacted to
+try a real order. Use stated intent as supporting evidence. Compare payment
+methods, order volume, delivery arrangements, and preference for requests
+without a catalogue across cohorts.
