@@ -3,7 +3,7 @@
     "name": "Akiba",
     "slug": "akiba",
     "owner": "akiba-holdings-llc",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "akiba",
@@ -26,11 +26,14 @@
     },
     "android": {
       "package": "com.akibamiles.akiba",
-      "versionCode": 1,
+      "versionCode": 8,
       "blockedPermissions": [
+        "android.permission.ACCESS_ADSERVICES_AD_ID",
+        "android.permission.ACCESS_ADSERVICES_ATTRIBUTION",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.SYSTEM_ALERT_WINDOW",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "com.google.android.gms.permission.AD_ID"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#238D9D",
