@@ -64,9 +64,8 @@ untagged request when scanned from another device.
 
 The shareable survey is at `/for-business/order-research`. Apply
 `sql/004_merchant_order_research.sql` to the Supabase project configured for
-the website before deploying the survey. Production submissions use the
-existing public and server Turnstile keys and the server-only Supabase service
-role. Review responses in `merchant_order_research_responses` in Supabase.
+the website before deploying the survey. Survey submissions use the server-only Supabase service role, a hidden
+spam field, and server-side answer validation. Review responses in `merchant_order_research_responses` in Supabase.
 
 Use separate share links with `?cohort=online-hybrid`, `?cohort=physical-only`,
 or `?cohort=external-seller`. For known Akiba merchants, append

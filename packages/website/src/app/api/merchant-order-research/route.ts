@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { merchantInviteId, questions, sections, surveyCohorts, validateStep, type Answers } from "@/lib/merchant-order-research";
-import { verifyTurnstile } from "@/lib/turnstile";
 
 export const runtime = "nodejs";
 
@@ -9,7 +8,7 @@ export async function POST(request: Request) {
   const raw = await request.text();
   if (Buffer.byteLength(raw) > 20_000) return NextResponse.json({ error: "Response is too long." }, { status: 413 });
 
-  let body: { answers?: Answers; website?: unknown; turnstileToken?: unknown; id?: unknown; merchantId?: unknown; cohort?: unknown; language?: unknown } | null;
+  let body: { answers?: Answers; website?: unknown; id?: unknown; merchantId?: unknown; cohort?: unknown; language?: unknown } | null;
   try {
     body = JSON.parse(raw);
   } catch {
@@ -48,10 +47,6 @@ export async function POST(request: Request) {
   if (!url || !key) return NextResponse.json({ error: "Response storage is temporarily unavailable." }, { status: 503 });
 
   try {
-    const token = typeof body?.turnstileToken === "string" ? body.turnstileToken.slice(0, 3000) : "";
-    const verification = await verifyTurnstile(token);
-    if (!verification.ok) return NextResponse.json({ error: verification.error }, { status: 400 });
-
     const supabase = createClient(url, key, { auth: { persistSession: false } });
     const { error } = await supabase.from("merchant_order_research_responses").upsert(
       { id, answers: cleanAnswers },

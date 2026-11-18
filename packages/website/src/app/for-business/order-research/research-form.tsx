@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import Script from "next/script";
 import { ArrowRight, Check, Clock3 } from "lucide-react";
 import { concept, createResearchSubmissionId, exclusiveChoices, questions, sections, validateStep, type Answers } from "@/lib/merchant-order-research";
 
@@ -83,7 +82,6 @@ function Survey({ invite, language, t, step, setStep }: {
   const submissionId = useRef<string>();
   const heading = useRef<HTMLHeadingElement>(null);
   const form = useRef<HTMLFormElement>(null);
-  const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   const pages = pagesFor(step, answers);
   const visible = pages[page].filter(({ key }) => !invite.merchantId || key !== "business");
 
@@ -142,14 +140,13 @@ function Survey({ invite, language, t, step, setStep }: {
       const response = await fetch("/api/merchant-order-research", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: submissionId.current, answers, language, merchantId: data.get("merchantId"), cohort: invite.cohort, website: data.get("website"), turnstileToken: data.get("cf-turnstile-response") }),
+        body: JSON.stringify({ id: submissionId.current, answers, language, merchantId: data.get("merchantId"), cohort: invite.cohort, website: data.get("website") }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
       setSent(true);
     } catch (failure) {
       setError(failure instanceof Error && failure.message ? failure.message : "We couldn’t send your responses. Please try again.");
-      (window as Window & { turnstile?: { reset: () => void } }).turnstile?.reset();
     } finally {
       setPending(false);
     }
@@ -166,7 +163,6 @@ function Survey({ invite, language, t, step, setStep }: {
 
   return (
     <form ref={form} onSubmit={submit} className={card}>
-      {siteKey && <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" strategy="afterInteractive" />}
       <p className="text-sm font-semibold text-[#176575]">{language === "sw" ? `Hatua ya ${step + 1} kati ya ${sections.length}` : `Step ${step + 1} of ${sections.length}`}</p>
       <div className="mt-3 flex gap-2" aria-hidden="true">
         {sections.map((section, index) => <span key={section} className={`h-1.5 flex-1 rounded-full ${index <= step ? "bg-[#176575]" : "bg-akiba-tint"}`} />)}
@@ -230,7 +226,6 @@ function Survey({ invite, language, t, step, setStep }: {
       </div>
       <input type="hidden" name="merchantId" value={invite.merchantId ?? ""} />
       <input name="website" className="hidden" tabIndex={-1} autoComplete="off" />
-      {siteKey && <div className={step === sections.length - 1 ? "my-4" : "hidden"}><div className="cf-turnstile" data-sitekey={siteKey} data-size="flexible" /></div>}
       {error && <p role="alert" className="mb-4 text-sm font-semibold text-red-800">{language === "sw" ? kiswahili[error] ?? t("We couldn’t send your responses. Please try again.") : error}</p>}
       <div className="sticky bottom-0 z-10 -mx-4 flex items-center justify-between gap-3 border-t border-akiba-line bg-white px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:static sm:mx-0 sm:px-0">
         {step > 0 || page > 0 ? <button type="button" disabled={pending} onClick={() => {
